@@ -28,6 +28,7 @@ import (
 	"github.com/google/trillian/merkle/hashers/registry"
 	"github.com/google/trillian/merkle/rfc6962"
 	"github.com/google/trillian/types"
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/argon2"
 	rstatus "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/genproto/protobuf/field_mask"
@@ -141,7 +142,7 @@ func (t *tclient) TreeNew() (*trillian.Tree, *trillian.SignedLogRoot, error) {
 		},
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.Errorf("CreateTree: %v", err)
 	}
 
 	// Init tree or signer goes bananas
@@ -149,20 +150,20 @@ func (t *tclient) TreeNew() (*trillian.Tree, *trillian.SignedLogRoot, error) {
 		LogId: tree.TreeId,
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.Errorf("InitLog: %v", err)
 	}
 
 	// Check trillian errors
 	switch code := status.Code(err); code {
 	case codes.Unavailable:
-		err = fmt.Errorf("log server unavailable: %v", err)
+		err = errors.Errorf("log server unavailable: %v", err)
 	case codes.AlreadyExists:
-		err = fmt.Errorf("just-created Log (%v) is already initialised: %v",
+		err = errors.Errorf("just-created Log (%v) is already initialised: %v",
 			tree.TreeId, err)
 	case codes.OK:
 		log.Debugf("Initialised Log: %v", tree.TreeId)
 	default:
-		err = fmt.Errorf("failed to InitLog (unknown error)")
+		err = errors.Errorf("failed to InitLog (unknown error)")
 	}
 	if err != nil {
 		return nil, nil, err
@@ -191,7 +192,7 @@ func (t *tclient) TreeFreeze(treeID int64) (*trillian.Tree, error) {
 	// Get the current tree
 	tree, err := t.Tree(treeID)
 	if err != nil {
-		return nil, fmt.Errorf("tree: %v", err)
+		return nil, err
 	}
 
 	// Update the tree state
@@ -205,7 +206,7 @@ func (t *tclient) TreeFreeze(treeID int64) (*trillian.Tree, error) {
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("UpdateTree: %v", err)
+		return nil, errors.Errorf("UpdateTree: %v", err)
 	}
 
 	return updated, nil
@@ -225,7 +226,7 @@ func (t *tclient) Tree(treeID int64) (*trillian.Tree, error) {
 	}
 	if tree.TreeId != treeID {
 		// Sanity check
-		return nil, fmt.Errorf("wrong tree returned; got %v, want %v",
+		return nil, errors.Errorf("wrong tree returned; got %v, want %v",
 			tree.TreeId, treeID)
 	}
 
@@ -260,10 +261,10 @@ func (t *tclient) InclusionProof(treeID int64, merkleLeafHash []byte, lrv1 *type
 			TreeSize: int64(lrv1.TreeSize),
 		})
 	if err != nil {
-		return nil, fmt.Errorf("GetInclusionProof: %v", err)
+		return nil, errors.Errorf("GetInclusionProofHash: %v", err)
 	}
 	if len(resp.Proof) != 1 {
-		return nil, fmt.Errorf("invalid number of proofs: got %v, want 1",
+		return nil, errors.Errorf("invalid number of proofs: got %v, want 1",
 			len(resp.Proof))
 	}
 	proof := resp.Proof[0]
@@ -276,7 +277,7 @@ func (t *tclient) InclusionProof(treeID int64, merkleLeafHash []byte, lrv1 *type
 	verifier := client.NewLogVerifier(lh, t.publicKey, crypto.SHA256)
 	err = verifier.VerifyInclusionByHash(lrv1, merkleLeafHash, proof)
 	if err != nil {
-		return nil, fmt.Errorf("VerifyInclusionByHash: %v", err)
+		return nil, err
 	}
 
 	return proof, nil
@@ -290,7 +291,7 @@ func (t *tclient) SignedLogRoot(tree *trillian.Tree) (*trillian.SignedLogRoot, *
 	resp, err := t.log.GetLatestSignedLogRoot(t.ctx,
 		&trillian.GetLatestSignedLogRootRequest{LogId: tree.TreeId})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.Errorf("GetLatestSignedLogRoot: %v", err)
 	}
 
 	// Verify the log root
@@ -332,10 +333,10 @@ func (t *tclient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 	}
 	slr, _, err := t.SignedLogRoot(tree)
 	if err != nil {
-		return nil, nil, fmt.Errorf("SignedLogRoot pre update: %v", err)
+		return nil, nil, err
 	}
 	if tree.TreeState == trillian.TreeState_FROZEN {
-		return nil, nil, fmt.Errorf("tree is frozen")
+		return nil, nil, errors.Errorf("tree is frozen")
 	}
 
 	// Append leaves
@@ -344,7 +345,7 @@ func (t *tclient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 		Leaves: leaves,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("QueuedLeaves: %v", err)
+		return nil, nil, errors.Errorf("QueueLeaves: %v", err)
 	}
 
 	// Wait for inclusion of all queued leaves in the root. We must
@@ -381,14 +382,14 @@ func (t *tclient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 		defer cancel()
 		err = c.WaitForInclusion(ctx, v.Leaf.LeafValue)
 		if err != nil {
-			return nil, nil, fmt.Errorf("WaitForInclusion: %v", err)
+			return nil, nil, errors.Errorf("WaitForInclusion: %v", err)
 		}
 	}
 
 	// Get the latest signed log root
 	_, lr, err := t.SignedLogRoot(tree)
 	if err != nil {
-		return nil, nil, fmt.Errorf("SignedLogRoot post update: %v", err)
+		return nil, nil, err
 	}
 
 	// Get inclusion proofs
@@ -419,7 +420,7 @@ func (t *tclient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 			// inclusion proof by MerkleLeafHash.
 			qlp.Proof, err = t.InclusionProof(treeID, v.Leaf.MerkleLeafHash, lr)
 			if err != nil {
-				return nil, nil, fmt.Errorf("InclusionProof %v %x: %v",
+				return nil, nil, errors.Errorf("InclusionProof %v %x: %v",
 					treeID, v.Leaf.MerkleLeafHash, err)
 			}
 		} else {
@@ -432,7 +433,7 @@ func (t *tclient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 
 	// Sanity check
 	if len(proofs) != len(leaves) {
-		return nil, nil, fmt.Errorf("got %v queued leaves, want %v",
+		return nil, nil, errors.Errorf("got %v queued leaves, want %v",
 			len(proofs), len(leaves))
 	}
 
@@ -456,7 +457,7 @@ func (t *tclient) leavesByRange(treeID int64, startIndex, count int64) ([]*trill
 			Count:      count,
 		})
 	if err != nil {
-		return nil, err
+		return nil, errors.Errorf("GetLeavesByRange: %v", err)
 	}
 
 	return glbrr.Leaves, nil
@@ -477,7 +478,7 @@ func (t *tclient) LeavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 	// Get signed log root
 	_, lr, err := t.SignedLogRoot(tree)
 	if err != nil {
-		return nil, fmt.Errorf("SignedLogRoot: %v", err)
+		return nil, err
 	}
 	if lr.TreeSize == 0 {
 		return []*trillian.LogLeaf{}, nil
@@ -486,7 +487,7 @@ func (t *tclient) LeavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 	// Get all leaves
 	leaves, err := t.leavesByRange(treeID, 0, int64(lr.TreeSize))
 	if err != nil {
-		return nil, fmt.Errorf("leavesByRange: %v", err)
+		return nil, err
 	}
 
 	return leaves, nil
@@ -548,7 +549,7 @@ func deriveTlogKey(kvstore store.BlobKV, passphrase string) (*keyspb.PrivateKey,
 	// for future use.
 	blobs, err := kvstore.Get([]string{tlogKeyParamsKey})
 	if err != nil {
-		return nil, fmt.Errorf("get: %v", err)
+		return nil, err
 	}
 	var (
 		save bool
@@ -595,7 +596,7 @@ func deriveTlogKey(kvstore store.BlobKV, passphrase string) (*keyspb.PrivateKey,
 		}
 		err = kvstore.Put(kv, false)
 		if err != nil {
-			return nil, fmt.Errorf("put: %v", err)
+			return nil, err
 		}
 
 		log.Infof("Tlog signing key params saved to kv store")
@@ -603,7 +604,8 @@ func deriveTlogKey(kvstore store.BlobKV, passphrase string) (*keyspb.PrivateKey,
 		// This was not the first time the key was derived. Verify that
 		// the key has not changed.
 		if !bytes.Equal(tkp.Digest, keyDigest) {
-			return nil, fmt.Errorf("attempting to use different tlog signing key")
+			return nil, errors.Errorf("attempting to use different tlog " +
+				"signing key")
 		}
 	}
 
@@ -622,7 +624,7 @@ func newTClient(host string, privateKey *keyspb.PrivateKey) (*tclient, error) {
 	// Setup trillian connection
 	g, err := grpc.Dial(host, grpc.WithInsecure(), maxMsgSize)
 	if err != nil {
-		return nil, fmt.Errorf("grpc dial: %v", err)
+		return nil, errors.Errorf("grpc dial: %v", err)
 	}
 
 	// Setup signing key
@@ -700,7 +702,7 @@ func (t *testTClient) TreeFreeze(treeID int64) (*trillian.Tree, error) {
 
 	tree, ok := t.trees[treeID]
 	if !ok {
-		return nil, fmt.Errorf("tree not found")
+		return nil, errors.Errorf("tree not found")
 	}
 	tree.TreeState = trillian.TreeState_FROZEN
 	t.trees[treeID] = tree
@@ -717,7 +719,7 @@ func (t *testTClient) Tree(treeID int64) (*trillian.Tree, error) {
 
 	tree, ok := t.trees[treeID]
 	if !ok {
-		return nil, fmt.Errorf("tree not found")
+		return nil, errors.Errorf("tree not found")
 	}
 
 	return tree, nil
@@ -801,7 +803,7 @@ func (t *testTClient) LeavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 	// Verify tree exists
 	_, ok := t.trees[treeID]
 	if !ok {
-		return nil, fmt.Errorf("tree not found")
+		return nil, errors.Errorf("tree not found")
 	}
 
 	// Get leaves
@@ -834,14 +836,14 @@ func (t *testTClient) LeavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 //
 // This function satisfies the tlogClient interface.
 func (t *testTClient) SignedLogRoot(tree *trillian.Tree) (*trillian.SignedLogRoot, *types.LogRootV1, error) {
-	return nil, nil, fmt.Errorf("not implemented")
+	return nil, nil, errors.Errorf("not implemented")
 }
 
 // InclusionProof has not been implement yet.
 //
 // This function satisfies the tlogClient interface.
 func (t *testTClient) InclusionProof(treeID int64, merkleLeafHash []byte, lr *types.LogRootV1) (*trillian.Proof, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.Errorf("not implemented")
 }
 
 // Close closes the client connection. There is nothing to do for the test tlog

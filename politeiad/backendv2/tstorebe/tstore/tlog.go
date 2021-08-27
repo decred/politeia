@@ -5,8 +5,6 @@
 package tstore
 
 import (
-	"fmt"
-
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/google/trillian"
 	"google.golang.org/grpc/codes"
@@ -14,15 +12,15 @@ import (
 )
 
 // leavesAll provides a wrapper around the tlog LeavesAll method that unpacks
-// any tree not found errors and instead returns a backend ErrRecordNotFound
-// error.
+// any tree not found errors and returns a backend ErrRecordNotFound error
+// instead.
 func (t *Tstore) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 	leaves, err := t.tlog.LeavesAll(treeID)
 	if err != nil {
 		if c := status.Code(err); c == codes.NotFound {
 			return nil, backend.ErrRecordNotFound
 		}
-		return nil, fmt.Errorf("LeavesAll: %v", err)
+		return nil, err
 	}
 	return leaves, nil
 }
