@@ -141,7 +141,7 @@ func (t *Tstore) RecordNew(tx store.Tx) ([]byte, error) {
 // key-value store encrypted.
 //
 // If the record is being made public, any encrypted content that is part of
-// the public record is re-saved to the key-value store as clear text.
+// the public record is re-saved to the key-value store as cleartext.
 func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (*recordIndex, error) {
 	// Get tree leaves
 	leavesAll, err := t.leavesAll(treeID)
@@ -481,7 +481,7 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 			continue
 		}
 
-		// Prepare plain text blob
+		// Prepare cleartext blob
 		be, ok := dupBlobs[d]
 		if !ok {
 			// Should not happen
@@ -491,7 +491,7 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 		if err != nil {
 			return nil, err
 		}
-		blobs[ed.keyNoPrefix()] = b
+		blobs[ed.keyCleartext()] = b
 	}
 	if len(blobs) == 0 {
 		// This should not happen
@@ -623,13 +623,13 @@ func (t *Tstore) RecordDel(tx store.Tx, token []byte) error {
 			keys = append(keys, ed.key())
 
 			// When a record is made public the encrypted blobs in the kv
-			// store are re-saved as clear text, but the tlog leaf remains
+			// store are re-saved as cleartext, but the tlog leaf remains
 			// the same since the record content did not actually change.
 			// Both of these blobs need to be deleted.
-			if ed.key() != ed.keyNoPrefix() {
-				// This blob might have a clear text entry and an encrypted
+			if ed.key() != ed.keyCleartext() {
+				// This blob might have a cleartext entry and an encrypted
 				// entry. Add both keys to be sure all content is deleted.
-				keys = append(keys, ed.keyNoPrefix())
+				keys = append(keys, ed.keyCleartext())
 			}
 		}
 	}
@@ -790,9 +790,9 @@ func (t *Tstore) record(g store.Getter, treeID int64, version uint32, filenames 
 		switch idx.State {
 		case backend.StateVetted:
 			// If the record is vetted the content may exist in
-			// the store as both an encrypted blob and a plain
-			// text blob. Always pull the plaintext blob.
-			key = ed.keyNoPrefix()
+			// the store as both an encrypted blob and a cleartext
+			// blob. Always pull the cleartext blob.
+			key = ed.keyCleartext()
 		default:
 			// Pull the encrypted blob
 			key = ed.key()

@@ -9,6 +9,7 @@ import (
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -29,10 +30,10 @@ const (
 // of data that we store in each tlog leaf.
 type extraData struct {
 	// Key contains the key-value store key for the corresponding blob.
-	// If the blob is part of an unvetted record, the key will need to
-	// be prefixed with the encryptionKeyPrefix in order to retrieve the
-	// blob from the kv store. This is handled by the extraData key()
-	// method. Do NOT reference the key field directly.
+	// Unvetted blobs are saved as encrypted blobs and their keys will
+	// be prefixed with the encryption key prefix. Use the key() method
+	// when retrieving the kv store key from the extra data so that
+	// this prefix is attached.
 	Key string `json:"k"`
 
 	// Desc contains the blob entry data descriptor.
@@ -43,15 +44,29 @@ type extraData struct {
 	// saved to the kv store.
 	//
 	// State will only be populated for blobs that contain record
-	// data. Example: the extra data for an anchor leaf will not
-	// contain a state.
+	// data. For example, the extra data for an anchor leaf will
+	// not contain a state since an anchor leaf is not record
+	// content.
 	State backend.StateT `json:"s,omitempty"`
 }
 
 // newExtraData returns a new extraData.
+//
+// The encryption key prefix, if one exists, is stripped from the key before
+// creating the extra data. This is done because the same blob can exist in the
+// kv store as both an encrypted blob and a cleartext blob since unvetted blobs
+// are originally saved as encrypted, then are re-saved as cleartext once a
+// record is made public. Even though there are two different blobs in the kv
+// store, there is only one tlog leaf for both blobs. Adding a prefix for
+// encrypted blobs allows the single tlog leaf to point to both blobs. The
+// encryption key prefix is added at runtime by the key() method based on the
+// extra data State field.
 func newExtraData(key, desc string, state backend.StateT) *extraData {
+	// A UUID string is 36 bytes. Only use the last
+	// 36 bytes of the key so that all prefixes are
+	// stripped.
 	return &extraData{
-		Key:   key,
+		Key:   key[len(key)-36:],
 		Desc:  desc,
 		State: state,
 	}
@@ -59,9 +74,8 @@ func newExtraData(key, desc string, state backend.StateT) *extraData {
 
 // key returns the kv store key for the blob.
 //
-// Unvetted blobs are encrypted prior to being saved to the kv store and the
-// key is prefixed with the encryption key prefix. See the extra data struct
-// documentation for an explination of why this is done.
+// Unvetted blobs are saved as encrypted blobs and require the encryption key
+// prefix to be attached.
 func (e *extraData) key() string {
 	if e.State == backend.StateUnvetted {
 		return encryptionKeyPrefix + e.Key
@@ -69,33 +83,19 @@ func (e *extraData) key() string {
 	return e.Key
 }
 
-// keyNoPrefix returns the kv store key without any encryption prefix,
-// regardless of whether the leaf corresponds to a unvetted blob.
-func (e *extraData) keyNoPrefix() string {
+// keyCleartext returns the kv store key for the cleartext version of the blob.
+func (e *extraData) keyCleartext() string {
 	return e.Key
 }
 
 // encode returns the JSON encoded extra data.
-//
-// The encryption key prefix, if one exists, is stripped from the key before
-// encoding the extra data. This is done because the same blob can exist in the
-// kv store as both an encrypted blob and a cleartext blob since unvetted blobs
-// are originally saved as encrypted, then are re-saved as cleartext once a
-// record is made public. Even though there are two different blobs in the kv
-// store, there is only one tlog leaf for both blobs. Adding a prefix for
-// encrypted blobs allows the single tlog leaf to point to both blobs. The
-// encryption key prefix is added at runtime based on the extra data State
-// field.
 func (e *extraData) encode() ([]byte, error) {
-	// A UUID string is 36 bytes. Only use the last
-	// 36 bytes of the key so that all prefixes are
-	// stripped.
-	ed := extraData{
-		Key:   e.Key[len(e.Key)-36:],
-		Desc:  e.Desc,
-		State: e.State,
+	// Sanity check. The key should only ever be a
+	// 36 byte UUID string.
+	if len(e.Key) != 36 {
+		return nil, errors.Errorf("invalid key %v", e.Key)
 	}
-	b, err := json.Marshal(ed)
+	b, err := json.Marshal(e)
 	if err != nil {
 		return nil, err
 	}
