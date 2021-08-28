@@ -164,17 +164,17 @@ func (c *Client) BlobsDel(token []byte, digests [][]byte) error {
 		return err
 	}
 
-	// Put merkle leaf hashes into a map so that we can tell if a leaf
-	// corresponds to one of the target merkle leaf hashes in O(n)
-	// time.
+	// Put merkle leaf hashes into a map so that we can tell if a
+	// leaf corresponds to one of the target merkle leaf hashes in
+	// O(n) time.
 	merkleHashes := make(map[string]struct{}, len(digests))
 	for _, v := range digests {
 		m := hex.EncodeToString(merkleLeafHash(v))
 		merkleHashes[m] = struct{}{}
 	}
 
-	// Aggregate the key-value store keys for the provided merkle leaf
-	// hashes.
+	// Aggregate the key-value store keys for the provided merkle
+	// leaf hashes.
 	keys := make([]string, 0, len(digests))
 	for _, v := range leaves {
 		_, ok := merkleHashes[hex.EncodeToString(v.MerkleLeafHash)]
