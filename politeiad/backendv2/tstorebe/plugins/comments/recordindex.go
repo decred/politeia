@@ -13,11 +13,11 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/util"
-	pkgerrors "github.com/pkg/errors"
+	errors "github.com/pkg/errors"
 )
 
-// recordIndex contains a commentIndex for all comments made on a record. The
-// record index is saved to the tstore cache.
+// recordIndex indexes the comments that have been made on the record. This
+// structure is saved to the tstore cache.
 type recordIndex struct {
 	Token    []byte                  `json:"token"`
 	Comments map[uint32]commentIndex `json:"comments"` // [commentID]comment
@@ -29,6 +29,19 @@ func newRecordIndex(token []byte) recordIndex {
 		Token:    token,
 		Comments: make(map[uint32]commentIndex, 256),
 	}
+}
+
+// save saves the recordIndex to the tstore cache.
+func (r *recordIndex) save(tstore plugins.TstoreClient, s backend.StateT) error {
+	b, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+	key, err := recordIndexKey(r.Token, s)
+	if err != nil {
+		return err
+	}
+	return tstore.CacheSave(map[string][]byte{key: b})
 }
 
 // commentIDLatest returns the latest comment ID.
@@ -56,7 +69,7 @@ func (r *recordIndex) comment(tstore plugins.TstoreClient, commentID uint32) (*c
 	}
 	c, ok := cs[commentID]
 	if !ok {
-		return nil, pkgerrors.Errorf("comment not found %v %v",
+		return nil, errors.Errorf("comment not found %v %v",
 			r.Token, commentID)
 	}
 	return &c, nil
@@ -97,7 +110,7 @@ func (r *recordIndex) comments(tstore plugins.TstoreClient, commentIDs []uint32)
 		case add != nil:
 			addDigests = append(addDigests, add)
 		default:
-			return nil, pkgerrors.Errorf("incoherent comment index %v", cid)
+			return nil, errors.Errorf("incoherent comment index %v", cid)
 		}
 	}
 
@@ -122,7 +135,7 @@ func (r *recordIndex) comments(tstore plugins.TstoreClient, commentIDs []uint32)
 		// Populate the vote score
 		cidx, ok := r.Comments[c.CommentID]
 		if !ok {
-			return nil, pkgerrors.Errorf("comment index not found %v",
+			return nil, errors.Errorf("comment index not found %v",
 				c.CommentID)
 		}
 		c.Downvotes, c.Upvotes = cidx.voteScore()
@@ -137,10 +150,41 @@ func (r *recordIndex) comments(tstore plugins.TstoreClient, commentIDs []uint32)
 	return cs, nil
 }
 
+// getRecordIndex returns the cached recordIndex for the provided token. If a
+// cached recordIndex does not exist, a new one will be returned.
+func getRecordIndex(tstore plugins.TstoreClient, token []byte, s backend.StateT) (*recordIndex, error) {
+	key, err := recordIndexKey(token, s)
+	if err != nil {
+		return nil, err
+	}
+
+	blobs, err := tstore.CacheGet([]string{key})
+	if err != nil {
+		return nil, err
+	}
+	b, ok := blobs[key]
+	if !ok {
+		// Cached recordIndex does't exist. Return a new one.
+		r := newRecordIndex(token)
+		return &r, nil
+	}
+
+	var ridx recordIndex
+	err = json.Unmarshal(b, &ridx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ridx, nil
+}
+
 // commentIndex contains the digests of all CommentAdd, CommentDel, and
-// CommentVote records for a comment. A del digest will only exist if the
-// comment has been deleted. If a del digest exists it means that all of the
-// CommentAdd records have been deleted from tstore.
+// CommentVote records for a comment. The digest is used to pull the records
+// from tstore.
+//
+// A del digest will only exist if the comment has been deleted. If a del
+// digest exists it means that all of the CommentAdd records have been deleted
+// from tstore.
 type commentIndex struct {
 	Adds map[uint32][]byte `json:"adds"` // [version]digest
 	Del  []byte            `json:"del,omitempty"`
@@ -232,17 +276,8 @@ func (c *commentIndex) voteScore() (uint64, uint64) {
 	return downvotes, upvotes
 }
 
-// voteIndex contains the comment vote and the digest of the vote record.
-// Caching the vote allows us to tally the votes for a comment without needing
-// to pull the vote blobs from tstore. The digest allows us to retrieve the
-// vote blob if we need to.
-type voteIndex struct {
-	Vote   comments.VoteT `json:"vote"`
-	Digest []byte         `json:"digest"`
-}
-
 const (
-	// Keys for the record indexes that are saved to the tstore cache.
+	// Key-value store keys for the cached record indexes.
 	keyRecordIndexUnvetted = "{shorttoken}-index-unvetted.json"
 	keyRecordIndexVetted   = "{shorttoken}-index-vetted.json"
 )
@@ -257,7 +292,7 @@ func recordIndexKey(token []byte, s backend.StateT) (string, error) {
 	case backend.StateVetted:
 		key = keyRecordIndexVetted
 	default:
-		return "", pkgerrors.Errorf("invalid state %v", s)
+		return "", errors.Errorf("invalid state %v", s)
 	}
 
 	t, err := util.ShortTokenEncode(token)
@@ -268,43 +303,11 @@ func recordIndexKey(token []byte, s backend.StateT) (string, error) {
 	return strings.Replace(key, "{shorttoken}", t, 1), nil
 }
 
-// recordIndexSave saves the provided recordIndex to the tstore cache.
-func recordIndexSave(tstore plugins.TstoreClient, s backend.StateT, ridx recordIndex) error {
-	b, err := json.Marshal(ridx)
-	if err != nil {
-		return err
-	}
-	key, err := recordIndexKey(ridx.Token, s)
-	if err != nil {
-		return err
-	}
-	return tstore.CacheSave(map[string][]byte{key: b})
-}
-
-// recordIndexGet returns the cached recordIndex for the provided record. If a
-// cached recordIndex does not exist, a new one will be returned.
-func recordIndexGet(tstore plugins.TstoreClient, token []byte, s backend.StateT) (*recordIndex, error) {
-	key, err := recordIndexKey(token, s)
-	if err != nil {
-		return nil, err
-	}
-
-	blobs, err := tstore.CacheGet([]string{key})
-	if err != nil {
-		return nil, err
-	}
-	b, ok := blobs[key]
-	if !ok {
-		// Cached recordIndex does't exist. Return a new one.
-		r := newRecordIndex(token)
-		return &r, nil
-	}
-
-	var ridx recordIndex
-	err = json.Unmarshal(b, &ridx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ridx, nil
+// voteIndex contains the comment vote and the digest of the vote record.
+// Caching the vote allows us to tally the votes for a comment without needing
+// to pull the vote blobs from tstore. The digest allows us to retrieve the
+// vote blob if we need to.
+type voteIndex struct {
+	Vote   comments.VoteT `json:"vote"`
+	Digest []byte         `json:"digest"`
 }

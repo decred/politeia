@@ -48,9 +48,9 @@ func (p *commentsPlugin) cmdNew(tstore plugins.TstoreClient, token []byte, paylo
 	// Verify signature
 	msg := strconv.FormatUint(uint64(n.State), 10) + n.Token +
 		strconv.FormatUint(uint64(n.ParentID), 10) + n.Comment
-	err = util.VerifySignature(n.Signature, n.PublicKey, msg)
+	err = verifySignature(n.Signature, n.PublicKey, msg)
 	if err != nil {
-		return "", convertSignatureError(err)
+		return "", err
 	}
 
 	// Verify comment length
@@ -76,14 +76,15 @@ func (p *commentsPlugin) cmdNew(tstore plugins.TstoreClient, token []byte, paylo
 		}
 	}
 
-	// Get record index
-	ridx, err := recordIndexGet(tstore, token, state)
+	// Get the cached record index
+	ridx, err := getRecordIndex(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
 
-	// Verify parent comment exists if set. A parent ID of 0 means that
-	// this is a base level comment, not a reply to another comment.
+	// Verify that the parent comment exists. A parent ID of 0
+	// means that this is a base level comment, not a reply to
+	// another comment.
 	if n.ParentID > 0 && !ridx.commentExists(n.ParentID) {
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
@@ -116,11 +117,11 @@ func (p *commentsPlugin) cmdNew(tstore plugins.TstoreClient, token []byte, paylo
 		return "", err
 	}
 
-	// Update the index
+	// Update index
 	ridx.Comments[ca.CommentID] = newCommentIndex(digest)
 
-	// Save the updated index
-	err = recordIndexSave(tstore, state, *ridx)
+	// Save updated index
+	err = ridx.save(tstore, state)
 	if err != nil {
 		return "", err
 	}
@@ -128,7 +129,7 @@ func (p *commentsPlugin) cmdNew(tstore plugins.TstoreClient, token []byte, paylo
 	log.Debugf("Comment saved to record %v comment ID %v",
 		ca.Token, ca.CommentID)
 
-	// Return new comment
+	// Get the newly created comment so that it can be returned.
 	c, err := ridx.comment(tstore, ca.CommentID)
 	if err != nil {
 		return "", err
@@ -165,9 +166,9 @@ func (p *commentsPlugin) cmdEdit(tstore plugins.TstoreClient, token []byte, payl
 	// Verify signature
 	msg := strconv.FormatUint(uint64(e.State), 10) + e.Token +
 		strconv.FormatUint(uint64(e.ParentID), 10) + e.Comment
-	err = util.VerifySignature(e.Signature, e.PublicKey, msg)
+	err = verifySignature(e.Signature, e.PublicKey, msg)
 	if err != nil {
-		return "", convertSignatureError(err)
+		return "", err
 	}
 
 	// Verify comment
@@ -193,8 +194,8 @@ func (p *commentsPlugin) cmdEdit(tstore plugins.TstoreClient, token []byte, payl
 		}
 	}
 
-	// Get record index
-	ridx, err := recordIndexGet(tstore, token, state)
+	// Get the cached record index
+	ridx, err := getRecordIndex(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
@@ -266,7 +267,7 @@ func (p *commentsPlugin) cmdEdit(tstore plugins.TstoreClient, token []byte, payl
 	ridx.Comments[ca.CommentID].Adds[ca.Version] = digest
 
 	// Save the updated index
-	err = recordIndexSave(tstore, state, *ridx)
+	err = ridx.save(tstore, state)
 	if err != nil {
 		return "", err
 	}
@@ -311,9 +312,9 @@ func (p *commentsPlugin) cmdDel(tstore plugins.TstoreClient, token []byte, paylo
 	// Verify signature
 	msg := strconv.FormatUint(uint64(d.State), 10) + d.Token +
 		strconv.FormatUint(uint64(d.CommentID), 10) + d.Reason
-	err = util.VerifySignature(d.Signature, d.PublicKey, msg)
+	err = verifySignature(d.Signature, d.PublicKey, msg)
 	if err != nil {
-		return "", convertSignatureError(err)
+		return "", err
 	}
 
 	// Verify record state
@@ -329,8 +330,8 @@ func (p *commentsPlugin) cmdDel(tstore plugins.TstoreClient, token []byte, paylo
 		}
 	}
 
-	// Get record index
-	ridx, err := recordIndexGet(tstore, token, state)
+	// Get the cached record index
+	ridx, err := getRecordIndex(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
@@ -379,7 +380,7 @@ func (p *commentsPlugin) cmdDel(tstore plugins.TstoreClient, token []byte, paylo
 	ridx.Comments[d.CommentID] = cidx
 
 	// Svae the updated index
-	err = recordIndexSave(tstore, state, *ridx)
+	err = ridx.save(tstore, state)
 	if err != nil {
 		return "", err
 	}
@@ -447,9 +448,9 @@ func (p *commentsPlugin) cmdVote(tstore plugins.TstoreClient, token []byte, payl
 	msg := strconv.FormatUint(uint64(v.State), 10) + v.Token +
 		strconv.FormatUint(uint64(v.CommentID), 10) +
 		strconv.FormatInt(int64(v.Vote), 10)
-	err = util.VerifySignature(v.Signature, v.PublicKey, msg)
+	err = verifySignature(v.Signature, v.PublicKey, msg)
 	if err != nil {
-		return "", convertSignatureError(err)
+		return "", err
 	}
 
 	// Verify record state
@@ -465,8 +466,8 @@ func (p *commentsPlugin) cmdVote(tstore plugins.TstoreClient, token []byte, payl
 		}
 	}
 
-	// Get record index
-	ridx, err := recordIndexGet(tstore, token, state)
+	// Get the cached record index
+	ridx, err := getRecordIndex(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
@@ -538,7 +539,7 @@ func (p *commentsPlugin) cmdVote(tstore plugins.TstoreClient, token []byte, payl
 	ridx.Comments[cv.CommentID] = cidx
 
 	// Save the updated index
-	err = recordIndexSave(tstore, state, *ridx)
+	err = ridx.save(tstore, state)
 	if err != nil {
 		return "", err
 	}
@@ -571,19 +572,17 @@ func (p *commentsPlugin) cmdGet(tstore plugins.TstoreClient, token []byte, paylo
 		return "", err
 	}
 
-	// Get record state
+	// Get the cached record index
 	state, err := tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
-
-	// Get record index
-	ridx, err := recordIndexGet(tstore, token, state)
+	ridx, err := getRecordIndex(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
 
-	// Get comments
+	// Get the comments
 	cs, err := ridx.comments(tstore, g.CommentIDs)
 	if err != nil {
 		return "", err
@@ -604,35 +603,34 @@ func (p *commentsPlugin) cmdGet(tstore plugins.TstoreClient, token []byte, paylo
 // cmdGetAll retrieves all comments for a record. The latest version of each
 // comment is returned.
 func (p *commentsPlugin) cmdGetAll(tstore plugins.TstoreClient, token []byte) (string, error) {
-	// Get record state
+	// Get the cached record index
 	state, err := tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
-
-	// Compile comment IDs
-	ridx, err := recordIndexGet(tstore, token, state)
+	ridx, err := getRecordIndex(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
+
+	// Compile the comment IDs to be retrieved
 	commentIDs := make([]uint32, 0, len(ridx.Comments))
 	for k := range ridx.Comments {
 		commentIDs = append(commentIDs, k)
 	}
 
-	// Get comments
+	// Get the comments
 	c, err := ridx.comments(tstore, commentIDs)
 	if err != nil {
 		return "", err
 	}
 
-	// Convert comments from a map to a slice
+	// Convert the comments from a map to a slice
+	// that is ordered by comment ID.
 	cs := make([]comments.Comment, 0, len(c))
 	for _, v := range c {
 		cs = append(cs, v)
 	}
-
-	// Order comments by comment ID
 	sort.SliceStable(cs, func(i, j int) bool {
 		return cs[i].CommentID < cs[j].CommentID
 	})
@@ -658,19 +656,17 @@ func (p *commentsPlugin) cmdGetVersion(tstore plugins.TstoreClient, token []byte
 		return "", err
 	}
 
-	// Get record state
+	// Get the cached record index
 	state, err := tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
-
-	// Get record index
-	ridx, err := recordIndexGet(tstore, token, state)
+	ridx, err := getRecordIndex(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
 
-	// Verify comment exists
+	// Verify that the comment exists
 	cidx, ok := ridx.Comments[gv.CommentID]
 	if !ok {
 		return "", backend.PluginError{
@@ -695,17 +691,17 @@ func (p *commentsPlugin) cmdGetVersion(tstore plugins.TstoreClient, token []byte
 		}
 	}
 
-	// Get comment add record
+	// Get the comment add record
 	adds, err := commentAdds(tstore, token, [][]byte{digest})
 	if err != nil {
 		return "", err
 	}
 
-	// Convert to a comment
+	// Convert the comment add record to a comment
 	c := commentAddConvert(adds[0])
 	c.Downvotes, c.Upvotes = cidx.voteScore()
 
-	// Prepare reply
+	// Prepare the reply
 	gvr := comments.GetVersionReply{
 		Comment: c,
 	}
@@ -720,14 +716,12 @@ func (p *commentsPlugin) cmdGetVersion(tstore plugins.TstoreClient, token []byte
 // cmdCount retrieves the comments count for a record. The comments count is
 // the number of comments that have been made on a record.
 func (p *commentsPlugin) cmdCount(tstore plugins.TstoreClient, token []byte) (string, error) {
-	// Get record state
+	// Get the cached record index
 	state, err := tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
-
-	// Get record index
-	ridx, err := recordIndexGet(tstore, token, state)
+	ridx, err := getRecordIndex(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
@@ -754,20 +748,18 @@ func (p *commentsPlugin) cmdVotes(tstore plugins.TstoreClient, token []byte, pay
 		return "", err
 	}
 
-	// Get record state
+	// Get the cached record index
 	state, err := tstore.RecordState(token)
 	if err != nil {
 		return "", err
 	}
-
-	// Get record index
-	ridx, err := recordIndexGet(tstore, token, state)
+	ridx, err := getRecordIndex(tstore, token, state)
 	if err != nil {
 		return "", err
 	}
 
-	// Compile the comment vote digests for all votes that were cast
-	// by the specified user.
+	// Compile the comment vote digests for all votes that
+	// were cast by the specified user.
 	digests := make([][]byte, 0, 256)
 	for _, cidx := range ridx.Comments {
 		voteIdxs, ok := cidx.Votes[v.UserID]
@@ -782,7 +774,7 @@ func (p *commentsPlugin) cmdVotes(tstore plugins.TstoreClient, token []byte, pay
 		}
 	}
 
-	// Lookup votes
+	// Get the votes
 	votes, err := commentVotes(tstore, token, digests)
 	if err != nil {
 		return "", err
@@ -1154,19 +1146,17 @@ func commentTimestamps(tstore plugins.TstoreClient, token []byte, commentIDs []u
 		}, nil
 	}
 
-	// Get record state
+	// Get the cached record index
 	state, err := tstore.RecordState(token)
 	if err != nil {
 		return nil, err
 	}
-
-	// Get record index
-	ridx, err := recordIndexGet(tstore, token, state)
+	ridx, err := getRecordIndex(tstore, token, state)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get timestamps for each comment ID
+	// Get the timestamps for each comment ID
 	cts := make(map[uint32]comments.CommentTimestamp, len(commentIDs))
 	for _, cid := range commentIDs {
 		cidx, ok := ridx.Comments[cid]
@@ -1175,7 +1165,7 @@ func commentTimestamps(tstore plugins.TstoreClient, token []byte, commentIDs []u
 			continue
 		}
 
-		// Get comment add timestamps
+		// Get the timestamp for the comment add records
 		adds := make([]comments.Timestamp, 0, len(cidx.Adds))
 		for _, v := range cidx.Adds {
 			ts, err := timestamp(tstore, token, v)
@@ -1185,8 +1175,8 @@ func commentTimestamps(tstore plugins.TstoreClient, token []byte, commentIDs []u
 			adds = append(adds, *ts)
 		}
 
-		// Get comment del timestamps. This will only exist if the
-		// comment has been deleted.
+		// Get the timestamp for the comment del record. This
+		// will only exist if the comment has been deleted.
 		var del *comments.Timestamp
 		if cidx.Del != nil {
 			ts, err := timestamp(tstore, token, cidx.Del)
@@ -1196,7 +1186,7 @@ func commentTimestamps(tstore plugins.TstoreClient, token []byte, commentIDs []u
 			del = ts
 		}
 
-		// Get comment vote timestamps
+		// Get the timestamp for the comment vote records
 		var votes []comments.Timestamp
 		if includeVotes {
 			votes = make([]comments.Timestamp, 0, len(cidx.Votes))
@@ -1211,7 +1201,7 @@ func commentTimestamps(tstore plugins.TstoreClient, token []byte, commentIDs []u
 			}
 		}
 
-		// Save timestamp
+		// Save the timestamp
 		cts[cid] = comments.CommentTimestamp{
 			Adds:  adds,
 			Del:   del,
@@ -1252,8 +1242,18 @@ func timestamp(tstore plugins.TstoreClient, token []byte, digest []byte) (*comme
 	}, nil
 }
 
+// verifySignature provides a wrapper around the util VerifySignature method
+// that converts any returned errors into comment plugin errors.
+func verifySignature(signature, pubkey, msg string) error {
+	err := util.VerifySignature(signature, pubkey, msg)
+	if err != nil {
+		return convertSignatureError(err)
+	}
+	return nil
+}
+
 // convertSignatureError converts a util SignatureError into a backend
-// PluginError.
+// PluginError for the comments plugin.
 func convertSignatureError(err error) backend.PluginError {
 	var e util.SignatureError
 	var s comments.ErrorCodeT
