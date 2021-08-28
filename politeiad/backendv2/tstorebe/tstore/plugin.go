@@ -123,7 +123,7 @@ func (t *Tstore) PluginHook(tx store.Tx, h plugins.HookT, payload string) error 
 	for _, pid := range t.pluginIDs() {
 		// Setup the tstore client
 		clientID := fmt.Sprintf("%v hook: %v:", pid, plugins.Hooks[h])
-		c := newClient(clientID, t, tx, nil)
+		c := newClient(clientID, t, tx, tx)
 
 		// Get the plugin
 		p, _ := t.plugin(pid)

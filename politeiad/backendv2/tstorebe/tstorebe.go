@@ -47,268 +47,48 @@ type tstoreBackend struct {
 	inv *recordInv
 }
 
-// metadataStreamsVerify verifies that all provided metadata streams are sane.
-func metadataStreamsVerify(metadata []backend.MetadataStream) error {
-	// Verify metadata
-	md := make(map[string]map[uint32]struct{}, len(metadata))
-	for i, v := range metadata {
-		// Verify all fields are provided
-		switch {
-		case v.PluginID == "":
-			e := fmt.Sprintf("plugin id missing at index %v", i)
-			return backend.ContentError{
-				ErrorCode:    backend.ContentErrorMetadataStreamInvalid,
-				ErrorContext: e,
-			}
-		case v.StreamID == 0:
-			e := fmt.Sprintf("stream id missing at index %v", i)
-			return backend.ContentError{
-				ErrorCode:    backend.ContentErrorMetadataStreamInvalid,
-				ErrorContext: e,
-			}
-		case v.Payload == "":
-			e := fmt.Sprintf("payload missing on %v %v", v.PluginID, v.StreamID)
-			return backend.ContentError{
-				ErrorCode:    backend.ContentErrorMetadataStreamInvalid,
-				ErrorContext: e,
-			}
-		}
-
-		// Verify no duplicates
-		m, ok := md[v.PluginID]
-		if !ok {
-			m = make(map[uint32]struct{}, len(metadata))
-			md[v.PluginID] = m
-		}
-		if _, ok := m[v.StreamID]; ok {
-			e := fmt.Sprintf("%v %v", v.PluginID, v.StreamID)
-			return backend.ContentError{
-				ErrorCode:    backend.ContentErrorMetadataStreamDuplicate,
-				ErrorContext: e,
-			}
-		}
-
-		// Add to metadata list
-		m[v.StreamID] = struct{}{}
-		md[v.PluginID] = m
+// New returns a new tstoreBackend.
+func New(appDir, dataDir string, tlogHost, tlogPass, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string, fi identity.FullIdentity, net chaincfg.Params) (*tstoreBackend, error) {
+	// Setup cache key-value store
+	log.Infof("Database type: %v", dbType)
+	opts := blobKVOpts{
+		Type:     dbType,
+		AppDir:   appDir,
+		DataDir:  dataDir,
+		Host:     dbHost,
+		Password: dbPass,
+		Net:      net.Name,
 	}
-
-	return nil
-}
-
-func metadataStreamsUpdate(curr, mdAppend, mdOverwrite []backend.MetadataStream) []backend.MetadataStream {
-	// Put current metadata into a map
-	md := make(map[string]backend.MetadataStream, len(curr))
-	for _, v := range curr {
-		k := v.PluginID + strconv.FormatUint(uint64(v.StreamID), 10)
-		md[k] = v
-	}
-
-	// Apply overwrites
-	for _, v := range mdOverwrite {
-		k := v.PluginID + strconv.FormatUint(uint64(v.StreamID), 10)
-		md[k] = v
-	}
-
-	// Apply appends. Its ok if an append is specified but there is no
-	// existing metadata for that metadata stream. In this case the
-	// append data will become the full metadata stream.
-	for _, v := range mdAppend {
-		k := v.PluginID + strconv.FormatUint(uint64(v.StreamID), 10)
-		m, ok := md[k]
-		if !ok {
-			// No existing metadata. Use append data as full metadata
-			// stream.
-			md[k] = v
-			continue
-		}
-
-		// Metadata exists. Append to it.
-		buf := bytes.NewBuffer([]byte(m.Payload))
-		buf.WriteString(v.Payload)
-		m.Payload = buf.String()
-		md[k] = m
-	}
-
-	// Convert metadata back to a slice
-	metadata := make([]backend.MetadataStream, 0, len(md))
-	for _, v := range md {
-		metadata = append(metadata, v)
-	}
-
-	return metadata
-}
-
-// filesVerify verifies that all provided files are sane.
-func filesVerify(files []backend.File, filesDel []string) error {
-	// Verify files are being updated
-	if len(files) == 0 && len(filesDel) == 0 {
-		return backend.ContentError{
-			ErrorCode: backend.ContentErrorFilesEmpty,
-		}
-	}
-
-	// Prevent paths
-	for i := range files {
-		if filepath.Base(files[i].Name) != files[i].Name {
-			e := fmt.Sprintf("%v contains a file path", files[i].Name)
-			return backend.ContentError{
-				ErrorCode:    backend.ContentErrorFileNameInvalid,
-				ErrorContext: e,
-			}
-		}
-	}
-	for _, v := range filesDel {
-		if filepath.Base(v) != v {
-			e := fmt.Sprintf("%v contains a file path", v)
-			return backend.ContentError{
-				ErrorCode:    backend.ContentErrorFileNameInvalid,
-				ErrorContext: e,
-			}
-		}
-	}
-
-	// Prevent duplicate filenames
-	fn := make(map[string]struct{}, len(files)+len(filesDel))
-	for i := range files {
-		if _, ok := fn[files[i].Name]; ok {
-			return backend.ContentError{
-				ErrorCode:    backend.ContentErrorFileNameDuplicate,
-				ErrorContext: files[i].Name,
-			}
-		}
-		fn[files[i].Name] = struct{}{}
-	}
-	for _, v := range filesDel {
-		if _, ok := fn[v]; ok {
-			return backend.ContentError{
-				ErrorCode:    backend.ContentErrorFileNameDuplicate,
-				ErrorContext: v,
-			}
-		}
-		fn[v] = struct{}{}
-	}
-
-	// Prevent bad filenames
-	for i := range files {
-		if gozaru.Sanitize(files[i].Name) != files[i].Name {
-			e := fmt.Sprintf("%v is not sanitized", files[i].Name)
-			return backend.ContentError{
-				ErrorCode:    backend.ContentErrorFileNameInvalid,
-				ErrorContext: e,
-			}
-		}
-
-		// Verify digest
-		d, ok := util.ConvertDigest(files[i].Digest)
-		if !ok {
-			return backend.ContentError{
-				ErrorCode:    backend.ContentErrorFileDigestInvalid,
-				ErrorContext: files[i].Name,
-			}
-		}
-
-		// Verify payload is not empty
-		if files[i].Payload == "" {
-			e := fmt.Sprintf("%v payload empty", files[i].Name)
-			return backend.ContentError{
-				ErrorCode:    backend.ContentErrorFilePayloadInvalid,
-				ErrorContext: e,
-			}
-		}
-
-		// Decode base64 payload
-		payload, err := base64.StdEncoding.DecodeString(files[i].Payload)
-		if err != nil {
-			e := fmt.Sprintf("%v invalid base64", files[i].Name)
-			return backend.ContentError{
-				ErrorCode:    backend.ContentErrorFilePayloadInvalid,
-				ErrorContext: e,
-			}
-		}
-
-		// Calculate payload digest
-		dp := util.Digest(payload)
-		if !bytes.Equal(d[:], dp) {
-			e := fmt.Sprintf("%v digest got %x, want %x",
-				files[i].Name, d[:], dp)
-			return backend.ContentError{
-				ErrorCode:    backend.ContentErrorFileDigestInvalid,
-				ErrorContext: e,
-			}
-		}
-
-		// Verify MIME
-		detectedMIMEType := mime.DetectMimeType(payload)
-		if detectedMIMEType != files[i].MIME {
-			e := fmt.Sprintf("%v mime got %v, want %v",
-				files[i].Name, files[i].MIME, detectedMIMEType)
-			return backend.ContentError{
-				ErrorCode:    backend.ContentErrorFileMIMETypeInvalid,
-				ErrorContext: e,
-			}
-		}
-
-		if !mime.MimeValid(files[i].MIME) {
-			return backend.ContentError{
-				ErrorCode:    backend.ContentErrorFileMIMETypeUnsupported,
-				ErrorContext: files[i].Name,
-			}
-		}
-	}
-
-	return nil
-}
-
-// filesUpdate updates the current files with new file adds and deletes.
-func filesUpdate(filesCurr, filesAdd []backend.File, filesDel []string) []backend.File {
-	// Put current files into a map
-	curr := make(map[string]backend.File, len(filesCurr)) // [filename]File
-	for _, v := range filesCurr {
-		curr[v.Name] = v
-	}
-
-	// Apply deletes
-	for _, fn := range filesDel {
-		_, ok := curr[fn]
-		if ok {
-			delete(curr, fn)
-		}
-	}
-
-	// Apply adds
-	for _, v := range filesAdd {
-		curr[v.Name] = v
-	}
-
-	// Convert back to a slice
-	f := make([]backend.File, 0, len(curr))
-	for _, v := range curr {
-		f = append(f, v)
-	}
-
-	return f
-}
-
-// recordMetadataNew returns a new record metadata.
-func recordMetadataNew(token []byte, files []backend.File, state backend.StateT, status backend.StatusT, version, iteration uint32) (*backend.RecordMetadata, error) {
-	digests := make([]string, 0, len(files))
-	for _, v := range files {
-		digests = append(digests, v.Digest)
-	}
-	m, err := util.MerkleRoot(digests)
+	kv, err := newBlobKV(opts)
 	if err != nil {
 		return nil, err
 	}
-	return &backend.RecordMetadata{
-		Token:     hex.EncodeToString(token),
-		Version:   version,
-		Iteration: iteration,
-		State:     state,
-		Status:    status,
-		Timestamp: time.Now().Unix(),
-		Merkle:    hex.EncodeToString(m[:]),
-	}, nil
+
+	// Setup tstore instances
+	ts, err := tstore.New(net, kv, tlogHost, tlogPass,
+		dcrtimeHost, dcrtimeCert)
+	if err != nil {
+		return nil, err
+	}
+
+	// Setup backend
+	t := tstoreBackend{
+		settings: backend.BackendSettings{
+			Identity: fi,
+			Net:      net,
+		},
+		tstore: ts,
+		cache:  kv,
+		inv:    newRecordInv(),
+	}
+
+	// Perform any required setup
+	err = t.tstore.Setup()
+	if err != nil {
+		return nil, err
+	}
+
+	return &t, nil
 }
 
 // RecordNew creates a new record.
@@ -1027,46 +807,266 @@ func (t *tstoreBackend) Close() {
 	t.tstore.Close()
 }
 
-// New returns a new tstoreBackend.
-func New(appDir, dataDir string, tlogHost, tlogPass, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string, fi identity.FullIdentity, net chaincfg.Params) (*tstoreBackend, error) {
-	// Setup cache key-value store
-	log.Infof("Database type: %v", dbType)
-	opts := blobKVOpts{
-		Type:     dbType,
-		AppDir:   appDir,
-		DataDir:  dataDir,
-		Host:     dbHost,
-		Password: dbPass,
-		Net:      net.Name,
+// metadataStreamsVerify verifies that all provided metadata streams are sane.
+func metadataStreamsVerify(metadata []backend.MetadataStream) error {
+	// Verify metadata
+	md := make(map[string]map[uint32]struct{}, len(metadata))
+	for i, v := range metadata {
+		// Verify all fields are provided
+		switch {
+		case v.PluginID == "":
+			e := fmt.Sprintf("plugin id missing at index %v", i)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorMetadataStreamInvalid,
+				ErrorContext: e,
+			}
+		case v.StreamID == 0:
+			e := fmt.Sprintf("stream id missing at index %v", i)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorMetadataStreamInvalid,
+				ErrorContext: e,
+			}
+		case v.Payload == "":
+			e := fmt.Sprintf("payload missing on %v %v", v.PluginID, v.StreamID)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorMetadataStreamInvalid,
+				ErrorContext: e,
+			}
+		}
+
+		// Verify no duplicates
+		m, ok := md[v.PluginID]
+		if !ok {
+			m = make(map[uint32]struct{}, len(metadata))
+			md[v.PluginID] = m
+		}
+		if _, ok := m[v.StreamID]; ok {
+			e := fmt.Sprintf("%v %v", v.PluginID, v.StreamID)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorMetadataStreamDuplicate,
+				ErrorContext: e,
+			}
+		}
+
+		// Add to metadata list
+		m[v.StreamID] = struct{}{}
+		md[v.PluginID] = m
 	}
-	kv, err := newBlobKV(opts)
+
+	return nil
+}
+
+func metadataStreamsUpdate(curr, mdAppend, mdOverwrite []backend.MetadataStream) []backend.MetadataStream {
+	// Put current metadata into a map
+	md := make(map[string]backend.MetadataStream, len(curr))
+	for _, v := range curr {
+		k := v.PluginID + strconv.FormatUint(uint64(v.StreamID), 10)
+		md[k] = v
+	}
+
+	// Apply overwrites
+	for _, v := range mdOverwrite {
+		k := v.PluginID + strconv.FormatUint(uint64(v.StreamID), 10)
+		md[k] = v
+	}
+
+	// Apply appends. Its ok if an append is specified but there is no
+	// existing metadata for that metadata stream. In this case the
+	// append data will become the full metadata stream.
+	for _, v := range mdAppend {
+		k := v.PluginID + strconv.FormatUint(uint64(v.StreamID), 10)
+		m, ok := md[k]
+		if !ok {
+			// No existing metadata. Use append data as full metadata
+			// stream.
+			md[k] = v
+			continue
+		}
+
+		// Metadata exists. Append to it.
+		buf := bytes.NewBuffer([]byte(m.Payload))
+		buf.WriteString(v.Payload)
+		m.Payload = buf.String()
+		md[k] = m
+	}
+
+	// Convert metadata back to a slice
+	metadata := make([]backend.MetadataStream, 0, len(md))
+	for _, v := range md {
+		metadata = append(metadata, v)
+	}
+
+	return metadata
+}
+
+// filesVerify verifies that all provided files are sane.
+func filesVerify(files []backend.File, filesDel []string) error {
+	// Verify files are being updated
+	if len(files) == 0 && len(filesDel) == 0 {
+		return backend.ContentError{
+			ErrorCode: backend.ContentErrorFilesEmpty,
+		}
+	}
+
+	// Prevent paths
+	for i := range files {
+		if filepath.Base(files[i].Name) != files[i].Name {
+			e := fmt.Sprintf("%v contains a file path", files[i].Name)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileNameInvalid,
+				ErrorContext: e,
+			}
+		}
+	}
+	for _, v := range filesDel {
+		if filepath.Base(v) != v {
+			e := fmt.Sprintf("%v contains a file path", v)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileNameInvalid,
+				ErrorContext: e,
+			}
+		}
+	}
+
+	// Prevent duplicate filenames
+	fn := make(map[string]struct{}, len(files)+len(filesDel))
+	for i := range files {
+		if _, ok := fn[files[i].Name]; ok {
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileNameDuplicate,
+				ErrorContext: files[i].Name,
+			}
+		}
+		fn[files[i].Name] = struct{}{}
+	}
+	for _, v := range filesDel {
+		if _, ok := fn[v]; ok {
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileNameDuplicate,
+				ErrorContext: v,
+			}
+		}
+		fn[v] = struct{}{}
+	}
+
+	// Prevent bad filenames
+	for i := range files {
+		if gozaru.Sanitize(files[i].Name) != files[i].Name {
+			e := fmt.Sprintf("%v is not sanitized", files[i].Name)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileNameInvalid,
+				ErrorContext: e,
+			}
+		}
+
+		// Verify digest
+		d, ok := util.ConvertDigest(files[i].Digest)
+		if !ok {
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileDigestInvalid,
+				ErrorContext: files[i].Name,
+			}
+		}
+
+		// Verify payload is not empty
+		if files[i].Payload == "" {
+			e := fmt.Sprintf("%v payload empty", files[i].Name)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFilePayloadInvalid,
+				ErrorContext: e,
+			}
+		}
+
+		// Decode base64 payload
+		payload, err := base64.StdEncoding.DecodeString(files[i].Payload)
+		if err != nil {
+			e := fmt.Sprintf("%v invalid base64", files[i].Name)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFilePayloadInvalid,
+				ErrorContext: e,
+			}
+		}
+
+		// Calculate payload digest
+		dp := util.Digest(payload)
+		if !bytes.Equal(d[:], dp) {
+			e := fmt.Sprintf("%v digest got %x, want %x",
+				files[i].Name, d[:], dp)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileDigestInvalid,
+				ErrorContext: e,
+			}
+		}
+
+		// Verify MIME
+		detectedMIMEType := mime.DetectMimeType(payload)
+		if detectedMIMEType != files[i].MIME {
+			e := fmt.Sprintf("%v mime got %v, want %v",
+				files[i].Name, files[i].MIME, detectedMIMEType)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileMIMETypeInvalid,
+				ErrorContext: e,
+			}
+		}
+
+		if !mime.MimeValid(files[i].MIME) {
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileMIMETypeUnsupported,
+				ErrorContext: files[i].Name,
+			}
+		}
+	}
+
+	return nil
+}
+
+// filesUpdate updates the current files with new file adds and deletes.
+func filesUpdate(filesCurr, filesAdd []backend.File, filesDel []string) []backend.File {
+	// Put current files into a map
+	curr := make(map[string]backend.File, len(filesCurr)) // [filename]File
+	for _, v := range filesCurr {
+		curr[v.Name] = v
+	}
+
+	// Apply deletes
+	for _, fn := range filesDel {
+		_, ok := curr[fn]
+		if ok {
+			delete(curr, fn)
+		}
+	}
+
+	// Apply adds
+	for _, v := range filesAdd {
+		curr[v.Name] = v
+	}
+
+	// Convert back to a slice
+	f := make([]backend.File, 0, len(curr))
+	for _, v := range curr {
+		f = append(f, v)
+	}
+
+	return f
+}
+
+// recordMetadataNew returns a new record metadata.
+func recordMetadataNew(token []byte, files []backend.File, state backend.StateT, status backend.StatusT, version, iteration uint32) (*backend.RecordMetadata, error) {
+	digests := make([]string, 0, len(files))
+	for _, v := range files {
+		digests = append(digests, v.Digest)
+	}
+	m, err := util.MerkleRoot(digests)
 	if err != nil {
 		return nil, err
 	}
-
-	// Setup tstore instances
-	ts, err := tstore.New(net, kv, tlogHost, tlogPass,
-		dcrtimeHost, dcrtimeCert)
-	if err != nil {
-		return nil, err
-	}
-
-	// Setup backend
-	t := tstoreBackend{
-		settings: backend.BackendSettings{
-			Identity: fi,
-			Net:      net,
-		},
-		tstore: ts,
-		cache:  kv,
-		inv:    newRecordInv(),
-	}
-
-	// Perform any required setup
-	err = t.tstore.Setup()
-	if err != nil {
-		return nil, err
-	}
-
-	return &t, nil
+	return &backend.RecordMetadata{
+		Token:     hex.EncodeToString(token),
+		Version:   version,
+		Iteration: iteration,
+		State:     state,
+		Status:    status,
+		Timestamp: time.Now().Unix(),
+		Merkle:    hex.EncodeToString(m[:]),
+	}, nil
 }

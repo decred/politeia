@@ -20,6 +20,8 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+// TODO refactor recordIndex methods
+
 // recordIndex contains the merkle leaf hashes of all the record content leaves
 // for a specific record version and iteration. The record index can be used to
 // lookup the trillian log leaves for the record content and the log leaves can

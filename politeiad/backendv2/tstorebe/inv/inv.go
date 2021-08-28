@@ -4,7 +4,7 @@
 
 // Package inv implements a concurrency safe API for managing an inventory of
 // tokens. Bit flags are used to encode relevant data into inventory entries.
-// An extra data field is also provided that the caller can use freely. The
+// An extra data field is also provided for the caller to use freely. The
 // inventory can be queried by bit flags, by entry timestamp, or by providing a
 // callback function that is invoked on each entry.
 //
