@@ -182,7 +182,7 @@ func decodeDroppingAnchor(gb []byte) (*droppingAnchor, error) {
 	var da droppingAnchor
 	err = json.Unmarshal(b, &da)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 	return &da, nil
 }
@@ -420,7 +420,7 @@ func decodeAnchor(gb []byte) (*anchor, error) {
 	var a anchor
 	err = json.Unmarshal(b, &a)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 	return &a, nil
 }
@@ -502,9 +502,9 @@ func getAnchor(kv store.BlobKV, treeID int64, merkleLeafHash []byte, leaves []*t
 	return leafAnchor, nil
 }
 
-// getLatestAnchor returns the most recent anchor for the provided tree. A
+// getAnchorLatest returns the most recent anchor for the provided tree. A
 // errNotFound is returned if no anchor is found.
-func getLatestAnchor(kv store.BlobKV, tlog tlogClient, treeID int64) (*anchor, error) {
+func getAnchorLatest(kv store.BlobKV, tlog tlogClient, treeID int64) (*anchor, error) {
 	// Get tree leaves
 	leavesAll, err := tlog.LeavesAll(treeID)
 	if err != nil {
@@ -618,7 +618,7 @@ func (t *Tstore) anchorTrees() error {
 	// can be added while the anchor is waiting to be dropped.
 	for _, v := range trees {
 		// Get the latest anchor.
-		a, err := getLatestAnchor(t.store, t.tlog, v.TreeId)
+		a, err := getAnchorLatest(t.store, t.tlog, v.TreeId)
 		switch {
 		case errors.Is(err, errNotFound):
 			// Tree has not been anchored yet. Verify that the tree has

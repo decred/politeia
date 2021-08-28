@@ -5,9 +5,6 @@
 package tstore
 
 import (
-	"bytes"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -17,10 +14,9 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 )
-
-// TODO refactor recordIndex methods
 
 // recordIndex contains the merkle leaf hashes of all the record content leaves
 // for a specific record version and iteration. The record index can be used to
@@ -39,13 +35,13 @@ import (
 //    update will exit without completing. No unwinding is performed. Blobs
 //    will be left in the kv store as orphaned blobs. The trillian tree is
 //    append-only so once a leaf is appended, it's there permanently. If steps
-//    1 and 2 are successful then a recordIndex is created, saved to the kv
+//    1 and 2 are successful then a record index is created, saved to the kv
 //    store, and appended onto the trillian tree.
 //
-// Appending a recordIndex onto the trillian tree is the last operation that
-// occurs during a record update. If a recordIndex exists in the tree then the
+// Appending a record index onto the trillian tree is the last operation that
+// occurs during a record update. If a record index exists in the tree then the
 // update is considered successful. Any record content leaves that are not part
-// of a recordIndex are considered to be orphaned and can be disregarded.
+// of a record index are considered to be orphaned and can be disregarded.
 type recordIndex struct {
 	State backend.StateT `json:"state"`
 
@@ -91,31 +87,56 @@ func newRecordIndex(state backend.StateT, version, iteration uint32) recordIndex
 	}
 }
 
-// recordIndexSave saves a record index to tstore.
-func (t *Tstore) recordIndexSave(tx store.Tx, treeID int64, idx recordIndex) error {
-	// Only vetted data should be saved plain text
+// sha256 returns the SHA256 digest of the JSON encoded record index.
+func (r *recordIndex) sha256() ([]byte, error) {
+	b, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+	return util.Digest(b), nil
+}
+
+// encode encodes the record index into a BlobEntry then encodes the BlobEntry
+// into a gzipped byte slice.
+func (r *recordIndex) encode() ([]byte, error) {
+	data, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorRecordIndex,
+		})
+	if err != nil {
+		return nil, err
+	}
+	be := store.NewBlobEntry(hint, data)
+	return store.Blobify(be)
+}
+
+// save saves a record index to the kv store then appends a leaf onto the
+// tlog tree for the record index.
+func (r *recordIndex) save(tx store.Tx, tlog tlogClient, treeID int64) error {
+	log.Debugf("Saving record index")
+
+	// Unvetted data is encrypted prior to being saved.
 	var encrypt bool
-	switch idx.State {
+	switch r.State {
 	case backend.StateUnvetted:
+		// Save encrypted
 		encrypt = true
 	case backend.StateVetted:
-		// Save plain text
+		// Save cleartext
 		encrypt = false
 	default:
 		// Something is wrong
-		e := fmt.Sprintf("invalid record state %v %v",
-			treeID, idx.State)
-		panic(e)
+		return errors.Errorf("invalid record state %v %v",
+			treeID, r.State)
 	}
 
-	log.Debugf("Saving record index")
-
-	// Save record index to the store
-	be, err := convertBlobEntryFromRecordIndex(idx)
-	if err != nil {
-		return err
-	}
-	b, err := store.Blobify(*be)
+	// Save the record index to the kv store.
+	b, err := r.encode()
 	if err != nil {
 		return err
 	}
@@ -123,28 +144,28 @@ func (t *Tstore) recordIndexSave(tx store.Tx, treeID int64, idx recordIndex) err
 	kv := map[string][]byte{key: b}
 	err = tx.Put(kv, encrypt)
 	if err != nil {
-		return fmt.Errorf("tx Put: %v", err)
+		return err
 	}
 
-	// Append record index leaf to trillian tree
-	d, err := hex.DecodeString(be.Digest)
+	// Append a leaf onto the tlog tree for the record index.
+	digest, err := r.sha256()
 	if err != nil {
 		return err
 	}
-	ed := newExtraData(key, dataDescriptorRecordIndex, idx.State)
+	ed := newExtraData(key, dataDescriptorRecordIndex, r.State)
 	extraData, err := ed.encode()
 	if err != nil {
 		return err
 	}
 	leaves := []*trillian.LogLeaf{
-		newLogLeaf(d, extraData),
+		newLogLeaf(digest, extraData),
 	}
-	queued, _, err := t.tlog.LeavesAppend(treeID, leaves)
+	queued, _, err := tlog.LeavesAppend(treeID, leaves)
 	if err != nil {
-		return fmt.Errorf("LeavesAppend: %v", err)
+		return err
 	}
 	if len(queued) != 1 {
-		return fmt.Errorf("wrong number of queud leaves: got %v, "+
+		return errors.Errorf("wrong number of queud leaves: got %v, "+
 			"want 1", len(queued))
 	}
 	failed := make([]string, 0, len(queued))
@@ -155,19 +176,38 @@ func (t *Tstore) recordIndexSave(tx store.Tx, treeID int64, idx recordIndex) err
 		}
 	}
 	if len(failed) > 0 {
-		return fmt.Errorf("append leaves failed: %v", failed)
+		return errors.Errorf("append leaves failed: %v", failed)
 	}
 
 	return nil
+}
+
+// decodeAnchor decodes a gzipped byte slice into a BlobEntry then decodes the
+// BlobEntry into a recordIndex.
+func decodeRecordIndex(gb []byte) (*recordIndex, error) {
+	be, err := store.Deblob(gb)
+	if err != nil {
+		return nil, err
+	}
+	b, err := store.Decode(*be, dataDescriptorRecordIndex)
+	if err != nil {
+		return nil, err
+	}
+	var r recordIndex
+	err = json.Unmarshal(b, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
 }
 
 // recordIndex takes a list of trillian leaves and returns the most recent
 // iteration of the specified record index version. A version of 0 indicates
 // that the most recent version should be returned. A backend ErrRecordNotFound
 // is returned if the provided version does not exist.
-func (t *Tstore) recordIndex(kv store.Getter, leaves []*trillian.LogLeaf, version uint32) (*recordIndex, error) {
+func getRecordIndex(kv store.Getter, leaves []*trillian.LogLeaf, version uint32) (*recordIndex, error) {
 	// Get record indexes
-	indexes, err := t.recordIndexes(kv, leaves)
+	indexes, err := getRecordIndexes(kv, leaves)
 	if err != nil {
 		return nil, err
 	}
@@ -181,11 +221,11 @@ func (t *Tstore) recordIndex(kv store.Getter, leaves []*trillian.LogLeaf, versio
 	// the caller to only provide a single state.
 	state := indexes[0].State
 	if state == backend.StateInvalid {
-		return nil, fmt.Errorf("invalid record index state: %v", state)
+		return nil, errors.Errorf("invalid record index state: %v", state)
 	}
 	for _, v := range indexes {
 		if v.State != state {
-			return nil, fmt.Errorf("multiple record index states "+
+			return nil, errors.Errorf("multiple record index states "+
 				"found: %v %v", v.State, state)
 		}
 	}
@@ -217,17 +257,18 @@ func (t *Tstore) recordIndex(kv store.Getter, leaves []*trillian.LogLeaf, versio
 
 // recordIndexLatest takes a list of trillian leaves and returns the most
 // recent record index.
-func (t *Tstore) recordIndexLatest(g store.Getter, leaves []*trillian.LogLeaf) (*recordIndex, error) {
-	return t.recordIndex(g, leaves, 0)
+func getRecordIndexLatest(g store.Getter, leaves []*trillian.LogLeaf) (*recordIndex, error) {
+	return getRecordIndex(g, leaves, 0)
 }
 
 // recordIndexes takes a list of trillian leaves, parses all the record index
 // leaves from the list, then pulls the record indexes from the kv store and
 // returns them.
-func (t *Tstore) recordIndexes(g store.Getter, leaves []*trillian.LogLeaf) ([]recordIndex, error) {
-	// Walk the leaves and compile the keys for all record indexes.  Once a
-	// record is made vetted the record history is considered to restart.
-	// If any vetted indexes exist, ignore all unvetted indexes.
+func getRecordIndexes(g store.Getter, leaves []*trillian.LogLeaf) ([]recordIndex, error) {
+	// Walk the leaves and compile the keys for all the record
+	// indexes. Once a record status is set to vetted, the record
+	// history is considered to restart. If any vetted indexes
+	// exist, all unvetted indexes will be ignored.
 	var (
 		keysUnvetted = make([]string, 0, 256)
 		keysVetted   = make([]string, 0, 256)
@@ -248,7 +289,7 @@ func (t *Tstore) recordIndexes(g store.Getter, leaves []*trillian.LogLeaf) ([]re
 			keysVetted = append(keysVetted, ed.key())
 		default:
 			// Should not happen
-			return nil, fmt.Errorf("invalid extra data state: "+
+			return nil, errors.Errorf("invalid extra data state: "+
 				"%v %v", v.LeafIndex, ed.State)
 		}
 	}
@@ -264,7 +305,7 @@ func (t *Tstore) recordIndexes(g store.Getter, leaves []*trillian.LogLeaf) ([]re
 	// Get record indexes from store
 	blobs, err := g.Get(keys)
 	if err != nil {
-		return nil, fmt.Errorf("store Get: %v", err)
+		return nil, errors.Errorf("store Get: %v", err)
 	}
 	missing := make([]string, 0, len(keys))
 	for _, v := range keys {
@@ -286,22 +327,18 @@ func (t *Tstore) recordIndexes(g store.Getter, leaves []*trillian.LogLeaf) ([]re
 		vetted   = make([]recordIndex, 0, len(blobs))
 	)
 	for _, v := range blobs {
-		be, err := store.Deblob(v)
+		r, err := decodeRecordIndex(v)
 		if err != nil {
 			return nil, err
 		}
-		ri, err := convertRecordIndexFromBlobEntry(*be)
-		if err != nil {
-			return nil, err
-		}
-		switch ri.State {
+		switch r.State {
 		case backend.StateUnvetted:
-			unvetted = append(unvetted, *ri)
+			unvetted = append(unvetted, *r)
 		case backend.StateVetted:
-			vetted = append(vetted, *ri)
+			vetted = append(vetted, *r)
 		default:
-			return nil, fmt.Errorf("invalid record index state: %v",
-				ri.State)
+			return nil, errors.Errorf("invalid record index state: %v",
+				r.State)
 		}
 	}
 
@@ -324,12 +361,12 @@ func (t *Tstore) recordIndexes(g store.Getter, leaves []*trillian.LogLeaf) ([]re
 	var i uint32 = 1
 	for _, v := range indexes {
 		if v.Iteration != i {
-			return nil, fmt.Errorf("invalid record index "+
+			return nil, errors.Errorf("invalid record index "+
 				"iteration: got %v, want %v", v.Iteration, i)
 		}
 		diff := v.Version - versionPrev
 		if diff != 0 && diff != 1 {
-			return nil, fmt.Errorf("invalid record index version: "+
+			return nil, errors.Errorf("invalid record index version: "+
 				"curr version %v, prev version %v",
 				v.Version, versionPrev)
 		}
@@ -339,59 +376,4 @@ func (t *Tstore) recordIndexes(g store.Getter, leaves []*trillian.LogLeaf) ([]re
 	}
 
 	return indexes, nil
-}
-
-func convertBlobEntryFromRecordIndex(ri recordIndex) (*store.BlobEntry, error) {
-	data, err := json.Marshal(ri)
-	if err != nil {
-		return nil, err
-	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorRecordIndex,
-		})
-	if err != nil {
-		return nil, err
-	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
-}
-
-func convertRecordIndexFromBlobEntry(be store.BlobEntry) (*recordIndex, error) {
-	// Decode and validate data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
-	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
-	}
-	if dd.Descriptor != dataDescriptorRecordIndex {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, "+
-			"want %v", dd.Descriptor, dataDescriptorRecordIndex)
-	}
-
-	// Decode data
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
-	}
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, fmt.Errorf("decode digest: %v", err)
-	}
-	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), digest)
-	}
-	var ri recordIndex
-	err = json.Unmarshal(b, &ri)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal recordIndex: %v", err)
-	}
-
-	return &ri, nil
 }

@@ -82,6 +82,8 @@ type tlogClient interface {
 	LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queuedLeafProof,
 		*types.LogRootV1, error)
 
+	// TODO Add LeavesAppendStrict
+
 	// LeavesAll returns all leaves of a tree.
 	LeavesAll(treeID int64) ([]*trillian.LogLeaf, error)
 

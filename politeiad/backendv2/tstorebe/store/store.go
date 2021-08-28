@@ -44,6 +44,7 @@ type BlobEntry struct {
 }
 
 // NewBlobEntry returns a new BlobEntry.
+// TODO this should take the data hint structure to prevent bugs
 func NewBlobEntry(dataHint, data []byte) BlobEntry {
 	return BlobEntry{
 		Digest:   hex.EncodeToString(util.Digest(data)),

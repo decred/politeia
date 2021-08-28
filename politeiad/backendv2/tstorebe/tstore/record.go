@@ -150,7 +150,7 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 	}
 
 	// Get the existing record index
-	currIdx, err := t.recordIndexLatest(tx, leavesAll)
+	currIdx, err := getRecordIndexLatest(tx, leavesAll)
 	if err == backend.ErrRecordNotFound {
 		// No record versions exist yet. This is ok.
 		currIdx = &recordIndex{
@@ -531,12 +531,7 @@ func (t *Tstore) RecordSave(tx store.Tx, token []byte, rm backend.RecordMetadata
 	}
 
 	// Save the record index
-	err = t.recordIndexSave(tx, treeID, *idx)
-	if err != nil {
-		return fmt.Errorf("recordIndexSave: %v", err)
-	}
-
-	return nil
+	return idx.save(tx, t.tlog, treeID)
 }
 
 // RecordSaveMetadata saved the provided record metadata and metadata streams
@@ -570,12 +565,7 @@ func (t *Tstore) RecordSaveMetadata(tx store.Tx, token []byte, rm backend.Record
 	}
 
 	// Save the record index
-	err = t.recordIndexSave(tx, treeID, *idx)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return idx.save(tx, t.tlog, treeID)
 }
 
 // RecordDel walks the provided tree and deletes all blobs in the store that
@@ -598,7 +588,7 @@ func (t *Tstore) RecordDel(tx store.Tx, token []byte) error {
 	}
 
 	// Get all record indexes
-	indexes, err := t.recordIndexes(tx, leavesAll)
+	indexes, err := getRecordIndexes(tx, leavesAll)
 	if err != nil {
 		return err
 	}
@@ -680,7 +670,7 @@ func (t *Tstore) RecordFreeze(tx store.Tx, token []byte, rm backend.RecordMetada
 	idx.Frozen = true
 
 	// Save the record index
-	return t.recordIndexSave(tx, treeID, *idx)
+	return idx.save(tx, t.tlog, treeID)
 }
 
 // RecordExists returns whether a record exists.
@@ -737,7 +727,7 @@ func (t *Tstore) record(g store.Getter, treeID int64, version uint32, filenames 
 	// Use the record index to pull the record content from the store.
 	// The keys for the record content first need to be extracted from
 	// their log leaf.
-	idx, err := t.recordIndex(g, leaves, version)
+	idx, err := getRecordIndex(g, leaves, version)
 	if err != nil {
 		return nil, err
 	}
@@ -1198,7 +1188,7 @@ func (t *Tstore) RecordTimestamps(token []byte, version uint32) (*backend.Record
 	if err != nil {
 		return nil, err
 	}
-	idx, err := t.recordIndex(t.store, leaves, version)
+	idx, err := getRecordIndex(t.store, leaves, version)
 	if err != nil {
 		return nil, err
 	}
