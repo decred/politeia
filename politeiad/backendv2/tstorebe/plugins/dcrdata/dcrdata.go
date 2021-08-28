@@ -43,7 +43,6 @@ var (
 //
 // dcrdataPlugin satisfies the plugins PluginClient interface.
 type dcrdataPlugin struct {
-	// TODO remove dcrdata mutex
 	sync.Mutex
 	net  *chaincfg.Params  // Decred network
 	http *http.Client      // Dcrdata http client
@@ -79,8 +78,8 @@ func (p *dcrdataPlugin) bestBlockSet(bb uint32) {
 	p.bestBlockStale = false
 }
 
-// bestBlockSetStale marks the cached best block as stale.
-func (p *dcrdataPlugin) bestBlockSetStale() {
+// bestBlockSetAsStale marks the cached best block as stale.
+func (p *dcrdataPlugin) bestBlockSetAsStale() {
 	p.Lock()
 	defer p.Unlock()
 
@@ -142,7 +141,7 @@ func (p *dcrdataPlugin) websocketMonitor() {
 
 	reconnect:
 		// Mark cached best block as stale
-		p.bestBlockSetStale()
+		p.bestBlockSetAsStale()
 
 		// Reconnect
 		p.ws.Reconnect()

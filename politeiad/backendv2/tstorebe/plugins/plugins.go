@@ -257,8 +257,8 @@ type InvClient interface {
 	Get(bits uint64, pageSize, pageNum uint32) ([]string, error)
 
 	// GetMulti returns a page of tokens for each of the provided bits.
-	// The bits are used as filtering criteria. The returned map is a
-	// map[bits][]token.
+	// The bits are used as filtering criteria. A map[bits][]token is
+	// returned.
 	GetMulti(bits []uint64, pageSize,
 		pageNum uint32) (map[uint64][]string, error)
 

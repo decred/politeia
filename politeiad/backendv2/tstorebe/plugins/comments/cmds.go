@@ -25,7 +25,6 @@ const (
 	pluginID = comments.PluginID
 
 	// Blob entry data descriptors
-	// TODO the tstore client should prefix pluginID
 	dataDescriptorCommentAdd  = pluginID + "-add-v1"
 	dataDescriptorCommentDel  = pluginID + "-del-v1"
 	dataDescriptorCommentVote = pluginID + "-vote-v1"
