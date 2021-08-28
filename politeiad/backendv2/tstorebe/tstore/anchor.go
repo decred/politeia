@@ -138,20 +138,15 @@ func (d *droppingAnchor) encode() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorDroppingAnchor,
-		})
+	dd := store.DataDescriptor{
+		Type:       store.DataTypeStructure,
+		Descriptor: dataDescriptorDroppingAnchor,
+	}
+	be, err := store.NewBlobEntry(dd, data)
 	if err != nil {
 		return nil, err
 	}
-	be := store.NewBlobEntry(hint, data)
-	b, err := store.Blobify(be)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
+	return store.Blobify(*be)
 }
 
 // save saves the droppingAnchor record to the key-value store using the
@@ -326,20 +321,15 @@ func (a *anchor) encode() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorAnchor,
-		})
+	dd := store.DataDescriptor{
+		Type:       store.DataTypeStructure,
+		Descriptor: dataDescriptorAnchor,
+	}
+	be, err := store.NewBlobEntry(dd, data)
 	if err != nil {
 		return nil, err
 	}
-	be := store.NewBlobEntry(hint, data)
-	b, err := store.Blobify(be)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
+	return store.Blobify(*be)
 }
 
 // save saves the anchor to the key-value store then appends an anchor log leaf

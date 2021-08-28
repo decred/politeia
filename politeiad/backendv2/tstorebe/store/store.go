@@ -16,134 +16,11 @@ import (
 	"github.com/pkg/errors"
 )
 
-const (
-	// DataTypeStructure describes a blob entry that contains a
-	// structure.
-	DataTypeStructure = "struct"
-)
-
 var (
 	// ErrShutdown is returned when a action is attempted against a
 	// store that is shutdown.
 	ErrShutdown = errors.New("store is shutdown")
 )
-
-// DataDescriptor provides hints about a data blob. In practice we JSON encode
-// this struture and stuff it into BlobEntry.DataHint.
-type DataDescriptor struct {
-	Type       string `json:"type"`                // Type of data
-	Descriptor string `json:"descriptor"`          // Description of the data
-	ExtraData  string `json:"extradata,omitempty"` // Value to be freely used
-}
-
-// BlobEntry is the structure used to store data in the key-value store.
-type BlobEntry struct {
-	Digest   string `json:"digest"`   // SHA256 digest of data, hex encoded
-	DataHint string `json:"datahint"` // Hint that describes data, base64 encoded
-	Data     string `json:"data"`     // Data payload, base64 encoded
-}
-
-// NewBlobEntry returns a new BlobEntry.
-// TODO this should take the data hint structure to prevent bugs
-func NewBlobEntry(dataHint, data []byte) BlobEntry {
-	return BlobEntry{
-		Digest:   hex.EncodeToString(util.Digest(data)),
-		DataHint: base64.StdEncoding.EncodeToString(dataHint),
-		Data:     base64.StdEncoding.EncodeToString(data),
-	}
-}
-
-// Blobify encodes the provided BlobEntry into a gzipped byte slice.
-func Blobify(be BlobEntry) ([]byte, error) {
-	var b bytes.Buffer
-	zw := gzip.NewWriter(&b)
-	enc := gob.NewEncoder(zw)
-	err := enc.Encode(be)
-	if err != nil {
-		return nil, err
-	}
-	err = zw.Close() // we must flush gzip buffers
-	if err != nil {
-		return nil, err
-	}
-	return b.Bytes(), nil
-}
-
-// Deblob decodes the provided gzipped byte slice into a BlobEntry.
-func Deblob(blob []byte) (*BlobEntry, error) {
-	zr, err := gzip.NewReader(bytes.NewReader(blob))
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	r := gob.NewDecoder(zr)
-	var be BlobEntry
-	err = r.Decode(&be)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return &be, nil
-}
-
-// TODO refactor existing blob entry decode functions to use this function.
-//
-// Decode decodes the BlobEntry base64 data payload and returns it as a byte
-// slice. The coherency of the data is verified during this process.
-func Decode(be BlobEntry, dataDescriptor string) ([]byte, error) {
-	// Decode and verify data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	var dd DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	if dd.Descriptor != dataDescriptor {
-		return nil, errors.Errorf("unexpected data descriptor: "+
-			"got %v, want %v", dd.Descriptor, dataDescriptor)
-	}
-
-	// Decode verify data payload
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, errors.Errorf("data is not coherent: "+
-			"got %x, want %x", util.Digest(b), digest)
-	}
-
-	return b, nil
-}
-
-// Tx represents an in-progess database transaction. All actions performed
-// using a Tx are guaranteed to be atomic.
-//
-// A transaction must end with a call to Commit or Rollback.
-type Tx interface {
-	// Put saves the provided key-value pairs to the store.
-	Put(blobs map[string][]byte, encrypt bool) error
-
-	// Del deletes the provided blobs from the store.
-	Del(keys []string) error
-
-	// Get retrieves entries from the store. An entry will not exist in
-	// the returned map for any blobs that are not found. It is the
-	// responsibility of the caller to ensure a blob was returned for
-	// all provided keys.
-	Get(keys []string) (map[string][]byte, error)
-
-	// Rollback aborts the transaction.
-	Rollback() error
-
-	// Commit commits the transaction.
-	Commit() error
-}
 
 // BlobKV represents a blob key-value store.
 type BlobKV interface {
@@ -176,9 +53,133 @@ type BlobKV interface {
 	Close()
 }
 
+// Tx represents an in-progess database transaction. All actions performed
+// using a Tx are guaranteed to be atomic.
+//
+// A transaction must end with a call to Commit or Rollback.
+type Tx interface {
+	// Put saves the provided key-value pairs to the store.
+	Put(blobs map[string][]byte, encrypt bool) error
+
+	// Del deletes the provided blobs from the store.
+	Del(keys []string) error
+
+	// Get retrieves entries from the store. An entry will not exist in
+	// the returned map for any blobs that are not found. It is the
+	// responsibility of the caller to ensure a blob was returned for
+	// all provided keys.
+	Get(keys []string) (map[string][]byte, error)
+
+	// Rollback aborts the transaction.
+	Rollback() error
+
+	// Commit commits the transaction.
+	Commit() error
+}
+
 // Getter describes the get method that is present on both the BlobKV interface
 // and the Tx interface. This allows the same code to be used for executing
 // individual get requests and get requests that are part of a transaction.
 type Getter interface {
 	Get(keys []string) (map[string][]byte, error)
+}
+
+const (
+	// DataTypeStructure describes a blob entry that contains a
+	// structure.
+	DataTypeStructure = "struct"
+)
+
+// DataDescriptor provides hints about a data blob. In practice we JSON encode
+// this struture and stuff it into BlobEntry.DataHint.
+type DataDescriptor struct {
+	Type       string `json:"type"`                // Type of data
+	Descriptor string `json:"descriptor"`          // Description of the data
+	ExtraData  string `json:"extradata,omitempty"` // Value to be freely used
+}
+
+// BlobEntry is the structure used to store data in the key-value store.
+type BlobEntry struct {
+	Digest   string `json:"digest"`   // SHA256 digest of data, hex encoded
+	DataHint string `json:"datahint"` // Hint that describes data, base64 encoded
+	Data     string `json:"data"`     // Data payload, base64 encoded
+}
+
+// NewBlobEntry returns a new BlobEntry.
+func NewBlobEntry(dd DataDescriptor, data []byte) (*BlobEntry, error) {
+	dataHint, err := json.Marshal(dd)
+	if err != nil {
+		return nil, err
+	}
+	return &BlobEntry{
+		Digest:   hex.EncodeToString(util.Digest(data)),
+		DataHint: base64.StdEncoding.EncodeToString(dataHint),
+		Data:     base64.StdEncoding.EncodeToString(data),
+	}, nil
+}
+
+// Blobify encodes the provided BlobEntry into a gzipped byte slice.
+func Blobify(be BlobEntry) ([]byte, error) {
+	var b bytes.Buffer
+	zw := gzip.NewWriter(&b)
+	enc := gob.NewEncoder(zw)
+	err := enc.Encode(be)
+	if err != nil {
+		return nil, err
+	}
+	err = zw.Close() // we must flush gzip buffers
+	if err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
+}
+
+// Deblob decodes the provided gzipped byte slice into a BlobEntry.
+func Deblob(blob []byte) (*BlobEntry, error) {
+	zr, err := gzip.NewReader(bytes.NewReader(blob))
+	if err != nil {
+		return nil, err
+	}
+	r := gob.NewDecoder(zr)
+	var be BlobEntry
+	err = r.Decode(&be)
+	if err != nil {
+		return nil, err
+	}
+	return &be, nil
+}
+
+// Decode decodes the BlobEntry base64 data payload and returns it as a byte
+// slice. The coherency of the data is verified during this process.
+func Decode(be BlobEntry, dataDescriptor string) ([]byte, error) {
+	// Decode and verify data hint
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	var dd DataDescriptor
+	err = json.Unmarshal(b, &dd)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	if dd.Descriptor != dataDescriptor {
+		return nil, errors.Errorf("unexpected data descriptor: "+
+			"got %v, want %v", dd.Descriptor, dataDescriptor)
+	}
+
+	// Decode verify data payload
+	b, err = base64.StdEncoding.DecodeString(be.Data)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	digest, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(util.Digest(b), digest) {
+		return nil, errors.Errorf("data is not coherent: "+
+			"got %x, want %x", util.Digest(b), digest)
+	}
+
+	return b, nil
 }

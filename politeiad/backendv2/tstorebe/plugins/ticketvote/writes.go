@@ -6,10 +6,8 @@ package ticketvote
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -20,6 +18,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -73,7 +72,7 @@ func (p *ticketVotePlugin) cmdAuthorize(tstore plugins.TstoreClient, token []byt
 	// Verify record status and version
 	r, err := tstore.RecordPartial(token, 0, nil, true)
 	if err != nil {
-		return "", fmt.Errorf("RecordPartial: %v", err)
+		return "", err
 	}
 	if r.RecordMetadata.Status != backend.StatusPublic {
 		return "", backend.PluginError{
@@ -156,7 +155,7 @@ func (p *ticketVotePlugin) cmdAuthorize(tstore plugins.TstoreClient, token []byt
 		status = ticketvote.VoteStatusUnauthorized
 	default:
 		// Action has already been validated. This should not happen.
-		return "", fmt.Errorf("invalid action %v", a.Action)
+		return "", errors.Errorf("invalid action %v", a.Action)
 	}
 	_ = status
 	// TODO put back in
@@ -175,61 +174,31 @@ func (p *ticketVotePlugin) cmdAuthorize(tstore plugins.TstoreClient, token []byt
 	return string(reply), nil
 }
 
-// authDecode decodes a BlobEntry into a AuthDetails.
-func authDecode(be store.BlobEntry) (*ticketvote.AuthDetails, error) {
-	// Decode and validate data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
-	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
-	}
-	if dd.Descriptor != dataDescriptorAuthDetails {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, "+
-			"want %v", dd.Descriptor, dataDescriptorAuthDetails)
-	}
-
-	// Decode data
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
-	}
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, fmt.Errorf("decode digest: %v", err)
-	}
-	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), digest)
-	}
-	var ad ticketvote.AuthDetails
-	err = json.Unmarshal(b, &ad)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal AuthDetails: %v", err)
-	}
-
-	return &ad, nil
-}
-
 // authEncode encodes a AuthDetails into a BlobEntry.
 func authEncode(ad ticketvote.AuthDetails) (*store.BlobEntry, error) {
 	data, err := json.Marshal(ad)
 	if err != nil {
 		return nil, err
 	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorAuthDetails,
-		})
+	dd := store.DataDescriptor{
+		Type:       store.DataTypeStructure,
+		Descriptor: dataDescriptorAuthDetails,
+	}
+	return store.NewBlobEntry(dd, data)
+}
+
+// authDecode decodes a BlobEntry into a AuthDetails.
+func authDecode(be store.BlobEntry) (*ticketvote.AuthDetails, error) {
+	b, err := store.Decode(be, dataDescriptorAuthDetails)
 	if err != nil {
 		return nil, err
 	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
+	var ad ticketvote.AuthDetails
+	err = json.Unmarshal(b, &ad)
+	if err != nil {
+		return nil, err
+	}
+	return &ad, nil
 }
 
 // authSave saves a AuthDetails to the backend.
@@ -263,8 +232,8 @@ func auths(tstore plugins.TstoreClient, token []byte) ([]ticketvote.AuthDetails,
 		auths = append(auths, *a)
 	}
 
-	// Sanity check. They should already be sorted from oldest to
-	// newest.
+	// Sanity check. They should already be sorted from
+	// oldest to newest.
 	sort.SliceStable(auths, func(i, j int) bool {
 		return auths[i].Timestamp < auths[j].Timestamp
 	})

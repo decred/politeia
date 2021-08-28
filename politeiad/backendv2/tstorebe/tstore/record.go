@@ -1285,16 +1285,11 @@ func convertBlobEntryFromFile(f backend.File) (*store.BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorFile,
-		})
-	if err != nil {
-		return nil, err
+	dd := store.DataDescriptor{
+		Type:       store.DataTypeStructure,
+		Descriptor: dataDescriptorFile,
 	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
+	return store.NewBlobEntry(dd, data)
 }
 
 func convertBlobEntryFromMetadataStream(ms backend.MetadataStream) (*store.BlobEntry, error) {
@@ -1302,16 +1297,11 @@ func convertBlobEntryFromMetadataStream(ms backend.MetadataStream) (*store.BlobE
 	if err != nil {
 		return nil, err
 	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorMetadataStream,
-		})
-	if err != nil {
-		return nil, err
+	dd := store.DataDescriptor{
+		Type:       store.DataTypeStructure,
+		Descriptor: dataDescriptorMetadataStream,
 	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
+	return store.NewBlobEntry(dd, data)
 }
 
 func convertBlobEntryFromRecordMetadata(rm backend.RecordMetadata) (*store.BlobEntry, error) {
@@ -1319,14 +1309,9 @@ func convertBlobEntryFromRecordMetadata(rm backend.RecordMetadata) (*store.BlobE
 	if err != nil {
 		return nil, err
 	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorRecordMetadata,
-		})
-	if err != nil {
-		return nil, err
+	dd := store.DataDescriptor{
+		Type:       store.DataTypeStructure,
+		Descriptor: dataDescriptorRecordMetadata,
 	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
+	return store.NewBlobEntry(dd, data)
 }

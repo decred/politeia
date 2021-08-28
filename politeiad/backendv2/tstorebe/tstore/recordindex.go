@@ -103,16 +103,15 @@ func (r *recordIndex) encode() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorRecordIndex,
-		})
+	dd := store.DataDescriptor{
+		Type:       store.DataTypeStructure,
+		Descriptor: dataDescriptorRecordIndex,
+	}
+	be, err := store.NewBlobEntry(dd, data)
 	if err != nil {
 		return nil, err
 	}
-	be := store.NewBlobEntry(hint, data)
-	return store.Blobify(be)
+	return store.Blobify(*be)
 }
 
 // save saves a record index to the kv store then appends a leaf onto the

@@ -6,7 +6,6 @@ package comments
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -19,7 +18,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/util"
-	pkgerrors "github.com/pkg/errors"
+	errors "github.com/pkg/errors"
 )
 
 const (
@@ -497,7 +496,7 @@ func (p *commentsPlugin) cmdVote(tstore plugins.TstoreClient, token []byte, payl
 	}
 	c, ok := cs[v.CommentID]
 	if !ok {
-		return "", pkgerrors.Errorf("comment not found %v", v.CommentID)
+		return "", errors.Errorf("comment not found %v", v.CommentID)
 	}
 	if v.UserID == c.UserID {
 		return "", backend.PluginError{
@@ -865,54 +864,24 @@ func commentAddEncode(c comments.CommentAdd) (*store.BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorCommentAdd,
-		})
-	if err != nil {
-		return nil, err
+	dd := store.DataDescriptor{
+		Type:       store.DataTypeStructure,
+		Descriptor: dataDescriptorCommentAdd,
 	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
+	return store.NewBlobEntry(dd, data)
 }
 
 // commentAddDecode decodes a BlobEntry into a CommentAdd.
 func commentAddDecode(be store.BlobEntry) (*comments.CommentAdd, error) {
-	// Decode and validate data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	b, err := store.Decode(be, dataDescriptorCommentAdd)
 	if err != nil {
-		return nil, pkgerrors.Errorf("decode DataHint: %v", err)
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, pkgerrors.Errorf("unmarshal DataHint: %v", err)
-	}
-	if dd.Descriptor != dataDescriptorCommentAdd {
-		return nil, pkgerrors.Errorf("unexpected data descriptor: "+
-			"got %v, want %v", dd.Descriptor, dataDescriptorCommentAdd)
-	}
-
-	// Decode data
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, pkgerrors.Errorf("decode Data: %v", err)
-	}
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, pkgerrors.Errorf("decode digest: %v", err)
-	}
-	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, pkgerrors.Errorf("data is not coherent; "+
-			"got %x, want %x", util.Digest(b), digest)
+		return nil, err
 	}
 	var c comments.CommentAdd
 	err = json.Unmarshal(b, &c)
 	if err != nil {
-		return nil, pkgerrors.Errorf("unmarshal CommentAdd: %v", err)
+		return nil, err
 	}
-
 	return &c, nil
 }
 
@@ -977,7 +946,7 @@ func commentAdds(tstore plugins.TstoreClient, token []byte, digests [][]byte) ([
 				notFound = append(notFound, m)
 			}
 		}
-		return nil, pkgerrors.Errorf("blobs not found: %v", notFound)
+		return nil, errors.Errorf("blobs not found: %v", notFound)
 	}
 
 	// Decode blobs
@@ -999,54 +968,24 @@ func commentDelEncode(c comments.CommentDel) (*store.BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorCommentDel,
-		})
-	if err != nil {
-		return nil, err
+	dd := store.DataDescriptor{
+		Type:       store.DataTypeStructure,
+		Descriptor: dataDescriptorCommentDel,
 	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
+	return store.NewBlobEntry(dd, data)
 }
 
 // commentDelDecode decodes a BlobEntry into a CommentDel.
 func commentDelDecode(be store.BlobEntry) (*comments.CommentDel, error) {
-	// Decode and validate data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	b, err := store.Decode(be, dataDescriptorCommentDel)
 	if err != nil {
-		return nil, pkgerrors.Errorf("decode DataHint: %v", err)
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, pkgerrors.Errorf("unmarshal DataHint: %v", err)
-	}
-	if dd.Descriptor != dataDescriptorCommentDel {
-		return nil, pkgerrors.Errorf("unexpected data descriptor: "+
-			"got %v, want %v", dd.Descriptor, dataDescriptorCommentDel)
-	}
-
-	// Decode data
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, pkgerrors.Errorf("decode Data: %v", err)
-	}
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, pkgerrors.Errorf("decode digest: %v", err)
-	}
-	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, pkgerrors.Errorf("data is not coherent; "+
-			"got %x, want %x", util.Digest(b), digest)
+		return nil, err
 	}
 	var c comments.CommentDel
 	err = json.Unmarshal(b, &c)
 	if err != nil {
-		return nil, pkgerrors.Errorf("unmarshal CommentDel: %v", err)
+		return nil, err
 	}
-
 	return &c, nil
 }
 
@@ -1108,7 +1047,7 @@ func commentDels(tstore plugins.TstoreClient, token []byte, digests [][]byte) ([
 				notFound = append(notFound, m)
 			}
 		}
-		return nil, pkgerrors.Errorf("blobs not found: %v", notFound)
+		return nil, errors.Errorf("blobs not found: %v", notFound)
 	}
 
 	// Decode blobs
@@ -1130,54 +1069,24 @@ func commentVoteEncode(c comments.CommentVote) (*store.BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorCommentVote,
-		})
-	if err != nil {
-		return nil, err
+	dd := store.DataDescriptor{
+		Type:       store.DataTypeStructure,
+		Descriptor: dataDescriptorCommentVote,
 	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
+	return store.NewBlobEntry(dd, data)
 }
 
 // commentVoteDecode decodes a BlobEntry into a CommentVote.
 func commentVoteDecode(be store.BlobEntry) (*comments.CommentVote, error) {
-	// Decode and validate data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	b, err := store.Decode(be, dataDescriptorCommentVote)
 	if err != nil {
-		return nil, pkgerrors.Errorf("decode DataHint: %v", err)
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, pkgerrors.Errorf("unmarshal DataHint: %v", err)
-	}
-	if dd.Descriptor != dataDescriptorCommentVote {
-		return nil, pkgerrors.Errorf("unexpected data descriptor: "+
-			"got %v, want %v", dd.Descriptor, dataDescriptorCommentVote)
-	}
-
-	// Decode data
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, pkgerrors.Errorf("decode Data: %v", err)
-	}
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, pkgerrors.Errorf("decode digest: %v", err)
-	}
-	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, pkgerrors.Errorf("data is not coherent; "+
-			"got %x, want %x", util.Digest(b), digest)
+		return nil, err
 	}
 	var cv comments.CommentVote
 	err = json.Unmarshal(b, &cv)
 	if err != nil {
-		return nil, pkgerrors.Errorf("unmarshal CommentVote: %v", err)
+		return nil, err
 	}
-
 	return &cv, nil
 }
 
@@ -1217,7 +1126,7 @@ func commentVotes(tstore plugins.TstoreClient, token []byte, digests [][]byte) (
 				notFound = append(notFound, m)
 			}
 		}
-		return nil, pkgerrors.Errorf("blobs not found: %v", notFound)
+		return nil, errors.Errorf("blobs not found: %v", notFound)
 	}
 
 	// Decode blobs
@@ -1349,7 +1258,7 @@ func timestamp(tstore plugins.TstoreClient, token []byte, digest []byte) (*comme
 func convertSignatureError(err error) backend.PluginError {
 	var e util.SignatureError
 	var s comments.ErrorCodeT
-	if pkgerrors.As(err, &e) {
+	if errors.As(err, &e) {
 		switch e.ErrorCode {
 		case util.ErrorStatusPublicKeyInvalid:
 			s = comments.ErrorCodePublicKeyInvalid
