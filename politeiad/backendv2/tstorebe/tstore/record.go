@@ -24,8 +24,6 @@ const (
 	dataDescriptorMetadataStream = "pd-mdstream-v1"
 	dataDescriptorFile           = "pd-file-v1"
 	dataDescriptorRecordIndex    = "pd-rindex-v1"
-	dataDescriptorAnchor         = "pd-anchor-v1"
-	dataDescriptorDroppingAnchor = "pd-droppinganchor-v1"
 )
 
 // recordLock locks a tstore record by retrieving the record lock entry in the
@@ -62,7 +60,7 @@ func (t *Tstore) recordLock(tx store.Tx, token []byte) error {
 func (t *Tstore) RecordTx(token []byte) (store.Tx, func(), error) {
 	log.Tracef("RecordTx: %x", token)
 
-	// Setup store transaction
+	// Setup database transaction
 	tx, cancel, err := t.store.Tx()
 	if err != nil {
 		return nil, nil, err
@@ -219,7 +217,7 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 	)
 
 	// Setup record metadata
-	beRecordMD, err := convertBlobEntryFromRecordMetadata(recordMD)
+	beRecordMD, err := encodeRecordMetadata(recordMD)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +231,7 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 	// Setup metdata streams
 	for _, v := range metadata {
 		// Blob entry
-		be, err := convertBlobEntryFromMetadataStream(v)
+		be, err := encodeMetadataStream(v)
 		if err != nil {
 			return nil, err
 		}
@@ -263,7 +261,7 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 	// Setup files
 	for _, v := range files {
 		// Blob entry
-		be, err := convertBlobEntryFromFile(v)
+		be, err := encodeFile(v)
 		if err != nil {
 			return nil, err
 		}
@@ -1271,7 +1269,8 @@ func recordIsVetted(leaves []*trillian.LogLeaf) bool {
 }
 
 // merkleLeafHashForBlobEntry returns the merkle leaf hash for a blob entry.
-// The merkle leaf hash can be used to retrieve a leaf from its tlog tree.
+// The merkle leaf hash can be used to retrieve the tlog leaf for the blob
+// entry.
 func merkleLeafHashForBlobEntry(be store.BlobEntry) ([]byte, error) {
 	leafValue, err := hex.DecodeString(be.Digest)
 	if err != nil {
@@ -1280,7 +1279,8 @@ func merkleLeafHashForBlobEntry(be store.BlobEntry) ([]byte, error) {
 	return merkleLeafHash(leafValue), nil
 }
 
-func convertBlobEntryFromFile(f backend.File) (*store.BlobEntry, error) {
+// encodeFile encodes a File into a BlobEntry.
+func encodeFile(f backend.File) (*store.BlobEntry, error) {
 	data, err := json.Marshal(f)
 	if err != nil {
 		return nil, err
@@ -1292,7 +1292,8 @@ func convertBlobEntryFromFile(f backend.File) (*store.BlobEntry, error) {
 	return store.NewBlobEntry(dd, data)
 }
 
-func convertBlobEntryFromMetadataStream(ms backend.MetadataStream) (*store.BlobEntry, error) {
+// encodeMetadataStream encodes a MetadataStream into a BlobEntry.
+func encodeMetadataStream(ms backend.MetadataStream) (*store.BlobEntry, error) {
 	data, err := json.Marshal(ms)
 	if err != nil {
 		return nil, err
@@ -1304,7 +1305,8 @@ func convertBlobEntryFromMetadataStream(ms backend.MetadataStream) (*store.BlobE
 	return store.NewBlobEntry(dd, data)
 }
 
-func convertBlobEntryFromRecordMetadata(rm backend.RecordMetadata) (*store.BlobEntry, error) {
+// encodeRecordMetadata encodes a RecordMetadata into a BlobEntry.
+func encodeRecordMetadata(rm backend.RecordMetadata) (*store.BlobEntry, error) {
 	data, err := json.Marshal(rm)
 	if err != nil {
 		return nil, err

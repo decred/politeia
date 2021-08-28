@@ -25,6 +25,12 @@ import (
 // TODO verify anchor process works and can handle edge cases like politeiad
 // exiting in the middle of an anchor drop.
 
+const (
+	// Blob entry data descriptors
+	dataDescriptorAnchor         = "pd-anchor-v1"
+	dataDescriptorDroppingAnchor = "pd-droppinganchor-v1"
+)
+
 var (
 	// errNotFound is returned when a record is not found in the
 	// key-value store.
