@@ -15,6 +15,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 )
 
@@ -51,7 +52,7 @@ func (t *Tstore) recordLock(tx store.Tx, token []byte) error {
 
 // RecordTx returns a new tstore transaction for a record.
 //
-// Tlog does not give us the ability to lock a tree while a key-value store
+// tlog does not give us the ability to lock a tree while a key-value store
 // transaction is in progress. We get around this by creating a lock entry in
 // the key-value store for each tstore record and "locking" the record by
 // retreiving the lock entry using a key-value store transaction. This prevents
@@ -71,10 +72,10 @@ func (t *Tstore) RecordTx(token []byte) (store.Tx, func(), error) {
 	if err != nil {
 		if err2 := tx.Rollback(); err2 != nil {
 			// We're in trouble!
-			panic(fmt.Errorf("rollback tx failed: err:'%v' rollback:'%v'",
+			panic(fmt.Sprintf("rollback tx failed: err:'%v' rollback:'%v'",
 				err, err2))
 		}
-		return nil, nil, fmt.Errorf("recordLock %x: %v", token, err)
+		return nil, nil, err
 	}
 
 	return tx, cancel, nil
@@ -156,7 +157,7 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 			Files:    make(map[string][]byte),
 		}
 	} else if err != nil {
-		return nil, fmt.Errorf("recordIndexLatest: %v", err)
+		return nil, err
 	}
 
 	// Verify tree is not frozen
@@ -168,7 +169,7 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 	md := make(map[string]map[uint32]struct{}, len(metadata))
 	for _, v := range metadata {
 		if v.PluginID == "" || v.StreamID == 0 {
-			return nil, fmt.Errorf("invalid metadata stream: '%v' %v",
+			return nil, errors.Errorf("invalid metadata stream: '%v' %v",
 				v.PluginID, v.StreamID)
 		}
 		pmd, ok := md[v.PluginID]
@@ -177,7 +178,7 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 		}
 		_, ok = pmd[v.StreamID]
 		if ok {
-			return nil, fmt.Errorf("duplicate metadata stream: %v %v",
+			return nil, errors.Errorf("duplicate metadata stream: %v %v",
 				v.PluginID, v.StreamID)
 		}
 		pmd[v.StreamID] = struct{}{}
@@ -188,11 +189,11 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 	fn := make(map[string]struct{}, len(files))
 	for _, v := range files {
 		if v.Name == "" {
-			return nil, fmt.Errorf("empty filename")
+			return nil, errors.Errorf("empty filename")
 		}
 		_, ok := fn[v.Name]
 		if ok {
-			return nil, fmt.Errorf("duplicate filename found: %v", v.Name)
+			return nil, errors.Errorf("duplicate filename found: %v", v.Name)
 		}
 		fn[v.Name] = struct{}{}
 	}
@@ -423,13 +424,13 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 	// Save blobs to the kv store
 	err = tx.Put(blobs, encrypt)
 	if err != nil {
-		return nil, fmt.Errorf("tx Put: %v", err)
+		return nil, err
 	}
 
 	// Append leaves onto the trillian tree
 	queued, _, err := t.tlog.LeavesAppend(treeID, leaves)
 	if err != nil {
-		return nil, fmt.Errorf("LeavesAppend: %v", err)
+		return nil, err
 	}
 	failed := make([]string, 0, len(queued))
 	for _, v := range queued {
@@ -439,7 +440,7 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 		}
 	}
 	if len(failed) > 0 {
-		return nil, fmt.Errorf("append leaves failed: %v", failed)
+		return nil, errors.Errorf("append leaves failed: %v", failed)
 	}
 
 	// When a record is made public the record content needs to be
@@ -483,7 +484,7 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 		be, ok := dupBlobs[d]
 		if !ok {
 			// Should not happen
-			return nil, fmt.Errorf("blob entry not found %v", d)
+			return nil, errors.Errorf("blob entry not found %v", d)
 		}
 		b, err := store.Blobify(be)
 		if err != nil {
@@ -493,14 +494,14 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 	}
 	if len(blobs) == 0 {
 		// This should not happen
-		return nil, fmt.Errorf("no blobs found to resave as plain text")
+		return nil, errors.Errorf("no blobs found to resave as plain text")
 	}
 
 	log.Debugf("Resaving %v encrypted blobs as plain text", len(blobs))
 
 	err = tx.Put(blobs, false)
 	if err != nil {
-		return nil, fmt.Errorf("tx Put: %v", err)
+		return nil, err
 	}
 
 	return &idx, nil
@@ -515,8 +516,8 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 func (t *Tstore) RecordSave(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) error {
 	log.Tracef("RecordSave: %x", token)
 
-	// Verify token is valid. The full length token must be
-	// used when writing data.
+	// Verify token is valid. The full length
+	// token must be used when writing data.
 	if !tokenIsFullLength(token) {
 		return backend.ErrTokenInvalid
 	}
@@ -542,14 +543,14 @@ func (t *Tstore) RecordSave(tx store.Tx, token []byte, rm backend.RecordMetadata
 func (t *Tstore) RecordSaveMetadata(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
 	log.Tracef("RecordSaveMetadata: %x", token)
 
-	// Verify token is valid. The full length token must be
-	// used when writing data.
+	// Verify token is valid. The full length
+	// token must be used when writing data.
 	if !tokenIsFullLength(token) {
 		return backend.ErrTokenInvalid
 	}
 
-	// Lookup the record files. These need to be included when we save
-	// the updated metadata.
+	// Lookup the record files. These need to be included
+	// when we save the updated metadata.
 	treeID := treeIDFromToken(token)
 	r, err := t.record(tx, treeID, 0, []string{}, false)
 	if err != nil {
@@ -572,8 +573,8 @@ func (t *Tstore) RecordSaveMetadata(tx store.Tx, token []byte, rm backend.Record
 func (t *Tstore) RecordDel(tx store.Tx, token []byte) error {
 	log.Tracef("RecordDel: %x", token)
 
-	// Verify token is valid. The full length token must be
-	// used when writing data.
+	// Verify token is valid. The full length
+	// token must be used when writing data.
 	if !tokenIsFullLength(token) {
 		return backend.ErrTokenInvalid
 	}
@@ -623,12 +624,7 @@ func (t *Tstore) RecordDel(tx store.Tx, token []byte) error {
 	}
 
 	// Delete file blobs from the store
-	err = tx.Del(keys)
-	if err != nil {
-		return fmt.Errorf("tx Del: %v", err)
-	}
-
-	return nil
+	return tx.Del(keys)
 }
 
 // RecordFreeze updates the metadata of a record, this will include a status
@@ -644,14 +640,14 @@ func (t *Tstore) RecordDel(tx store.Tx, token []byte) error {
 func (t *Tstore) RecordFreeze(tx store.Tx, token []byte, rm backend.RecordMetadata, metadata []backend.MetadataStream) error {
 	log.Tracef("RecordFreeze: %x", token)
 
-	// Verify token is valid. The full length token must be
-	// used when writing data.
+	// Verify token is valid. The full length
+	// token must be used when writing data.
 	if !tokenIsFullLength(token) {
 		return backend.ErrTokenInvalid
 	}
 
-	// Lookup the record files. These need to be included when we save
-	// the updated metadata.
+	// Lookup the record files. These need to be included
+	// when we save the updated metadata.
 	treeID := treeIDFromToken(token)
 	r, err := t.record(tx, treeID, 0, []string{}, false)
 	if err != nil {
@@ -693,11 +689,13 @@ func (t *Tstore) RecordFreeze(tx store.Tx, token []byte, rm backend.RecordMetada
 func (t *Tstore) RecordExists(token []byte) bool {
 	log.Tracef("RecordExists: %x", token)
 
-	// Read methods are allow to provide shortened tokens.
-	// Verify that we have the full length token.
+	// Short tokens are allowed on read methods.
+	// Get the full length token.
 	var err error
 	token, err = t.fullLengthToken(token)
 	if err != nil {
+		// A short token was provided, but it does
+		// not correspond to a full lenght token.
 		return false
 	}
 
@@ -791,7 +789,7 @@ func (t *Tstore) record(g store.Getter, treeID int64, version uint32, filenames 
 	// Get record content from store
 	blobs, err := g.Get(keys)
 	if err != nil {
-		return nil, fmt.Errorf("store Get: %v", err)
+		return nil, err
 	}
 	if len(keys) != len(blobs) {
 		// One or more blobs were not found. This is allowed since the
@@ -821,29 +819,29 @@ func (t *Tstore) record(g store.Getter, treeID int64, version uint32, filenames 
 		// Decode the data hint
 		b, err := base64.StdEncoding.DecodeString(v.DataHint)
 		if err != nil {
-			return nil, fmt.Errorf("decode DataHint: %v", err)
+			return nil, errors.Errorf("decode DataHint: %v", err)
 		}
 		var dd store.DataDescriptor
 		err = json.Unmarshal(b, &dd)
 		if err != nil {
-			return nil, fmt.Errorf("unmarshal DataHint: %v", err)
+			return nil, errors.Errorf("unmarshal DataHint: %v", err)
 		}
 		if dd.Type != store.DataTypeStructure {
-			return nil, fmt.Errorf("invalid data type; got %v, want %v",
+			return nil, errors.Errorf("invalid data type; got %v, want %v",
 				dd.Type, store.DataTypeStructure)
 		}
 
 		// Decode the data
 		b, err = base64.StdEncoding.DecodeString(v.Data)
 		if err != nil {
-			return nil, fmt.Errorf("decode Data: %v", err)
+			return nil, errors.Errorf("decode Data: %v", err)
 		}
 		digest, err := hex.DecodeString(v.Digest)
 		if err != nil {
-			return nil, fmt.Errorf("decode Hash: %v", err)
+			return nil, errors.Errorf("decode Hash: %v", err)
 		}
 		if !bytes.Equal(util.Digest(b), digest) {
-			return nil, fmt.Errorf("data is not coherent; got %x, want %x",
+			return nil, errors.Errorf("data is not coherent; got %x, want %x",
 				util.Digest(b), digest)
 		}
 		switch dd.Descriptor {
@@ -851,25 +849,25 @@ func (t *Tstore) record(g store.Getter, treeID int64, version uint32, filenames 
 			var rm backend.RecordMetadata
 			err = json.Unmarshal(b, &rm)
 			if err != nil {
-				return nil, fmt.Errorf("unmarshal RecordMetadata: %v", err)
+				return nil, errors.Errorf("unmarshal RecordMetadata: %v", err)
 			}
 			recordMD = &rm
 		case dataDescriptorMetadataStream:
 			var ms backend.MetadataStream
 			err = json.Unmarshal(b, &ms)
 			if err != nil {
-				return nil, fmt.Errorf("unmarshal MetadataStream: %v", err)
+				return nil, errors.Errorf("unmarshal MetadataStream: %v", err)
 			}
 			metadata = append(metadata, ms)
 		case dataDescriptorFile:
 			var f backend.File
 			err = json.Unmarshal(b, &f)
 			if err != nil {
-				return nil, fmt.Errorf("unmarshal File: %v", err)
+				return nil, errors.Errorf("unmarshal File: %v", err)
 			}
 			files = append(files, f)
 		default:
-			return nil, fmt.Errorf("invalid descriptor %v", dd.Descriptor)
+			return nil, errors.Errorf("invalid descriptor %v", dd.Descriptor)
 		}
 	}
 
@@ -1038,7 +1036,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 		}
 	}
 	if l == nil {
-		return nil, fmt.Errorf("leaf not found")
+		return nil, errors.Errorf("leaf not found")
 	}
 
 	// Get blob entry from the kv store
@@ -1048,7 +1046,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	}
 	blobs, err := t.store.Get([]string{ed.key()})
 	if err != nil {
-		return nil, fmt.Errorf("store get: %v", err)
+		return nil, err
 	}
 
 	// Extract the data blob. Its possible for the data blob to not
@@ -1058,7 +1056,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	if len(blobs) == 1 {
 		b, ok := blobs[ed.key()]
 		if !ok {
-			return nil, fmt.Errorf("blob not found %v", ed.key())
+			return nil, errors.Errorf("blob not found %v", ed.key())
 		}
 		be, err := store.Deblob(b)
 		if err != nil {
@@ -1070,7 +1068,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 		}
 		// Sanity check
 		if !bytes.Equal(l.LeafValue, util.Digest(data)) {
-			return nil, fmt.Errorf("data digest does not match leaf value")
+			return nil, errors.Errorf("data digest does not match leaf value")
 		}
 	}
 
@@ -1088,14 +1086,13 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 			// This data has not been anchored yet
 			return &ts, nil
 		}
-		return nil, fmt.Errorf("anchor: %v", err)
+		return nil, err
 	}
 
 	// Get trillian inclusion proof
 	p, err := t.tlog.InclusionProof(treeID, l.MerkleLeafHash, a.LogRoot)
 	if err != nil {
-		return nil, fmt.Errorf("InclusionProof %v %x: %v",
-			treeID, l.MerkleLeafHash, err)
+		return nil, err
 	}
 
 	// Setup proof for data digest inclusion in the log merkle root
@@ -1122,7 +1119,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	// Setup proof for log merkle root inclusion in the dcrtime merkle
 	// root
 	if a.VerifyDigest.Digest != trillianProof.MerkleRoot {
-		return nil, fmt.Errorf("trillian merkle root not anchored")
+		return nil, errors.Errorf("trillian merkle root not anchored")
 	}
 	var (
 		numLeaves = a.VerifyDigest.ChainInformation.MerklePath.NumLeaves
@@ -1160,7 +1157,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	// Verify timestamp
 	err = backend.VerifyTimestamp(ts)
 	if err != nil {
-		return nil, fmt.Errorf("VerifyTimestamp: %v", err)
+		return nil, err
 	}
 
 	return &ts, nil
@@ -1194,7 +1191,7 @@ func (t *Tstore) RecordTimestamps(token []byte, version uint32) (*backend.Record
 	// Get record metadata timestamp
 	rm, err := t.timestamp(treeID, idx.RecordMetadata, leaves)
 	if err != nil {
-		return nil, fmt.Errorf("record metadata timestamp: %v", err)
+		return nil, errors.Errorf("record metadata timestamp: %v", err)
 	}
 
 	// Get metadata timestamps
@@ -1203,7 +1200,7 @@ func (t *Tstore) RecordTimestamps(token []byte, version uint32) (*backend.Record
 		for streamID, merkle := range streams {
 			ts, err := t.timestamp(treeID, merkle, leaves)
 			if err != nil {
-				return nil, fmt.Errorf("metadata %v %v timestamp: %v",
+				return nil, errors.Errorf("metadata %v %v timestamp: %v",
 					pluginID, streamID, err)
 			}
 			sts, ok := metadata[pluginID]
@@ -1220,7 +1217,7 @@ func (t *Tstore) RecordTimestamps(token []byte, version uint32) (*backend.Record
 	for k, v := range idx.Files {
 		ts, err := t.timestamp(treeID, v, leaves)
 		if err != nil {
-			return nil, fmt.Errorf("file %v timestamp: %v", k, err)
+			return nil, errors.Errorf("file %v timestamp: %v", k, err)
 		}
 		files[k] = *ts
 	}
