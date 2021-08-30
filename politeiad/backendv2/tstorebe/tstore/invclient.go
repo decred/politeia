@@ -13,9 +13,9 @@ import (
 // InvClient provides a concurrency safe API that plugins can use to manage an
 // inventory of tokens.
 //
-// The InvClient adopts the same database format as it's parent TstoreClient.
-// TODO update this documentation. Plugin write commands are atomic. Plugin
-// read commands are not atomic.
+// Operations will be atomic if the InvClient is initialized by a plugin write
+// command. Operations WILL NOT be atomic if the InvClient is initialized by a
+// plugin read command.
 //
 // Bit flags are used to encode relevant data into inventory entries. An extra
 // data field is also provided for the caller to use freely. The inventory can
@@ -25,7 +25,8 @@ type InvClient struct {
 	id  string // Caller ID used for logging
 	inv *inv.Inv
 
-	// writer is used for all write operations.
+	// writer is used for all write operations. Write operations are
+	// atomic.
 	//
 	// This will be nil when the InvClient is initialized by a plugin
 	// read command.
@@ -33,9 +34,12 @@ type InvClient struct {
 
 	// reader is used for all read operations.
 	//
-	// This will be set to a store Tx when the InvClient is initialized
-	// by a plugin write command and will be set to the store BlobKV
-	// when the InvClient is initialized by a plugin read command.
+	// reader will be a store Tx when the InvClient is initialized by
+	// a plugin write command. Operations will be atomic.
+	//
+	// reader will be the store BlobKV when the InvClient is
+	// initialized by a plugin read commad. Operations will not be
+	// atomic.
 	reader store.Getter
 }
 

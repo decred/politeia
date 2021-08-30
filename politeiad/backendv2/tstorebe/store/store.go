@@ -23,6 +23,8 @@ var (
 )
 
 // BlobKV represents a blob key-value store.
+//
+// TODO Update to have Create, Update, Get, and GetBatch.
 type BlobKV interface {
 	// Put saves the provided key-value pairs to the store. This
 	// operation is performed atomically.
@@ -77,12 +79,12 @@ type Tx interface {
 	Commit() error
 }
 
-// TODO rename to Reader
+// TODO update with the GetBatch
 //
 // Getter describes the get methods that are present on both the BlobKV
 // interface and the Tx interface. This allows the same code to be used for
-// executing individual get requests and get requests that are part of a
-// transaction.
+// executing individual get requests against the BlobKV and for executing
+// get requests that are part of a Tx.
 type Getter interface {
 	Get(keys []string) (map[string][]byte, error)
 }

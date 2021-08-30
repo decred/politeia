@@ -18,34 +18,44 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-// Client provides an API for plugins to interact with a tstore instance.
-// Plugins are allowed to save, delete, and retrieve plugin data to/from the
-// tstore instance.
+// Client provides a concurrency safe API for plugins to interact with a tstore
+// instance. Plugins are allowed to save, delete, and retrieve plugin data
+// to/from the tstore instance.
+//
+// Operations will be atomic if the Client is initialized by a plugin write
+// command. Operations WILL NOT be atomic if the Client is initialized by a
+// plugin read command.
 //
 // Client satisfies the plugins TstoreClient interface.
 type Client struct {
 	id     string // Caller ID used for logging
 	tstore *Tstore
 
-	// TODO rename to reader and writer
+	// writer is used for all write operations. Write operations are
+	// atomic.
+	//
+	// This will be nil when the InvClient is initialized by a plugin
+	// read command.
+	writer store.Tx
 
-	// Client write methods use the tx for all operations.
-	tx store.Tx
-
-	// Client read methods use the getter for all operations. This
-	// allows the caller to decide whether the operations should be
-	// part of a store Tx or executed individually use the BlobKV
-	// interface directly.
-	getter store.Getter
+	// reader is used for all read operations.
+	//
+	// reader will be a store Tx when the InvClient is initialized by
+	// a plugin write command. Operations will be atomic.
+	//
+	// reader will be the store BlobKV when the InvClient is
+	// initialized by a plugin read commad. Operations will not be
+	// atomic.
+	reader store.Getter
 }
 
 // newClient returns a new tstore Client.
-func newClient(id string, tstore *Tstore, tx store.Tx, getter store.Getter) *Client {
+func newClient(id string, tstore *Tstore, tx store.Tx, r store.Getter) *Client {
 	return &Client{
 		id:     id,
 		tstore: tstore,
-		tx:     tx,
-		getter: getter,
+		writer: tx,
+		reader: r,
 	}
 }
 
@@ -62,7 +72,7 @@ func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
 	log.Tracef("%v BlobSave: %x", c.id, token)
 
 	// Verify that this call is part of a write command.
-	if c.tx == nil {
+	if c.writer == nil {
 		return errors.Errorf("attempting to execute a write " +
 			"when the client has been initialized for a read")
 	}
@@ -73,7 +83,7 @@ func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
 	if err != nil {
 		return err
 	}
-	idx, err := getRecordIndexLatest(c.tx, leaves)
+	idx, err := getRecordIndexLatest(c.reader, leaves)
 	if err != nil {
 		return err
 	}
@@ -100,7 +110,7 @@ func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
 		return err
 	}
 	key := newStoreKey(encrypt)
-	err = c.tx.Put(map[string][]byte{key: b}, encrypt)
+	err = c.writer.Put(map[string][]byte{key: b}, encrypt)
 	if err != nil {
 		return err
 	}
@@ -167,7 +177,7 @@ func (c *Client) BlobsDel(token []byte, digests [][]byte) error {
 	log.Tracef("%v BlobsDel: %x %x", c.id, token, digests)
 
 	// Verify that this call is part of a write command.
-	if c.tx == nil {
+	if c.writer == nil {
 		return errors.Errorf("attempting to execute a write " +
 			"when the client has been initialized for a read")
 	}
@@ -203,7 +213,7 @@ func (c *Client) BlobsDel(token []byte, digests [][]byte) error {
 	}
 
 	// Delete file blobs from the store
-	err = c.tx.Del(keys)
+	err = c.writer.Del(keys)
 	if err != nil {
 		return err
 	}
@@ -268,7 +278,7 @@ func (c *Client) Blobs(token []byte, digests [][]byte) (map[string]store.BlobEnt
 	}
 
 	// Pull the blobs from the store
-	blobs, err := c.getter.Get(matchedKeys)
+	blobs, err := c.reader.Get(matchedKeys)
 	if err != nil {
 		return nil, err
 	}
@@ -327,7 +337,7 @@ func (c *Client) BlobsByDataDesc(token []byte, dataDesc []string) ([]store.BlobE
 	}
 
 	// Pull the blobs from the store
-	blobs, err := c.getter.Get(keys)
+	blobs, err := c.reader.Get(keys)
 	if err != nil {
 		return nil, err
 	}
@@ -446,13 +456,12 @@ func (c *Client) CacheSave(kv map[string][]byte) error {
 	log.Tracef("%v CacheSave: %v blobs", c.id, len(kv))
 
 	// Verify that this call is part of a write command.
-	// The database tx will not exist on read commands.
-	if c.tx == nil {
+	if c.writer == nil {
 		return errors.Errorf("attempting to execute a write " +
-			"when the client was initialized for a read")
+			"when the client has been initialized for a read")
 	}
 
-	return c.tx.Put(kv, true)
+	return c.writer.Put(kv, true)
 }
 
 // CacheGet returns blobs from the cache for the provided keys. An entry will
@@ -464,7 +473,7 @@ func (c *Client) CacheSave(kv map[string][]byte) error {
 func (c *Client) CacheGet(keys []string) (map[string][]byte, error) {
 	log.Tracef("%v CacheGet: %v", c.id, keys)
 
-	return c.getter.Get(keys)
+	return c.reader.Get(keys)
 }
 
 // Record returns a version of a record.
@@ -482,7 +491,7 @@ func (c *Client) Record(token []byte, version uint32) (*backend.Record, error) {
 	}
 
 	treeID := treeIDFromToken(token)
-	return c.tstore.record(c.getter, treeID, version, []string{}, false)
+	return c.tstore.record(c.reader, treeID, version, []string{}, false)
 }
 
 // RecordLatest returns the most recent version of a record.
@@ -500,7 +509,7 @@ func (c *Client) RecordLatest(token []byte) (*backend.Record, error) {
 	}
 
 	treeID := treeIDFromToken(token)
-	return c.tstore.record(c.getter, treeID, 0, []string{}, false)
+	return c.tstore.record(c.reader, treeID, 0, []string{}, false)
 }
 
 // RecordPartial returns a partial record. This method gives the caller fine
@@ -530,7 +539,7 @@ func (c *Client) RecordPartial(token []byte, version uint32, filenames []string,
 	}
 
 	treeID := treeIDFromToken(token)
-	return c.tstore.record(c.getter, treeID, version, filenames, omitAllFiles)
+	return c.tstore.record(c.reader, treeID, version, filenames, omitAllFiles)
 }
 
 // RecordState returns the record state.
@@ -548,7 +557,7 @@ func (c *Client) RecordState(token []byte) (backend.StateT, error) {
 //
 // This function satisfies the plugins TstoreClient interface.
 func (c *Client) InvClient(key string, encrypt bool) plugins.InvClient {
-	return newInvClient(c.id, key, encrypt, c.tx, c.getter)
+	return newInvClient(c.id, key, encrypt, c.writer, c.reader)
 }
 
 // leavesForDescriptor returns all leaves that have and extra data descriptor

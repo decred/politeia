@@ -160,13 +160,12 @@ type PluginClient interface {
 // of the Backend interace.
 //
 // TstoreClient provides a concurrency safe API for plugins to interact with a
-// tstore instance.
+// tstore instance. Plugins are allowed to save, delete, and retrieve plugin
+// data to/from the tstore instance.
 //
-// TODO update this documentation. This is not true. Plugin write commands
-// are atomic. Plugin read commands are not atomic.
-// Plugins are allowed to save, delete, and retrieve plugin data to/from the
-// tstore backend. All operations that are executed using this client are
-// performed atomically.
+// Operations will be atomic if the TstoreClient is initialized by a plugin
+// write command. Operations WILL NOT be atomic if the TstoreClient is
+// initialized by a plugin read command.
 type TstoreClient interface {
 	// BlobSave saves a BlobEntry to the tstore instance. The BlobEntry
 	// will be encrypted prior to being written to disk if the record
@@ -242,17 +241,16 @@ type TstoreClient interface {
 	CacheGet(keys []string) (map[string][]byte, error)
 
 	// InvClient returns a InvClient that can be used to interact with
-	// a cached inventory. All InvClient operations are performed using
-	// the same database transaction that the TstoreClient uses.
+	// a cached inventory.
 	InvClient(key string, encrypt bool) InvClient
 }
 
 // InvClient provides a concurrency safe API that plugins can use to manage an
 // inventory of tokens.
 //
-// The InvClient adopts the same database format as it's parent TstoreClient.
-// TODO update this documentation. Plugin write commands are atomic. Plugin
-// read commands are not atomic.
+// Operations will be atomic if the InvClient is initialized by a plugin write
+// command. Operations WILL NOT be atomic if the InvClient is initialized by a
+// plugin read command.
 //
 // Bit flags are used to encode relevant data into inventory entries. An extra
 // data field is also provided for the caller to use freely. The inventory can
