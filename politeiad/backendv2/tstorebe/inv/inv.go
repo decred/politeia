@@ -46,7 +46,7 @@ func New(key string, encrypt bool) *Inv {
 // Entry represents an entry in the inventory.
 type Entry struct {
 	Token     string `json:"token"`     // Unique token
-	Bits      uint64 `json:"bits"`      // Bit flag filtering bits
+	Bits      uint64 `json:"bits"`      // Bit flags
 	Timestamp int64  `json:"timestamp"` // Caller provided Unix timestamp
 
 	// ExtraData is an optional field to be used freely by the caller.
@@ -197,7 +197,7 @@ func (i *Inv) GetOrdered(sg store.Getter, pageSize, pageNum uint32) ([]string, e
 }
 
 // GetAll returns all tokens in the inventory.
-func (i *Inv) GetAll(sg store.Getter, pageSize, pageNum uint32) ([]string, error) {
+func (i *Inv) GetAll(sg store.Getter) ([]string, error) {
 	inv, err := invGet(sg, i.key)
 	if err != nil {
 		return nil, err
@@ -211,7 +211,7 @@ func (i *Inv) GetAll(sg store.Getter, pageSize, pageNum uint32) ([]string, error
 
 // Iter iterates through the inventory and invokes the provided callback on
 // each inventory entry.
-func (i *Inv) Iter(sg store.Getter, callback func(Entry) error) error {
+func (i *Inv) Iter(sg store.Getter, callback func(e Entry) error) error {
 	// Get inventory
 	inv, err := invGet(sg, i.key)
 	if err != nil {

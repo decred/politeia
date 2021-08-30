@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/google/trillian"
 	"github.com/pkg/errors"
@@ -26,7 +27,9 @@ type Client struct {
 	id     string // Caller ID used for logging
 	tstore *Tstore
 
-	// Client write methods use the tx for all read/write operations.
+	// TODO rename to reader and writer
+
+	// Client write methods use the tx for all operations.
 	tx store.Tx
 
 	// Client read methods use the getter for all operations. This
@@ -57,6 +60,12 @@ func newClient(id string, tstore *Tstore, tx store.Tx, getter store.Getter) *Cli
 // This function satisfies the plugins TstoreClient interface.
 func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
 	log.Tracef("%v BlobSave: %x", c.id, token)
+
+	// Verify that this call is part of a write command.
+	if c.tx == nil {
+		return errors.Errorf("attempting to execute a write " +
+			"when the client has been initialized for a read")
+	}
 
 	// Verify that the tlog tree is not frozen.
 	treeID := treeIDFromToken(token)
@@ -157,6 +166,12 @@ func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
 func (c *Client) BlobsDel(token []byte, digests [][]byte) error {
 	log.Tracef("%v BlobsDel: %x %x", c.id, token, digests)
 
+	// Verify that this call is part of a write command.
+	if c.tx == nil {
+		return errors.Errorf("attempting to execute a write " +
+			"when the client has been initialized for a read")
+	}
+
 	// Get all tree leaves
 	treeID := treeIDFromToken(token)
 	leaves, err := c.tstore.leavesAll(treeID)
@@ -215,8 +230,8 @@ func (c *Client) Blobs(token []byte, digests [][]byte) (map[string]store.BlobEnt
 		return nil, err
 	}
 
-	// Determine if the record is vetted. If the record is vetted, only
-	// vetted blobs will be returned.
+	// Determine if the record is vetted. If the record
+	// is vetted, only vetted blobs will be returned.
 	isVetted := recordIsVetted(leaves)
 
 	// Put digests into a map
@@ -225,8 +240,8 @@ func (c *Client) Blobs(token []byte, digests [][]byte) (map[string]store.BlobEnt
 		ds[hex.EncodeToString(v)] = struct{}{}
 	}
 
-	// Find the log leaves for the provided digests. matchedLeaves and
-	// matchedKeys MUST share the same ordering.
+	// Find the log leaves for the provided digests. matchedLeaves
+	// and matchedKeys MUST share the same ordering.
 	var (
 		matchedLeaves = make([]*trillian.LogLeaf, 0, len(digests))
 		matchedKeys   = make([]string, 0, len(digests))
@@ -430,6 +445,13 @@ func (c *Client) Timestamp(token []byte, digest []byte) (*backend.Timestamp, err
 func (c *Client) CacheSave(kv map[string][]byte) error {
 	log.Tracef("%v CacheSave: %v blobs", c.id, len(kv))
 
+	// Verify that this call is part of a write command.
+	// The database tx will not exist on read commands.
+	if c.tx == nil {
+		return errors.Errorf("attempting to execute a write " +
+			"when the client was initialized for a read")
+	}
+
 	return c.tx.Put(kv, true)
 }
 
@@ -518,6 +540,15 @@ func (c *Client) RecordState(token []byte) (backend.StateT, error) {
 	log.Tracef("%v RecordState: %x", c.id, token)
 
 	return c.tstore.RecordState(token)
+}
+
+// InvClient returns a InvClient that can be used to interact with a cached
+// inventory. All InvClient operations are performed using the same database
+// transaction that the TstoreClient uses.
+//
+// This function satisfies the plugins TstoreClient interface.
+func (c *Client) InvClient(key string, encrypt bool) plugins.InvClient {
+	return newInvClient(c.id, key, encrypt, c.tx, c.getter)
 }
 
 // leavesForDescriptor returns all leaves that have and extra data descriptor

@@ -6,6 +6,7 @@ package plugins
 
 import (
 	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/inv"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 )
 
@@ -133,17 +134,18 @@ type PluginClient interface {
 	// Setup performs any required plugin setup.
 	Setup() error
 
-	// Write executes a read/write plugin command. All operations are
-	// executed atomically by tstore when using this method. The plugin
-	// does not need to worry about concurrency issues.
+	// Write executes a write plugin command. All operations are
+	// executed atomically by tstore when using this method. The
+	// plugin does not need to worry about concurrency issues.
 	Write(t TstoreClient, token []byte, cmd, payload string) (string, error)
 
-	// Read executes a read-only plugin command.
+	// Read executes a read-only plugin command. Operations are
+	// not atomic.
 	Read(t TstoreClient, token []byte, cmd, payload string) (string, error)
 
 	// Hook executes a plugin hook. All operations are executed
-	// atomically by tstore when using this method. The plugin does not
-	// need to worry about concurrency issues.
+	// atomically by tstore when using this method. The plugin
+	// does not need to worry about concurrency issues.
 	Hook(t TstoreClient, h HookT, payload string) error
 
 	// Fsck performs a plugin file system check.
@@ -158,8 +160,13 @@ type PluginClient interface {
 // of the Backend interace.
 //
 // TstoreClient provides a concurrency safe API for plugins to interact with a
-// tstore instance.  Plugins are allowed to save, delete, and retrieve plugin
-// data to/from the tstore backend.
+// tstore instance.
+//
+// TODO update this documentation. This is not true. Plugin write commands
+// are atomic. Plugin read commands are not atomic.
+// Plugins are allowed to save, delete, and retrieve plugin data to/from the
+// tstore backend. All operations that are executed using this client are
+// performed atomically.
 type TstoreClient interface {
 	// BlobSave saves a BlobEntry to the tstore instance. The BlobEntry
 	// will be encrypted prior to being written to disk if the record
@@ -220,6 +227,8 @@ type TstoreClient interface {
 	// RecordState returns the record state.
 	RecordState(token []byte) (backend.StateT, error)
 
+	// TODO pull these out into a new client. The tstore client should
+	// only be for timetamped stuff.
 	// CacheSave saves the provided key-value pairs to the tstore
 	// cache. Cached data is not timestamped onto the Decred
 	// blockchain. Only data that can be recreated by walking the
@@ -232,22 +241,29 @@ type TstoreClient interface {
 	// a blob was returned for all provided keys.
 	CacheGet(keys []string) (map[string][]byte, error)
 
-	// TODO implement InvClient
 	// InvClient returns a InvClient that can be used to interact with
-	// the inventory that corresponds to the provided key.
-	// InvClient(key string, encrypt bool) InvClient
+	// a cached inventory. All InvClient operations are performed using
+	// the same database transaction that the TstoreClient uses.
+	InvClient(key string, encrypt bool) InvClient
 }
 
 // InvClient provides a concurrency safe API that plugins can use to manage an
-// inventory of tokens. Bit flags are used to encode relevant data into
-// inventory entries. The inventory can be queried by the bit flags or by the
-// entry timestamp.
+// inventory of tokens.
+//
+// The InvClient adopts the same database format as it's parent TstoreClient.
+// TODO update this documentation. Plugin write commands are atomic. Plugin
+// read commands are not atomic.
+//
+// Bit flags are used to encode relevant data into inventory entries. An extra
+// data field is also provided for the caller to use freely. The inventory can
+// be queried by bit flags, by entry timestamp, or by providing a callback
+// function that is invoked on each entry.
 type InvClient interface {
 	// Add adds a new entry to the inventory.
-	Add(token []byte, bits uint64, timestamp int64) error
+	Add(e inv.Entry) error
 
 	// Update updates an inventory entry.
-	Update(token []byte, bits uint64, timestamp int64) error
+	Update(e inv.Entry) error
 
 	// Del deletes an entry from the inventory.
 	Del(token string) error
@@ -257,8 +273,9 @@ type InvClient interface {
 	Get(bits uint64, pageSize, pageNum uint32) ([]string, error)
 
 	// GetMulti returns a page of tokens for each of the provided bits.
-	// The bits are used as filtering criteria. A map[bits][]token is
-	// returned.
+	// The bits are used as filtering criteria.
+	//
+	// The returned map is a map[bits][]token.
 	GetMulti(bits []uint64, pageSize,
 		pageNum uint32) (map[uint64][]string, error)
 
@@ -267,5 +284,9 @@ type InvClient interface {
 	GetOrdered(pageSize, pageNum uint32) ([]string, error)
 
 	// GetAll returns all tokens in the inventory.
-	GetAll(pageSize, pageNum uint32) ([]string, error)
+	GetAll() ([]string, error)
+
+	// Iter iterates through the inventory and invokes the provided
+	// callback on each inventory entry.
+	Iter(callback func(e inv.Entry) error) error
 }
