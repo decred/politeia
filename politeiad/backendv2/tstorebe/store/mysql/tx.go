@@ -6,6 +6,8 @@ package mysql
 
 import (
 	"database/sql"
+
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 )
 
 // sqlTx implements the store Tx interface using a sql transaction.
@@ -14,13 +16,43 @@ type sqlTx struct {
 	tx    *sql.Tx
 }
 
-// Put saves a key-value pair to the store.
+// newTx returns a new sqlTx and the cancel function that releases all
+// resources associated with the tx.
+func newSqlTx(mysql *mysql) (*sqlTx, func(), error) {
+	tx, cancel, err := mysql.beginTx()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &sqlTx{
+		mysql: mysql,
+		tx:    tx,
+	}, cancel, nil
+}
+
+// Insert inserts a new entry into the key-value store for each of the provided
+// key-value pairs.
+//
+// An error is returned if any of the provided keys already exist in the
+// key-value store.
 //
 // This function satisfies the store Tx interface.
-func (s *sqlTx) Put(blobs map[string][]byte, encrypt bool) error {
-	log.Tracef("Tx Put: %v blobs", len(blobs))
+func (s *sqlTx) Insert(blobs map[string][]byte, encrypt bool) error {
+	log.Tracef("Tx Insert: %v blobs", len(blobs))
 
-	return s.mysql.put(blobs, encrypt, s.tx)
+	return s.mysql.insert(blobs, encrypt, s.tx)
+}
+
+// Update updates the provided key-value pairs in the store.
+//
+// TODO is an error returned when attempting to update a row that does not
+// exist.
+//
+// This function satisfies the store Tx interface.
+func (s *sqlTx) Update(blobs map[string][]byte, encrypt bool) error {
+	log.Tracef("Tx Update: %v blobs", len(blobs))
+
+	return s.mysql.update(blobs, encrypt, s.tx)
 }
 
 // Del deletes an entry from the store.
@@ -32,15 +64,37 @@ func (s *sqlTx) Del(keys []string) error {
 	return s.mysql.del(keys, s.tx)
 }
 
-// Get retrieves entries from the store. An entry will not exist in the
-// returned map if for any blobs that are not found. It is the responsibility
-// of the caller to ensure a blob was returned for all provided keys.
+// Get returns the blob for the provided key.
+//
+// An ErrNotFound error is returned if the key does not correspond to an entry.
 //
 // This function satisfies the store Tx interface.
-func (s *sqlTx) Get(keys []string) (map[string][]byte, error) {
-	log.Tracef("Tx Get: %v", keys)
+func (s *sqlTx) Get(key string) ([]byte, error) {
+	log.Tracef("Tx Get: %v", key)
 
-	return s.mysql.get(keys, s.tx)
+	blobs, err := s.mysql.getBatch([]string{key}, s.tx)
+	if err != nil {
+		return nil, err
+	}
+	b, ok := blobs[key]
+	if !ok {
+		return nil, store.ErrNotFound
+	}
+
+	return b, nil
+}
+
+// GetBatch returns the blobs for the provided keys.
+//
+// An entry will not exist in the returned map if for any blobs that are not
+// found. It is the responsibility of the caller to ensure a blob was returned
+// for all provided keys. An error is not returned.
+//
+// This function satisfies the store Tx interface.
+func (s *sqlTx) GetBatch(keys []string) (map[string][]byte, error) {
+	log.Tracef("Tx GetBatch: %v", keys)
+
+	return s.mysql.getBatch(keys, s.tx)
 }
 
 // Rollback aborts the transaction.
@@ -59,18 +113,4 @@ func (s *sqlTx) Commit() error {
 	log.Tracef("Tx Commit")
 
 	return s.tx.Commit()
-}
-
-// newTx returns a new sqlTx and the cancel function that releases all
-// resources associated with the tx.
-func newSqlTx(mysql *mysql) (*sqlTx, func(), error) {
-	tx, cancel, err := mysql.beginTx()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return &sqlTx{
-		mysql: mysql,
-		tx:    tx,
-	}, cancel, nil
 }

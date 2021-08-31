@@ -20,25 +20,50 @@ var (
 	// ErrShutdown is returned when a action is attempted against a
 	// store that is shutdown.
 	ErrShutdown = errors.New("store is shutdown")
+
+	// ErrNotFound is returned by some methods when a blob entry is
+	// not found.
+	ErrNotFound = errors.New("not found")
 )
 
 // BlobKV represents a blob key-value store.
 //
-// TODO Update to have Create, Update, Get, and GetBatch.
+// TODO Add a setup method.
 type BlobKV interface {
-	// Put saves the provided key-value pairs to the store. This
-	// operation is performed atomically.
-	Put(blobs map[string][]byte, encrypt bool) error
+	// Insert inserts a new entry into the key-value store for each
+	// of the provided key-value pairs. This operation is atomic.
+	//
+	// An error is returned if any of the provided keys already exist
+	// in the key-value store.
+	Insert(blobs map[string][]byte, encrypt bool) error
+
+	// Update updates the provided key-value pairs in the store. This
+	// operation is atomic.
+	//
+	// TODO is an error returned when attempting to update a row that
+	// does not exist.
+	Update(blobs map[string][]byte, encrypt bool) error
 
 	// Del deletes the provided blobs from the store. This operation
-	// is performed atomically.
+	// is atomic.
+	//
+	// Keys that do not correspond to blob entries are ignored. An
+	// error is not returned.
 	Del(keys []string) error
 
-	// Get returns blobs from the store for the provided keys. An entry
-	// will not exist in the returned map if for any blobs that are not
-	// found. It is the responsibility of the caller to ensure a blob
-	// was returned for all provided keys.
-	Get(keys []string) (map[string][]byte, error)
+	// Get returns the blob for the provided key.
+	//
+	// An ErrNotFound error is returned if the key does not correspond
+	// to an entry.
+	Get(key string) ([]byte, error)
+
+	// GetBatch returns the blobs for the provided keys.
+	//
+	// An entry will not exist in the returned map if for any blobs
+	// that are not found. It is the responsibility of the caller to
+	// ensure a blob was returned for all provided keys. An error is
+	// not returned.
+	GetBatch(keys []string) (map[string][]byte, error)
 
 	// Tx returns a new database transaction and a cancel function
 	// for the transaction.
@@ -60,17 +85,38 @@ type BlobKV interface {
 //
 // A transaction must end with a call to Commit or Rollback.
 type Tx interface {
-	// Put saves the provided key-value pairs to the store.
-	Put(blobs map[string][]byte, encrypt bool) error
+	// Insert inserts a new entry into the key-value store for each
+	// of the provided key-value pairs.
+	//
+	// An error is returned if any of the provided keys already exist
+	// in the key-value store.
+	Insert(blobs map[string][]byte, encrypt bool) error
+
+	// Update updates the provided key-value pairs in the store.
+	//
+	// TODO is an error returned when attempting to update a row that
+	// does not exist.
+	Update(blobs map[string][]byte, encrypt bool) error
 
 	// Del deletes the provided blobs from the store.
+	//
+	// Keys that do not correspond to blob entries are ignored. An
+	// error is not returned.
 	Del(keys []string) error
 
-	// Get retrieves entries from the store. An entry will not exist in
-	// the returned map for any blobs that are not found. It is the
-	// responsibility of the caller to ensure a blob was returned for
-	// all provided keys.
-	Get(keys []string) (map[string][]byte, error)
+	// Get returns the blob for the provided key.
+	//
+	// An ErrNotFound error is returned if the key does not correspond
+	// to an entry.
+	Get(key string) ([]byte, error)
+
+	// GetBatch returns the blobs for the provided keys.
+	//
+	// An entry will not exist in the returned map if for any blobs
+	// that are not found. It is the responsibility of the caller to
+	// ensure a blob was returned for all provided keys. An error is
+	// not returned.
+	GetBatch(keys []string) (map[string][]byte, error)
 
 	// Rollback aborts the transaction.
 	Rollback() error
@@ -86,12 +132,12 @@ type Tx interface {
 // executing individual get requests against the BlobKV and for executing
 // get requests that are part of a Tx.
 type Getter interface {
-	Get(keys []string) (map[string][]byte, error)
+	Get(key string) ([]byte, error)
+	GetBatch(keys []string) (map[string][]byte, error)
 }
 
 const (
-	// DataTypeStructure describes a blob entry that contains a
-	// structure.
+	// DataTypeStructure describes a blob entry that contains a structure.
 	DataTypeStructure = "struct"
 )
 

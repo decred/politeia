@@ -261,6 +261,7 @@ type TstoreClient interface {
 type CacheClient interface {
 	Create(kv map[string][]byte) error
 	Update(kv map[string][]byte) error
+	Del(keys []string) error
 	Get(key string) error
 	GetBatch(keys []string) (map[string][]byte, error)
 }

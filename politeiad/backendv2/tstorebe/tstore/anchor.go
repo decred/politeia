@@ -32,6 +32,7 @@ const (
 )
 
 var (
+	// TODO I don't think I need this anymore. Use the store error.
 	// errNotFound is returned when a record is not found in the
 	// key-value store.
 	errNotFound = errors.New("not found")

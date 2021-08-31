@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/sbox"
 	"github.com/pkg/errors"
@@ -57,58 +58,66 @@ func (s *mysql) deriveEncryptionKey(password string) error {
 	// params means that the key has been derived previously. These
 	// params will be used if found. If no params exist then new ones
 	// will be created and saved to the kv store for future use.
-	blobs, err := s.Get([]string{encryptionKeyParamsKey})
+	b, err := s.Get(encryptionKeyParamsKey)
 	if err != nil {
+		if err == store.ErrNotFound {
+			return s.createKeyParams(password)
+		}
 		return err
 	}
-	var (
-		save bool
-		ekp  encryptionKeyParams
-	)
-	b, ok := blobs[encryptionKeyParamsKey]
-	if ok {
-		log.Debugf("Encryption key params found in kv store")
-		err = json.Unmarshal(b, &ekp)
-		if err != nil {
-			return err
-		}
-	} else {
-		log.Infof("Encryption key params not found; creating new ones")
-		ekp = encryptionKeyParams{
-			Params: util.NewArgon2Params(),
-		}
-		save = true
+
+	log.Debugf("Encryption key params found in kv store")
+
+	var ekp encryptionKeyParams
+	err = json.Unmarshal(b, &ekp)
+	if err != nil {
+		return err
 	}
 
 	// Derive key
 	s.argon2idKey(password, ekp.Params)
 
-	// Check if the params need to be saved
+	// Verify that the key as not changed
 	keyDigest := util.Digest(s.key[:])
-	if save {
-		// This was the first time the key was derived. Save the params
-		// to the kv store.
-		ekp.Digest = keyDigest
-		b, err := json.Marshal(ekp)
-		if err != nil {
-			return err
-		}
-		kv := map[string][]byte{
-			encryptionKeyParamsKey: b,
-		}
-		err = s.Put(kv, false)
-		if err != nil {
-			return err
-		}
-
-		log.Infof("Encryption key params saved to kv store")
-	} else {
-		// This was not the first time the key was derived. Verify that
-		// the key has not changed.
-		if !bytes.Equal(ekp.Digest, keyDigest) {
-			return errors.Errorf("attempting to use different encryption key")
-		}
+	if !bytes.Equal(ekp.Digest, keyDigest) {
+		return errors.Errorf("attempting to use different encryption key")
 	}
+
+	return nil
+}
+
+// createKeyParams creates new Aragon2id derivation parameters and saved them
+// to the database. This function should be called if encryption key params do
+// not yet exist in the database. The encryption key is derived and stored
+// in-memory as part of the mysql context during this process as well.
+func (s *mysql) createKeyParams(password string) error {
+	log.Infof("Encryption key params not found; creating new ones")
+
+	// Create new params
+	ekp := encryptionKeyParams{
+		Params: util.NewArgon2Params(),
+	}
+
+	// Derive key
+	s.argon2idKey(password, ekp.Params)
+
+	// Add key digest to the params
+	ekp.Digest = util.Digest(s.key[:])
+
+	// Save the key
+	b, err := json.Marshal(ekp)
+	if err != nil {
+		return err
+	}
+	kv := map[string][]byte{
+		encryptionKeyParamsKey: b,
+	}
+	err = s.Insert(kv, false)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Encryption key params saved to kv store")
 
 	return nil
 }
