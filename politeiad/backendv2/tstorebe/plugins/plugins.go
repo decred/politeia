@@ -166,6 +166,9 @@ type PluginClient interface {
 // Operations will be atomic if the TstoreClient is initialized by a plugin
 // write command. Operations WILL NOT be atomic if the TstoreClient is
 // initialized by a plugin read command.
+//
+// Data saved using the TstoreClient will be timestamped onto the Decred
+// blockchain.
 type TstoreClient interface {
 	// BlobSave saves a BlobEntry to the tstore instance. The BlobEntry
 	// will be encrypted prior to being written to disk if the record
@@ -228,6 +231,7 @@ type TstoreClient interface {
 
 	// TODO pull these out into a new client. The tstore client should
 	// only be for timetamped stuff.
+	//
 	// CacheSave saves the provided key-value pairs to the tstore
 	// cache. Cached data is not timestamped onto the Decred
 	// blockchain. Only data that can be recreated by walking the
@@ -240,17 +244,36 @@ type TstoreClient interface {
 	// a blob was returned for all provided keys.
 	CacheGet(keys []string) (map[string][]byte, error)
 
+	// CacheClient returns a CacheClient that can be used to interact
+	// with the tstore cache.
+	// CacheClient() CacheClient
+
 	// InvClient returns a InvClient that can be used to interact with
 	// a cached inventory.
 	InvClient(key string, encrypt bool) InvClient
 }
 
-// InvClient provides a concurrency safe API that plugins can use to manage an
-// inventory of tokens.
+// TODO implement CacheClient interface
 //
-// Operations will be atomic if the InvClient is initialized by a plugin write
-// command. Operations WILL NOT be atomic if the InvClient is initialized by a
+// Explain why you would use this cache vs a sql cache.
+//
+// Cached data WILL NOT be timetamped onto the Decred blockchain.
+type CacheClient interface {
+	Create(kv map[string][]byte) error
+	Update(kv map[string][]byte) error
+	Get(key string) error
+	GetBatch(keys []string) (map[string][]byte, error)
+}
+
+// InvClient provides a concurrency safe API that plugins can use to manage a
+// cached inventory of tokens.
+//
+// Operations will be atomic if the client is initialized by a plugin write
+// command. Operations WILL NOT be atomic if the client is initialized by a
 // plugin read command.
+//
+// Data save to the inventory WILL NOT be timestamped onto the Decred
+// blockchain.
 //
 // Bit flags are used to encode relevant data into inventory entries. An extra
 // data field is also provided for the caller to use freely. The inventory can

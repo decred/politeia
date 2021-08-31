@@ -4,9 +4,9 @@
 
 // Package inv implements a concurrency safe API for managing an inventory of
 // tokens. Bit flags are used to encode relevant data into inventory entries.
-// An extra data field is also provided for the caller to use freely. The
-// inventory can be queried by bit flags, by entry timestamp, or by providing a
-// callback function that is invoked on each entry.
+// An extra data field is also provided that can be used freely by the caller.
+// An inventory can be queried by bit flags, by entry timestamp, or by
+// providing a callback function that is invoked on each entry.
 //
 // This is an internal politeiad package that does not validate input. If the
 // developer wants to shoot themselves in the foot, this package allows it.
@@ -22,8 +22,7 @@ import (
 )
 
 var (
-	// ErrEntryNotFound is returned when an inventory entry is not
-	// found.
+	// ErrEntryNotFound is returned when an inventory entry is not found.
 	ErrEntryNotFound = errors.New("entry not found")
 )
 

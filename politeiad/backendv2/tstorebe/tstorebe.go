@@ -36,9 +36,9 @@ type tstoreBackend struct {
 	settings backend.BackendSettings
 	tstore   *tstore.Tstore
 
-	// cache is the key-value store cache. This is the same key-value
-	// store that tstore uses, allowing the backend to interact with
-	// cached data using a tstore transaction.
+	// cache is the key-value store cache. This is used by read only
+	// methods for interacting with cached data. Write methods use a
+	// store Tx instead of interacting with the BlobKV directly.
 	cache store.BlobKV
 
 	// inv provides a concurrency save API for tracking the record
@@ -82,6 +82,7 @@ func New(appDir, dataDir string, tlogHost, tlogPass, dbType, dbHost, dbPass, dcr
 		inv:    newRecordInv(),
 	}
 
+	// TODO pull this out into a tstorebe.Setup() method
 	// Perform any required setup
 	err = t.tstore.Setup()
 	if err != nil {
