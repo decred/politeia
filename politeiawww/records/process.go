@@ -254,6 +254,7 @@ func (r *Records) processDetails(ctx context.Context, d v1.Details, u *user.User
 				ErrorCode: v1.ErrorCodeRecordNotFound,
 			}
 		}
+		return nil, err
 	}
 
 	// Only admins and the record author are allowed to retrieve
