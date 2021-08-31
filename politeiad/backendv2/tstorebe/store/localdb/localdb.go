@@ -7,7 +7,6 @@ package localdb
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -75,7 +74,7 @@ func (l *localdb) put(blobs map[string][]byte, encrypt bool, batch *leveldb.Batc
 		for k, v := range blobs {
 			e, err := l.encrypt(v)
 			if err != nil {
-				return fmt.Errorf("encrypt: %v", err)
+				return err
 			}
 			blobs[k] = e
 		}
@@ -111,7 +110,7 @@ func (l *localdb) get(keys []string) (map[string][]byte, error) {
 				// File does not exist. This is ok.
 				continue
 			}
-			return nil, fmt.Errorf("get %v: %v", v, err)
+			return nil, errors.WithStack(err)
 		}
 		blobs[v] = b
 	}
@@ -125,7 +124,7 @@ func (l *localdb) get(keys []string) (map[string][]byte, error) {
 		}
 		b, _, err := l.decrypt(v)
 		if err != nil {
-			return nil, fmt.Errorf("decrypt: %v", err)
+			return nil, err
 		}
 		blobs[k] = b
 	}
@@ -156,7 +155,7 @@ func (l *localdb) Put(blobs map[string][]byte, encrypt bool) error {
 	// Write batch
 	err = l.db.Write(batch, nil)
 	if err != nil {
-		return fmt.Errorf("write batch: %v", err)
+		return errors.WithStack(err)
 	}
 
 	log.Debugf("Saved blobs (%v) to store", len(blobs))
@@ -244,9 +243,9 @@ func New(appDir, dataDir string) (*localdb, error) {
 	// Verify config options
 	switch {
 	case appDir == "":
-		return nil, fmt.Errorf("app dir not provided")
+		return nil, errors.Errorf("app dir not provided")
 	case dataDir == "":
-		return nil, fmt.Errorf("data dir not provided")
+		return nil, errors.Errorf("data dir not provided")
 	}
 
 	// Setup leveldb data dir

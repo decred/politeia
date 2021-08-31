@@ -10,10 +10,10 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
 
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/sbox"
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/argon2"
 )
 
@@ -59,7 +59,7 @@ func (s *mysql) deriveEncryptionKey(password string) error {
 	// will be created and saved to the kv store for future use.
 	blobs, err := s.Get([]string{encryptionKeyParamsKey})
 	if err != nil {
-		return fmt.Errorf("get: %v", err)
+		return err
 	}
 	var (
 		save bool
@@ -98,7 +98,7 @@ func (s *mysql) deriveEncryptionKey(password string) error {
 		}
 		err = s.Put(kv, false)
 		if err != nil {
-			return fmt.Errorf("put: %v", err)
+			return err
 		}
 
 		log.Infof("Encryption key params saved to kv store")
@@ -106,7 +106,7 @@ func (s *mysql) deriveEncryptionKey(password string) error {
 		// This was not the first time the key was derived. Verify that
 		// the key has not changed.
 		if !bytes.Equal(ekp.Digest, keyDigest) {
-			return fmt.Errorf("attempting to use different encryption key")
+			return errors.Errorf("attempting to use different encryption key")
 		}
 	}
 
@@ -115,6 +115,8 @@ func (s *mysql) deriveEncryptionKey(password string) error {
 
 var emptyNonce = [24]byte{}
 
+// getDBNonce retrieves a new nonce from the database. The nonce is guaranteed
+// to be unique for every invocation of this function.
 func (s *mysql) getDBNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
 	// Get nonce value
 	nonce, err := s.nonce(ctx, tx)
@@ -134,6 +136,8 @@ func (s *mysql) getDBNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
 	return n.Current(), nil
 }
 
+// getTestNonce returns a new nonce that can be used for testing. This nonce
+// is not guaranteed to be unique.
 func (s *mysql) getTestNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
 	nonce, err := util.Random(8)
 	if err != nil {
@@ -146,6 +150,7 @@ func (s *mysql) getTestNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) 
 	return n.Current(), nil
 }
 
+// getNonce returns a unique nonce.
 func (s *mysql) getNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
 	if s.testing {
 		return s.getTestNonce(ctx, tx)
@@ -153,6 +158,7 @@ func (s *mysql) getNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
 	return s.getDBNonce(ctx, tx)
 }
 
+// encrypt encrypts the provided data using a unqiue nonce.
 func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, error) {
 	nonce, err := s.getNonce(ctx, tx)
 	if err != nil {
@@ -161,6 +167,7 @@ func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, e
 	return sbox.EncryptN(0, &s.key, nonce, data)
 }
 
+// decrypt decrypts the provided data.
 func (s *mysql) decrypt(data []byte) ([]byte, uint32, error) {
 	return sbox.Decrypt(&s.key, data)
 }

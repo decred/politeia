@@ -14,6 +14,7 @@ import (
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 
 	// MySQL driver.
 	_ "github.com/go-sql-driver/mysql"
@@ -68,7 +69,7 @@ func (s *mysql) beginTx() (*sql.Tx, func(), error) {
 	}
 	tx, err := s.db.BeginTx(ctx, opts)
 	if err != nil {
-		return nil, nil, fmt.Errorf("begin tx: %v", err)
+		return nil, nil, errors.WithStack(err)
 	}
 
 	return tx, cancel, nil
@@ -86,14 +87,14 @@ func (s *mysql) put(blobs map[string][]byte, encrypt bool, tx *sql.Tx) error {
 		for k, v := range blobs {
 			e, err := s.encrypt(ctx, tx, v)
 			if err != nil {
-				return fmt.Errorf("encrypt: %v", err)
+				return err
 			}
 			encrypted[k] = e
 		}
 
 		// Sanity check
 		if len(encrypted) != len(blobs) {
-			return fmt.Errorf("unexpected number of encrypted blobs")
+			return errors.Errorf("unexpected number of encrypted blobs")
 		}
 
 		blobs = encrypted
@@ -104,7 +105,7 @@ func (s *mysql) put(blobs map[string][]byte, encrypt bool, tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx,
 			"INSERT INTO kv (k, v) VALUES (?, ?);", k, v)
 		if err != nil {
-			return fmt.Errorf("exec put: %v", err)
+			return errors.WithStack(err)
 		}
 	}
 
@@ -146,7 +147,7 @@ func (s *mysql) Put(blobs map[string][]byte, encrypt bool) error {
 	// Commit transaction
 	err = tx.Commit()
 	if err != nil {
-		return fmt.Errorf("commit tx: %v", err)
+		return errors.WithStack(err)
 	}
 
 	return nil
@@ -205,7 +206,7 @@ func (s *mysql) Del(keys []string) error {
 	// Commit transaction
 	err = tx.Commit()
 	if err != nil {
-		return fmt.Errorf("commit: %v", err)
+		return errors.WithStack(err)
 	}
 
 	return nil
@@ -237,7 +238,7 @@ func (s *mysql) get(keys []string, q querier) (map[string][]byte, error) {
 	// Get blobs
 	rows, err := q.QueryContext(ctx, buildQuery(keys), args...)
 	if err != nil {
-		return nil, fmt.Errorf("query: %v", err)
+		return nil, errors.WithStack(err)
 	}
 	defer rows.Close()
 
@@ -248,13 +249,13 @@ func (s *mysql) get(keys []string, q querier) (map[string][]byte, error) {
 		var v []byte
 		err = rows.Scan(&k, &v)
 		if err != nil {
-			return nil, fmt.Errorf("scan: %v", err)
+			return nil, errors.WithStack(err)
 		}
 		reply[k] = v
 	}
 	err = rows.Err()
 	if err != nil {
-		return nil, fmt.Errorf("next: %v", err)
+		return nil, errors.WithStack(err)
 	}
 
 	// Decrypt data blobs
@@ -266,7 +267,7 @@ func (s *mysql) get(keys []string, q querier) (map[string][]byte, error) {
 		}
 		b, _, err := s.decrypt(v)
 		if err != nil {
-			return nil, fmt.Errorf("decrypt: %v", err)
+			return nil, err
 		}
 		reply[k] = b
 	}
@@ -315,7 +316,7 @@ func (s *mysql) Close() {
 func New(host, user, password, dbname string) (*mysql, error) {
 	// The password is required to derive the encryption key
 	if password == "" {
-		return nil, fmt.Errorf("password not provided")
+		return nil, errors.Errorf("password not provided")
 	}
 
 	// Connect to database
@@ -335,7 +336,7 @@ func New(host, user, password, dbname string) (*mysql, error) {
 	// Verify database connection
 	err = db.Ping()
 	if err != nil {
-		return nil, fmt.Errorf("db ping: %v", err)
+		return nil, errors.WithStack(err)
 	}
 
 	// Setup key-value table
@@ -343,7 +344,7 @@ func New(host, user, password, dbname string) (*mysql, error) {
 		tableNameKeyValue, tableKeyValue)
 	_, err = db.Exec(q)
 	if err != nil {
-		return nil, fmt.Errorf("create kv table: %v", err)
+		return nil, errors.WithStack(err)
 	}
 
 	// Setup nonce table
@@ -351,7 +352,7 @@ func New(host, user, password, dbname string) (*mysql, error) {
 		tableNameNonce, tableNonce)
 	_, err = db.Exec(q)
 	if err != nil {
-		return nil, fmt.Errorf("create nonce table: %v", err)
+		return nil, errors.WithStack(err)
 	}
 
 	// Setup mysql context
@@ -363,7 +364,7 @@ func New(host, user, password, dbname string) (*mysql, error) {
 	// it to the mysql context.
 	err = s.deriveEncryptionKey(password)
 	if err != nil {
-		return nil, fmt.Errorf("deriveEncryptionKey: %v", err)
+		return nil, err
 	}
 
 	return s, nil

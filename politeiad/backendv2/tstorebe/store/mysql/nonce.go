@@ -7,9 +7,10 @@ package mysql
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"strconv"
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
 // nonce returns a new nonce value. This function guarantees that the returned
@@ -21,11 +22,11 @@ func (s *mysql) nonce(ctx context.Context, tx *sql.Tx) (int64, error) {
 	// transaction.
 	_, err := tx.ExecContext(ctx, "INSERT INTO nonce () VALUES ();")
 	if err != nil {
-		return 0, fmt.Errorf("insert: %v", err)
+		return 0, errors.WithStack(err)
 	}
 	rows, err := tx.QueryContext(ctx, "SELECT LAST_INSERT_ID();")
 	if err != nil {
-		return 0, fmt.Errorf("query: %v", err)
+		return 0, errors.WithStack(err)
 	}
 	defer rows.Close()
 
@@ -35,19 +36,19 @@ func (s *mysql) nonce(ctx context.Context, tx *sql.Tx) (int64, error) {
 			// There should only ever be one row returned. Something is
 			// wrong if we've already scanned the nonce and its still
 			// scanning rows.
-			return 0, fmt.Errorf("multiple rows returned for nonce")
+			return 0, errors.Errorf("multiple rows returned for nonce")
 		}
 		err = rows.Scan(&nonce)
 		if err != nil {
-			return 0, fmt.Errorf("scan: %v", err)
+			return 0, errors.WithStack(err)
 		}
 	}
 	err = rows.Err()
 	if err != nil {
-		return 0, fmt.Errorf("next: %v", err)
+		return 0, errors.WithStack(err)
 	}
 	if nonce == 0 {
-		return 0, fmt.Errorf("invalid 0 nonce")
+		return 0, errors.Errorf("invalid 0 nonce")
 	}
 
 	return nonce, nil
@@ -64,7 +65,7 @@ func (s *mysql) testNonce(tx *sql.Tx) error {
 	// Get nonce
 	nonce, err := s.nonce(ctx, tx)
 	if err != nil {
-		return fmt.Errorf("nonce: %v", err)
+		return errors.WithStack(err)
 	}
 
 	// Save an empty blob to the kv store using the nonce as the key.
@@ -74,7 +75,7 @@ func (s *mysql) testNonce(tx *sql.Tx) error {
 	_, err = tx.ExecContext(ctx,
 		"INSERT INTO kv (k, v) VALUES (?, ?);", k, []byte{})
 	if err != nil {
-		return fmt.Errorf("exec put: %v", err)
+		return errors.WithStack(err)
 	}
 
 	return nil
