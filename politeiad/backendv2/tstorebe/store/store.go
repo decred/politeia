@@ -26,21 +26,28 @@ var (
 	// ErrNotFound is returned by some methods when a blob entry is not
 	// found.
 	ErrNotFound = errors.New("not found")
+
+	// ErrDuplicateKey is returned when attempting to insert a key that
+	// already exists.
+	ErrDuplicateKey = errors.New("duplicate key")
 )
 
 // BlobKV represents a blob key-value store.
 type BlobKV interface {
+	// TODO take out
+	Put(blobs map[string][]byte, encrypt bool) error
+
 	// Insert inserts a new entry into the key-value store for each
 	// of the provided key-value pairs. This operation is atomic.
 	//
-	// An error is returned if any of the provided keys already exist
+	// An ErrDuplicateKey is returned if a provided key already exists
 	// in the key-value store.
 	Insert(blobs map[string][]byte, encrypt bool) error
 
 	// Update updates the provided key-value pairs in the store. This
 	// operation is atomic.
 	//
-	// An error IS NOT returned if the caller attempts to update an
+	// An ErrNotFound is returned if the caller attempts to update an
 	// entry that does not exist.
 	Update(blobs map[string][]byte, encrypt bool) error
 
@@ -48,7 +55,7 @@ type BlobKV interface {
 	// is atomic.
 	//
 	// Keys that do not correspond to blob entries are ignored. An
-	// error is not returned.
+	// error IS NOT returned.
 	Del(keys []string) error
 
 	// Get returns the blob for the provided key.
@@ -85,23 +92,26 @@ type BlobKV interface {
 //
 // A transaction must end with a call to Commit or Rollback.
 type Tx interface {
+	// TODO take out
+	Put(blobs map[string][]byte, encrypt bool) error
+
 	// Insert inserts a new entry into the key-value store for each
 	// of the provided key-value pairs.
 	//
-	// An error is returned if any of the provided keys already exist
+	// An ErrDuplicateKey is returned if a provided key already exists
 	// in the key-value store.
 	Insert(blobs map[string][]byte, encrypt bool) error
 
 	// Update updates the provided key-value pairs in the store.
 	//
-	// An error IS NOT returned if the caller attempts to update an
+	// An ErrNotFound is returned if the caller attempts to update an
 	// entry that does not exist.
 	Update(blobs map[string][]byte, encrypt bool) error
 
 	// Del deletes the provided blobs from the store.
 	//
 	// Keys that do not correspond to blob entries are ignored. An
-	// error is not returned.
+	// error IS NOT returned.
 	Del(keys []string) error
 
 	// Get returns the blob for the provided key.

@@ -13,11 +13,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
 	"github.com/pkg/errors"
 
-	_ "github.com/go-sql-driver/mysql" // MySQL driver
+	driver "github.com/go-sql-driver/mysql" // MySQL driver
 )
 
 const (
@@ -130,6 +131,11 @@ func New(host, user, password, dbname string) (*mysql, error) {
 	return s, nil
 }
 
+// TODO remove
+func (s *mysql) Put(blobs map[string][]byte, encrypt bool) error {
+	return nil
+}
+
 // Insert inserts a new entry into the key-value store for each of the provided
 // key-value pairs. This operation is atomic.
 //
@@ -229,6 +235,12 @@ func (s *mysql) Del(keys []string) error {
 	// Delete blobs
 	err = s.del(keys, tx)
 	if err != nil {
+		// Attempt to roll back the transaction
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			e := fmt.Sprintf("del: %v, unable to rollback: %v", err, err2)
+			panic(e)
+		}
 		return err
 	}
 
@@ -325,11 +337,16 @@ func (s *mysql) insert(blobs map[string][]byte, encrypt bool, tx *sql.Tx) error 
 		_, err := tx.ExecContext(ctx,
 			"INSERT INTO kv (k, v) VALUES (?, ?);", k, v)
 		if err != nil {
+			var sqlErr driver.MySQLError
+			if errors.As(err, &sqlErr) && sqlErr.Number == 1602 {
+				// This key already existed
+				err = fmt.Errorf("%w: %v", store.ErrDuplicateKey, k)
+			}
 			return errors.WithStack(err)
 		}
 	}
 
-	log.Debugf("Inserted blobs (%v) to store", len(blobs))
+	log.Debugf("Inserted blobs (%v) into kv store", len(blobs))
 
 	return nil
 }
@@ -352,14 +369,23 @@ func (s *mysql) update(blobs map[string][]byte, encrypt bool, tx *sql.Tx) error 
 
 	// Save blobs
 	for k, v := range blobs {
-		_, err := tx.ExecContext(ctx,
+		r, err := tx.ExecContext(ctx,
 			"UPDATE kv SET v = ? where k = ?;", v, k)
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		count, err := r.RowsAffected()
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if count == 0 {
+			// Nothing was updated
+			e := fmt.Errorf("%w: %v", store.ErrDuplicateKey, k)
+			return errors.WithStack(e)
+		}
 	}
 
-	log.Debugf("Updated blobs (%v) to store", len(blobs))
+	log.Debugf("Updated blobs (%v) in kv store", len(blobs))
 
 	return nil
 }
@@ -372,20 +398,16 @@ func (s *mysql) del(keys []string, tx *sql.Tx) error {
 	defer cancel()
 
 	// Delete blobs
+	// TODO this should be a single op
 	for _, v := range keys {
 		_, err := tx.ExecContext(ctx, "DELETE FROM kv WHERE k IN (?);", v)
 		if err != nil {
-			// Attempt to roll back the transaction
-			if err2 := tx.Rollback(); err2 != nil {
-				// We're in trouble!
-				e := fmt.Sprintf("del: %v, unable to rollback: %v", err, err2)
-				panic(e)
-			}
 			return err
 		}
 	}
 
-	log.Debugf("Deleted blobs (%v) from store", len(keys))
+	log.Debugf("Deleted blobs (%v/%v) from kv store",
+		len(keys))
 
 	return nil
 }
@@ -542,6 +564,12 @@ func (s *mysql) testOps() error {
 		return err
 	}
 
+	err = s.Insert(kv, false)
+	if err != nil {
+		spew.Dump(err)
+		return err
+	}
+
 	// Verify entry exists
 	b, err := s.Get(key)
 	if err != nil {
@@ -641,6 +669,15 @@ func (s *mysql) testOps() error {
 	if err != nil {
 		return err
 	}
+
+	// TODO
+	// Batch save
+
+	// Batch get
+
+	// Batch update
+
+	// Batch del
 
 	return nil
 }
