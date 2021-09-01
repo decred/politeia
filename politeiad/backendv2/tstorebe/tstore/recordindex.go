@@ -302,7 +302,7 @@ func getRecordIndexes(g store.Getter, leaves []*trillian.LogLeaf) ([]recordIndex
 	}
 
 	// Get record indexes from store
-	blobs, err := g.Get(keys)
+	blobs, err := g.GetBatch(keys)
 	if err != nil {
 		return nil, errors.Errorf("store Get: %v", err)
 	}

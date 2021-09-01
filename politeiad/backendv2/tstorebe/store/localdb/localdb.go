@@ -6,7 +6,6 @@ package localdb
 
 import (
 	"bytes"
-	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -14,6 +13,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/sbox"
+	"github.com/pkg/errors"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -28,7 +28,8 @@ const (
 )
 
 var (
-	_ store.BlobKV = (*localdb)(nil)
+// TODO put back in
+// _ store.BlobKV = (*localdb)(nil)
 )
 
 // localdb implements the store BlobKV interface using leveldb.
@@ -215,8 +216,10 @@ func (l *localdb) Get(keys []string) (map[string][]byte, error) {
 //
 // This function satisfies the store BlobKV interface.
 func (l *localdb) Tx() (store.Tx, func(), error) {
-	tx, cancel := newTx(l)
-	return tx, cancel, nil
+	// TODO put back in
+	// tx, cancel := newTx(l)
+	// return tx, cancel, nil
+	return nil, nil, nil
 }
 
 // Closes closes the store connection.

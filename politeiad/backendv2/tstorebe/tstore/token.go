@@ -55,7 +55,7 @@ func (t *Tstore) shortTokenIsUnique(token []byte) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	blobs, err := t.store.Get([]string{key})
+	blobs, err := t.store.GetBatch([]string{key})
 	if err != nil {
 		return false, err
 	}
@@ -84,7 +84,7 @@ func (t *Tstore) fullLengthToken(shortToken []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	blobs, err := t.store.Get([]string{key})
+	blobs, err := t.store.GetBatch([]string{key})
 	if err != nil {
 		return nil, err
 	}

@@ -8,6 +8,11 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
+var (
+// TODO put back in
+// _ store.Tx = (*tx)(nil)
+)
+
 // tx implements the store Tx interface using leveldb.
 //
 // leveldb does not support transactions, but we are able to implement our own

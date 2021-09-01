@@ -10,6 +10,10 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 )
 
+var (
+	_ store.Tx = (*sqlTx)(nil)
+)
+
 // sqlTx implements the store Tx interface using a sql transaction.
 type sqlTx struct {
 	mysql *mysql
@@ -45,8 +49,8 @@ func (s *sqlTx) Insert(blobs map[string][]byte, encrypt bool) error {
 
 // Update updates the provided key-value pairs in the store.
 //
-// TODO is an error returned when attempting to update a row that does not
-// exist.
+// An error IS NOT returned if the caller attempts to update an entry that does
+// not exist.
 //
 // This function satisfies the store Tx interface.
 func (s *sqlTx) Update(blobs map[string][]byte, encrypt bool) error {

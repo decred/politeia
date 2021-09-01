@@ -549,7 +549,7 @@ func deriveTlogKey(kvstore store.BlobKV, passphrase string) (*keyspb.PrivateKey,
 	// previously. These params will be used if found. If no params
 	// exist then new ones will be created and saved to the kv store
 	// for future use.
-	blobs, err := kvstore.Get([]string{tlogKeyParamsKey})
+	blobs, err := kvstore.GetBatch([]string{tlogKeyParamsKey})
 	if err != nil {
 		return nil, err
 	}

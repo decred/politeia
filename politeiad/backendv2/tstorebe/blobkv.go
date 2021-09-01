@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/mysql"
 )
 
@@ -48,10 +47,12 @@ func newBlobKV(opts blobKVOpts) (store.BlobKV, error) {
 	)
 	switch opts.Type {
 	case DBTypeLevelDB:
+		/* TODO put back in
 		kv, err = localdb.New(opts.AppDir, opts.DataDir)
 		if err != nil {
 			return nil, fmt.Errorf("new localdb store: %v", err)
 		}
+		*/
 	case DBTypeMySQL:
 		dbName := fmt.Sprintf("%v_kv", opts.Net)
 		kv, err = mysql.New(opts.Host, dbUser, opts.Password, dbName)

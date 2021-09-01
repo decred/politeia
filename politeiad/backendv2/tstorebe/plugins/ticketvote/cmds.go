@@ -1215,6 +1215,9 @@ func castVoteVerifySignature(cv ticketvote.CastVote, addr string, net *chaincfg.
 	return nil
 }
 
+// TODO what happens if the database tx times out? These need to be single
+// op database writes. How are we going to do this?
+//
 // castBallot casts a ballot of votes. The ballot is split up into individual
 // votes and cast concurrently. We do it this way because tstore only allows
 // one blob to be saved at a time. The vote results are passed back to the

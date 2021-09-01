@@ -278,7 +278,7 @@ func (c *Client) Blobs(token []byte, digests [][]byte) (map[string]store.BlobEnt
 	}
 
 	// Pull the blobs from the store
-	blobs, err := c.reader.Get(matchedKeys)
+	blobs, err := c.reader.GetBatch(matchedKeys)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +337,7 @@ func (c *Client) BlobsByDataDesc(token []byte, dataDesc []string) ([]store.BlobE
 	}
 
 	// Pull the blobs from the store
-	blobs, err := c.reader.Get(keys)
+	blobs, err := c.reader.GetBatch(keys)
 	if err != nil {
 		return nil, err
 	}
@@ -473,7 +473,7 @@ func (c *Client) CacheSave(kv map[string][]byte) error {
 func (c *Client) CacheGet(keys []string) (map[string][]byte, error) {
 	log.Tracef("%v CacheGet: %v", c.id, keys)
 
-	return c.reader.Get(keys)
+	return c.reader.GetBatch(keys)
 }
 
 // Record returns a version of a record.

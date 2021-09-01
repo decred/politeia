@@ -159,6 +159,9 @@ type PluginClient interface {
 // being executed on.  Executing commands on other records requires the use
 // of the Backend interace.
 //
+// TODO add in check that all write data descriptors are prefixed with the
+// plugin id
+//
 // TstoreClient provides a concurrency safe API for plugins to interact with a
 // tstore instance. Plugins are allowed to save, delete, and retrieve plugin
 // data to/from the tstore instance.

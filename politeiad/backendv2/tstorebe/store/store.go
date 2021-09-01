@@ -16,19 +16,19 @@ import (
 	"github.com/pkg/errors"
 )
 
+// TODO switch GetBatch single key calls in code to Get calls
+
 var (
 	// ErrShutdown is returned when a action is attempted against a
 	// store that is shutdown.
 	ErrShutdown = errors.New("store is shutdown")
 
-	// ErrNotFound is returned by some methods when a blob entry is
-	// not found.
+	// ErrNotFound is returned by some methods when a blob entry is not
+	// found.
 	ErrNotFound = errors.New("not found")
 )
 
 // BlobKV represents a blob key-value store.
-//
-// TODO Add a setup method.
 type BlobKV interface {
 	// Insert inserts a new entry into the key-value store for each
 	// of the provided key-value pairs. This operation is atomic.
@@ -40,8 +40,8 @@ type BlobKV interface {
 	// Update updates the provided key-value pairs in the store. This
 	// operation is atomic.
 	//
-	// TODO is an error returned when attempting to update a row that
-	// does not exist.
+	// An error IS NOT returned if the caller attempts to update an
+	// entry that does not exist.
 	Update(blobs map[string][]byte, encrypt bool) error
 
 	// Del deletes the provided blobs from the store. This operation
@@ -76,7 +76,7 @@ type BlobKV interface {
 	// the deferred invocation does nothing.
 	Tx() (Tx, func(), error)
 
-	// Closes closes the store connection.
+	// Close closes the db connection.
 	Close()
 }
 
@@ -94,8 +94,8 @@ type Tx interface {
 
 	// Update updates the provided key-value pairs in the store.
 	//
-	// TODO is an error returned when attempting to update a row that
-	// does not exist.
+	// An error IS NOT returned if the caller attempts to update an
+	// entry that does not exist.
 	Update(blobs map[string][]byte, encrypt bool) error
 
 	// Del deletes the provided blobs from the store.
@@ -125,8 +125,6 @@ type Tx interface {
 	Commit() error
 }
 
-// TODO update with the GetBatch
-//
 // Getter describes the get methods that are present on both the BlobKV
 // interface and the Tx interface. This allows the same code to be used for
 // executing individual get requests against the BlobKV and for executing

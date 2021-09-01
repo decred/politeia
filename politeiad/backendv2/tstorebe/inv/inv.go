@@ -253,7 +253,7 @@ func (i *inv) save(tx store.Tx, key string, encrypt bool) error {
 // invGet retrieves the inventory from the key-value store using the provided
 // store getter. A new inventory object is returned if one does not exist yet.
 func invGet(sg store.Getter, key string) (*inv, error) {
-	blobs, err := sg.Get([]string{key})
+	blobs, err := sg.GetBatch([]string{key})
 	if err != nil {
 		return nil, err
 	}

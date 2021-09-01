@@ -192,7 +192,7 @@ func decodeDroppingAnchor(gb []byte) (*droppingAnchor, error) {
 // getDroppingAnchor retrieves the droppingAnchor record from the key-value
 // store.
 func getDroppingAnchor(s store.Getter) (*droppingAnchor, error) {
-	blobs, err := s.Get([]string{droppingAnchorKey})
+	blobs, err := s.GetBatch([]string{droppingAnchorKey})
 	if err != nil {
 		return nil, err
 	}
@@ -465,7 +465,7 @@ func getAnchor(kv store.BlobKV, treeID int64, merkleLeafHash []byte, leaves []*t
 	}
 
 	// Get the anchor records
-	blobs, err := kv.Get(keys)
+	blobs, err := kv.GetBatch(keys)
 	if err != nil {
 		return nil, err
 	}
@@ -525,7 +525,7 @@ func getAnchorLatest(kv store.BlobKV, tlog tlogClient, treeID int64) (*anchor, e
 	}
 
 	// Pull blob from key-value store
-	blobs, err := kv.Get([]string{key})
+	blobs, err := kv.GetBatch([]string{key})
 	if err != nil {
 		return nil, err
 	}

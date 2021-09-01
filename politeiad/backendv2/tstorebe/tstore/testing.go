@@ -7,8 +7,6 @@ package tstore
 import (
 	"io/ioutil"
 	"testing"
-
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
 )
 
 // NewTestTstore returns a tstore instance that is setup for testing.
@@ -26,13 +24,17 @@ func NewTestTstore(t *testing.T, dataDir string) *Tstore {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := localdb.New(dataDir, fp)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_ = fp
+	// TODO put back in
+	/*
+		store, err := localdb.New(dataDir, fp)
+		if err != nil {
+			t.Fatal(err)
+		}
+	*/
 
 	return &Tstore{
-		tlog:  newTestTClient(t),
-		store: store,
+		tlog: newTestTClient(t),
+		// store: store,
 	}
 }

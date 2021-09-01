@@ -35,7 +35,7 @@ func (t *Tstore) recordLock(tx store.Tx, token []byte) error {
 	key := "lock-" + hex.EncodeToString(util.Digest(token))
 
 	// Get record lock entry
-	blobs, err := tx.Get([]string{key})
+	blobs, err := tx.GetBatch([]string{key})
 	if err != nil {
 		return err
 	}
@@ -787,7 +787,7 @@ func (t *Tstore) record(g store.Getter, treeID int64, version uint32, filenames 
 	}
 
 	// Get record content from store
-	blobs, err := g.Get(keys)
+	blobs, err := g.GetBatch(keys)
 	if err != nil {
 		return nil, err
 	}
@@ -1044,7 +1044,7 @@ func (t *Tstore) timestamp(treeID int64, merkleLeafHash []byte, leaves []*trilli
 	if err != nil {
 		return nil, err
 	}
-	blobs, err := t.store.Get([]string{ed.key()})
+	blobs, err := t.store.GetBatch([]string{ed.key()})
 	if err != nil {
 		return nil, err
 	}

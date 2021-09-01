@@ -5,6 +5,7 @@
 package mysql
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -28,6 +29,12 @@ const (
 	// Database table names
 	tableNameKeyValue = "kv"
 	tableNameNonce    = "nonce"
+
+	// timeoutOp is the timeout for a single database operation.
+	timeoutOp = 1 * time.Minute
+
+	// timeoutTx is the timeout for a database transaction.
+	timeoutTx = 5 * time.Minute
 )
 
 // tableKeyValue defines the key-value table.
@@ -77,7 +84,7 @@ func New(host, user, password, dbname string) (*mysql, error) {
 	// Verify database connection
 	err = db.Ping()
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.Errorf("ping mysql: %v", err)
 	}
 
 	// Setup key-value table
@@ -85,7 +92,7 @@ func New(host, user, password, dbname string) (*mysql, error) {
 		tableNameKeyValue, tableKeyValue)
 	_, err = db.Exec(q)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.Errorf("create kv table: %v", err)
 	}
 
 	// Setup nonce table
@@ -93,7 +100,7 @@ func New(host, user, password, dbname string) (*mysql, error) {
 		tableNameNonce, tableNonce)
 	_, err = db.Exec(q)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.Errorf("create nonce table: %v", err)
 	}
 
 	// Setup mysql context
@@ -101,11 +108,23 @@ func New(host, user, password, dbname string) (*mysql, error) {
 		db: db,
 	}
 
-	// Derive the encryption key from the password. This function saves
-	// it to the mysql context.
+	// Derive the encryption key from the password and
+	// set the mysql context encryption key field.
 	err = s.deriveEncryptionKey(password)
 	if err != nil {
 		return nil, err
+	}
+
+	// Verify that all database operations are working as
+	// expected. These are not expensive and should only
+	// take a few seconds to run.
+	err = s.testOps()
+	if err != nil {
+		return nil, errors.Errorf("failed ops test: %v", err)
+	}
+	err = s.testTxOps()
+	if err != nil {
+		return nil, errors.Errorf("failed tx ops test: %v", err)
 	}
 
 	return s, nil
@@ -153,8 +172,8 @@ func (s *mysql) Insert(blobs map[string][]byte, encrypt bool) error {
 // Update updates the provided key-value pairs in the store. This operation is
 // atomic.
 //
-// TODO is an error returned when attempting to update a row that
-// does not exist.
+// An error IS NOT returned if the caller attempts to update an entry that does
+// not exist.
 func (s *mysql) Update(blobs map[string][]byte, encrypt bool) error {
 	log.Tracef("Update: %v blobs", len(blobs))
 
@@ -271,16 +290,17 @@ func (s *mysql) Tx() (store.Tx, func(), error) {
 	return newSqlTx(s)
 }
 
-// Closes closes the blob store connection.
+// Close closes the db connection.
 func (s *mysql) Close() {
 	log.Tracef("Close")
 
+	// Mark the database as shutdown
 	atomic.AddUint64(&s.shutdown, 1)
 
-	// Zero the encryption key
+	// Zero out the encryption key
 	util.Zero(s.key[:])
 
-	// Close mysql connection
+	// Close the mysql connection
 	s.db.Close()
 }
 
@@ -333,13 +353,13 @@ func (s *mysql) update(blobs map[string][]byte, encrypt bool, tx *sql.Tx) error 
 	// Save blobs
 	for k, v := range blobs {
 		_, err := tx.ExecContext(ctx,
-			"UPDATE kv SET k = v;", k, v)
+			"UPDATE kv SET v = ? where k = ?;", v, k)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 	}
 
-	log.Debugf("Inserted blobs (%v) to store", len(blobs))
+	log.Debugf("Updated blobs (%v) to store", len(blobs))
 
 	return nil
 }
@@ -474,13 +494,173 @@ func (s *mysql) encryptBlobs(blobs map[string][]byte, tx *sql.Tx, ctx context.Co
 	return encrypted, nil
 }
 
-const (
-	// timeoutOp is the timeout for a single database operation.
-	timeoutOp = 1 * time.Minute
+// testOps runs through a series of sql operations to verify basic
+// functionality of the BlobKV implementation is working correctly.
+func (s *mysql) testOps() error {
+	log.Debugf("Verifying mysql operations")
 
-	// timeoutTx is the timeout for a database transaction.
-	timeoutTx = 3 * time.Minute
-)
+	var (
+		key    = "testops-key"
+		value1 = []byte("value1")
+		value2 = []byte("value2")
+		value3 = []byte("value3")
+	)
+
+	// Clear out any previous test data
+	err := s.Del([]string{key})
+	if err != nil {
+		return err
+	}
+
+	// Verify that the entry doesn't exist
+	_, err = s.Get(key)
+	if err == store.ErrNotFound {
+		// This is expected; continue
+	} else if err != nil {
+		return err
+	}
+
+	// Update an entry that doesn't exist. This should not
+	// error.
+	kv := map[string][]byte{key: value1}
+	err = s.Update(kv, false)
+	if err != nil {
+		return err
+	}
+
+	// Verify that the entry still doesn't exist
+	_, err = s.Get(key)
+	if err == store.ErrNotFound {
+		// This is expected; continue
+	} else if err != nil {
+		return err
+	}
+
+	// Insert a new entry
+	err = s.Insert(kv, false)
+	if err != nil {
+		return err
+	}
+
+	// Verify entry exists
+	b, err := s.Get(key)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(b, value1) {
+		return errors.Errorf("got %s, want %s", b, value1)
+	}
+
+	// Attempt to insert an entry that already exists. This
+	// should error.
+	err = s.Insert(kv, false)
+	if err == nil {
+		return errors.Errorf("got nil err, want insert err")
+	}
+
+	// Update the entry
+	kv = map[string][]byte{key: value2}
+	err = s.Update(kv, false)
+	if err != nil {
+		return err
+	}
+
+	// Verify the entry was updated
+	b, err = s.Get(key)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(b, value2) {
+		return errors.Errorf("got %s, want %s", b, value2)
+	}
+
+	// Delete entry
+	err = s.Del([]string{key})
+	if err != nil {
+		return err
+	}
+
+	// Verify entry was deleted
+	_, err = s.Get(key)
+	if err == store.ErrNotFound {
+		// This is expected; continue
+	} else if err != nil {
+		return err
+	}
+
+	// Insert encrypted entry
+	kv = map[string][]byte{key: value1}
+	err = s.Insert(kv, true)
+	if err != nil {
+		return err
+	}
+
+	// Verify entry was inserted
+	b, err = s.Get(key)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(b, value1) {
+		return errors.Errorf("got %s, want %s", b, value1)
+	}
+
+	// Update encrypted entry
+	kv = map[string][]byte{key: value2}
+	err = s.Update(kv, true)
+	if err != nil {
+		return err
+	}
+
+	// Verify the entry was updated
+	b, err = s.Get(key)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(b, value2) {
+		return errors.Errorf("got %s, want %s", b, value2)
+	}
+
+	// Update entry to cleartext
+	kv = map[string][]byte{key: value3}
+	err = s.Update(kv, false)
+	if err != nil {
+		return err
+	}
+
+	// Verify the entry was updated
+	b, err = s.Get(key)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(b, value3) {
+		return errors.Errorf("got %s, want %s", b, value3)
+	}
+
+	// Del entry
+	err = s.Del([]string{key})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// TODO implement testTxOps
+func (s *mysql) testTxOps() error {
+	log.Debugf("Verifying mysql tx operations")
+
+	// Clear out any previous test data
+
+	// Test rollback
+
+	// Test commit
+
+	// Test cancel function
+
+	// Test concurrency safety
+
+	return nil
+}
 
 // ctxForOp returns a context and cancel function for a single database
 // operation.
