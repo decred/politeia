@@ -393,21 +393,31 @@ func (s *mysql) update(blobs map[string][]byte, encrypt bool, tx *sql.Tx) error 
 // del deletes the provided blobs from the store using the provided
 // transaction.
 func (s *mysql) del(keys []string, tx *sql.Tx) error {
+	// Converted the key strings to interface{} types.
+	// The ExecContext method only accepts interfaces.
+	args := make([]interface{}, len(keys))
+	for i, v := range keys {
+		args[i] = v
+	}
+
 	// Setup context
 	ctx, cancel := ctxForOp()
 	defer cancel()
 
-	// Delete blobs
-	// TODO this should be a single op
-	for _, v := range keys {
-		_, err := tx.ExecContext(ctx, "DELETE FROM kv WHERE k IN (?);", v)
-		if err != nil {
-			return err
-		}
+	// Setup delete query
+	q := fmt.Sprintf("DELETE FROM kv WHERE k IN %v;",
+		buildPlaceholders(len(args)))
+
+	log.Tracef("%v", q)
+
+	// Run delete query
+	r, err := tx.ExecContext(ctx, q, args...)
+	if err != nil {
+		return err
 	}
 
 	log.Debugf("Deleted blobs (%v/%v) from kv store",
-		len(keys))
+		r.RowsAffected, len(keys))
 
 	return nil
 }
@@ -425,8 +435,8 @@ type querier interface {
 // found. It is the responsibility of the caller to ensure a blob was returned
 // for all provided keys.
 func (s *mysql) getBatch(keys []string, q querier) (map[string][]byte, error) {
-	// Converted the keys to []interface{}. The QueryContext method
-	// will only accept them as interfaces.
+	// Converted the key strings to interface{} types.
+	// The QueryContext method only accepts interfaces.
 	args := make([]interface{}, len(keys))
 	for i, v := range keys {
 		args[i] = v
@@ -436,8 +446,14 @@ func (s *mysql) getBatch(keys []string, q querier) (map[string][]byte, error) {
 	ctx, cancel := ctxForOp()
 	defer cancel()
 
+	// Setup select query
+	sq := fmt.Sprintf("SELECT k, v FROM kv WHERE k IN %v;",
+		buildPlaceholders(len(args)))
+
+	log.Tracef("%v", sq)
+
 	// Get blobs
-	rows, err := q.QueryContext(ctx, buildQuery(keys), args...)
+	rows, err := q.QueryContext(ctx, sq, args...)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -710,26 +726,23 @@ func ctxForTx() (context.Context, func()) {
 	return context.WithTimeout(context.Background(), timeoutTx)
 }
 
-// buildQuery builds and returns a SELECT query using the provided keys.
-func buildQuery(keys []string) string {
-	builder := strings.Builder{}
+// buildPlaceholders builds and returns a parameter placeholder string with the
+// specified number of placeholders.
+//
+// Input: 1  Output: "(?)"
+// Input: 3  Output: "(?,?,?)"
+func buildPlaceholders(placeholders int) string {
+	var b strings.Builder
 
-	// A placeholder parameter (?) is required for each key being
-	// requested.
-	//
-	// Ex 3 keys: "SELECT k, v FROM kv WHERE k IN (?, ?, ?)"
-	builder.WriteString("SELECT k, v FROM kv WHERE k IN (")
-	for i := 0; i < len(keys); i++ {
-		builder.WriteString("?")
+	b.WriteString("(")
+	for i := 0; i < placeholders; i++ {
+		b.WriteString("?")
 		// Don't add a comma on the last one
-		if i < len(keys)-1 {
-			builder.WriteString(",")
+		if i < placeholders-1 {
+			b.WriteString(",")
 		}
 	}
-	builder.WriteString(");")
+	b.WriteString(")")
 
-	sql := builder.String()
-	log.Tracef("%v", sql)
-
-	return sql
+	return b.String()
 }
