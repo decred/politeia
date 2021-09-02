@@ -5,7 +5,6 @@
 package mysql
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -118,11 +117,13 @@ func New(host, user, password, dbname string) (*mysql, error) {
 	// Verify that all database operations are working as
 	// expected. These are not expensive and should only
 	// take a second to run.
-	err = s.testOps()
+	log.Infof("Verifying key-value store operations")
+
+	err = store.TestBlobKV(s)
 	if err != nil {
 		return nil, err
 	}
-	err = s.testTxOps()
+	err = store.TestTx(s)
 	if err != nil {
 		return nil, err
 	}
@@ -542,243 +543,6 @@ func (s *mysql) encryptBlobs(blobs map[string][]byte, tx *sql.Tx, ctx context.Co
 	}
 
 	return encrypted, nil
-}
-
-// testOps runs through a series of sql operations to verify that basic
-// functionality of the BlobKV implementation is working correctly.
-func (s *mysql) testOps() error {
-	log.Infof("Verifying mysql operations")
-
-	var (
-		key = "testops-key"
-
-		batchKey1 = "testops-batchkey-1"
-		batchKey2 = "testops-batchkey-2"
-
-		value1 = []byte("value-1")
-		value2 = []byte("value-2")
-		value3 = []byte("value-3")
-		value4 = []byte("value-4")
-	)
-
-	// Clear out any previous test data
-	err := s.Del([]string{key, batchKey1, batchKey2})
-	if err != nil {
-		return err
-	}
-
-	// Verify that the entry doesn't exist
-	_, err = s.Get(key)
-	if !errors.Is(err, store.ErrNotFound) {
-		return errors.Errorf("got error %v, want %v",
-			err, store.ErrNotFound)
-	}
-
-	// Update an entry that doesn't exist
-	kv := map[string][]byte{key: value1}
-	err = s.Update(kv, false)
-	if !errors.Is(err, store.ErrNotFound) {
-		return errors.Errorf("got error %v, want %v",
-			err, store.ErrNotFound)
-	}
-
-	// Verify that the entry still doesn't exist
-	_, err = s.Get(key)
-	if !errors.Is(err, store.ErrNotFound) {
-		return errors.Errorf("got error %v, want %v",
-			err, store.ErrNotFound)
-	}
-
-	// Insert a new entry
-	err = s.Insert(kv, false)
-	if err != nil {
-		return err
-	}
-
-	// Verify that the entry exists
-	b, err := s.Get(key)
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(b, value1) {
-		return errors.Errorf("got %s, want %s", b, value1)
-	}
-
-	// Verify that duplicate keys are not allowed
-	err = s.Insert(kv, false)
-	if !errors.Is(err, store.ErrDuplicateKey) {
-		return errors.Errorf("got error %v, want %v",
-			err, store.ErrDuplicateKey)
-	}
-
-	// Update the entry
-	kv = map[string][]byte{key: value2}
-	err = s.Update(kv, false)
-	if err != nil {
-		return err
-	}
-
-	// Verify that the entry was updated
-	b, err = s.Get(key)
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(b, value2) {
-		return errors.Errorf("got %s, want %s", b, value2)
-	}
-
-	// Delete the entry
-	err = s.Del([]string{key})
-	if err != nil {
-		return err
-	}
-
-	// Verify that the entry was deleted
-	_, err = s.Get(key)
-	if !errors.Is(err, store.ErrNotFound) {
-		return errors.Errorf("got error %v, want %v",
-			err, store.ErrNotFound)
-	}
-
-	// Insert an encrypted entry
-	kv = map[string][]byte{key: value1}
-	err = s.Insert(kv, true)
-	if err != nil {
-		return err
-	}
-
-	// Verify that the entry was inserted
-	b, err = s.Get(key)
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(b, value1) {
-		return errors.Errorf("got %s, want %s", b, value1)
-	}
-
-	// Update the encrypted entry
-	kv = map[string][]byte{key: value2}
-	err = s.Update(kv, true)
-	if err != nil {
-		return err
-	}
-
-	// Verify that the entry was updated
-	b, err = s.Get(key)
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(b, value2) {
-		return errors.Errorf("got %s, want %s", b, value2)
-	}
-
-	// Update the entry to cleartext
-	kv = map[string][]byte{key: value3}
-	err = s.Update(kv, false)
-	if err != nil {
-		return err
-	}
-
-	// Verify that the entry was updated
-	b, err = s.Get(key)
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(b, value3) {
-		return errors.Errorf("got %s, want %s", b, value3)
-	}
-
-	// Del the entry
-	err = s.Del([]string{key})
-	if err != nil {
-		return err
-	}
-
-	// Test batch reads and writes
-	var ()
-
-	// Insert a batch
-	err = s.Insert(map[string][]byte{
-		batchKey1: value1,
-		batchKey2: value2,
-	}, false)
-	if err != nil {
-		return err
-	}
-
-	// Verify that the entries were inserted
-	blobs, err := s.GetBatch([]string{batchKey1, batchKey2})
-	if err != nil {
-		return err
-	}
-	b1, ok := blobs[batchKey1]
-	if !ok {
-		return errors.Errorf("blob not inserted: %v", batchKey1)
-	}
-	if !bytes.Equal(b1, value1) {
-		return errors.Errorf("got %s, want %s", b1, value1)
-	}
-	b2, ok := blobs[batchKey2]
-	if !ok {
-		return errors.Errorf("blob not inserted: %v", batchKey2)
-	}
-	if !bytes.Equal(b2, value2) {
-		return errors.Errorf("got %s, want %s", b2, value2)
-	}
-
-	// Update the batch
-	err = s.Update(map[string][]byte{
-		batchKey1: value3,
-		batchKey2: value4,
-	}, false)
-	if err != nil {
-		return err
-	}
-
-	// Verify that the entries were updated
-	blobs, err = s.GetBatch([]string{batchKey1, batchKey2})
-	if err != nil {
-		return err
-	}
-	b1, ok = blobs[batchKey1]
-	if !ok {
-		return errors.Errorf("blob not inserted: %v", batchKey1)
-	}
-	if !bytes.Equal(b1, value3) {
-		return errors.Errorf("got %s, want %s", b1, value3)
-	}
-	b2, ok = blobs[batchKey2]
-	if !ok {
-		return errors.Errorf("blob not inserted: %v", batchKey2)
-	}
-	if !bytes.Equal(b2, value4) {
-		return errors.Errorf("got %s, want %s", b2, value4)
-	}
-
-	// Delete the entries
-	err = s.Del([]string{batchKey1, batchKey2})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// TODO implement testTxOps
-func (s *mysql) testTxOps() error {
-	log.Debugf("Verifying mysql tx operations")
-
-	// Clear out any previous test data
-
-	// Test rollback
-
-	// Test commit
-
-	// Test cancel function
-
-	// Test concurrency safety
-
-	return nil
 }
 
 // ctxForOp returns a context and cancel function for a single database

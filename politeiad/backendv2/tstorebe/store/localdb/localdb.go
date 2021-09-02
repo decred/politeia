@@ -82,10 +82,27 @@ func New(appDir, dataDir string) (*localdb, error) {
 		return nil, err
 	}
 
-	return &localdb{
+	// Setup localdb context
+	l := &localdb{
 		db:  db,
 		key: key,
-	}, nil
+	}
+
+	// Verify that all database operations are working as
+	// expected. These are not expensive and should only
+	// take a second to run.
+	log.Infof("Verifying key-value store operations")
+
+	err = store.TestBlobKV(l)
+	if err != nil {
+		return nil, err
+	}
+	err = store.TestTx(l)
+	if err != nil {
+		return nil, err
+	}
+
+	return l, nil
 }
 
 // Insert inserts a new entry into the key-value store for each of the provided

@@ -77,7 +77,7 @@ type BlobKV interface {
 	// releases all resources associated with it. This allows the
 	// caller to defer the cancel function in order to rollback the
 	// tx on unexpected errors. Once the tx is successfully committed
-	// the deferred invocation does nothing.
+	// the deferred invocation of the cancel function does nothing.
 	Tx() (Tx, func(), error)
 
 	// Close closes the db connection.

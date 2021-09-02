@@ -235,6 +235,10 @@ type TstoreClient interface {
 	// RecordState returns the record state.
 	RecordState(token []byte) (backend.StateT, error)
 
+	// TODO
+	CacheSave(blobs map[string][]byte) error
+	CacheGet(keys []string) (map[string][]byte, error)
+
 	// CacheClient returns a CacheClient that can be used to interact
 	// with the tstore cache.
 	// CacheClient() CacheClient
