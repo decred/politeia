@@ -139,8 +139,8 @@ type PluginClient interface {
 	// plugin does not need to worry about concurrency issues.
 	Write(t TstoreClient, token []byte, cmd, payload string) (string, error)
 
-	// Read executes a read-only plugin command. Operations are
-	// not atomic.
+	// Read executes a read-only plugin command. Read operations are
+	// not not atomic.
 	Read(t TstoreClient, token []byte, cmd, payload string) (string, error)
 
 	// Hook executes a plugin hook. All operations are executed
@@ -166,12 +166,13 @@ type PluginClient interface {
 // tstore instance. Plugins are allowed to save, delete, and retrieve plugin
 // data to/from the tstore instance.
 //
-// Operations will be atomic if the TstoreClient is initialized by a plugin
-// write command. Operations WILL NOT be atomic if the TstoreClient is
-// initialized by a plugin read command.
+// Operations will be atomic if the client is initialized by a plugin write
+// command. Operations WILL NOT be atomic if the client is initialized by a
+// plugin read command. The client will not allow write methods to be executed
+// if it was initialized by a plugin read command.
 //
-// Data saved using the TstoreClient will be timestamped onto the Decred
-// blockchain.
+// All data saved using this client will be timestamped onto the Decred
+// blockchain and will have timestamp data available for retrieval.
 type TstoreClient interface {
 	// BlobSave saves a BlobEntry to the tstore instance. The BlobEntry
 	// will be encrypted prior to being written to disk if the record
@@ -179,6 +180,8 @@ type TstoreClient interface {
 	// be thought of as the blob ID that can be used to get/del the
 	// blob from tstore.
 	BlobSave(token []byte, be store.BlobEntry) error
+
+	// TODO Add BlobSaveUnsafe()
 
 	// BlobsDel deletes the blobs that correspond to the provided
 	// digests.
@@ -232,40 +235,55 @@ type TstoreClient interface {
 	// RecordState returns the record state.
 	RecordState(token []byte) (backend.StateT, error)
 
-	// TODO pull these out into a new client. The tstore client should
-	// only be for timetamped stuff.
-	//
-	// CacheSave saves the provided key-value pairs to the tstore
-	// cache. Cached data is not timestamped onto the Decred
-	// blockchain. Only data that can be recreated by walking the
-	// tlog trees should be cached.
-	CacheSave(kv map[string][]byte) error
-
-	// CacheGet returns blobs from the cache for the provided keys. An
-	// entry will not exist in the returned map if for any blobs that
-	// are not found. It is the responsibility of the caller to ensure
-	// a blob was returned for all provided keys.
-	CacheGet(keys []string) (map[string][]byte, error)
-
 	// CacheClient returns a CacheClient that can be used to interact
 	// with the tstore cache.
 	// CacheClient() CacheClient
 
 	// InvClient returns a InvClient that can be used to interact with
 	// a cached inventory.
+	// TODO key must be prefix by the plugin ID
 	InvClient(key string, encrypt bool) InvClient
 }
 
-// TODO implement CacheClient interface
+// CacheClient provides a concurrency safe API for plugins to cache data in the
+// key-value store. All operations are atomic.
 //
-// Explain why you would use this cache vs a sql cache.
+// Cached data IS NOT be timetamped onto the Decred blockchain. Only data that
+// can be re-created by walking the tlog trees should be cached.
 //
-// Cached data WILL NOT be timetamped onto the Decred blockchain.
+// TODO reads and writes must be prefix by the plugin ID
 type CacheClient interface {
-	Create(kv map[string][]byte) error
-	Update(kv map[string][]byte) error
+	// Insert inserts a new entry into the cache store for each of the
+	// provided key-value pairs.
+	//
+	// An ErrDuplicateKey is returned if a provided key already exists
+	// in the key-value store.
+	Insert(blobs map[string][]byte, encrypt bool) error
+
+	// Update updates the provided key-value pairs in the cache.
+	//
+	// An ErrNotFound is returned if the caller attempts to update an
+	// entry that does not exist.
+	Update(blobs map[string][]byte, encrypt bool) error
+
+	// Del deletes the provided entries from the cache.
+	//
+	// Keys that do not correspond to blob entries are ignored. An
+	// error IS NOT returned.
 	Del(keys []string) error
-	Get(key string) error
+
+	// Get returns the cached blob for the provided key.
+	//
+	// An ErrNotFound error is returned if the key does not correspond
+	// to an entry.
+	Get(key string) ([]byte, error)
+
+	// GetBatch returns the cached blobs for the provided keys.
+	//
+	// An entry will not exist in the returned map if for any blobs
+	// that are not found. It is the responsibility of the caller to
+	// ensure a blob was returned for all provided keys. An error is
+	// not returned.
 	GetBatch(keys []string) (map[string][]byte, error)
 }
 
