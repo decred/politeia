@@ -110,7 +110,7 @@ func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
 		return err
 	}
 	key := newStoreKey(encrypt)
-	err = c.writer.Put(map[string][]byte{key: b}, encrypt)
+	err = c.writer.Insert(map[string][]byte{key: b}, encrypt)
 	if err != nil {
 		return err
 	}
@@ -461,7 +461,8 @@ func (c *Client) CacheSave(kv map[string][]byte) error {
 			"when the client has been initialized for a read")
 	}
 
-	return c.writer.Put(kv, true)
+	// TODO replace with cache client
+	return nil
 }
 
 // CacheGet returns blobs from the cache for the provided keys. An entry will

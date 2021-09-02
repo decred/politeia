@@ -34,11 +34,6 @@ func newSqlTx(mysql *mysql) (*sqlTx, func(), error) {
 	}, cancel, nil
 }
 
-// TODO remove
-func (s *sqlTx) Put(blobs map[string][]byte, encrypt bool) error {
-	return nil
-}
-
 // Insert inserts a new entry into the key-value store for each of the provided
 // key-value pairs.
 //

@@ -47,7 +47,7 @@ func (t *Tstore) recordLock(tx store.Tx, token []byte) error {
 
 	// A lock entry does not exist yet for this record.
 	// Create one.
-	return tx.Put(map[string][]byte{key: {}}, false)
+	return tx.Insert(map[string][]byte{key: {}}, false)
 }
 
 // RecordTx returns a new tstore transaction for a record.
@@ -422,7 +422,7 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 	log.Debugf("Saving %v record content blobs", len(blobs))
 
 	// Save blobs to the kv store
-	err = tx.Put(blobs, encrypt)
+	err = tx.Insert(blobs, encrypt)
 	if err != nil {
 		return nil, err
 	}
@@ -499,7 +499,7 @@ func (t *Tstore) recordSave(tx store.Tx, treeID int64, recordMD backend.RecordMe
 
 	log.Debugf("Resaving %v encrypted blobs as plain text", len(blobs))
 
-	err = tx.Put(blobs, false)
+	err = tx.Insert(blobs, false)
 	if err != nil {
 		return nil, err
 	}

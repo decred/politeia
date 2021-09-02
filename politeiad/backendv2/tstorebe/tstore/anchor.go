@@ -165,9 +165,16 @@ func (d *droppingAnchor) save(tx store.Tx) error {
 	if err != nil {
 		return err
 	}
-	return tx.Put(map[string][]byte{
+	kv := map[string][]byte{
 		droppingAnchorKey: b,
-	}, false)
+	}
+	err = tx.Update(kv, false)
+	if errors.Is(err, store.ErrNotFound) {
+		// An entry doesn't exist in the kv
+		// store yet. Insert a new one.
+		err = tx.Insert(kv, false)
+	}
+	return err
 }
 
 // decodeAnchor decodes a gzipped byte slice into a BlobEntry then decodes the
@@ -358,7 +365,7 @@ func (a *anchor) save(kv store.BlobKV, tlog tlogClient) error {
 		return err
 	}
 	key := newStoreKey(false)
-	err = kv.Put(map[string][]byte{key: b}, false)
+	err = kv.Insert(map[string][]byte{key: b}, false)
 	if err != nil {
 		return err
 	}

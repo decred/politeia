@@ -596,7 +596,7 @@ func deriveTlogKey(kvstore store.BlobKV, passphrase string) (*keyspb.PrivateKey,
 		kv := map[string][]byte{
 			tlogKeyParamsKey: b,
 		}
-		err = kvstore.Put(kv, false)
+		err = kvstore.Insert(kv, false)
 		if err != nil {
 			return nil, err
 		}

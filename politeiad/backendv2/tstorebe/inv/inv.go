@@ -247,7 +247,14 @@ func (i *inv) save(tx store.Tx, key string, encrypt bool) error {
 	if err != nil {
 		return err
 	}
-	return tx.Put(map[string][]byte{key: b}, encrypt)
+	kv := map[string][]byte{key: b}
+	err = tx.Update(kv, encrypt)
+	if errors.Is(err, store.ErrNotFound) {
+		// An entry doesn't exist in the kv
+		// store yet. Insert a new one.
+		err = tx.Insert(kv, encrypt)
+	}
+	return err
 }
 
 // invGet retrieves the inventory from the key-value store using the provided

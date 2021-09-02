@@ -23,8 +23,8 @@ var (
 	// store that is shutdown.
 	ErrShutdown = errors.New("store is shutdown")
 
-	// ErrNotFound is returned by some methods when a blob entry is not
-	// found.
+	// ErrNotFound is returned by some methods when the provided key
+	// does not correspond to a blob entry.
 	ErrNotFound = errors.New("not found")
 
 	// ErrDuplicateKey is returned when attempting to insert a key that
@@ -34,9 +34,6 @@ var (
 
 // BlobKV represents a blob key-value store.
 type BlobKV interface {
-	// TODO take out
-	Put(blobs map[string][]byte, encrypt bool) error
-
 	// Insert inserts a new entry into the key-value store for each
 	// of the provided key-value pairs. This operation is atomic.
 	//
@@ -92,9 +89,6 @@ type BlobKV interface {
 //
 // A transaction must end with a call to Commit or Rollback.
 type Tx interface {
-	// TODO take out
-	Put(blobs map[string][]byte, encrypt bool) error
-
 	// Insert inserts a new entry into the key-value store for each
 	// of the provided key-value pairs.
 	//

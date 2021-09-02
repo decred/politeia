@@ -35,7 +35,7 @@ func (t *Tstore) cacheShortToken(fullToken []byte) error {
 	if err != nil {
 		return err
 	}
-	err = t.store.Put(map[string][]byte{key: fullToken}, false)
+	err = t.store.Insert(map[string][]byte{key: fullToken}, false)
 	if err != nil {
 		return err
 	}

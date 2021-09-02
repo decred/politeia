@@ -141,7 +141,7 @@ func (r *recordIndex) save(tx store.Tx, tlog tlogClient, treeID int64) error {
 	}
 	key := newStoreKey(encrypt)
 	kv := map[string][]byte{key: b}
-	err = tx.Put(kv, encrypt)
+	err = tx.Insert(kv, encrypt)
 	if err != nil {
 		return err
 	}

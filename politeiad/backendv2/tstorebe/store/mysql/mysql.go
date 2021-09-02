@@ -130,11 +130,6 @@ func New(host, user, password, dbname string) (*mysql, error) {
 	return s, nil
 }
 
-// TODO remove
-func (s *mysql) Put(blobs map[string][]byte, encrypt bool) error {
-	return nil
-}
-
 // Insert inserts a new entry into the key-value store for each of the provided
 // key-value pairs. This operation is atomic.
 //
