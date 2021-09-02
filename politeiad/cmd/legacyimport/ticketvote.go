@@ -15,6 +15,8 @@ import (
 	tv "github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
 
+// convertAuthDetailsMetadata converts the 13.metadata.txt file to the
+// auth details structure from tlog backend.
 func convertAuthDetailsMetadata(path string) (*tv.AuthDetails, error) {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -70,7 +72,7 @@ func convertStartVoteMetadata(path string) (*tv.Start, error) {
 					QuorumPercentage: av.Vote.QuorumPercentage,
 					PassPercentage:   av.Vote.PassPercentage,
 					Options:          opts,
-					Parent:           "", //TODO: properly populate for runoff votes
+					Parent:           "", // Will be set later on
 				},
 				PublicKey: av.PublicKey,
 				Signature: av.Signature,
@@ -79,6 +81,8 @@ func convertStartVoteMetadata(path string) (*tv.Start, error) {
 	}, nil
 }
 
+// convertVoteDetailsMetadata converts the 15.metadata.txt file to the vote
+// details structure from tlog backend.
 func convertVoteDetailsMetadata(path string, startDetails []tv.StartDetails) (*tv.VoteDetails, error) {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -89,10 +93,6 @@ func convertVoteDetailsMetadata(path string, startDetails []tv.StartDetails) (*t
 	if err != nil {
 		return nil, err
 	}
-
-	// Assume this is a standard vote.
-	// TODO: add conditions for rfp props and runoff votes.
-	sd := startDetails[0]
 
 	// Parse block height
 	sbh, err := strconv.Atoi(vd.StartBlockHeight)
@@ -106,9 +106,9 @@ func convertVoteDetailsMetadata(path string, startDetails []tv.StartDetails) (*t
 	}
 
 	return &tv.VoteDetails{
-		Params:    sd.Params,
-		PublicKey: sd.PublicKey,
-		Signature: sd.Signature,
+		Params:    startDetails[0].Params,
+		PublicKey: startDetails[0].PublicKey,
+		Signature: startDetails[0].Signature,
 
 		StartBlockHeight: uint32(sbh),
 		StartBlockHash:   vd.StartBlockHash,
@@ -117,6 +117,8 @@ func convertVoteDetailsMetadata(path string, startDetails []tv.StartDetails) (*t
 	}, nil
 }
 
+// convertBallotJournal walks the ballot journal, parsing the entries data and
+// saving their respective blob on tstore.
 func (l *legacyImport) convertBallotJournal(path string, newToken []byte) error {
 	fh, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0664)
 	if err != nil {
@@ -150,11 +152,7 @@ func (l *legacyImport) convertBallotJournal(path string, newToken []byte) error 
 				Ticket:    cvj.CastVote.Ticket,
 				VoteBit:   cvj.CastVote.VoteBit,
 				Signature: cvj.CastVote.Signature,
-
-				Receipt: cvj.Receipt,
-				// Server generated metadata being left blank:
-				//   - Address
-				//   - Timestamps
+				Receipt:   cvj.Receipt,
 			}
 
 			err = l.blobSaveCastVoteDetails(cv, newToken)
@@ -164,17 +162,14 @@ func (l *legacyImport) convertBallotJournal(path string, newToken []byte) error 
 		default:
 			return fmt.Errorf("invalid ballot journal action")
 		}
-
-		// fmt.Println(s.Text())
 	}
+
 	fmt.Printf("  ticketvote: Done for %v!\n", hex.EncodeToString(newToken))
 
 	return nil
 }
 
 func (l *legacyImport) blobSaveCastVoteDetails(castVoteDetails tv.CastVoteDetails, newToken []byte) error {
-	// fmt.Println(" ticketvote: Saving CastVoteDetails blob ...")
-
 	data, err := json.Marshal(castVoteDetails)
 	if err != nil {
 		return err
@@ -196,14 +191,11 @@ func (l *legacyImport) blobSaveCastVoteDetails(castVoteDetails tv.CastVoteDetail
 	if err != nil {
 		return err
 	}
-	// fmt.Println(" ticketvote: Saved!")
 
 	return nil
 }
 
 func (l *legacyImport) blobSaveAuthDetails(authDetails tv.AuthDetails, newToken []byte) error {
-	// fmt.Println(" ticketvote: Saving AuthDetails blob ...")
-
 	// Update metadata with new token instead of legacy one.
 	authDetails.Token = hex.EncodeToString(newToken)
 
@@ -226,14 +218,10 @@ func (l *legacyImport) blobSaveAuthDetails(authDetails tv.AuthDetails, newToken 
 		return err
 	}
 
-	// fmt.Println(" ticketvote: Saved!")
-
 	return nil
 }
 
 func (l *legacyImport) blobSaveVoteDetails(voteDetails tv.VoteDetails, newToken []byte) error {
-	// fmt.Println(" ticketvote: Saving VoteDetails blob ...")
-
 	data, err := json.Marshal(voteDetails)
 	if err != nil {
 		return err
@@ -252,8 +240,6 @@ func (l *legacyImport) blobSaveVoteDetails(voteDetails tv.VoteDetails, newToken 
 	if err != nil {
 		return err
 	}
-
-	// fmt.Println(" ticketvote: Saved!")
 
 	return nil
 }

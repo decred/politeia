@@ -176,7 +176,6 @@ const (
 	ContentErrorFilePayloadInvalid      ContentErrorCodeT = 7
 	ContentErrorFileMIMETypeInvalid     ContentErrorCodeT = 8
 	ContentErrorFileMIMETypeUnsupported ContentErrorCodeT = 9
-	ContentErrorFileLegacyTokenInvalid  ContentErrorCodeT = 10
 )
 
 // ContentError is returned when the content of a record does not pass

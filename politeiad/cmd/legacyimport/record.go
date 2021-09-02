@@ -22,7 +22,6 @@ import (
 )
 
 func (l *legacyImport) recordSave(files []backend.File, metadata []backend.MetadataStream, recordmd backend.RecordMetadata) ([]byte, error) {
-	// fmt.Println("\n record: Saving legacy record to tstore ...")
 	// Create a new tlog tree for the legacy record.
 	newToken, err := l.tstore.RecordNew()
 	if err != nil {
@@ -68,7 +67,6 @@ func (l *legacyImport) recordSave(files []backend.File, metadata []backend.Metad
 		}
 	}
 
-	// fmt.Println(" record: Saved!")
 	return newToken, nil
 }
 
@@ -195,20 +193,17 @@ func (l *legacyImport) convertProposalGeneral(path string) (*usermd.UserMetadata
 		return nil, "", err
 	}
 
-	_, err = l.fetchUserByPubKey(pgv1.PublicKey)
+	usr, err := l.fetchUserByPubKey(pgv1.PublicKey)
 	if err != nil {
 		return nil, "", err
 	}
 
 	// If userid/publickey are data from a user that is not registered in the
 	// userdb this tool is using, then recordSave will error out.
+	// TODO: add to readme that this needs to be set. add flag maybe
 	return &pusermd.UserMetadata{
-		// UserID:    usr.ID,
-		// PublicKey: pgv1.PublicKey,
-
-		// test with user data that exists in local user db
-		UserID:    "7a74252c-400f-430d-9eb3-50525104736b",
-		PublicKey: "7ef4bae79cd0e28375b28fc8c7c6c0e825d1dd1b1105392f685230f22cc420e5",
+		UserID:    usr.ID,
+		PublicKey: pgv1.PublicKey,
 		Signature: pgv1.Signature,
 	}, pgv1.Name, nil
 }

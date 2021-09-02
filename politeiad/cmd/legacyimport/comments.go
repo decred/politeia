@@ -33,9 +33,6 @@ func (l *legacyImport) convertCommentsJournal(path string, newToken []byte) erro
 	fmt.Printf("  comments: Parsing comments journal for %v ...\n", hex.EncodeToString(newToken))
 
 	for i := 0; s.Scan(); i++ {
-		// json text from reading each journal line
-		// fmt.Println(s.Text())
-
 		ss := bytes.NewReader([]byte(s.Text()))
 		d := json.NewDecoder(ss)
 
@@ -46,7 +43,6 @@ func (l *legacyImport) convertCommentsJournal(path string, newToken []byte) erro
 		}
 
 		switch action.Action {
-
 		case "add":
 			var c decredplugin.Comment
 			err = d.Decode(&c)
@@ -61,7 +57,6 @@ func (l *legacyImport) convertCommentsJournal(path string, newToken []byte) erro
 			l.Lock()
 			l.comments[hex.EncodeToString(newToken)][c.CommentID] = c
 			l.Unlock()
-
 		case "del":
 			var cc decredplugin.CensorComment
 			err = d.Decode(&cc)
@@ -77,7 +72,6 @@ func (l *legacyImport) convertCommentsJournal(path string, newToken []byte) erro
 			if err != nil {
 				return fmt.Errorf("comment journal del: %v", err)
 			}
-
 		case "addlike":
 			var lc likeCommentV1
 			err = d.Decode(&lc)
@@ -89,20 +83,18 @@ func (l *legacyImport) convertCommentsJournal(path string, newToken []byte) erro
 			if err != nil {
 				return err
 			}
-
 		default:
 			return fmt.Errorf("invalid action: %v",
 				action.Action)
 		}
 	}
+
 	fmt.Printf("  comments: Done for %v!\n", hex.EncodeToString(newToken))
 
 	return nil
 }
 
 func (l *legacyImport) blobSaveCommentAdd(c decredplugin.Comment, newToken []byte) error {
-	// fmt.Println("\n comments: Saving CommentAdd blob ...")
-
 	// Get user id from pubkey
 	usr, err := l.fetchUserByPubKey(c.PublicKey)
 	if err != nil {
@@ -152,14 +144,10 @@ func (l *legacyImport) blobSaveCommentAdd(c decredplugin.Comment, newToken []byt
 		return err
 	}
 
-	// fmt.Println(" comments: Saved!")
-
 	return nil
 }
 
 func (l *legacyImport) blobSaveCommentDel(cc decredplugin.CensorComment, newToken []byte, parentID string) error {
-	// fmt.Println("\n comments: Saving CommentDel blob ...")
-
 	// Get user ID from pubkey
 	usr, err := l.fetchUserByPubKey(cc.PublicKey)
 	if err != nil {
@@ -210,14 +198,10 @@ func (l *legacyImport) blobSaveCommentDel(cc decredplugin.CensorComment, newToke
 		return err
 	}
 
-	// fmt.Println(" comments: Saved!")
-
 	return nil
 }
 
 func (l *legacyImport) blobSaveCommentLike(lc likeCommentV1, newToken []byte) error {
-	// fmt.Println("\n comments: Saving CommentLike blob ...")
-
 	// Get user ID from pubkey
 	usr, err := l.fetchUserByPubKey(lc.PublicKey)
 	if err != nil {
@@ -274,7 +258,6 @@ func (l *legacyImport) blobSaveCommentLike(lc likeCommentV1, newToken []byte) er
 	if err != nil {
 		return err
 	}
-	// fmt.Println(" comments: Saved!")
 
 	return nil
 }
