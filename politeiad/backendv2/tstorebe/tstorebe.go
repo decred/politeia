@@ -49,7 +49,7 @@ type tstoreBackend struct {
 
 // New returns a new tstoreBackend.
 func New(appDir, dataDir string, tlogHost, tlogPass, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string, fi identity.FullIdentity, net chaincfg.Params) (*tstoreBackend, error) {
-	// Setup cache key-value store
+	// Setup the key-value store
 	log.Infof("Database type: %v", dbType)
 	opts := blobKVOpts{
 		Type:     dbType,
@@ -64,15 +64,14 @@ func New(appDir, dataDir string, tlogHost, tlogPass, dbType, dbHost, dbPass, dcr
 		return nil, err
 	}
 
-	// Setup tstore instances
+	// Setup tstore
 	ts, err := tstore.New(net, kv, tlogHost, tlogPass,
 		dcrtimeHost, dcrtimeCert)
 	if err != nil {
 		return nil, err
 	}
 
-	// Setup backend
-	t := tstoreBackend{
+	return &tstoreBackend{
 		settings: backend.BackendSettings{
 			Identity: fi,
 			Net:      net,
@@ -80,16 +79,7 @@ func New(appDir, dataDir string, tlogHost, tlogPass, dbType, dbHost, dbPass, dcr
 		tstore: ts,
 		cache:  kv,
 		inv:    newRecordInv(),
-	}
-
-	// TODO pull this out into a tstorebe.Setup() method
-	// Perform any required setup
-	err = t.tstore.Setup()
-	if err != nil {
-		return nil, err
-	}
-
-	return &t, nil
+	}, nil
 }
 
 // RecordNew creates a new record.

@@ -41,22 +41,6 @@ type Tstore struct {
 	plugins map[string]plugin // [pluginID]plugin
 }
 
-// Setup performs all required work to setup the tstore instance.
-func (t *Tstore) Setup() error {
-	log.Tracef("Setup")
-
-	err := t.startAnchorProcess()
-	if err != nil {
-		return err
-	}
-
-	// TODO have option to build short tokens cache. If a tree does
-	// not have any leaves then it does not need a short token cache
-	// entry.
-
-	return nil
-}
-
 // Tx returns a key-value store transaction. This method does not lock a record
 // and should not be used for record updates. See the RecordTx() method for
 // more details.
@@ -118,16 +102,28 @@ func New(net chaincfg.Params, kvstore store.BlobKV, tlogHost, tlogPass, dcrtimeH
 		return nil, err
 	}
 
-	// Start cron
-	c := cron.New()
-	c.Start()
-
-	return &Tstore{
+	// Setup tstore context
+	t := &Tstore{
 		net:     net,
 		tlog:    tlogClient,
 		store:   kvstore,
 		dcrtime: dcrtimeClient,
-		cron:    c,
+		cron:    cron.New(),
 		plugins: make(map[string]plugin),
-	}, nil
+	}
+
+	// Start cron
+	t.cron.Start()
+
+	// Start anchoring
+	err = t.startAnchorProcess()
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO have option to build short tokens cache. If a tree does
+	// not have any leaves then it does not need a short token cache
+	// entry.
+
+	return t, nil
 }
