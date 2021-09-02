@@ -814,6 +814,10 @@ func main() {
 	err := _main()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
+		stack, ok := util.StackTrace(err)
+		if ok {
+			fmt.Fprintf(os.Stderr, "%v\n", stack)
+		}
 		os.Exit(1)
 	}
 }

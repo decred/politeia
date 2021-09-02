@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
 	"github.com/pkg/errors"
@@ -118,14 +117,14 @@ func New(host, user, password, dbname string) (*mysql, error) {
 
 	// Verify that all database operations are working as
 	// expected. These are not expensive and should only
-	// take a few seconds to run.
+	// take a second to run.
 	err = s.testOps()
 	if err != nil {
-		return nil, errors.Errorf("failed ops test: %v", err)
+		return nil, err
 	}
 	err = s.testTxOps()
 	if err != nil {
-		return nil, errors.Errorf("failed tx ops test: %v", err)
+		return nil, err
 	}
 
 	return s, nil
@@ -138,6 +137,9 @@ func (s *mysql) Put(blobs map[string][]byte, encrypt bool) error {
 
 // Insert inserts a new entry into the key-value store for each of the provided
 // key-value pairs. This operation is atomic.
+//
+// An ErrDuplicateKey is returned if a provided key already exists in the
+// key-value store.
 //
 // This function satisfies the store BlobKV interface.
 func (s *mysql) Insert(blobs map[string][]byte, encrypt bool) error {
@@ -178,8 +180,8 @@ func (s *mysql) Insert(blobs map[string][]byte, encrypt bool) error {
 // Update updates the provided key-value pairs in the store. This operation is
 // atomic.
 //
-// An error IS NOT returned if the caller attempts to update an entry that does
-// not exist.
+// An ErrNotFound is returned if the caller attempts to update an entry that
+// does not exist.
 func (s *mysql) Update(blobs map[string][]byte, encrypt bool) error {
 	log.Tracef("Update: %v blobs", len(blobs))
 
@@ -216,6 +218,9 @@ func (s *mysql) Update(blobs map[string][]byte, encrypt bool) error {
 }
 
 // Del deletes the provided blobs from the store. This operation is atomic.
+//
+// Keys that do not correspond to blob entries are ignored. An error IS NOT
+// returned.
 //
 // This function satisfies the store BlobKV interface.
 func (s *mysql) Del(keys []string) error {
@@ -337,9 +342,9 @@ func (s *mysql) insert(blobs map[string][]byte, encrypt bool, tx *sql.Tx) error 
 		_, err := tx.ExecContext(ctx,
 			"INSERT INTO kv (k, v) VALUES (?, ?);", k, v)
 		if err != nil {
-			var sqlErr driver.MySQLError
-			if errors.As(err, &sqlErr) && sqlErr.Number == 1602 {
-				// This key already existed
+			var sqlErr *driver.MySQLError
+			if errors.As(err, &sqlErr) && sqlErr.Number == 1062 {
+				// This key already exists
 				err = fmt.Errorf("%w: %v", store.ErrDuplicateKey, k)
 			}
 			return errors.WithStack(err)
@@ -380,7 +385,7 @@ func (s *mysql) update(blobs map[string][]byte, encrypt bool, tx *sql.Tx) error 
 		}
 		if count == 0 {
 			// Nothing was updated
-			e := fmt.Errorf("%w: %v", store.ErrDuplicateKey, k)
+			e := fmt.Errorf("%w: %v", store.ErrNotFound, k)
 			return errors.WithStack(e)
 		}
 	}
@@ -408,16 +413,21 @@ func (s *mysql) del(keys []string, tx *sql.Tx) error {
 	q := fmt.Sprintf("DELETE FROM kv WHERE k IN %v;",
 		buildPlaceholders(len(args)))
 
-	log.Tracef("%v", q)
-
 	// Run delete query
 	r, err := tx.ExecContext(ctx, q, args...)
 	if err != nil {
 		return err
 	}
+	rows, err := r.RowsAffected()
+	if err != nil {
+		// Getting the number of rows is just for logging. An
+		// error here doesn't impact business logic so don't
+		// return it.
+		log.Errorf("MySQL rows effected from delete error: %v", err)
+	}
 
 	log.Debugf("Deleted blobs (%v/%v) from kv store",
-		r.RowsAffected, len(keys))
+		rows, len(keys))
 
 	return nil
 }
@@ -449,8 +459,6 @@ func (s *mysql) getBatch(keys []string, q querier) (map[string][]byte, error) {
 	// Setup select query
 	sq := fmt.Sprintf("SELECT k, v FROM kv WHERE k IN %v;",
 		buildPlaceholders(len(args)))
-
-	log.Tracef("%v", sq)
 
 	// Get blobs
 	rows, err := q.QueryContext(ctx, sq, args...)
@@ -532,46 +540,49 @@ func (s *mysql) encryptBlobs(blobs map[string][]byte, tx *sql.Tx, ctx context.Co
 	return encrypted, nil
 }
 
-// testOps runs through a series of sql operations to verify basic
+// testOps runs through a series of sql operations to verify that basic
 // functionality of the BlobKV implementation is working correctly.
 func (s *mysql) testOps() error {
-	log.Debugf("Verifying mysql operations")
+	log.Infof("Verifying mysql operations")
 
 	var (
-		key    = "testops-key"
-		value1 = []byte("value1")
-		value2 = []byte("value2")
-		value3 = []byte("value3")
+		key = "testops-key"
+
+		batchKey1 = "testops-batchkey-1"
+		batchKey2 = "testops-batchkey-2"
+
+		value1 = []byte("value-1")
+		value2 = []byte("value-2")
+		value3 = []byte("value-3")
+		value4 = []byte("value-4")
 	)
 
 	// Clear out any previous test data
-	err := s.Del([]string{key})
+	err := s.Del([]string{key, batchKey1, batchKey2})
 	if err != nil {
 		return err
 	}
 
 	// Verify that the entry doesn't exist
 	_, err = s.Get(key)
-	if err == store.ErrNotFound {
-		// This is expected; continue
-	} else if err != nil {
-		return err
+	if !errors.Is(err, store.ErrNotFound) {
+		return errors.Errorf("got error %v, want %v",
+			err, store.ErrNotFound)
 	}
 
-	// Update an entry that doesn't exist. This should not
-	// error.
+	// Update an entry that doesn't exist
 	kv := map[string][]byte{key: value1}
 	err = s.Update(kv, false)
-	if err != nil {
-		return err
+	if !errors.Is(err, store.ErrNotFound) {
+		return errors.Errorf("got error %v, want %v",
+			err, store.ErrNotFound)
 	}
 
 	// Verify that the entry still doesn't exist
 	_, err = s.Get(key)
-	if err == store.ErrNotFound {
-		// This is expected; continue
-	} else if err != nil {
-		return err
+	if !errors.Is(err, store.ErrNotFound) {
+		return errors.Errorf("got error %v, want %v",
+			err, store.ErrNotFound)
 	}
 
 	// Insert a new entry
@@ -580,13 +591,7 @@ func (s *mysql) testOps() error {
 		return err
 	}
 
-	err = s.Insert(kv, false)
-	if err != nil {
-		spew.Dump(err)
-		return err
-	}
-
-	// Verify entry exists
+	// Verify that the entry exists
 	b, err := s.Get(key)
 	if err != nil {
 		return err
@@ -595,11 +600,11 @@ func (s *mysql) testOps() error {
 		return errors.Errorf("got %s, want %s", b, value1)
 	}
 
-	// Attempt to insert an entry that already exists. This
-	// should error.
+	// Verify that duplicate keys are not allowed
 	err = s.Insert(kv, false)
-	if err == nil {
-		return errors.Errorf("got nil err, want insert err")
+	if !errors.Is(err, store.ErrDuplicateKey) {
+		return errors.Errorf("got error %v, want %v",
+			err, store.ErrDuplicateKey)
 	}
 
 	// Update the entry
@@ -609,7 +614,7 @@ func (s *mysql) testOps() error {
 		return err
 	}
 
-	// Verify the entry was updated
+	// Verify that the entry was updated
 	b, err = s.Get(key)
 	if err != nil {
 		return err
@@ -618,28 +623,27 @@ func (s *mysql) testOps() error {
 		return errors.Errorf("got %s, want %s", b, value2)
 	}
 
-	// Delete entry
+	// Delete the entry
 	err = s.Del([]string{key})
 	if err != nil {
 		return err
 	}
 
-	// Verify entry was deleted
+	// Verify that the entry was deleted
 	_, err = s.Get(key)
-	if err == store.ErrNotFound {
-		// This is expected; continue
-	} else if err != nil {
-		return err
+	if !errors.Is(err, store.ErrNotFound) {
+		return errors.Errorf("got error %v, want %v",
+			err, store.ErrNotFound)
 	}
 
-	// Insert encrypted entry
+	// Insert an encrypted entry
 	kv = map[string][]byte{key: value1}
 	err = s.Insert(kv, true)
 	if err != nil {
 		return err
 	}
 
-	// Verify entry was inserted
+	// Verify that the entry was inserted
 	b, err = s.Get(key)
 	if err != nil {
 		return err
@@ -648,14 +652,14 @@ func (s *mysql) testOps() error {
 		return errors.Errorf("got %s, want %s", b, value1)
 	}
 
-	// Update encrypted entry
+	// Update the encrypted entry
 	kv = map[string][]byte{key: value2}
 	err = s.Update(kv, true)
 	if err != nil {
 		return err
 	}
 
-	// Verify the entry was updated
+	// Verify that the entry was updated
 	b, err = s.Get(key)
 	if err != nil {
 		return err
@@ -664,14 +668,14 @@ func (s *mysql) testOps() error {
 		return errors.Errorf("got %s, want %s", b, value2)
 	}
 
-	// Update entry to cleartext
+	// Update the entry to cleartext
 	kv = map[string][]byte{key: value3}
 	err = s.Update(kv, false)
 	if err != nil {
 		return err
 	}
 
-	// Verify the entry was updated
+	// Verify that the entry was updated
 	b, err = s.Get(key)
 	if err != nil {
 		return err
@@ -680,20 +684,78 @@ func (s *mysql) testOps() error {
 		return errors.Errorf("got %s, want %s", b, value3)
 	}
 
-	// Del entry
+	// Del the entry
 	err = s.Del([]string{key})
 	if err != nil {
 		return err
 	}
 
-	// TODO
-	// Batch save
+	// Test batch reads and writes
+	var ()
 
-	// Batch get
+	// Insert a batch
+	err = s.Insert(map[string][]byte{
+		batchKey1: value1,
+		batchKey2: value2,
+	}, false)
+	if err != nil {
+		return err
+	}
 
-	// Batch update
+	// Verify that the entries were inserted
+	blobs, err := s.GetBatch([]string{batchKey1, batchKey2})
+	if err != nil {
+		return err
+	}
+	b1, ok := blobs[batchKey1]
+	if !ok {
+		return errors.Errorf("blob not inserted: %v", batchKey1)
+	}
+	if !bytes.Equal(b1, value1) {
+		return errors.Errorf("got %s, want %s", b1, value1)
+	}
+	b2, ok := blobs[batchKey2]
+	if !ok {
+		return errors.Errorf("blob not inserted: %v", batchKey2)
+	}
+	if !bytes.Equal(b2, value2) {
+		return errors.Errorf("got %s, want %s", b2, value2)
+	}
 
-	// Batch del
+	// Update the batch
+	err = s.Update(map[string][]byte{
+		batchKey1: value3,
+		batchKey2: value4,
+	}, false)
+	if err != nil {
+		return err
+	}
+
+	// Verify that the entries were updated
+	blobs, err = s.GetBatch([]string{batchKey1, batchKey2})
+	if err != nil {
+		return err
+	}
+	b1, ok = blobs[batchKey1]
+	if !ok {
+		return errors.Errorf("blob not inserted: %v", batchKey1)
+	}
+	if !bytes.Equal(b1, value3) {
+		return errors.Errorf("got %s, want %s", b1, value3)
+	}
+	b2, ok = blobs[batchKey2]
+	if !ok {
+		return errors.Errorf("blob not inserted: %v", batchKey2)
+	}
+	if !bytes.Equal(b2, value4) {
+		return errors.Errorf("got %s, want %s", b2, value4)
+	}
+
+	// Delete the entries
+	err = s.Del([]string{batchKey1, batchKey2})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

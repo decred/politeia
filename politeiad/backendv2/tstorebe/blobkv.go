@@ -9,9 +9,11 @@ import (
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/mysql"
+	"github.com/pkg/errors"
 )
 
 const (
+	// TODO these should probably be in the store package
 	// DBTypeLevelDB is the config option that sets the backing
 	// key-value store to a leveldb instance.
 	DBTypeLevelDB = "leveldb"
@@ -50,17 +52,17 @@ func newBlobKV(opts blobKVOpts) (store.BlobKV, error) {
 		/* TODO put back in
 		kv, err = localdb.New(opts.AppDir, opts.DataDir)
 		if err != nil {
-			return nil, fmt.Errorf("new localdb store: %v", err)
+			return nil, err
 		}
 		*/
 	case DBTypeMySQL:
 		dbName := fmt.Sprintf("%v_kv", opts.Net)
 		kv, err = mysql.New(opts.Host, dbUser, opts.Password, dbName)
 		if err != nil {
-			return nil, fmt.Errorf("new mysql store: %v", err)
+			return nil, err
 		}
 	default:
-		return nil, fmt.Errorf("invalid db type '%v'", opts.Type)
+		return nil, errors.Errorf("invalid db type '%v'", opts.Type)
 	}
 
 	return kv, nil

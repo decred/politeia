@@ -169,7 +169,7 @@ func (p *politeia) setupBackendGit(anp *chaincfg.Params) error {
 	b, err := gitbe.New(activeNetParams.Params, p.cfg.DataDir,
 		p.cfg.DcrtimeHost, "", p.identity, p.cfg.GitTrace, p.cfg.DcrdataHost)
 	if err != nil {
-		return fmt.Errorf("new gitbe: %v", err)
+		return errors.Errorf("new gitbe: %v", err)
 	}
 	p.backend = b
 
@@ -302,7 +302,7 @@ func (p *politeia) setupBackendTstore(net *chaincfg.Params) error {
 		p.cfg.DBPass, p.cfg.DcrtimeHost, p.cfg.DcrtimeCert,
 		*p.identity, *net)
 	if err != nil {
-		return fmt.Errorf("new tstorebe: %v", err)
+		return err
 	}
 	p.backendv2 = b
 
@@ -381,7 +381,7 @@ func (p *politeia) setupBackendTstore(net *chaincfg.Params) error {
 			log.Infof("Register plugin: %v", v)
 			err = p.backendv2.PluginRegister(plugin)
 			if err != nil {
-				return fmt.Errorf("PluginRegister %v: %v", v, err)
+				return errors.Errorf("PluginRegister %v: %v", v, err)
 			}
 		}
 
@@ -390,7 +390,7 @@ func (p *politeia) setupBackendTstore(net *chaincfg.Params) error {
 			log.Infof("Setup plugin: %v", v.ID)
 			err = p.backendv2.PluginSetup(v.ID)
 			if err != nil {
-				return fmt.Errorf("plugin setup %v: %v", v.ID, err)
+				return errors.Errorf("plugin setup %v: %v", v.ID, err)
 			}
 		}
 	}
@@ -403,7 +403,7 @@ func _main() error {
 	// initializes logging and configures it accordingly.
 	cfg, _, err := loadConfig()
 	if err != nil {
-		return fmt.Errorf("Could not load configuration file: %v", err)
+		return errors.Errorf("Could not load configuration file: %v", err)
 	}
 	defer func() {
 		if logRotator != nil {
@@ -431,7 +431,7 @@ func _main() error {
 		err := util.GenCertPair(elliptic.P521(), "politeiad",
 			cfg.HTTPSCert, cfg.HTTPSKey)
 		if err != nil {
-			return fmt.Errorf("unable to create https keypair: %v",
+			return errors.Errorf("unable to create https keypair: %v",
 				err)
 		}
 
@@ -469,17 +469,17 @@ func _main() error {
 	if len(cfg.DcrtimeCert) != 0 {
 		var certPool *x509.CertPool
 		if !util.FileExists(cfg.DcrtimeCert) {
-			return fmt.Errorf("unable to find dcrtime cert %v",
+			return errors.Errorf("unable to find dcrtime cert %v",
 				cfg.DcrtimeCert)
 		}
 		dcrtimeCert, err := ioutil.ReadFile(cfg.DcrtimeCert)
 		if err != nil {
-			return fmt.Errorf("unable to read dcrtime cert %v: %v",
+			return errors.Errorf("unable to read dcrtime cert %v: %v",
 				cfg.DcrtimeCert, err)
 		}
 		certPool = x509.NewCertPool()
 		if !certPool.AppendCertsFromPEM(dcrtimeCert) {
-			return fmt.Errorf("unable to load cert")
+			return errors.Errorf("unable to load cert")
 		}
 	}
 
@@ -497,7 +497,7 @@ func _main() error {
 			return err
 		}
 	default:
-		return fmt.Errorf("invalid backend selected: %v", cfg.Backend)
+		return errors.Errorf("invalid backend selected: %v", cfg.Backend)
 	}
 
 	// Bind to a port and pass our router in
@@ -545,6 +545,10 @@ func main() {
 	err := _main()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
+		stack, ok := util.StackTrace(err)
+		if ok {
+			fmt.Fprintf(os.Stderr, "%v\n", stack)
+		}
 		os.Exit(1)
 	}
 }

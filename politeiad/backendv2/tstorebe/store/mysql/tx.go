@@ -42,7 +42,7 @@ func (s *sqlTx) Put(blobs map[string][]byte, encrypt bool) error {
 // Insert inserts a new entry into the key-value store for each of the provided
 // key-value pairs.
 //
-// An error is returned if any of the provided keys already exist in the
+// An ErrDuplicateKey is returned if a provided key already exists in the
 // key-value store.
 //
 // This function satisfies the store Tx interface.
@@ -54,8 +54,8 @@ func (s *sqlTx) Insert(blobs map[string][]byte, encrypt bool) error {
 
 // Update updates the provided key-value pairs in the store.
 //
-// An error IS NOT returned if the caller attempts to update an entry that does
-// not exist.
+// An ErrNotFound is returned if the caller attempts to update an entry that
+// does not exist.
 //
 // This function satisfies the store Tx interface.
 func (s *sqlTx) Update(blobs map[string][]byte, encrypt bool) error {
@@ -64,7 +64,10 @@ func (s *sqlTx) Update(blobs map[string][]byte, encrypt bool) error {
 	return s.mysql.update(blobs, encrypt, s.tx)
 }
 
-// Del deletes an entry from the store.
+// Del deletes the provided blobs from the store.
+//
+// Keys that do not correspond to blob entries are ignored. An error IS NOT
+// returned.
 //
 // This function satisfies the store Tx interface.
 func (s *sqlTx) Del(keys []string) error {
