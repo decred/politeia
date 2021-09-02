@@ -318,6 +318,9 @@ func (s *mysql) Close() {
 
 // insert inserts a new entry into the key-value store for each of the provided
 // key-value pairs using the provided transaction.
+//
+// An ErrDuplicateKey is returned if a provided key already exists in the
+// key-value store.
 func (s *mysql) insert(blobs map[string][]byte, encrypt bool, tx *sql.Tx) error {
 	// Setup context
 	ctx, cancel := ctxForOp()
@@ -353,6 +356,9 @@ func (s *mysql) insert(blobs map[string][]byte, encrypt bool, tx *sql.Tx) error 
 
 // update updates the provided key-value pairs in the store using the provided
 // transaction.
+//
+// An ErrNotFound is returned if the caller attempts to update an entry that
+// does not exist.
 func (s *mysql) update(blobs map[string][]byte, encrypt bool, tx *sql.Tx) error {
 	// Setup context
 	ctx, cancel := ctxForOp()
@@ -390,8 +396,11 @@ func (s *mysql) update(blobs map[string][]byte, encrypt bool, tx *sql.Tx) error 
 	return nil
 }
 
-// del deletes the provided blobs from the store using the provided
-// transaction.
+// Del deletes the entries in the store for the provided keys using the
+// provided transaction.
+//
+// Keys that do not correspond to blob entries are ignored. An error IS NOT
+// returned.
 func (s *mysql) del(keys []string, tx *sql.Tx) error {
 	// Converted the key strings to interface{} types.
 	// The ExecContext method only accepts interfaces.
