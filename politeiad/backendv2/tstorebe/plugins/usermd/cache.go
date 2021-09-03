@@ -36,7 +36,7 @@ type userCache struct {
 // userCache returns the userCache for the specified user.
 func (p *usermdPlugin) userCache(tstore plugins.TstoreClient, userID string) (*userCache, error) {
 	// Get cache client
-	c := tstore.CacheClient()
+	c := tstore.CacheClient(true)
 
 	// Get cached data
 	key := userCacheKey(userID)
@@ -69,16 +69,15 @@ func (p *usermdPlugin) userCacheSave(tstore plugins.TstoreClient, userID string,
 	if err != nil {
 		return err
 	}
-
-	// Encrypt the user cache so that unvetted tokens
-	// are not leaked.
-	c := tstore.CacheClient()
+	// Encrypt the user cache so that unvetted data
+	// is not leaked.
+	c := tstore.CacheClient(true)
 	kv := map[string][]byte{userCacheKey(userID): b}
-	err = c.Update(kv, true)
+	err = c.Update(kv)
 	if errors.Is(err, store.ErrNotFound) {
 		// An entry doesn't exist in the kv
 		// store yet. Insert a new one.
-		err = c.Insert(kv, true)
+		err = c.Insert(kv)
 	}
 	return err
 }

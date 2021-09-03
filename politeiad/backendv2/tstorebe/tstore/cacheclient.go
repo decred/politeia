@@ -16,7 +16,8 @@ var (
 
 // cacheClient satisfies the plugins CacheClient interface.
 type cacheClient struct {
-	id string // Caller ID used for logging
+	id      string // Caller ID used for logging
+	encrypt bool   // Encrypt data on writes
 
 	// writer is used for all write operations. Write operations are
 	// atomic.
@@ -36,11 +37,12 @@ type cacheClient struct {
 }
 
 // newCacheClient returns a new cacheClient.
-func newCacheClient(id string, tx store.Tx, g store.Getter) *cacheClient {
+func newCacheClient(id string, encrypt bool, tx store.Tx, g store.Getter) *cacheClient {
 	return &cacheClient{
-		id:     id,
-		writer: tx,
-		reader: g,
+		id:      id,
+		encrypt: encrypt,
+		writer:  tx,
+		reader:  g,
 	}
 }
 
@@ -49,9 +51,9 @@ func newCacheClient(id string, tx store.Tx, g store.Getter) *cacheClient {
 //
 // A store.ErrDuplicateKey is returned if a provided key already exists in the
 // key-value store.
-func (c *cacheClient) Insert(blobs map[string][]byte, encrypt bool) error {
+func (c *cacheClient) Insert(blobs map[string][]byte) error {
 	log.Tracef("%v Cache Insert: %v blobs, encrypted %v",
-		c.id, len(blobs), encrypt)
+		c.id, len(blobs), c.encrypt)
 
 	// Verify that this call is part of a write command.
 	if c.writer == nil {
@@ -59,16 +61,16 @@ func (c *cacheClient) Insert(blobs map[string][]byte, encrypt bool) error {
 			"when the client has been initialized for a read")
 	}
 
-	return c.writer.Insert(blobs, encrypt)
+	return c.writer.Insert(blobs, c.encrypt)
 }
 
 // Update updates the provided key-value pairs in the cache.
 //
 // A store.ErrNotFound is returned if the caller attempts to update an entry
 // that does not exist.
-func (c *cacheClient) Update(blobs map[string][]byte, encrypt bool) error {
+func (c *cacheClient) Update(blobs map[string][]byte) error {
 	log.Tracef("%v Cache Update: %v blobs, encrypted %v",
-		c.id, len(blobs), encrypt)
+		c.id, len(blobs), c.encrypt)
 
 	// Verify that this call is part of a write command.
 	if c.writer == nil {
@@ -76,7 +78,7 @@ func (c *cacheClient) Update(blobs map[string][]byte, encrypt bool) error {
 			"when the client has been initialized for a read")
 	}
 
-	return c.writer.Update(blobs, encrypt)
+	return c.writer.Update(blobs, c.encrypt)
 }
 
 // Del deletes the provided entries from the cache.

@@ -530,8 +530,8 @@ func (c *Client) RecordState(token []byte) (backend.StateT, error) {
 // key-value store cache.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (c *Client) CacheClient() plugins.CacheClient {
-	return newCacheClient(c.id, c.writer, c.reader)
+func (c *Client) CacheClient(encrypt bool) plugins.CacheClient {
+	return newCacheClient(c.id, encrypt, c.writer, c.reader)
 }
 
 // InvClient returns a InvClient that can be used to interact with a cached

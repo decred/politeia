@@ -123,8 +123,8 @@ type PluginWrite struct {
 	Cmd      string `json:"cmd"`
 	Payload  string `json:"payload"`
 
-	// Reply contains the plugin command reply payload and will only
-	// be populated on the post hook.
+	// Reply contains the plugin command reply payload
+	// and will only be populated on the post hook.
 	Reply string `json:"reply,omitempty"`
 }
 
@@ -237,10 +237,18 @@ type TstoreClient interface {
 
 	// CacheClient returns a CacheClient that can be used to interact
 	// with the key-value store cache.
-	CacheClient() CacheClient
+	//
+	// The encrypt argument is used to indicate whether cache writes
+	// should be encrypted. This setting does not impact reads since
+	// data is automatically decrypted on retrieval.
+	CacheClient(encrypt bool) CacheClient
 
 	// InvClient returns a InvClient that can be used to interact with
 	// a cached inventory.
+	//
+	// The encrypt argument is used to indicate whether inv writes
+	// should be encrypted. This setting does not impact reads since
+	// data is automatically decrypted on retrieval.
 	InvClient(key string, encrypt bool) InvClient
 }
 
@@ -255,13 +263,13 @@ type CacheClient interface {
 	//
 	// A store.ErrDuplicateKey is returned if a provided key already
 	// exists in the key-value store.
-	Insert(blobs map[string][]byte, encrypt bool) error
+	Insert(blobs map[string][]byte) error
 
 	// Update updates the provided key-value pairs in the cache.
 	//
 	// A store.ErrNotFound is returned if the caller attempts to
 	// update an entry that does not exist.
-	Update(blobs map[string][]byte, encrypt bool) error
+	Update(blobs map[string][]byte) error
 
 	// Del deletes the provided entries from the cache.
 	//

@@ -11,6 +11,7 @@ import (
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/util"
 	errors "github.com/pkg/errors"
@@ -41,7 +42,18 @@ func (r *recordIndex) save(tstore plugins.TstoreClient, s backend.StateT) error 
 	if err != nil {
 		return err
 	}
-	return tstore.CacheSave(map[string][]byte{key: b})
+
+	// Encrypt the cached record index so
+	// that unvetted data is not leaked.
+	c := tstore.CacheClient(true)
+	kv := map[string][]byte{key: b}
+	err = c.Update(kv)
+	if errors.Is(err, store.ErrNotFound) {
+		// An entry doesn't exist in the kv
+		// store yet. Insert a new one.
+		err = c.Insert(kv)
+	}
+	return err
 }
 
 // commentIDLatest returns the latest comment ID.
@@ -158,7 +170,8 @@ func getRecordIndex(tstore plugins.TstoreClient, token []byte, s backend.StateT)
 		return nil, err
 	}
 
-	blobs, err := tstore.CacheGet([]string{key})
+	c := tstore.CacheClient(true)
+	blobs, err := c.GetBatch([]string{key})
 	if err != nil {
 		return nil, err
 	}
