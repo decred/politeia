@@ -18,6 +18,10 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+var (
+	_ plugins.TstoreClient = (*Client)(nil)
+)
+
 // Client provides a concurrency safe API for plugins to interact with a tstore
 // instance. Plugins are allowed to save, delete, and retrieve plugin data
 // to/from the tstore instance.
@@ -447,36 +451,6 @@ func (c *Client) Timestamp(token []byte, digest []byte) (*backend.Timestamp, err
 	return c.tstore.timestamp(treeID, m, leaves)
 }
 
-// CacheSave saves the provided key-value pairs to the tstore cache. Cached
-// data is not timestamped onto the Decred blockchain. Only data that can be
-// recreated by walking the tlog trees should be cached.
-//
-// This function satisfies the plugins TstoreClient interface.
-func (c *Client) CacheSave(kv map[string][]byte) error {
-	log.Tracef("%v CacheSave: %v blobs", c.id, len(kv))
-
-	// Verify that this call is part of a write command.
-	if c.writer == nil {
-		return errors.Errorf("attempting to execute a write " +
-			"when the client has been initialized for a read")
-	}
-
-	// TODO replace with cache client
-	return nil
-}
-
-// CacheGet returns blobs from the cache for the provided keys. An entry will
-// not exist in the returned map if for any blobs that are not found. It is the
-// responsibility of the caller to ensure a blob was returned for all provided
-// keys.
-//
-// This function satisfies the plugins TstoreClient interface.
-func (c *Client) CacheGet(keys []string) (map[string][]byte, error) {
-	log.Tracef("%v CacheGet: %v", c.id, keys)
-
-	return c.reader.GetBatch(keys)
-}
-
 // Record returns a version of a record.
 //
 // This function satisfies the plugins TstoreClient interface.
@@ -552,9 +526,16 @@ func (c *Client) RecordState(token []byte) (backend.StateT, error) {
 	return c.tstore.RecordState(token)
 }
 
+// CacheClient returns a CacheClient that can be used to interact with the
+// key-value store cache.
+//
+// This function satisfies the plugins TstoreClient interface.
+func (c *Client) CacheClient() plugins.CacheClient {
+	return newCacheClient(c.id, c.writer, c.reader)
+}
+
 // InvClient returns a InvClient that can be used to interact with a cached
-// inventory. All InvClient operations are performed using the same database
-// transaction that the TstoreClient uses.
+// inventory.
 //
 // This function satisfies the plugins TstoreClient interface.
 func (c *Client) InvClient(key string, encrypt bool) plugins.InvClient {

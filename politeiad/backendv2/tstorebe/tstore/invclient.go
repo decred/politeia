@@ -6,11 +6,16 @@ package tstore
 
 import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/inv"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/pkg/errors"
 )
 
-// invClient provides a concurrency safe API that plugins can use to manage a
+var (
+	_ plugins.InvClient = (*invClient)(nil)
+)
+
+// InvClient provides a concurrency safe API that plugins can use to manage a
 // cached inventory of tokens.
 //
 // Operations will be atomic if the client is initialized by a plugin write
@@ -48,12 +53,12 @@ type invClient struct {
 }
 
 // newInvClient returns a new invClient.
-func newInvClient(id, key string, encrypt bool, tx store.Tx, r store.Getter) *invClient {
+func newInvClient(id, key string, encrypt bool, tx store.Tx, g store.Getter) *invClient {
 	return &invClient{
 		id:     id,
 		inv:    inv.New(key, encrypt),
 		writer: tx,
-		reader: r,
+		reader: g,
 	}
 }
 
@@ -73,6 +78,9 @@ func (c *invClient) Add(e inv.Entry) error {
 }
 
 // Update updates an inventory entry.
+//
+// An inv.ErrEntryNotFound error is returned if the provided inventory entry
+// token does not match an existing inventory entry token.
 //
 // This function satisfies the plugins InvClient interface.
 func (c *invClient) Update(e inv.Entry) error {

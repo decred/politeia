@@ -159,8 +159,8 @@ type PluginClient interface {
 // being executed on.  Executing commands on other records requires the use
 // of the Backend interace.
 //
-// TODO add in check that all write data descriptors are prefixed with the
-// plugin id
+// TODO add in check that all reads and writes are prefixed with the plugin id
+// for all write methods of TstoreClient, CacheClient, and InvClient.
 //
 // TstoreClient provides a concurrency safe API for plugins to interact with a
 // tstore instance. Plugins are allowed to save, delete, and retrieve plugin
@@ -235,17 +235,12 @@ type TstoreClient interface {
 	// RecordState returns the record state.
 	RecordState(token []byte) (backend.StateT, error)
 
-	// TODO
-	CacheSave(blobs map[string][]byte) error
-	CacheGet(keys []string) (map[string][]byte, error)
-
 	// CacheClient returns a CacheClient that can be used to interact
-	// with the tstore cache.
-	// CacheClient() CacheClient
+	// with the key-value store cache.
+	CacheClient() CacheClient
 
 	// InvClient returns a InvClient that can be used to interact with
 	// a cached inventory.
-	// TODO key must be prefix by the plugin ID
 	InvClient(key string, encrypt bool) InvClient
 }
 
@@ -254,20 +249,18 @@ type TstoreClient interface {
 //
 // Cached data IS NOT be timetamped onto the Decred blockchain. Only data that
 // can be re-created by walking the tlog trees should be cached.
-//
-// TODO reads and writes must be prefix by the plugin ID
 type CacheClient interface {
 	// Insert inserts a new entry into the cache store for each of the
 	// provided key-value pairs.
 	//
-	// An ErrDuplicateKey is returned if a provided key already exists
-	// in the key-value store.
+	// A store.ErrDuplicateKey is returned if a provided key already
+	// exists in the key-value store.
 	Insert(blobs map[string][]byte, encrypt bool) error
 
 	// Update updates the provided key-value pairs in the cache.
 	//
-	// An ErrNotFound is returned if the caller attempts to update an
-	// entry that does not exist.
+	// A store.ErrNotFound is returned if the caller attempts to
+	// update an entry that does not exist.
 	Update(blobs map[string][]byte, encrypt bool) error
 
 	// Del deletes the provided entries from the cache.
@@ -278,8 +271,8 @@ type CacheClient interface {
 
 	// Get returns the cached blob for the provided key.
 	//
-	// An ErrNotFound error is returned if the key does not correspond
-	// to an entry.
+	// A store.ErrNotFound error is returned if the key does not
+	// correspond to an entry.
 	Get(key string) ([]byte, error)
 
 	// GetBatch returns the cached blobs for the provided keys.
@@ -310,6 +303,10 @@ type InvClient interface {
 	Add(e inv.Entry) error
 
 	// Update updates an inventory entry.
+	//
+	// An inv.ErrEntryNotFound error is returned if the provided
+	// inventory entry token does not match an existing inventory
+	// entry token.
 	Update(e inv.Entry) error
 
 	// Del deletes an entry from the inventory.

@@ -10,6 +10,7 @@ import (
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 	"github.com/pkg/errors"
 )
@@ -34,9 +35,12 @@ type userCache struct {
 
 // userCache returns the userCache for the specified user.
 func (p *usermdPlugin) userCache(tstore plugins.TstoreClient, userID string) (*userCache, error) {
+	// Get cache client
+	c := tstore.CacheClient()
+
 	// Get cached data
 	key := userCacheKey(userID)
-	blobs, err := tstore.CacheGet([]string{key})
+	blobs, err := c.GetBatch([]string{key})
 	if err != nil {
 		return nil, err
 	}
@@ -66,9 +70,17 @@ func (p *usermdPlugin) userCacheSave(tstore plugins.TstoreClient, userID string,
 		return err
 	}
 
-	return tstore.CacheSave(map[string][]byte{
-		userCacheKey(userID): b,
-	})
+	// Encrypt the user cache so that unvetted tokens
+	// are not leaked.
+	c := tstore.CacheClient()
+	kv := map[string][]byte{userCacheKey(userID): b}
+	err = c.Update(kv, true)
+	if errors.Is(err, store.ErrNotFound) {
+		// An entry doesn't exist in the kv
+		// store yet. Insert a new one.
+		err = c.Insert(kv, true)
+	}
+	return err
 }
 
 // userCacheAddToken adds a token to a user cache.

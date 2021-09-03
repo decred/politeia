@@ -10,11 +10,11 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TestBlobKV runs through a series of BlobKV operations to verify that basic
-// functionality of the BlobKV implementation is working correctly.
+// TestBlobKV runs through a series of operations to verify basic functionality
+// of the BlobKV implementation.
 //
 // These are not unit tests. These are intended to be run against an actual
-// database on initialization of a BlobKV implemenation.
+// database on initialization of a BlobKV.
 func TestBlobKV(kv BlobKV) error {
 	var (
 		key = "testops-key"
