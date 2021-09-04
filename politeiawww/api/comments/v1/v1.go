@@ -10,14 +10,28 @@ const (
 	// APIRoute is prefixed onto all routes defined in this package.
 	APIRoute = "/comments/v1"
 
-	// Routes
-	RoutePolicy     = "/policy"
-	RouteNew        = "/new"
-	RouteVote       = "/vote"
-	RouteDel        = "/del"
-	RouteCount      = "/count"
-	RouteComments   = "/comments"
-	RouteVotes      = "/votes"
+	// RoutePolicy returns the policy for the comments API.
+	RoutePolicy = "/policy"
+
+	// RouteNew adds a new comment.
+	RouteNew = "/new"
+
+	// RouteVote votes on a comment.
+	RouteVote = "/vote"
+
+	// RouteDel deletes a comment.
+	RouteDel = "/del"
+
+	// RouteCount returns the number of comment on a record.
+	RouteCount = "/count"
+
+	// RouteComments returns all comments on a record.
+	RouteComments = "/comments"
+
+	// RouteVotes returns all comment votes of a record.
+	RouteVotes = "/votes"
+
+	// RouteTimestamps returns the timestamps for the comments of a record.
 	RouteTimestamps = "/timestamps"
 )
 
@@ -25,16 +39,41 @@ const (
 type ErrorCodeT uint32
 
 const (
-	ErrorCodeInvalid            ErrorCodeT = 0
-	ErrorCodeInputInvalid       ErrorCodeT = 1
-	ErrorCodeUnauthorized       ErrorCodeT = 2
-	ErrorCodePublicKeyInvalid   ErrorCodeT = 3
-	ErrorCodeSignatureInvalid   ErrorCodeT = 4
+	// ErrorCodeInvalid is an invalid error code.
+	ErrorCodeInvalid ErrorCodeT = 0
+
+	// ErrorCodeInputInvalid is returned when there is an error
+	// while prasing a command payload.
+	ErrorCodeInputInvalid ErrorCodeT = 1
+
+	// ErrorCodeUnauthorized is returned when the user is not authorized.
+	ErrorCodeUnauthorized ErrorCodeT = 2
+
+	// ErrorCodePublicKeyInvalid is returned when a public key is
+	// invalid.
+	ErrorCodePublicKeyInvalid ErrorCodeT = 3
+
+	// ErrorCodeSignatureInvalid is returned when a signature is
+	// invalid.
+	ErrorCodeSignatureInvalid ErrorCodeT = 4
+
+	// ErrorCodeRecordStateInvalid is returned when the provided state
+	// does not match the record state.
 	ErrorCodeRecordStateInvalid ErrorCodeT = 5
-	ErrorCodeTokenInvalid       ErrorCodeT = 6
-	ErrorCodeRecordNotFound     ErrorCodeT = 7
-	ErrorCodeRecordLocked       ErrorCodeT = 8
-	ErrorCodePageSizeExceeded   ErrorCodeT = 9
+
+	// ErrorCodeTokenInvalid is returned when a token is invalid.
+	ErrorCodeTokenInvalid ErrorCodeT = 6
+
+	// ErrorCodeRecordNotFound is returned when no record was found.
+	ErrorCodeRecordNotFound ErrorCodeT = 7
+
+	// ErrorCodeRecordLocked is returned when the roced is locked and
+	// no writes can be made.
+	ErrorCodeRecordLocked ErrorCodeT = 8
+
+	// ErrorCodePageSizeExceeded is returned when the request's page size
+	// exceeds the maximum page size of the request.
+	ErrorCodePageSizeExceeded ErrorCodeT = 9
 
 	// ErrorCodeDuplicatePayload is returned when a user tries to submit a
 	// duplicate payload for the comments plugin, where it tries to write
@@ -43,6 +82,7 @@ const (
 	// cause collisions.
 	ErrorCodeDuplicatePayload ErrorCodeT = 10
 
+	// ErrorCodeLast unit test only.
 	ErrorCodeLast ErrorCodeT = 11
 )
 
