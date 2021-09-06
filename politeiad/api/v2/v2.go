@@ -125,8 +125,8 @@ const (
 	// does not match the record state.
 	ErrorCodeRecordStateInvalid ErrorCodeT = 20
 
-	// ErrorCodeRecordStatusInvalid is returned when a ticketvote write
-	// command is executed on a record that is not public.
+	// ErrorCodeRecordStatusInvalid is returned when a record status is
+	// invalid.
 	ErrorCodeRecordStatusInvalid ErrorCodeT = 21
 
 	// ErrorCodeDuplicatePayload is returned when a duplicate payload is sent
@@ -135,7 +135,9 @@ const (
 	// not allowed since they will cause collisions.
 	ErrorCodeDuplicatePayload ErrorCodeT = 22
 
-	// ErrorCodeLast unit test only.
+	// ErrorCodeLast is used by unit tests to verify that all error codes have
+	// a human readable entry in the ErrorCodes map. This error will never be
+	// returned.
 	ErrorCodeLast ErrorCodeT = 23
 )
 

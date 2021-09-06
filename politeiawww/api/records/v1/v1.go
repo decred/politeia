@@ -125,7 +125,9 @@ const (
 	// exceeds the maximum page size of the request.
 	ErrorCodePageSizeExceeded ErrorCodeT = 20
 
-	// ErrorCodeLast unit test only.
+	// ErrorCodeLast is used by unit tests to verify that all error codes have
+	// a human readable entry in the ErrorCodes map. This error will never be
+	// returned.
 	ErrorCodeLast ErrorCodeT = 21
 )
 
