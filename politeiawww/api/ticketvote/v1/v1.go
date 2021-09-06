@@ -10,30 +10,68 @@ const (
 	// APIRoute is prefixed onto all routes defined in this package.
 	APIRoute = "/ticketvote/v1"
 
-	RoutePolicy      = "/policy"
-	RouteAuthorize   = "/authorize"
-	RouteStart       = "/start"
-	RouteCastBallot  = "/castballot"
-	RouteDetails     = "/details"
-	RouteResults     = "/results"
-	RouteSummaries   = "/summaries"
+	// RoutePolicy returns the policy for the ticketvote API.
+	RoutePolicy = "/policy"
+
+	// RouteAuthorize authorizes a record vote.
+	RouteAuthorize = "/authorize"
+
+	// RouteStart starts a record vote.
+	RouteStart = "/start"
+
+	// RouteCastBallot casts ballot of votes.
+	RouteCastBallot = "/castballot"
+
+	// RouteDetails returns the vote details for a record vote.
+	RouteDetails = "/details"
+
+	// RouteResults returns the vote results for a record vote.
+	RouteResults = "/results"
+
+	// RouteSummaries returns the vote summary for a page of record
+	// votes.
+	RouteSummaries = "/summaries"
+
+	// RouteSubmissions returns the submissions of a runoff vote.
 	RouteSubmissions = "/submissions"
-	RouteInventory   = "/inventory"
-	RouteTimestamps  = "/timestamps"
+
+	// RouteInventory returns the tokens of public records in the inventory
+	// categorized by vote status.
+	RouteInventory = "/inventory"
+
+	// RouteTimestamps returns the timestamps for ticket vote data.
+	RouteTimestamps = "/timestamps"
 )
 
 // ErrorCodeT represents a user error code.
 type ErrorCodeT uint32
 
 const (
-	// Error codes
-	ErrorCodeInvalid          ErrorCodeT = 0
-	ErrorCodeInputInvalid     ErrorCodeT = 1
+	// ErrorCodeInvalid is an invalid error code.
+	ErrorCodeInvalid ErrorCodeT = 0
+
+	// ErrorCodeInputInvalid is returned when there is an error
+	// while prasing a command payload.
+	ErrorCodeInputInvalid ErrorCodeT = 1
+
+	// ErrorCodePublicKeyInvalid is returned when a public key used
+	// in a signature is not valid.
 	ErrorCodePublicKeyInvalid ErrorCodeT = 2
-	ErrorCodeUnauthorized     ErrorCodeT = 3
-	ErrorCodeRecordNotFound   ErrorCodeT = 4
-	ErrorCodeRecordLocked     ErrorCodeT = 5
-	ErrorCodeTokenInvalid     ErrorCodeT = 6
+
+	// ErrorCodeUnauthorized is returned when the user is not authorized.
+	ErrorCodeUnauthorized ErrorCodeT = 3
+
+	// ErrorCodeRecordNotFound is returned when a record not found.
+	ErrorCodeRecordNotFound ErrorCodeT = 4
+
+	// ErrorCodeRecordLocked is returned when a record is locked.
+	ErrorCodeRecordLocked ErrorCodeT = 5
+
+	// ErrorCodeTokenInvalid is returned when a token is invalid.
+	ErrorCodeTokenInvalid ErrorCodeT = 6
+
+	// ErrorCodePageSizeExceeded is returned when the request's page size
+	// exceeds the maximum page size of the request.
 	ErrorCodePageSizeExceeded ErrorCodeT = 7
 
 	// ErrorCodeDuplicatePayload is returned when a user tries to submit a
@@ -43,6 +81,7 @@ const (
 	// cause collisions.
 	ErrorCodeDuplicatePayload ErrorCodeT = 8
 
+	// ErrorCodeLast unit test only.
 	ErrorCodeLast ErrorCodeT = 9
 )
 
@@ -122,8 +161,8 @@ const (
 	AuthActionRevoke AuthActionT = "revoke"
 )
 
-// Authorize authorizes a record vote or revokes a previous vote authorization.
-// Not all vote types require an authorization.
+// Authorize authorizes a record vote or revokes a previous vote
+// authorization. Not all vote types require an authorization.
 //
 // Signature contains the client signature of the Token+Version+Action.
 type Authorize struct {
@@ -534,17 +573,17 @@ type Summaries struct {
 
 // SummariesReply is the reply to the Summaries command.
 //
-// Summaries field contains a vote summary for each of the provided tokens. The
-// map will not contain an entry for any tokens that did not correspond to an
-// actual record. It is the callers responsibility to ensure that a summary is
-// returned for all provided tokens.
+// Summaries field contains a vote summary for each of the provided tokens.
+// The map will not contain an entry for any tokens that did not correspond
+// to an actual record. It is the callers responsibility to ensure that a
+// summary is returned for all provided tokens.
 type SummariesReply struct {
 	Summaries map[string]Summary `json:"summaries"` // [token]Summary
 }
 
-// Submissions requests the submissions of a runoff vote. The only records that
-// will have a submissions list are the parent records in a runoff vote. The
-// list will contain all public runoff vote submissions, i.e. records that
+// Submissions requests the submissions of a runoff vote. The only records
+// that will have a submissions list are the parent records in a runoff vote.
+// The list will contain all public runoff vote submissions, i.e. records that
 // have linked to the parent record using the VoteMetadata LinkTo field.
 type Submissions struct {
 	Token string `json:"token"`
@@ -561,8 +600,8 @@ const (
 	InventoryPageSize uint32 = 20
 )
 
-// Inventory requests the tokens of public records in the inventory categorized
-// by vote status.
+// Inventory requests the tokens of public records in the inventory
+// categorized by vote status.
 //
 // The status and page arguments can be provided to request a specific page of
 // record tokens.
@@ -625,7 +664,7 @@ type Timestamp struct {
 }
 
 const (
-	// VoteTimetsampsPageSize is the maximum number of vote timestamps
+	// VoteTimestampsPageSize is the maximum number of vote timestamps
 	// that will be returned for any single request.
 	VoteTimestampsPageSize uint32 = 100
 )
@@ -633,8 +672,8 @@ const (
 // Timestamps requests the timestamps for ticket vote data.
 //
 // If no votes page number is provided then the vote authorization and vote
-// details timestamps will be returned. If a votes page number is provided then
-// the specified page of cast vote timestamps will be returned.
+// details timestamps will be returned. If a votes page number is provided
+// then the specified page of cast vote timestamps will be returned.
 type Timestamps struct {
 	Token     string `json:"token"`
 	VotesPage uint32 `json:"votespage,omitempty"`

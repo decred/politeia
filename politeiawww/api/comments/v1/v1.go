@@ -67,8 +67,7 @@ const (
 	// ErrorCodeRecordNotFound is returned when a record not found.
 	ErrorCodeRecordNotFound ErrorCodeT = 7
 
-	// ErrorCodeRecordLocked is returned when the roced is locked and
-	// no writes can be made.
+	// ErrorCodeRecordLocked is returned when a record is locked.
 	ErrorCodeRecordLocked ErrorCodeT = 8
 
 	// ErrorCodePageSizeExceeded is returned when the request's page size
