@@ -10,18 +10,41 @@ const (
 	// APIRoute is prefixed onto all routes in this package.
 	APIRoute = "/v2"
 
-	// Routes
-	RouteRecordNew          = "/recordnew"
-	RouteRecordEdit         = "/recordedit"
+	// RouteRecordNew creates a new record.
+	RouteRecordNew = "/recordnew"
+
+	// RouteRecordEdit edits a record.
+	RouteRecordEdit = "/recordedit"
+
+	// RouteRecordEditMetadata edits record's metadata.
 	RouteRecordEditMetadata = "/recordeditmetadata"
-	RouteRecordSetStatus    = "/recordsetstatus"
-	RouteRecordTimestamps   = "/recordtimestamps"
-	RouteRecords            = "/records"
-	RouteInventory          = "/inventory"
-	RouteInventoryOrdered   = "/inventoryordered"
-	RoutePluginWrite        = "/pluginwrite"
-	RoutePluginReads        = "/pluginreads"
-	RoutePluginInventory    = "/plugininventory"
+
+	// RouteRecordSetStatus sets the status of a record.
+	RouteRecordSetStatus = "/recordsetstatus"
+
+	// RouteRecordTimestamps returns the record timestamps.
+	RouteRecordTimestamps = "/recordtimestamps"
+
+	// RouteRecords retrieves a page of records.
+	RouteRecords = "/records"
+
+	// RouteInventory returns the tokens of records in the inventory
+	// categorized by record state and record status.
+	RouteInventory = "/inventory"
+
+	// RouteInventoryOrdered returns a page of record tokens ordered by the
+	// timestamp of their most recent status change from newest to
+	// oldest. The returned tokens will include all record statuses.
+	RouteInventoryOrdered = "/inventoryordered"
+
+	// RoutePluginWrite executes a plugin command that writes data.
+	RoutePluginWrite = "/pluginwrite"
+
+	// RoutePluginReads executes a read-only plugin command.
+	RoutePluginReads = "/pluginreads"
+
+	// RoutePluginInventory returns all registered plugins.
+	RoutePluginInventory = "/plugininventory"
 
 	// ChallengeSize is the size of a request challenge token in bytes.
 	ChallengeSize = 32
@@ -31,28 +54,80 @@ const (
 type ErrorCodeT uint32
 
 const (
-	ErrorCodeInvalid                 ErrorCodeT = 0
-	ErrorCodeRequestPayloadInvalid   ErrorCodeT = 1
-	ErrorCodeChallengeInvalid        ErrorCodeT = 2
-	ErrorCodeMetadataStreamInvalid   ErrorCodeT = 3
+	// ErrorCodeInvalid is an invalid error code.
+	ErrorCodeInvalid ErrorCodeT = 0
+
+	// ErrorCodeRequestPayloadInvalid is returned when a request's payload
+	// is invalid.
+	ErrorCodeRequestPayloadInvalid ErrorCodeT = 1
+
+	// ErrorCodeChallengeInvalid is returned when a challenge is invalid.
+	ErrorCodeChallengeInvalid ErrorCodeT = 2
+
+	// ErrorCodeMetadataStreamInvalid is returned when a metadata stream
+	// is invalid.
+	ErrorCodeMetadataStreamInvalid ErrorCodeT = 3
+
+	// ErrorCodeMetadataStreamDuplicate is returned when a metadata stream
+	// is a duplicate.
 	ErrorCodeMetadataStreamDuplicate ErrorCodeT = 4
-	ErrorCodeFilesEmpty              ErrorCodeT = 5
-	ErrorCodeFileNameInvalid         ErrorCodeT = 6
-	ErrorCodeFileNameDuplicate       ErrorCodeT = 7
-	ErrorCodeFileDigestInvalid       ErrorCodeT = 8
-	ErrorCodeFilePayloadInvalid      ErrorCodeT = 9
-	ErrorCodeFileMIMETypeInvalid     ErrorCodeT = 10
+
+	// ErrorCodeFilesEmpty is returned when no files found.
+	ErrorCodeFilesEmpty ErrorCodeT = 5
+
+	// ErrorCodeFileNameInvalid is returned when a file name is invalid.
+	ErrorCodeFileNameInvalid ErrorCodeT = 6
+
+	// ErrorCodeFileNameDuplicate is returned when a file name is a duplicate.
+	ErrorCodeFileNameDuplicate ErrorCodeT = 7
+
+	// ErrorCodeFileDigestInvalid is returned when a file digest is invalid.
+	ErrorCodeFileDigestInvalid ErrorCodeT = 8
+
+	// ErrorCodeFilePayloadInvalid is returned when a file payload is invalid.
+	ErrorCodeFilePayloadInvalid ErrorCodeT = 9
+
+	// ErrorCodeFileMIMETypeInvalid is returned when a file MIME type is
+	// invalid.
+	ErrorCodeFileMIMETypeInvalid ErrorCodeT = 10
+
+	// ErrorCodeFileMIMETypeUnsupported is returned when a file MIME type is
+	// unsupoorted.
 	ErrorCodeFileMIMETypeUnsupported ErrorCodeT = 11
-	ErrorCodeTokenInvalid            ErrorCodeT = 12
-	ErrorCodeRecordNotFound          ErrorCodeT = 13
-	ErrorCodeRecordLocked            ErrorCodeT = 14
-	ErrorCodeNoRecordChanges         ErrorCodeT = 15
-	ErrorCodeStatusChangeInvalid     ErrorCodeT = 16
-	ErrorCodePluginIDInvalid         ErrorCodeT = 17
-	ErrorCodePluginCmdInvalid        ErrorCodeT = 18
-	ErrorCodePageSizeExceeded        ErrorCodeT = 19
-	ErrorCodeRecordStateInvalid      ErrorCodeT = 20
-	ErrorCodeRecordStatusInvalid     ErrorCodeT = 21
+
+	// ErrorCodeTokenInvalid is returned when a token is invalid.
+	ErrorCodeTokenInvalid ErrorCodeT = 12
+
+	// ErrorCodeRecordNotFound is returned when a record is not found.
+	ErrorCodeRecordNotFound ErrorCodeT = 13
+
+	// ErrorCodeRecordLocked is returned when a record is locked.
+	ErrorCodeRecordLocked ErrorCodeT = 14
+
+	// ErrorCodeNoRecordChanges is retuned when no record changes found.
+	ErrorCodeNoRecordChanges ErrorCodeT = 15
+
+	// ErrorCodeStatusChangeInvalid is returned when a record status change
+	// is invalid.
+	ErrorCodeStatusChangeInvalid ErrorCodeT = 16
+
+	// ErrorCodePluginIDInvalid is returned when a plugin ID is invalid.
+	ErrorCodePluginIDInvalid ErrorCodeT = 17
+
+	// ErrorCodePluginCmdInvalid is returned when a plugin cmd is invalid.
+	ErrorCodePluginCmdInvalid ErrorCodeT = 18
+
+	// ErrorCodePageSizeExceeded is returned when the request's page size
+	// exceeds the maximum page size of the request.
+	ErrorCodePageSizeExceeded ErrorCodeT = 19
+
+	// ErrorCodeRecordStateInvalid is returned when the provided state
+	// does not match the record state.
+	ErrorCodeRecordStateInvalid ErrorCodeT = 20
+
+	// ErrorCodeRecordStatusInvalid is returned when a ticketvote write
+	// command is executed on a record that is not public.
+	ErrorCodeRecordStatusInvalid ErrorCodeT = 21
 
 	// ErrorCodeDuplicatePayload is returned when a duplicate payload is sent
 	// to a plugin, where it tries to write data that already exists. Timestamp
@@ -60,6 +135,7 @@ const (
 	// not allowed since they will cause collisions.
 	ErrorCodeDuplicatePayload ErrorCodeT = 22
 
+	// ErrorCodeLast unit test only.
 	ErrorCodeLast ErrorCodeT = 23
 )
 
