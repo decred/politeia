@@ -39,7 +39,9 @@ const (
 	// ErrorCodeRecordNotFound is returned when no record was found.
 	ErrorCodeRecordNotFound ErrorCodeT = 4
 
-	// ErrorCodeLast unit test only
+	// ErrorCodeLast is used by unit tests to verify that all error codes have
+	// a human readable entry in the ErrorCodes map. This error will never be
+	// returned.
 	ErrorCodeLast ErrorCodeT = 5
 )
 
