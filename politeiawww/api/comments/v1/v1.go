@@ -64,7 +64,7 @@ const (
 	// ErrorCodeTokenInvalid is returned when a token is invalid.
 	ErrorCodeTokenInvalid ErrorCodeT = 6
 
-	// ErrorCodeRecordNotFound is returned when no record was found.
+	// ErrorCodeRecordNotFound is returned when a record not found.
 	ErrorCodeRecordNotFound ErrorCodeT = 7
 
 	// ErrorCodeRecordLocked is returned when the roced is locked and
