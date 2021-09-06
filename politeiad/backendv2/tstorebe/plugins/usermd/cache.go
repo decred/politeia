@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	// keyUserCache is the format that the key-value store key uses
+	// userCacheKey is the format that the key-value store key uses
 	// for the userCache data. The "{userid}" is replaced by the real
 	// user ID.
-	keyUserCache = usermd.PluginID + "-{userid}"
+	userCacheKey = usermd.PluginID + "-{userid}"
 )
 
 // userCache contains cached user metadata for an individual user. The data is
@@ -203,5 +203,5 @@ func delToken(tokens []string, tokenToDel string) ([]string, error) {
 
 // userCacheKey returns the key-value store key for a userCache object.
 func userCacheKey(userID string) string {
-	return strings.Replace(keyUserCache, "{userid}", userID, 1)
+	return strings.Replace(userCacheKey, "{userid}", userID, 1)
 }

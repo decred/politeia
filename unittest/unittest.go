@@ -1,6 +1,6 @@
 // Copyright (c) 2021 The Decred developers
-// Use of this source code is governed by an ISC license that can be found in
-// the LICENSE file.
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
 
 package unittest
 
@@ -11,7 +11,7 @@ import (
 
 // TestGenericConstMap tests a map of an error constant type and verifies that
 // the error numbers are consecutive and represented in the human readable map.
-// This function is for UT only.
+// This function is for unit tests only.
 func TestGenericConstMap(errorsMap interface{}, lastError uint64) error {
 	if reflect.TypeOf(errorsMap).Kind() != reflect.Map {
 		return fmt.Errorf("errorsMap not a map: %T", errorsMap)

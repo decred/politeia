@@ -10,6 +10,8 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 )
 
+// TODO move this package into the main politeiad dir
+
 // HookT represents a plugin hook.
 type HookT int
 
@@ -139,8 +141,8 @@ type PluginClient interface {
 	// plugin does not need to worry about concurrency issues.
 	Write(t TstoreClient, token []byte, cmd, payload string) (string, error)
 
-	// Read executes a read-only plugin command. Read operations are
-	// not not atomic.
+	// Read executes a read-only plugin command. Read operations
+	// are not not atomic.
 	Read(t TstoreClient, token []byte, cmd, payload string) (string, error)
 
 	// Hook executes a plugin hook. All operations are executed
@@ -155,6 +157,8 @@ type PluginClient interface {
 	Settings() []backend.PluginSetting
 }
 
+// TODO rename to DBClient
+//
 // TODO remove the token argument. It will use the token that the command is
 // being executed on.  Executing commands on other records requires the use
 // of the Backend interace.

@@ -4,11 +4,19 @@
 
 package ticketvote
 
-/* TODO add inventory back in
+import (
+	"encoding/json"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
+	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/pkg/errors"
+)
+
 const (
-	// filenameInventory is the file name of the ticketvote inventory
-	// that is cached to the plugin data dir.
-	filenameInventory = "inventory.json"
+	// inventoryKey is the kv store key for the ticketvote inventory cache.
+	inventoryKey = pluginID + "-inventory"
 )
 
 // entry is an inventory entry.
@@ -82,6 +90,7 @@ func (p *ticketVotePlugin) invSaveLocked(inv inventory) error {
 	return ioutil.WriteFile(p.invPath(), b, 0664)
 }
 
+/* TODO add inventory back in
 // invAdd adds a token to the ticketvote inventory.
 //
 // This function must be called WITHOUT the mtxInv write lock held.

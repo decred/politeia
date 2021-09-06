@@ -2,14 +2,13 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
+// TODO move this package into the main politeiad dir
+
 // Package inv implements a concurrency safe API for managing an inventory of
 // tokens. Bit flags are used to encode relevant data into inventory entries.
 // An extra data field is also provided that can be used freely by the caller.
 // An inventory can be queried by bit flags, by entry timestamp, or by
 // providing a callback function that is invoked on each entry.
-//
-// This is an internal politeiad package that does not validate input. If the
-// developer wants to shoot themselves in the foot, this package allows it.
 package inv
 
 import (
@@ -27,8 +26,8 @@ var (
 )
 
 // Inv provides an API for interacting with a inv object that has been saved to
-// the tstore key-value store. The key identities the key-value store key for
-// the inv object.
+// the key-value store. The key identities the key-value store key for the inv
+// object.
 type Inv struct {
 	key     string // Key-value store key
 	encrypt bool   // Save encrypted

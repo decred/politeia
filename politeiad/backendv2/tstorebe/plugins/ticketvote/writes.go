@@ -241,7 +241,8 @@ func auths(tstore plugins.TstoreClient, token []byte) ([]ticketvote.AuthDetails,
 	return auths, nil
 }
 
-// tokenDecode decodes a record token and only accepts full length tokens.
+// tokenDecode decodes a record token. This function will return an error if
+// the token is not a full length token.
 func tokenDecode(token string) ([]byte, error) {
 	return util.TokenDecode(util.TokenTypeTstore, token)
 }
@@ -264,8 +265,7 @@ func tokenMatches(cmdToken []byte, payloadToken string) error {
 			PluginID:  ticketvote.PluginID,
 			ErrorCode: uint32(ticketvote.ErrorCodeTokenInvalid),
 			ErrorContext: fmt.Sprintf("payload token does not "+
-				"match command token: got %x, want %x",
-				pt, cmdToken),
+				"match cmd token: got %x, want %x", pt, cmdToken),
 		}
 	}
 	return nil
