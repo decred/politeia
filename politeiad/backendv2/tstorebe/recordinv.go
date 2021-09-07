@@ -41,15 +41,15 @@ const (
 // tstorebe. The unvetted inventory is saved encrypted. The vetted inventory
 // is saved clear text.
 type recordInv struct {
-	unvetted *inv.Inv
-	vetted   *inv.Inv
+	unvetted *inv.Client
+	vetted   *inv.Client
 }
 
 // newRecordInv returns a new recordInv.
 func newRecordInv() *recordInv {
 	return &recordInv{
-		unvetted: inv.New(keyUnvettedInv, true),
-		vetted:   inv.New(keyVettedInv, false),
+		unvetted: inv.NewClient(keyUnvettedInv, true),
+		vetted:   inv.NewClient(keyVettedInv, false),
 	}
 }
 

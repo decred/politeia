@@ -33,7 +33,7 @@ var (
 // invClient satisfies the plugins InvClient interface.
 type invClient struct {
 	id  string // Caller ID used for logging
-	inv *inv.Inv
+	inv *inv.Client
 
 	// writer is used for all write operations. Write operations are
 	// atomic.
@@ -56,7 +56,7 @@ type invClient struct {
 func newInvClient(id, key string, encrypt bool, tx store.Tx, g store.Getter) *invClient {
 	return &invClient{
 		id:     id,
-		inv:    inv.New(key, encrypt),
+		inv:    inv.NewClient(key, encrypt),
 		writer: tx,
 		reader: g,
 	}

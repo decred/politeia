@@ -25,17 +25,16 @@ var (
 	ErrEntryNotFound = errors.New("entry not found")
 )
 
-// Inv provides an API for interacting with a inv object that has been saved to
-// the key-value store. The key identities the key-value store key for the inv
-// object.
-type Inv struct {
+// Client provides an API for interacting with an inv object in the key-value
+// store.
+type Client struct {
 	key     string // Key-value store key
-	encrypt bool   // Save encrypted
+	encrypt bool   // Save as encrypted
 }
 
-// New returns a new Inv.
-func New(key string, encrypt bool) *Inv {
-	return &Inv{
+// NewClient returns a new inv Client.
+func NewClient(key string, encrypt bool) *Client {
+	return &Client{
 		key:     key,
 		encrypt: encrypt,
 	}
@@ -53,9 +52,9 @@ type Entry struct {
 
 // Add adds a new entry to the inventory. If an inv object does not exist yet
 // in the key-value store a new one will be created.
-func (i *Inv) Add(tx store.Tx, e Entry) error {
+func (c *Client) Add(tx store.Tx, e Entry) error {
 	// Get existing inventory
-	inv, err := invGet(tx, i.key)
+	inv, err := invGet(tx, c.key)
 	if err != nil {
 		return err
 	}
@@ -64,16 +63,16 @@ func (i *Inv) Add(tx store.Tx, e Entry) error {
 	inv.Entries = append([]Entry{e}, inv.Entries...)
 
 	// Save the updated inventory
-	return inv.save(tx, i.key, i.encrypt)
+	return inv.save(tx, c.key, c.encrypt)
 }
 
 // Update updates an inventory entry.
 //
 // An ErrEntryNotFound error is returned if the provided inventory entry token
 // does not match an existing inventory entry token.
-func (i *Inv) Update(tx store.Tx, e Entry) error {
+func (c *Client) Update(tx store.Tx, e Entry) error {
 	// Get existing inventory
-	inv, err := invGet(tx, i.key)
+	inv, err := invGet(tx, c.key)
 	if err != nil {
 		return err
 	}
@@ -101,13 +100,13 @@ func (i *Inv) Update(tx store.Tx, e Entry) error {
 	})
 
 	// Save the updated inventory
-	return inv.save(tx, i.key, i.encrypt)
+	return inv.save(tx, c.key, c.encrypt)
 }
 
 // Del deletes an entry from the inventory.
-func (i *Inv) Del(tx store.Tx, token string) error {
+func (c *Client) Del(tx store.Tx, token string) error {
 	// Get existing inventory
-	inv, err := invGet(tx, i.key)
+	inv, err := invGet(tx, c.key)
 	if err != nil {
 		return err
 	}
@@ -119,14 +118,14 @@ func (i *Inv) Del(tx store.Tx, token string) error {
 	}
 
 	// Save the updated inventory
-	return inv.save(tx, i.key, i.encrypt)
+	return inv.save(tx, c.key, c.encrypt)
 }
 
 // Get returns a page of tokens that match the provided bit flags filtering
 // criteria.
-func (i *Inv) Get(sg store.Getter, bits uint64, pageSize, pageNum uint32) ([]string, error) {
+func (c *Client) Get(sg store.Getter, bits uint64, pageSize, pageNum uint32) ([]string, error) {
 	// Get existing inventory
-	inv, err := invGet(sg, i.key)
+	inv, err := invGet(sg, c.key)
 	if err != nil {
 		return nil, err
 	}
@@ -147,9 +146,9 @@ func (i *Inv) Get(sg store.Getter, bits uint64, pageSize, pageNum uint32) ([]str
 // bit flags are used as filtering criteria.
 //
 // The returned map is a map[bits][]token.
-func (i *Inv) GetMulti(sg store.Getter, bits []uint64, pageSize, pageNum uint32) (map[uint64][]string, error) {
+func (c *Client) GetMulti(sg store.Getter, bits []uint64, pageSize, pageNum uint32) (map[uint64][]string, error) {
 	// Get existing inventory
-	inv, err := invGet(sg, i.key)
+	inv, err := invGet(sg, c.key)
 	if err != nil {
 		return nil, err
 	}
@@ -172,10 +171,10 @@ func (i *Inv) GetMulti(sg store.Getter, bits []uint64, pageSize, pageNum uint32)
 
 // GetOrdered orders the entries from newest to oldest and returns the
 // specified page.
-func (i *Inv) GetOrdered(sg store.Getter, pageSize, pageNum uint32) ([]string, error) {
+func (c *Client) GetOrdered(sg store.Getter, pageSize, pageNum uint32) ([]string, error) {
 	// Get inventory. The tokens will already be sorted by
 	// their timestamp from newest to oldest.
-	inv, err := invGet(sg, i.key)
+	inv, err := invGet(sg, c.key)
 	if err != nil {
 		return nil, err
 	}
@@ -195,8 +194,8 @@ func (i *Inv) GetOrdered(sg store.Getter, pageSize, pageNum uint32) ([]string, e
 }
 
 // GetAll returns all tokens in the inventory.
-func (i *Inv) GetAll(sg store.Getter) ([]string, error) {
-	inv, err := invGet(sg, i.key)
+func (c *Client) GetAll(sg store.Getter) ([]string, error) {
+	inv, err := invGet(sg, c.key)
 	if err != nil {
 		return nil, err
 	}
@@ -209,9 +208,9 @@ func (i *Inv) GetAll(sg store.Getter) ([]string, error) {
 
 // Iter iterates through the inventory and invokes the provided callback on
 // each inventory entry.
-func (i *Inv) Iter(sg store.Getter, callback func(e Entry) error) error {
+func (c *Client) Iter(sg store.Getter, callback func(e Entry) error) error {
 	// Get inventory
-	inv, err := invGet(sg, i.key)
+	inv, err := invGet(sg, c.key)
 	if err != nil {
 		return err
 	}
