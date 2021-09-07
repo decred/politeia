@@ -231,7 +231,7 @@ func (p *plugin) cmdStartRunoffSub(tstore plugins.TstoreClient, token []byte, pa
 
 	// Sanity check
 	sd := srs.StartDetails
-	t, err := tokenDecode(sd.Params.Token)
+	t, err := decodeToken(sd.Params.Token)
 	if err != nil {
 		return err
 	}
@@ -241,7 +241,7 @@ func (p *plugin) cmdStartRunoffSub(tstore plugins.TstoreClient, token []byte, pa
 
 	// Get the runoff details record. This will
 	// be saved to the parent record.
-	parent, err := tokenDecode(srs.ParentToken)
+	parent, err := decodeToken(srs.ParentToken)
 	if err != nil {
 		return err
 	}
@@ -553,7 +553,7 @@ func (p *plugin) startRunoffVote(tstore plugins.TstoreClient, token []byte, s ti
 		}
 
 		// Verify token
-		_, err := tokenDecode(v.Params.Token)
+		_, err := decodeToken(v.Params.Token)
 		if err != nil {
 			return nil, backend.PluginError{
 				PluginID:     ticketvote.PluginID,
@@ -563,7 +563,7 @@ func (p *plugin) startRunoffVote(tstore plugins.TstoreClient, token []byte, s ti
 		}
 
 		// Verify parent token
-		_, err = tokenDecode(v.Params.Parent)
+		_, err = decodeToken(v.Params.Parent)
 		if err != nil {
 			return nil, backend.PluginError{
 				PluginID:  ticketvote.PluginID,
@@ -614,7 +614,7 @@ func (p *plugin) startRunoffVote(tstore plugins.TstoreClient, token []byte, s ti
 	// This is done using the startRunoffSubmission internal
 	// plugin command.
 	for _, v := range s.Starts {
-		token, err = tokenDecode(v.Params.Token)
+		token, err = decodeToken(v.Params.Token)
 		if err != nil {
 			return nil, err
 		}
@@ -728,7 +728,7 @@ func (p *plugin) startRunoffForParent(token []byte, s ticketvote.Start) (*startR
 	}
 	expected := make(map[string]struct{}, len(lf.Tokens)) // [token]struct{}
 	for k := range lf.Tokens {
-		token, err := tokenDecode(k)
+		token, err := decodeToken(k)
 		if err != nil {
 			return nil, err
 		}
@@ -927,7 +927,7 @@ func verifyVoteParams(vote ticketvote.VoteParams, voteDurationMin, voteDurationM
 				"for a standard vote",
 		}
 	case vote.Type == ticketvote.VoteTypeRunoff:
-		_, err := tokenDecode(vote.Parent)
+		_, err := decodeToken(vote.Parent)
 		if err != nil {
 			return backend.PluginError{
 				PluginID:     ticketvote.PluginID,

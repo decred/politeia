@@ -19,9 +19,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-// tokenDecode decodes a record token. This function will return an error if
+// decodeToken decodes a record token. This function will return an error if
 // the token is not a full length token.
-func tokenDecode(token string) ([]byte, error) {
+func decodeToken(token string) ([]byte, error) {
 	return util.TokenDecode(util.TokenTypeTstore, token)
 }
 
@@ -30,7 +30,7 @@ func tokenDecode(token string) ([]byte, error) {
 // token that the plugin command payload contains that is typically used in the
 // payload signature). The payload token must be the full length token.
 func tokenMatches(cmdToken []byte, payloadToken string) error {
-	pt, err := tokenDecode(payloadToken)
+	pt, err := decodeToken(payloadToken)
 	if err != nil {
 		return backend.PluginError{
 			PluginID:     ticketvote.PluginID,
@@ -47,6 +47,36 @@ func tokenMatches(cmdToken []byte, payloadToken string) error {
 		}
 	}
 	return nil
+}
+
+// verifySignature provides a wrapper around the util VerifySignature method
+// that converts any returned errors into ticketvote plugin errors.
+func verifySignature(signature, pubkey, msg string) error {
+	err := util.VerifySignature(signature, pubkey, msg)
+	if err != nil {
+		return convertSignatureError(err)
+	}
+	return nil
+}
+
+// convertSignatureError converts a util SignatureError to a backend
+// PluginError with a ticketvote plugin error.
+func convertSignatureError(err error) backend.PluginError {
+	var e util.SignatureError
+	var s ticketvote.ErrorCodeT
+	if errors.As(err, &e) {
+		switch e.ErrorCode {
+		case util.ErrorStatusPublicKeyInvalid:
+			s = ticketvote.ErrorCodePublicKeyInvalid
+		case util.ErrorStatusSignatureInvalid:
+			s = ticketvote.ErrorCodeSignatureInvalid
+		}
+	}
+	return backend.PluginError{
+		PluginID:     ticketvote.PluginID,
+		ErrorCode:    uint32(s),
+		ErrorContext: e.ErrorContext,
+	}
 }
 
 // bestBlock fetches the best block from the dcrdata plugin and returns it. If
@@ -251,7 +281,7 @@ func voteDetails(tstore plugins.TstoreClient, token []byte) (*ticketvote.VoteDet
 }
 
 // voteDetailsForRecord uses the backend interface to fetch and return the
-// VoteDetails for a record. nil is returned if the vote details are not found.
+// VoteDetails for a record. nil is returned if a VoteDetails is not found.
 func voteDetailsForRecord(backend backend.Backend, token []byte) (*ticketvote.VoteDetails, error) {
 	reply, err := backend.PluginRead(token, ticketvote.PluginID,
 		ticketvote.CmdDetails, "")
@@ -264,34 +294,4 @@ func voteDetailsForRecord(backend backend.Backend, token []byte) (*ticketvote.Vo
 		return nil, err
 	}
 	return dr.Vote, nil
-}
-
-// verifySignature provides a wrapper around the util VerifySignature method
-// that converts any returned errors into ticketvote plugin errors.
-func verifySignature(signature, pubkey, msg string) error {
-	err := util.VerifySignature(signature, pubkey, msg)
-	if err != nil {
-		return convertSignatureError(err)
-	}
-	return nil
-}
-
-// convertSignatureError converts a util SignatureError to a backend
-// PluginError with a ticketvote plugin error.
-func convertSignatureError(err error) backend.PluginError {
-	var e util.SignatureError
-	var s ticketvote.ErrorCodeT
-	if errors.As(err, &e) {
-		switch e.ErrorCode {
-		case util.ErrorStatusPublicKeyInvalid:
-			s = ticketvote.ErrorCodePublicKeyInvalid
-		case util.ErrorStatusSignatureInvalid:
-			s = ticketvote.ErrorCodeSignatureInvalid
-		}
-	}
-	return backend.PluginError{
-		PluginID:     ticketvote.PluginID,
-		ErrorCode:    uint32(s),
-		ErrorContext: e.ErrorContext,
-	}
 }

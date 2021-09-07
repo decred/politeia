@@ -451,7 +451,7 @@ func (p *plugin) cmdCastBallot(token []byte, payload string) (string, error) {
 	receipts := make([]ticketvote.CastVoteReply, len(votes))
 	for k, v := range votes {
 		// Verify token is a valid token
-		t, err := tokenDecode(v.Token)
+		t, err := decodeToken(v.Token)
 		if err != nil {
 			e := ticketvote.VoteErrorTokenInvalid
 			receipts[k].Ticket = v.Ticket
@@ -1210,7 +1210,7 @@ func (p *plugin) voteOptionResults(token []byte, options []ticketvote.VoteOption
 // finished.
 func (p *plugin) summariesForRunoff(parentToken string) (map[string]ticketvote.SummaryReply, error) {
 	// Get runoff vote details
-	parent, err := tokenDecode(parentToken)
+	parent, err := decodeToken(parentToken)
 	if err != nil {
 		return nil, err
 	}
@@ -1244,7 +1244,7 @@ func (p *plugin) summariesForRunoff(parentToken string) (map[string]ticketvote.S
 		winnerToken string
 	)
 	for _, v := range subs {
-		token, err := tokenDecode(v)
+		token, err := decodeToken(v)
 		if err != nil {
 			return nil, err
 		}
