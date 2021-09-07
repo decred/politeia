@@ -39,7 +39,7 @@ func (p *usermdPlugin) userCache(tstore plugins.TstoreClient, userID string) (*u
 	c := tstore.CacheClient(true)
 
 	// Get cached data
-	key := userCacheKey(userID)
+	key := getUserCacheKey(userID)
 	blobs, err := c.GetBatch([]string{key})
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func (p *usermdPlugin) userCacheSave(tstore plugins.TstoreClient, userID string,
 	// Encrypt the user cache so that unvetted data
 	// is not leaked.
 	c := tstore.CacheClient(true)
-	kv := map[string][]byte{userCacheKey(userID): b}
+	kv := map[string][]byte{getUserCacheKey(userID): b}
 	err = c.Update(kv)
 	if errors.Is(err, store.ErrNotFound) {
 		// An entry doesn't exist in the kv
@@ -201,7 +201,7 @@ func delToken(tokens []string, tokenToDel string) ([]string, error) {
 	return tokens, nil
 }
 
-// userCacheKey returns the key-value store key for a userCache object.
-func userCacheKey(userID string) string {
+// getUserCacheKey returns the key-value store key for a userCache object.
+func getUserCacheKey(userID string) string {
 	return strings.Replace(userCacheKey, "{userid}", userID, 1)
 }
