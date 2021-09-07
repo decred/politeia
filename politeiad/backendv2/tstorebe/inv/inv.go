@@ -54,7 +54,7 @@ type Entry struct {
 // in the key-value store a new one will be created.
 func (c *Client) Add(tx store.Tx, e Entry) error {
 	// Get existing inventory
-	inv, err := invGet(tx, c.key)
+	inv, err := getInv(tx, c.key)
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func (c *Client) Add(tx store.Tx, e Entry) error {
 // does not match an existing inventory entry token.
 func (c *Client) Update(tx store.Tx, e Entry) error {
 	// Get existing inventory
-	inv, err := invGet(tx, c.key)
+	inv, err := getInv(tx, c.key)
 	if err != nil {
 		return err
 	}
@@ -106,7 +106,7 @@ func (c *Client) Update(tx store.Tx, e Entry) error {
 // Del deletes an entry from the inventory.
 func (c *Client) Del(tx store.Tx, token string) error {
 	// Get existing inventory
-	inv, err := invGet(tx, c.key)
+	inv, err := getInv(tx, c.key)
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func (c *Client) Del(tx store.Tx, token string) error {
 // criteria.
 func (c *Client) Get(sg store.Getter, bits uint64, pageSize, pageNum uint32) ([]string, error) {
 	// Get existing inventory
-	inv, err := invGet(sg, c.key)
+	inv, err := getInv(sg, c.key)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func (c *Client) Get(sg store.Getter, bits uint64, pageSize, pageNum uint32) ([]
 // The returned map is a map[bits][]token.
 func (c *Client) GetMulti(sg store.Getter, bits []uint64, pageSize, pageNum uint32) (map[uint64][]string, error) {
 	// Get existing inventory
-	inv, err := invGet(sg, c.key)
+	inv, err := getInv(sg, c.key)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +174,7 @@ func (c *Client) GetMulti(sg store.Getter, bits []uint64, pageSize, pageNum uint
 func (c *Client) GetOrdered(sg store.Getter, pageSize, pageNum uint32) ([]string, error) {
 	// Get inventory. The tokens will already be sorted by
 	// their timestamp from newest to oldest.
-	inv, err := invGet(sg, c.key)
+	inv, err := getInv(sg, c.key)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +195,7 @@ func (c *Client) GetOrdered(sg store.Getter, pageSize, pageNum uint32) ([]string
 
 // GetAll returns all tokens in the inventory.
 func (c *Client) GetAll(sg store.Getter) ([]string, error) {
-	inv, err := invGet(sg, c.key)
+	inv, err := getInv(sg, c.key)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +210,7 @@ func (c *Client) GetAll(sg store.Getter) ([]string, error) {
 // each inventory entry.
 func (c *Client) Iter(sg store.Getter, callback func(e Entry) error) error {
 	// Get inventory
-	inv, err := invGet(sg, c.key)
+	inv, err := getInv(sg, c.key)
 	if err != nil {
 		return err
 	}
@@ -255,9 +255,9 @@ func (i *inv) save(tx store.Tx, key string, encrypt bool) error {
 	return err
 }
 
-// invGet retrieves the inventory from the key-value store using the provided
+// getInv retrieves the inventory from the key-value store using the provided
 // store getter. A new inventory object is returned if one does not exist yet.
-func invGet(sg store.Getter, key string) (*inv, error) {
+func getInv(sg store.Getter, key string) (*inv, error) {
 	blobs, err := sg.GetBatch([]string{key})
 	if err != nil {
 		return nil, err

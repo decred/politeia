@@ -40,7 +40,7 @@ func (p *commentsPlugin) cmdNew(tstore plugins.TstoreClient, token []byte, paylo
 	}
 
 	// Verify token
-	err = tokenVerify(token, n.Token)
+	err = tokenMatches(token, n.Token)
 	if err != nil {
 		return "", err
 	}
@@ -158,7 +158,7 @@ func (p *commentsPlugin) cmdEdit(tstore plugins.TstoreClient, token []byte, payl
 	}
 
 	// Verify token
-	err = tokenVerify(token, e.Token)
+	err = tokenMatches(token, e.Token)
 	if err != nil {
 		return "", err
 	}
@@ -304,7 +304,7 @@ func (p *commentsPlugin) cmdDel(tstore plugins.TstoreClient, token []byte, paylo
 	}
 
 	// Verify token
-	err = tokenVerify(token, d.Token)
+	err = tokenMatches(token, d.Token)
 	if err != nil {
 		return "", err
 	}
@@ -428,7 +428,7 @@ func (p *commentsPlugin) cmdVote(tstore plugins.TstoreClient, token []byte, payl
 	}
 
 	// Verify token
-	err = tokenVerify(token, v.Token)
+	err = tokenMatches(token, v.Token)
 	if err != nil {
 		return "", err
 	}
@@ -823,13 +823,11 @@ func tokenDecode(token string) ([]byte, error) {
 	return util.TokenDecode(util.TokenTypeTstore, token)
 }
 
-// tokenVerify verifies that a token that is part of a plugin command payload
-// is valid. This is applicable when a plugin command payload contains a
-// signature that includes the record token. The token included in payload must
-// be a valid, full length record token and it must match the token that was
-// passed into the politeiad API for this plugin command, i.e. the token for
-// the record that this plugin command is being executed on.
-func tokenVerify(cmdToken []byte, payloadToken string) error {
+// tokenMatches verifies that the command token (the token for the record that
+// this plugin command is being executed on) matches the payload token (the
+// token that the plugin command payload contains that is typically used in the
+// payload signature). The payload token must be the full length token.
+func tokenMatches(cmdToken []byte, payloadToken string) error {
 	pt, err := tokenDecode(payloadToken)
 	if err != nil {
 		return backend.PluginError{
@@ -842,8 +840,8 @@ func tokenVerify(cmdToken []byte, payloadToken string) error {
 		return backend.PluginError{
 			PluginID:  comments.PluginID,
 			ErrorCode: uint32(comments.ErrorCodeTokenInvalid),
-			ErrorContext: fmt.Sprintf("payload token does not match "+
-				"command token: got %x, want %x", pt, cmdToken),
+			ErrorContext: fmt.Sprintf("payload token does not "+
+				"match cmd token: got %x, want %x", pt, cmdToken),
 		}
 	}
 	return nil

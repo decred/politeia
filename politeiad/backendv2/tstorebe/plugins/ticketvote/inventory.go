@@ -5,58 +5,136 @@
 package ticketvote
 
 import (
-	"encoding/json"
-	"io/ioutil"
-	"os"
-	"path/filepath"
+	"errors"
 
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/inv"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-	"github.com/pkg/errors"
 )
 
 const (
-	// inventoryKey is the kv store key for the ticketvote inventory cache.
-	inventoryKey = pluginID + "-inventory"
+	// Key-value store keys for the cached ticketvote inventory.
+	invKey          = pluginID + "-inventory"
+	invExtraDataKey = pluginID + "-inventory-extradata"
 )
 
-// entry is an inventory entry.
-type entry struct {
-	Token     string                 `json:"token"`
-	Status    ticketvote.VoteStatusT `json:"status"`
-	EndHeight uint32                 `json:"endheight,omitempty"`
+// invBits represents bit flags that are used to encode the vote status into an
+// inventory entry. The inventory can be queried using these bit flags.
+type invBits uint64
+
+const (
+	// Vote status bits. These map directly to the ticketvote vote
+	// statuses and are used to request tokens from the inventory by
+	// vote status.
+	bitsInvalid            invBits = 0
+	bitsStatusUnauthorized invBits = 1 << 0
+	bitsStatusAuthorized   invBits = 1 << 1
+	bitsStatusStarted      invBits = 1 << 2
+	bitsStatusFinished     invBits = 1 << 3
+	bitsStatusApproved     invBits = 1 << 4
+	bitsStatusRejected     invBits = 1 << 5
+	bitsStatusIneligible   invBits = 1 << 6
+)
+
+// invExtraData contains inventory metadata that is saved to the cache using
+// the invExtraDataKey.
+type invExtraData struct {
+	BestBlock uint32 `json:"bestblock"` // Last update block height
 }
 
-// inventory contains the ticketvote inventory. The unauthorized, authorized,
-// and started lists are updated in real-time since ticket vote plugin commands
-// or hooks initiate those actions. The finished, approved, and rejected
-// statuses are lazy loaded since those lists depends on external state (DCR
-// block height).
-type inventory struct {
-	Entries   []entry `json:"entries"`
-	BestBlock uint32  `json:"bestblock"`
+// entryExtraData is the structure that is encoded and stuffed into the
+// inventory entry ExtraData field. This will only be present on records with
+// that are currently being voted on.
+type entryExtraData struct {
+	EndHeight uint32 `json:"endheight,omitempty"` // Vote end block height
 }
 
-// invPath returns the full path for the cached ticket vote inventory.
-func (p *ticketVotePlugin) invPath() string {
-	return filepath.Join(p.dataDir, filenameInventory)
-}
-
-// invGetLocked retrieves the inventory from disk. A new inventory is returned
-// if one does not exist yet.
-//
-// This function must be called WITH the mtxInv read lock held.
-func (p *ticketVotePlugin) invGetLocked() (*inventory, error) {
-	b, err := ioutil.ReadFile(p.invPath())
+// updateInv updates the vote status of a record in the inventory. If the token
+// does not exist in the inventory yet, an entry is created and added.
+func updateInv(tstore plugins.TstoreClient, token string, s ticketvote.VoteStatusT, timestamp int64) error {
+	c := tstore.InvClient(invKey, false)
+	e := inv.Entry{
+		Token: token,
+		Bits:  uint64(convertVoteStatusToBits(s)),
+	}
+	err := c.Update(e)
+	if errors.Is(err, inv.ErrEntryNotFound) {
+		// Entry doesn't exist yet. Add it.
+		err = c.Add(e)
+	}
 	if err != nil {
-		var e *os.PathError
-		if errors.As(err, &e) && !os.IsExist(err) {
-			// File does't exist. Return a new inventory.
-			return &inventory{
-				Entries:   make([]entry, 0, 256),
-				BestBlock: 0,
-			}, nil
-		}
+		return err
+	}
+
+	log.Debugf("Inv updated %v to %v", token, ticketvote.VoteStatuses[s])
+
+	return nil
+}
+
+// convertVoteStatusToBits converts a vote status to an inventory bit.
+func convertVoteStatusToBits(s ticketvote.VoteStatusT) invBits {
+	var b invBits
+	switch s {
+	case ticketvote.VoteStatusUnauthorized:
+		b = bitsStatusUnauthorized
+	case ticketvote.VoteStatusAuthorized:
+		b = bitsStatusAuthorized
+	case ticketvote.VoteStatusStarted:
+		b = bitsStatusStarted
+	case ticketvote.VoteStatusFinished:
+		b = bitsStatusFinished
+	case ticketvote.VoteStatusApproved:
+		b = bitsStatusApproved
+	case ticketvote.VoteStatusRejected:
+		b = bitsStatusRejected
+	case ticketvote.VoteStatusIneligible:
+		b = bitsStatusIneligible
+	}
+	return b
+}
+
+/*
+// inventory contains the full record inventory where each entry is encoded
+// with ticketvote data that allows us to sort the record inventory by vote
+// status.
+//
+// The unauthorized, authorized, and started statuses are updated in real-time
+// since these statuses are initiated by ticketvote plugin commands or record
+// hooks. The finished, approved, and rejected statuses are lazy loaded since
+// they depend on external state (DCR block height).
+type inventory struct {
+	Version   uint32  `json:"version"` // Struct version
+	Entries   []entry `json:"entries"`
+	BestBlock uint32  `json:"bestblock"` // Last updated block height
+}
+
+// newInventory returns a new inventory.
+func newInventory() *inventory {
+	return &inventory{
+		Entries:   make([]entry, 0, 256),
+		BestBlock: 0,
+	}
+}
+
+// getInventory retrieves the cached ticketvote inventory. A new inventory is
+// returned if one does not exist yet.
+func getInventory(g store.Getter) (*inventory, error) {
+	// Setup the inventory client
+	c, err := inv.Client(inventoryKey, false)
+	if err != nil {
 		return nil, err
+	}
+
+	// Get the inventory entries
+
+	b, err := g.Get(inventoryKey)
+	if err != nil {
+		if err == store.NotFound {
+			// Cached inventory doesn't exist
+			// yet. Return a new one.
+			return newInventory(), nil
+		}
+		return err
 	}
 
 	var inv inventory
@@ -68,20 +146,7 @@ func (p *ticketVotePlugin) invGetLocked() (*inventory, error) {
 	return &inv, nil
 }
 
-// invGetLocked retrieves the inventory from disk. A new inventory is returned
-// if one does not exist yet.
-//
-// This function must be called WITHOUT the mtxInv write lock held.
-func (p *ticketVotePlugin) invGet() (*inventory, error) {
-	p.mtxInv.RLock()
-	defer p.mtxInv.RUnlock()
-
-	return p.invGetLocked()
-}
-
 // invSaveLocked writes the inventory to disk.
-//
-// This function must be called WITH the mtxInv write lock held.
 func (p *ticketVotePlugin) invSaveLocked(inv inventory) error {
 	b, err := json.Marshal(inv)
 	if err != nil {
@@ -90,16 +155,10 @@ func (p *ticketVotePlugin) invSaveLocked(inv inventory) error {
 	return ioutil.WriteFile(p.invPath(), b, 0664)
 }
 
-/* TODO add inventory back in
 // invAdd adds a token to the ticketvote inventory.
-//
-// This function must be called WITHOUT the mtxInv write lock held.
 func (p *ticketVotePlugin) invAdd(token string, s ticketvote.VoteStatusT) error {
-	p.mtxInv.Lock()
-	defer p.mtxInv.Unlock()
-
 	// Get inventory
-	inv, err := p.invGetLocked()
+	inv, err := p.getInventory()
 	if err != nil {
 		return err
 	}
@@ -122,22 +181,11 @@ func (p *ticketVotePlugin) invAdd(token string, s ticketvote.VoteStatusT) error 
 	return nil
 }
 
-// inventoryAdd is a wrapper around the invAdd method that allows us to decide
-// how disk read/write errors should be handled. For now we just panic.
-func (p *ticketVotePlugin) inventoryAdd(token string, s ticketvote.VoteStatusT) {
-	err := p.invAdd(token, s)
-	if err != nil {
-		panic(fmt.Sprintf("invAdd %v %v: %v", token, s, err))
-	}
-}
-
 // invUpdateLocked updates a pre existing token in the inventory to a new
 // vote status.
-//
-// This function must be called WITH the mtxInv write lock held.
 func (p *ticketVotePlugin) invUpdateLocked(token string, s ticketvote.VoteStatusT, endHeight uint32) error {
 	// Get inventory
-	inv, err := p.invGetLocked()
+	inv, err := p.getInventory()
 	if err != nil {
 		return err
 	}
@@ -168,36 +216,11 @@ func (p *ticketVotePlugin) invUpdateLocked(token string, s ticketvote.VoteStatus
 	return nil
 }
 
-// invUpdate updates a pre existing token in the inventory to a new vote
-// status.
-//
-// This function must be called WITHOUT the mtxInv write lock held.
-func (p *ticketVotePlugin) invUpdate(token string, s ticketvote.VoteStatusT, endHeight uint32) error {
-	p.mtxInv.Lock()
-	defer p.mtxInv.Unlock()
-
-	return p.invUpdateLocked(token, s, endHeight)
-}
-
-// inventoryUpdate is a wrapper around the invUpdate method that allows us to
-// decide how disk read/write errors should be handled. For now we just panic.
-func (p *ticketVotePlugin) inventoryUpdate(token string, s ticketvote.VoteStatusT) {
-	err := p.invUpdate(token, s, 0)
-	if err != nil {
-		panic(fmt.Sprintf("invUpdate %v %v: %v", token, s, err))
-	}
-}
-
 // invUpdateForBlock updates the inventory for a new best block value. This
 // means checking if ongoing ticket votes have finished and updating their
 // status if they have.
-//
-// This function must be called WITHOUT the mtxInv write lock held.
 func (p *ticketVotePlugin) invUpdateForBlock(bestBlock uint32) (*inventory, error) {
-	p.mtxInv.Lock()
-	defer p.mtxInv.Unlock()
-
-	inv, err := p.invGetLocked()
+	inv, err := p.getInventory()
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +273,7 @@ func (p *ticketVotePlugin) invUpdateForBlock(bestBlock uint32) (*inventory, erro
 	}
 
 	// Update best block
-	inv, err = p.invGetLocked()
+	inv, err = p.getInventory()
 	if err != nil {
 		return nil, err
 	}
@@ -265,16 +288,6 @@ func (p *ticketVotePlugin) invUpdateForBlock(bestBlock uint32) (*inventory, erro
 	log.Debugf("Vote inv updated for block %v", bestBlock)
 
 	return inv, nil
-}
-
-// inventoryUpdateToStarted is a wrapper around the invUpdate method that
-// allows us to decide how disk read/write errors should be handled. For now we
-// just panic.
-func (p *ticketVotePlugin) inventoryUpdateToStarted(token string, s ticketvote.VoteStatusT, endHeight uint32) {
-	err := p.invUpdate(token, s, endHeight)
-	if err != nil {
-		panic(fmt.Sprintf("invUpdate %v %v: %v", token, s, err))
-	}
 }
 
 // inventory returns the full ticketvote inventory.
@@ -381,59 +394,5 @@ func (p *ticketVotePlugin) inventoryByStatus(bestBlock uint32, s ticketvote.Vote
 		},
 		BestBlock: inv.BestBlock,
 	}, nil
-}
-
-// entryDel removes the entry for the token and returns the updated slice.
-func entryDel(entries []entry, token string) ([]entry, error) {
-	// Find token in entries
-	var i int
-	var found bool
-	for k, v := range entries {
-		if v.Token == token {
-			i = k
-			found = true
-			break
-		}
-	}
-	if !found {
-		return nil, fmt.Errorf("token not found %v", token)
-	}
-
-	// Del token from entries (linear time)
-	copy(entries[i:], entries[i+1:])   // Shift entries[i+1:] left one index
-	entries[len(entries)-1] = entry{}  // Del last element (write zero value)
-	entries = entries[:len(entries)-1] // Truncate slice
-
-	return entries, nil
-}
-
-// tokensParse parses a page of tokens from the provided entries.
-func tokensParse(entries []entry, s ticketvote.VoteStatusT, countPerPage, page uint32) []string {
-	tokens := make([]string, 0, countPerPage)
-	if countPerPage == 0 || page == 0 {
-		return tokens
-	}
-
-	startAt := (page - 1) * countPerPage
-	var foundCount uint32
-	for _, v := range entries {
-		if v.Status != s {
-			// Status does not match
-			continue
-		}
-
-		// Matching status found
-		if foundCount >= startAt {
-			tokens = append(tokens, v.Token)
-			if len(tokens) == int(countPerPage) {
-				// We got a full page. We're done.
-				return tokens
-			}
-		}
-
-		foundCount++
-	}
-
-	return tokens
 }
 */

@@ -10,7 +10,10 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 )
 
-// TODO move this package into the main politeiad dir
+// TODO rename backendv2 to db
+// TODO move this package into politeiad/plugins
+// TODO move plugin APIs into politeiad/plugins/plugin/api/v1/v1.go
+// TODO move plugin implemenations into politeiad/plugins
 
 // HookT represents a plugin hook.
 type HookT int
