@@ -5,6 +5,7 @@
 package ticketvote
 
 import (
+	"encoding/json"
 	"errors"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/inv"
@@ -36,28 +37,30 @@ const (
 	bitsStatusIneligible   invBits = 1 << 6
 )
 
-// invExtraData contains inventory metadata that is saved to the cache using
-// the invExtraDataKey.
-type invExtraData struct {
-	BestBlock uint32 `json:"bestblock"` // Last update block height
-}
-
-// entryExtraData is the structure that is encoded and stuffed into the
-// inventory entry ExtraData field. This will only be present on records with
-// that are currently being voted on.
-type entryExtraData struct {
-	EndHeight uint32 `json:"endheight,omitempty"` // Vote end block height
-}
-
 // updateInv updates the vote status of a record in the inventory. If the token
 // does not exist in the inventory yet, an entry is created and added.
-func updateInv(tstore plugins.TstoreClient, token string, s ticketvote.VoteStatusT, timestamp int64) error {
+//
+// An entryExtraData argument is optional and will only be provided for certain
+// vote statuses.
+func updateInv(tstore plugins.TstoreClient, token string, s ticketvote.VoteStatusT, timestamp int64, eed *entryExtraData) error {
+	// Encode extra data
+	var extraData string
+	var err error
+	if eed != nil {
+		extraData, err = eed.encode()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Save invetory entry
 	c := tstore.InvClient(invKey, false)
 	e := inv.Entry{
-		Token: token,
-		Bits:  uint64(convertVoteStatusToBits(s)),
+		Token:     token,
+		Bits:      uint64(convertVoteStatusToBits(s)),
+		ExtraData: extraData,
 	}
-	err := c.Update(e)
+	err = c.Update(e)
 	if errors.Is(err, inv.ErrEntryNotFound) {
 		// Entry doesn't exist yet. Add it.
 		err = c.Add(e)
@@ -71,7 +74,40 @@ func updateInv(tstore plugins.TstoreClient, token string, s ticketvote.VoteStatu
 	return nil
 }
 
-// convertVoteStatusToBits converts a vote status to an inventory bit.
+// invExtraData contains inventory metadata that is saved to the cache using
+// the invExtraDataKey.
+type invExtraData struct {
+	BestBlock uint32 `json:"bestblock"` // Last update block height
+}
+
+// entryExtraData is the structure that is encoded and stuffed into the
+// inventory entry ExtraData field. This will only be present on records with
+// that are currently being voted on.
+type entryExtraData struct {
+	EndHeight uint32 `json:"endheight,omitempty"` // Vote end block height
+}
+
+// encode encodes the entryExtraData into a JSON encoded string.
+func (e *entryExtraData) encode() (string, error) {
+	b, err := json.Marshal(e)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+// decodeEntryExtraData decode a JSON encoded string into a entryExtraData.
+func decodeEntryExtraData(s string) (*entryExtraData, error) {
+	var eed entryExtraData
+	err := json.Unmarshal([]byte(s), &eed)
+	if err != nil {
+		return nil, err
+	}
+	return &eed, nil
+}
+
+// convertVoteStatusToBits converts a vote status the appropriate inventory
+// bit.
 func convertVoteStatusToBits(s ticketvote.VoteStatusT) invBits {
 	var b invBits
 	switch s {

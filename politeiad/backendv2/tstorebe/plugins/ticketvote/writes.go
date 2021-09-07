@@ -152,7 +152,7 @@ func (p *plugin) cmdAuthorize(tstore plugins.TstoreClient, token []byte, payload
 		// Action has already been validated. This should not happen.
 		return "", errors.Errorf("invalid action %v", a.Action)
 	}
-	err = updateInv(tstore, a.Token, status, auth.Timestamp)
+	err = updateInv(tstore, a.Token, status, auth.Timestamp, nil)
 	if err != nil {
 		return "", err
 	}
@@ -339,13 +339,19 @@ func (p *plugin) startStandard(tstore plugins.TstoreClient, token []byte, s tick
 		return nil, err
 	}
 
-	// TODO Update the inventory
-	/*
-		p.inventoryUpdateToStarted(vd.Params.Token, ticketvote.VoteStatusStarted,
-			vd.EndBlockHeight)
+	// Update the inventory
+	eed := entryExtraData{
+		EndHeight: vd.EndBlockHeight,
+	}
+	err = updateInv(tstore, vd.Params.Token, ticketvote.VoteStatusStarted,
+		time.Now().Unix(), &eed)
+	if err != nil {
+		return nil, err
+	}
 
-		// Update the active votes cache
-		p.activeVotesAdd(vd)
+	/* TODO
+	// Update the active votes cache
+	p.activeVotesAdd(vd)
 	*/
 
 	return &ticketvote.StartReply{
