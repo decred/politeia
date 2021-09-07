@@ -5,7 +5,6 @@
 package ticketvote
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -35,12 +34,18 @@ type plugin struct {
 	identity identity.FullIdentity
 }
 
-// settings contains all of the ticketvote plugin settings.
-type settings struct {
-	linkByPeriodMin int64  // In seconds
-	linkByPeriodMax int64  // In seconds
-	voteDurationMin uint32 // In blocks
-	voteDurationMax uint32 // In blocks
+// New returns a new ticketvote plugin.
+func New(backend backend.Backend, bs backend.BackendSettings, ps []backend.PluginSetting) (*plugin, error) {
+	settings, err := parseSettings(ps, bs.Net)
+	if err != nil {
+		return nil, err
+	}
+	return &plugin{
+		backend:  backend,
+		net:      bs.Net,
+		identity: bs.Identity,
+		settings: *settings,
+	}, nil
 }
 
 // Setup performs any plugin setup that is required.
@@ -58,7 +63,7 @@ func (p *plugin) Setup() error {
 		}
 	}
 	if !dcrdataFound {
-		return fmt.Errorf("plugin dependency not registered: %v",
+		return errors.Errorf("plugin dependency not registered: %v",
 			dcrdata.PluginID)
 	}
 
@@ -68,11 +73,11 @@ func (p *plugin) Setup() error {
 
 	bestBlock, err := p.bestBlock()
 	if err != nil {
-		return fmt.Errorf("bestBlock: %v", err)
+		return errors.Errorf("bestBlock: %v", err)
 	}
 	inv, err := p.Inventory(bestBlock)
 	if err != nil {
-		return fmt.Errorf("Inventory: %v", err)
+		return errors.Errorf("Inventory: %v", err)
 	}
 
 	// Build active votes cache
@@ -94,7 +99,7 @@ func (p *plugin) Setup() error {
 		reply, err := p.backend.PluginRead(token, ticketvote.PluginID,
 			ticketvote.CmdDetails, "")
 		if err != nil {
-			return fmt.Errorf("PluginRead %x %v %v: %v",
+			return errors.Errorf("PluginRead %x %v %v: %v",
 				token, ticketvote.PluginID, ticketvote.CmdDetails, err)
 		}
 		var dr ticketvote.DetailsReply
@@ -104,7 +109,7 @@ func (p *plugin) Setup() error {
 		}
 		if dr.Vote == nil {
 			// Something is wrong. This should not happen.
-			return fmt.Errorf("vote details not found for record in "+
+			return errors.Errorf("vote details not found for record in "+
 				"started inventory %x", token)
 		}
 
@@ -115,7 +120,7 @@ func (p *plugin) Setup() error {
 		reply, err = p.backend.PluginRead(token, ticketvote.PluginID,
 			ticketvote.CmdResults, "")
 		if err != nil {
-			return fmt.Errorf("PluginRead %x %v %v: %v",
+			return errors.Errorf("PluginRead %x %v %v: %v",
 				token, ticketvote.PluginID, ticketvote.CmdResults, err)
 		}
 		var rr ticketvote.ResultsReply
@@ -250,18 +255,26 @@ func (p *plugin) Settings() []backend.PluginSetting {
 	}
 }
 
-func New(backend backend.Backend, bs backend.BackendSettings, ps []backend.PluginSetting) (*plugin, error) {
-	// Plugin settings
+// settings contains all of the ticketvote plugin settings.
+type settings struct {
+	linkByPeriodMin int64  // In seconds
+	linkByPeriodMax int64  // In seconds
+	voteDurationMin uint32 // In blocks
+	voteDurationMax uint32 // In blocks
+}
+
+// parseSettings parses the ticketvote settings from a list of generic backend
+// plugin settings.
+func parseSettings(ps []backend.PluginSetting, net chaincfg.Params) (*settings, error) {
+	// Set plugin settings to defaults. These will be overwritten
+	// with provided settings.
 	var (
 		linkByPeriodMin int64
 		linkByPeriodMax int64
 		voteDurationMin uint32
 		voteDurationMax uint32
 	)
-
-	// Set plugin settings to defaults. These will be overwritten if
-	// the setting was specified by the user.
-	switch bs.Net.Name {
+	switch net.Name {
 	case chaincfg.MainNetParams().Name:
 		linkByPeriodMin = ticketvote.SettingMainNetLinkByPeriodMin
 		linkByPeriodMax = ticketvote.SettingMainNetLinkByPeriodMax
@@ -279,7 +292,7 @@ func New(backend backend.Backend, bs backend.BackendSettings, ps []backend.Plugi
 		voteDurationMin = ticketvote.SettingTestNetVoteDurationMin
 		voteDurationMax = ticketvote.SettingTestNetVoteDurationMax
 	default:
-		return nil, errors.Errorf("invalid network %v", bs.Net.Name)
+		return nil, errors.Errorf("invalid network %v", net.Name)
 	}
 
 	// Override defaults with any passed in settings
@@ -288,57 +301,46 @@ func New(backend backend.Backend, bs backend.BackendSettings, ps []backend.Plugi
 		case ticketvote.SettingKeyLinkByPeriodMin:
 			i, err := strconv.ParseInt(v.Value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("plugin setting '%v': ParseInt(%v): %v",
+				return nil, errors.Errorf("parse %v: ParseInt(%v): %v",
 					v.Key, v.Value, err)
 			}
 			linkByPeriodMin = i
-			log.Infof("Plugin setting updated: ticketvote %v %v",
-				ticketvote.SettingKeyLinkByPeriodMin, linkByPeriodMin)
 
 		case ticketvote.SettingKeyLinkByPeriodMax:
 			i, err := strconv.ParseInt(v.Value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("plugin setting '%v': ParseInt(%v): %v",
+				return nil, errors.Errorf("parse %v: ParseInt(%v): %v",
 					v.Key, v.Value, err)
 			}
 			linkByPeriodMax = i
-			log.Infof("Plugin setting updated: ticketvote %v %v",
-				ticketvote.SettingKeyLinkByPeriodMax, linkByPeriodMax)
 
 		case ticketvote.SettingKeyVoteDurationMin:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("plugin setting '%v': ParseUint(%v): %v",
+				return nil, errors.Errorf("parse %v: ParseUint(%v): %v",
 					v.Key, v.Value, err)
 			}
 			voteDurationMin = uint32(u)
-			log.Infof("Plugin setting updated: ticketvote %v %v",
-				ticketvote.SettingKeyVoteDurationMin, voteDurationMin)
 
 		case ticketvote.SettingKeyVoteDurationMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("plugin setting '%v': ParseUint(%v): %v",
+				return nil, errors.Errorf("parse %v: ParseUint(%v): %v",
 					v.Key, v.Value, err)
 			}
 			voteDurationMax = uint32(u)
-			log.Infof("Plugin setting updated: ticketvote %v %v",
-				ticketvote.SettingKeyVoteDurationMax, voteDurationMax)
 
 		default:
-			return nil, fmt.Errorf("invalid plugin setting '%v'", v.Key)
+			return nil, errors.Errorf("invalid plugin setting '%v'", v.Key)
 		}
+
+		log.Infof("Plugin setting updated: ticketvote %v %v", v.Key, v.Value)
 	}
 
-	return &plugin{
-		backend:  backend,
-		net:      bs.Net,
-		identity: bs.Identity,
-		settings: settings{
-			linkByPeriodMin: linkByPeriodMin,
-			linkByPeriodMax: linkByPeriodMax,
-			voteDurationMin: voteDurationMin,
-			voteDurationMax: voteDurationMax,
-		},
+	return &settings{
+		linkByPeriodMin: linkByPeriodMin,
+		linkByPeriodMax: linkByPeriodMax,
+		voteDurationMin: voteDurationMin,
+		voteDurationMax: voteDurationMax,
 	}, nil
 }
