@@ -17,24 +17,26 @@ import (
 )
 
 var (
-	_ plugins.PluginClient = (*ticketVotePlugin)(nil)
+	_ plugins.PluginClient = (*plugin)(nil)
 )
 
-// ticketVotePlugin is the tstore backend implementation of the ticketvote
-// plugin. The ticketvote plugin extends a record with dcr ticket voting
-// functionality.
+// plugin implements the the ticketvote plugin API. The ticketvote plugin
+// extends a record with dcr ticket voting functionality.
 //
-// ticketVotePlugin satisfies the plugins PluginClient interface.
-type ticketVotePlugin struct {
-	backend backend.Backend
-	net     chaincfg.Params // Decred network
+// This struct satisfies the PluginClient interface.
+type plugin struct {
+	backend  backend.Backend
+	net      chaincfg.Params // Decred network
+	settings settings        // Plugin settings
 
 	// identity contains the full identity that the plugin uses to
 	// create receipts, i.e. signatures of user provided data that
 	// prove the backend received and processed a plugin command.
 	identity identity.FullIdentity
+}
 
-	// Plugin settings
+// settings contains all of the ticketvote plugin settings.
+type settings struct {
 	linkByPeriodMin int64  // In seconds
 	linkByPeriodMax int64  // In seconds
 	voteDurationMin uint32 // In blocks
@@ -44,7 +46,7 @@ type ticketVotePlugin struct {
 // Setup performs any plugin setup that is required.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *ticketVotePlugin) Setup() error {
+func (p *plugin) Setup() error {
 	log.Tracef("ticketvote Setup")
 
 	/* TODO add setup back in
@@ -136,7 +138,7 @@ func (p *ticketVotePlugin) Setup() error {
 // worry about concurrency issues.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *ticketVotePlugin) Write(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
+func (p *plugin) Write(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("ticketvote Write: %x %v %v", token, cmd, payload)
 
 	switch cmd {
@@ -160,7 +162,7 @@ func (p *ticketVotePlugin) Write(tstore plugins.TstoreClient, token []byte, cmd,
 // Read executes a plugin command.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *ticketVotePlugin) Read(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
+func (p *plugin) Read(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("ticketvote Read: %x %v %v", token, cmd, payload)
 
 	/*
@@ -190,7 +192,7 @@ func (p *ticketVotePlugin) Read(tstore plugins.TstoreClient, token []byte, cmd, 
 // Hook executes a plugin hook.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *ticketVotePlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payload string) error {
+func (p *plugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payload string) error {
 	log.Tracef("ticketvote Hook: %v", plugins.Hooks[h])
 
 	/* TODO Add hooks back in
@@ -212,7 +214,7 @@ func (p *ticketVotePlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, pa
 // Fsck performs a plugin filesystem check.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *ticketVotePlugin) Fsck() error {
+func (p *plugin) Fsck() error {
 	log.Tracef("ticketvote Fsck")
 
 	// Verify all caches
@@ -227,30 +229,30 @@ func (p *ticketVotePlugin) Fsck() error {
 // Settings returns the plugin's settings.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *ticketVotePlugin) Settings() []backend.PluginSetting {
+func (p *plugin) Settings() []backend.PluginSetting {
 	log.Tracef("ticketvote Settings")
 
 	return []backend.PluginSetting{
 		{
 			Key:   ticketvote.SettingKeyLinkByPeriodMin,
-			Value: strconv.FormatInt(p.linkByPeriodMin, 10),
+			Value: strconv.FormatInt(p.settings.linkByPeriodMin, 10),
 		},
 		{
 			Key:   ticketvote.SettingKeyLinkByPeriodMax,
-			Value: strconv.FormatInt(p.linkByPeriodMax, 10),
+			Value: strconv.FormatInt(p.settings.linkByPeriodMax, 10),
 		},
 		{
 			Key:   ticketvote.SettingKeyVoteDurationMin,
-			Value: strconv.FormatUint(uint64(p.voteDurationMin), 10),
+			Value: strconv.FormatUint(uint64(p.settings.voteDurationMin), 10),
 		},
 		{
 			Key:   ticketvote.SettingKeyVoteDurationMax,
-			Value: strconv.FormatUint(uint64(p.voteDurationMax), 10),
+			Value: strconv.FormatUint(uint64(p.settings.voteDurationMax), 10),
 		},
 	}
 }
 
-func New(backend backend.Backend, bs backend.BackendSettings, ps []backend.PluginSetting) (*ticketVotePlugin, error) {
+func New(backend backend.Backend, bs backend.BackendSettings, ps []backend.PluginSetting) (*plugin, error) {
 	// Plugin settings
 	var (
 		linkByPeriodMin int64
@@ -330,13 +332,15 @@ func New(backend backend.Backend, bs backend.BackendSettings, ps []backend.Plugi
 		}
 	}
 
-	return &ticketVotePlugin{
-		backend:         backend,
-		net:             bs.Net,
-		identity:        bs.Identity,
-		linkByPeriodMin: linkByPeriodMin,
-		linkByPeriodMax: linkByPeriodMax,
-		voteDurationMin: voteDurationMin,
-		voteDurationMax: voteDurationMax,
+	return &plugin{
+		backend:  backend,
+		net:      bs.Net,
+		identity: bs.Identity,
+		settings: settings{
+			linkByPeriodMin: linkByPeriodMin,
+			linkByPeriodMax: linkByPeriodMax,
+			voteDurationMin: voteDurationMin,
+			voteDurationMax: voteDurationMax,
+		},
 	}, nil
 }

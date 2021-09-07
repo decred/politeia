@@ -29,7 +29,7 @@ const (
 )
 
 // cmdAuthorize authorizes a ticket vote or revokes a previous authorization.
-func (p *ticketVotePlugin) cmdAuthorize(tstore plugins.TstoreClient, token []byte, payload string) (string, error) {
+func (p *plugin) cmdAuthorize(tstore plugins.TstoreClient, token []byte, payload string) (string, error) {
 	// Decode payload
 	var a ticketvote.Authorize
 	err := json.Unmarshal([]byte(payload), &a)

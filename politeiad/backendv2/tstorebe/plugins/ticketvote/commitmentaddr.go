@@ -22,7 +22,7 @@ type commitmentAddr struct {
 // returned. If an error is encountered while retrieving a commitment address,
 // the error will be included in the commitmentAddr struct in the returned
 // map.
-func (p *ticketVotePlugin) largestCommitmentAddrs(tickets []string) (map[string]commitmentAddr, error) {
+func (p *plugin) largestCommitmentAddrs(tickets []string) (map[string]commitmentAddr, error) {
 	// Get tx details
 	tt := dcrdata.TxsTrimmed{
 		TxIDs: tickets,
