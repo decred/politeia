@@ -13,11 +13,11 @@ package ticketvote
 // Record locking is handled by the backend, not by individual plugins. This
 // makes the plugin implementations simpler and easier to reason about, but it
 // can also lead to performance bottlenecks for expensive plugin write
-// commands. The cast ballot command is one such command due to a combination
-// requiring external dcrdata calls to verify the largest commitment addresses
-// for each ticket and the fact that its possible for hundreds of ballots to be
-// cast concurrently. We cache the active vote data in order to alleviate this
-// bottleneck.
+// commands. The cast ballot command is one such command due to the combination
+// of requiring external dcrdata calls to verify the largest commitment
+// addresses for each ticket and the fact that its possible for hundreds of
+// ballots to be cast concurrently. We cache the active vote data in order to
+// alleviate this bottleneck.
 type activeVotes struct {
 	sync.RWMutex
 	activeVotes map[string]activeVote // [token]activeVote
@@ -262,7 +262,7 @@ func newActiveVotes() *activeVotes {
 
 // activeVotePopulateAddrs fetches the largest commitment address for each
 // ticket in a vote from dcrdata and caches the results.
-func (p *ticketVotePlugin) activeVotePopulateAddrs(vd ticketvote.VoteDetails) {
+func (p *plugin) activeVotePopulateAddrs(vd ticketvote.VoteDetails) {
 	// Get largest commitment address for each eligible ticket. A
 	// TrimmedTxs response for 500 tickets is ~1MB. It takes ~1.5
 	// minutes to get the largest commitment address for 41k eligible
@@ -302,7 +302,7 @@ func (p *ticketVotePlugin) activeVotePopulateAddrs(vd ticketvote.VoteDetails) {
 // activeVotesAdd creates a active votes cache entry for the provided vote
 // details and kicks off an async job that fetches and caches the largest
 // commitment address for each eligible ticket.
-func (p *ticketVotePlugin) activeVotesAdd(vd ticketvote.VoteDetails) {
+func (p *plugin) activeVotesAdd(vd ticketvote.VoteDetails) {
 	// Add the vote to the active votes cache
 	p.activeVotes.Add(vd)
 

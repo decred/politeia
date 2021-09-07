@@ -78,7 +78,7 @@ func (p *plugin) cmdAuthorize(token []byte, payload string) (string, error) {
 	// Verify record status and version
 	r, err := p.tstore.RecordPartial(token, 0, nil, true)
 	if err != nil {
-		return "", fmt.Errorf("RecordPartial: %v", err)
+		return "", errors.Errorf("RecordPartial: %v", err)
 	}
 	if r.RecordMetadata.Status != backend.StatusPublic {
 		return "", backend.PluginError{
@@ -163,7 +163,7 @@ func (p *plugin) cmdAuthorize(token []byte, payload string) (string, error) {
 		status = ticketvote.VoteStatusUnauthorized
 	default:
 		// Action has already been validated. This should not happen.
-		return "", fmt.Errorf("invalid action %v", a.Action)
+		return "", errors.Errorf("invalid action %v", a.Action)
 	}
 	p.inventoryUpdate(a.Token, status)
 
@@ -178,490 +178,6 @@ func (p *plugin) cmdAuthorize(token []byte, payload string) (string, error) {
 	}
 
 	return string(reply), nil
-}
-
-// startRunoffRecordSave saves a startRunoffRecord to the backend.
-func (p *plugin) startRunoffRecordSave(token []byte, srr startRunoffRecord) error {
-	be, err := convertBlobEntryFromStartRunoff(srr)
-	if err != nil {
-		return err
-	}
-	err = tstore.BlobSave(token, *be)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// startRunoffRecord returns the startRunoff record if one exists. Nil is
-// returned if a startRunoff record is not found.
-func (p *plugin) startRunoffRecord(token []byte) (*startRunoffRecord, error) {
-	blobs, err := tstore.BlobsByDataDesc(token,
-		[]string{dataDescriptorStartRunoff})
-	if err != nil {
-		return nil, err
-	}
-
-	var srr *startRunoffRecord
-	switch len(blobs) {
-	case 0:
-		// Nothing found
-		return nil, nil
-	case 1:
-		// A start runoff record was found
-		srr, err = convertStartRunoffFromBlobEntry(blobs[0])
-		if err != nil {
-			return nil, err
-		}
-	default:
-		// This should not be possible
-		e := fmt.Sprintf("%v start runoff blobs found", len(blobs))
-		panic(e)
-	}
-
-	return srr, nil
-}
-
-// startRunoffForSub starts the voting period for a runoff vote submission.
-func (p *plugin) startRunoffForSub(token []byte, srs startRunoffSubmission) error {
-	// Sanity check
-	sd := srs.StartDetails
-	t, err := tokenDecode(sd.Params.Token)
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(token, t) {
-		return fmt.Errorf("invalid token")
-	}
-
-	// Get the start runoff record from the parent record
-	parent, err := tokenDecode(srs.ParentToken)
-	if err != nil {
-		return err
-	}
-	srr, err := p.startRunoffRecord(parent)
-	if err != nil {
-		return err
-	}
-
-	// Sanity check. Verify token is part of the start runoff record
-	// submissions.
-	var found bool
-	for _, v := range srr.Submissions {
-		if hex.EncodeToString(token) == v {
-			found = true
-			break
-		}
-	}
-	if !found {
-		// This submission should not be here
-		return fmt.Errorf("record not in submission list")
-	}
-
-	// If the vote has already been started, exit gracefully. This
-	// allows us to recover from unexpected errors to the start runoff
-	// vote call as it updates the state of multiple records. If the
-	// call were to fail before completing, we can simply call the
-	// command again with the same arguments and it will pick up where
-	// it left off.
-	svp, err := p.voteDetails(token)
-	if err != nil {
-		return err
-	}
-	if svp != nil {
-		// Vote has already been started. Exit gracefully.
-		return nil
-	}
-
-	// Verify record version
-	r, err := tstore.RecordPartial(token, 0, nil, true)
-	if err != nil {
-		return fmt.Errorf("RecordPartial: %v", err)
-	}
-	if r.RecordMetadata.State != backend.StateVetted {
-		// This should not be possible
-		return fmt.Errorf("record is unvetted")
-	}
-	if sd.Params.Version != r.RecordMetadata.Version {
-		return backend.PluginError{
-			PluginID:  ticketvote.PluginID,
-			ErrorCode: uint32(ticketvote.ErrorCodeRecordVersionInvalid),
-			ErrorContext: fmt.Sprintf("version is not latest %v: "+
-				"got %v, want %v", sd.Params.Token,
-				sd.Params.Version, r.RecordMetadata.Version),
-		}
-	}
-
-	// Prepare vote details
-	receipt := p.identity.SignMessage([]byte(sd.Signature + srr.StartBlockHash))
-	vd := ticketvote.VoteDetails{
-		Params:           sd.Params,
-		PublicKey:        sd.PublicKey,
-		Signature:        sd.Signature,
-		Receipt:          hex.EncodeToString(receipt[:]),
-		StartBlockHeight: srr.StartBlockHeight,
-		StartBlockHash:   srr.StartBlockHash,
-		EndBlockHeight:   srr.EndBlockHeight,
-		EligibleTickets:  srr.EligibleTickets,
-	}
-
-	// Save vote details
-	err = p.voteDetailsSave(token, vd)
-	if err != nil {
-		return fmt.Errorf("voteDetailsSave %x: %v", token, err)
-	}
-
-	// Update inventory
-	p.inventoryUpdateToStarted(vd.Params.Token,
-		ticketvote.VoteStatusStarted, vd.EndBlockHeight)
-
-	// Update active votes cache
-	p.activeVotesAdd(vd)
-
-	return nil
-}
-
-// startRunoffForParent saves a startRunoffRecord to the parent record. Once
-// this has been saved the runoff vote is considered to be started and the
-// voting period on individual runoff vote submissions can be started.
-func (p *plugin) startRunoffForParent(token []byte, s ticketvote.Start) (*startRunoffRecord, error) {
-	// Check if the runoff vote data already exists on the parent tree.
-	srr, err := p.startRunoffRecord(token)
-	if err != nil {
-		return nil, err
-	}
-	if srr != nil {
-		// We already have a start runoff record for this runoff vote.
-		// This can happen if the previous call failed due to an
-		// unexpected error such as a network error. Return the start
-		// runoff record so we can pick up where we left off.
-		return srr, nil
-	}
-
-	// Get blockchain data
-	var (
-		mask     = s.Starts[0].Params.Mask
-		duration = s.Starts[0].Params.Duration
-		quorum   = s.Starts[0].Params.QuorumPercentage
-		pass     = s.Starts[0].Params.PassPercentage
-	)
-	vcp, err := p.voteChainParams(duration)
-	if err != nil {
-		return nil, err
-	}
-
-	// Verify parent has a LinkBy and the LinkBy deadline is expired.
-	files := []string{
-		ticketvote.FileNameVoteMetadata,
-	}
-	r, err := tstore.RecordPartial(token, 0, files, false)
-	if err != nil {
-		if errors.Is(err, backend.ErrRecordNotFound) {
-			return nil, backend.PluginError{
-				PluginID:  ticketvote.PluginID,
-				ErrorCode: uint32(ticketvote.ErrorCodeVoteParentInvalid),
-				ErrorContext: fmt.Sprintf("parent record not "+
-					"found %x", token),
-			}
-		}
-		return nil, fmt.Errorf("RecordPartial: %v", err)
-	}
-	if r.RecordMetadata.State != backend.StateVetted {
-		// This should not be possible
-		return nil, fmt.Errorf("record is unvetted")
-	}
-	vm, err := voteMetadataDecode(r.Files)
-	if err != nil {
-		return nil, err
-	}
-	if vm == nil || vm.LinkBy == 0 {
-		return nil, backend.PluginError{
-			PluginID:  ticketvote.PluginID,
-			ErrorCode: uint32(ticketvote.ErrorCodeVoteParentInvalid),
-			ErrorContext: fmt.Sprintf("%x is not a runoff vote "+
-				"parent", token),
-		}
-	}
-	if vm.LinkBy > time.Now().Unix() {
-		return nil, backend.PluginError{
-			PluginID:  ticketvote.PluginID,
-			ErrorCode: uint32(ticketvote.ErrorCodeLinkByNotExpired),
-			ErrorContext: fmt.Sprintf("parent record %x linkby "+
-				"deadline (%v) has not expired yet", token, vm.LinkBy),
-		}
-	}
-
-	// Compile a list of the expected submissions that should be in the
-	// runoff vote. This will be all of the public records that have
-	// linked to the parent record. The parent record's submissions
-	// list will include abandoned proposals that need to be filtered
-	// out.
-	lf, err := p.submissionsCache(token)
-	if err != nil {
-		return nil, err
-	}
-	expected := make(map[string]struct{}, len(lf.Tokens)) // [token]struct{}
-	for k := range lf.Tokens {
-		token, err := tokenDecode(k)
-		if err != nil {
-			return nil, err
-		}
-		r, err := p.recordAbridged(token)
-		if err != nil {
-			return nil, err
-		}
-		if r.RecordMetadata.Status != backend.StatusPublic {
-			// This record is not public and should not be included
-			// in the runoff vote.
-			continue
-		}
-
-		// This is a public record that is part of the parent record's
-		// submissions list. It is required to be in the runoff vote.
-		expected[k] = struct{}{}
-	}
-
-	// Verify that there are no extra submissions in the runoff vote
-	for _, v := range s.Starts {
-		_, ok := expected[v.Params.Token]
-		if !ok {
-			// This submission should not be here
-			return nil, backend.PluginError{
-				PluginID:  ticketvote.PluginID,
-				ErrorCode: uint32(ticketvote.ErrorCodeStartDetailsInvalid),
-				ErrorContext: fmt.Sprintf("record %v should "+
-					"not be included", v.Params.Token),
-			}
-		}
-	}
-
-	// Verify that the runoff vote is not missing any submissions
-	subs := make(map[string]struct{}, len(s.Starts))
-	for _, v := range s.Starts {
-		subs[v.Params.Token] = struct{}{}
-	}
-	for k := range expected {
-		_, ok := subs[k]
-		if !ok {
-			// This records is missing from the runoff vote
-			return nil, backend.PluginError{
-				PluginID:     ticketvote.PluginID,
-				ErrorCode:    uint32(ticketvote.ErrorCodeStartDetailsMissing),
-				ErrorContext: k,
-			}
-		}
-	}
-
-	// Prepare start runoff record
-	submissions := make([]string, 0, len(subs))
-	for k := range subs {
-		submissions = append(submissions, k)
-	}
-	srr = &startRunoffRecord{
-		Submissions:      submissions,
-		Mask:             mask,
-		Duration:         duration,
-		QuorumPercentage: quorum,
-		PassPercentage:   pass,
-		StartBlockHeight: vcp.StartBlockHeight,
-		StartBlockHash:   vcp.StartBlockHash,
-		EndBlockHeight:   vcp.EndBlockHeight,
-		EligibleTickets:  vcp.EligibleTickets,
-	}
-
-	// Save start runoff record
-	err = p.startRunoffRecordSave(token, *srr)
-	if err != nil {
-		return nil, err
-	}
-
-	return srr, nil
-}
-
-// startRunoff starts the voting period for all submissions in a runoff vote.
-// It does this by first adding a startRunoffRecord to the runoff vote parent
-// record. Once this has been successfully added the runoff vote is considered
-// to have started. The voting period must now be started on all of the runoff
-// vote submissions individually. If any of these calls fail, they can be
-// retried.  This function will pick up where it left off.
-func (p *plugin) startRunoff(token []byte, s ticketvote.Start) (*ticketvote.StartReply, error) {
-	// Sanity check
-	if len(s.Starts) == 0 {
-		return nil, fmt.Errorf("no start details found")
-	}
-
-	// Perform validation that can be done without fetching any records
-	// from the backend.
-	var (
-		mask     = s.Starts[0].Params.Mask
-		duration = s.Starts[0].Params.Duration
-		quorum   = s.Starts[0].Params.QuorumPercentage
-		pass     = s.Starts[0].Params.PassPercentage
-		parent   = s.Starts[0].Params.Parent
-	)
-	for _, v := range s.Starts {
-		// Verify vote params are the same for all submissions
-		switch {
-		case v.Params.Type != ticketvote.VoteTypeRunoff:
-			return nil, backend.PluginError{
-				PluginID:  ticketvote.PluginID,
-				ErrorCode: uint32(ticketvote.ErrorCodeVoteTypeInvalid),
-				ErrorContext: fmt.Sprintf("%v got %v, want %v",
-					v.Params.Token, v.Params.Type,
-					ticketvote.VoteTypeRunoff),
-			}
-		case v.Params.Mask != mask:
-			return nil, backend.PluginError{
-				PluginID:  ticketvote.PluginID,
-				ErrorCode: uint32(ticketvote.ErrorCodeVoteBitsInvalid),
-				ErrorContext: fmt.Sprintf("%v mask invalid: "+
-					"all must be the same", v.Params.Token),
-			}
-		case v.Params.Duration != duration:
-			return nil, backend.PluginError{
-				PluginID:  ticketvote.PluginID,
-				ErrorCode: uint32(ticketvote.ErrorCodeVoteDurationInvalid),
-				ErrorContext: fmt.Sprintf("%v duration does "+
-					"not match; all must be the same",
-					v.Params.Token),
-			}
-		case v.Params.QuorumPercentage != quorum:
-			return nil, backend.PluginError{
-				PluginID:  ticketvote.PluginID,
-				ErrorCode: uint32(ticketvote.ErrorCodeVoteQuorumInvalid),
-				ErrorContext: fmt.Sprintf("%v quorum does "+
-					"not match; all must be the same",
-					v.Params.Token),
-			}
-		case v.Params.PassPercentage != pass:
-			return nil, backend.PluginError{
-				PluginID:  ticketvote.PluginID,
-				ErrorCode: uint32(ticketvote.ErrorCodeVotePassRateInvalid),
-				ErrorContext: fmt.Sprintf("%v pass rate does "+
-					"not match; all must be the same",
-					v.Params.Token),
-			}
-		case v.Params.Parent != parent:
-			return nil, backend.PluginError{
-				PluginID:  ticketvote.PluginID,
-				ErrorCode: uint32(ticketvote.ErrorCodeVoteParentInvalid),
-				ErrorContext: fmt.Sprintf("%v parent does "+
-					"not match; all must be the same",
-					v.Params.Token),
-			}
-		}
-
-		// Verify token
-		_, err := tokenDecode(v.Params.Token)
-		if err != nil {
-			return nil, backend.PluginError{
-				PluginID:     ticketvote.PluginID,
-				ErrorCode:    uint32(ticketvote.ErrorCodeTokenInvalid),
-				ErrorContext: v.Params.Token,
-			}
-		}
-
-		// Verify parent token
-		_, err = tokenDecode(v.Params.Parent)
-		if err != nil {
-			return nil, backend.PluginError{
-				PluginID:  ticketvote.PluginID,
-				ErrorCode: uint32(ticketvote.ErrorCodeTokenInvalid),
-				ErrorContext: fmt.Sprintf("parent token %v",
-					v.Params.Parent),
-			}
-		}
-
-		// Verify signature
-		vb, err := json.Marshal(v.Params)
-		if err != nil {
-			return nil, err
-		}
-		msg := hex.EncodeToString(util.Digest(vb))
-		err = util.VerifySignature(v.Signature, v.PublicKey, msg)
-		if err != nil {
-			return nil, convertSignatureError(err)
-		}
-
-		// Verify vote options and params. Vote optoins are required to
-		// be approve and reject.
-		err = voteParamsVerify(v.Params, p.voteDurationMin,
-			p.voteDurationMax)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Verify plugin command is being executed on the parent record
-	if hex.EncodeToString(token) != parent {
-		return nil, backend.PluginError{
-			PluginID:  ticketvote.PluginID,
-			ErrorCode: uint32(ticketvote.ErrorCodeVoteParentInvalid),
-			ErrorContext: fmt.Sprintf("runoff vote must be "+
-				"started on the parent record %v", parent),
-		}
-	}
-
-	// This function is being invoked on the runoff vote parent record.
-	// Create and save a start runoff record onto the parent record's tree.
-	srr, err := p.startRunoffForParent(token, s)
-	if err != nil {
-		return nil, err
-	}
-
-	// Start the voting period of each runoff vote submissions by using the
-	// internal plugin command startRunoffSubmission.
-	for _, v := range s.Starts {
-		token, err = tokenDecode(v.Params.Token)
-		if err != nil {
-			return nil, err
-		}
-		srs := startRunoffSubmission{
-			ParentToken:  v.Params.Parent,
-			StartDetails: v,
-		}
-		b, err := json.Marshal(srs)
-		if err != nil {
-			return nil, err
-		}
-		_, err = p.backend.PluginWrite(token, ticketvote.PluginID,
-			cmdStartRunoffSubmission, string(b))
-		if err != nil {
-			var ue backend.PluginError
-			if errors.As(err, &ue) {
-				return nil, err
-			}
-			return nil, fmt.Errorf("PluginWrite %x %v %v: %v",
-				token, ticketvote.PluginID,
-				cmdStartRunoffSubmission, err)
-		}
-	}
-
-	return &ticketvote.StartReply{
-		StartBlockHeight: srr.StartBlockHeight,
-		StartBlockHash:   srr.StartBlockHash,
-		EndBlockHeight:   srr.EndBlockHeight,
-		EligibleTickets:  srr.EligibleTickets,
-	}, nil
-}
-
-// cmdStartRunoffSubmission is an internal plugin command that is used to start
-// the voting period on a runoff vote submission.
-func (p *plugin) cmdStartRunoffSubmission(token []byte, payload string) (string, error) {
-	// Decode payload
-	var srs startRunoffSubmission
-	err := json.Unmarshal([]byte(payload), &srs)
-	if err != nil {
-		return "", err
-	}
-
-	// Start voting period on runoff vote submission
-	err = p.startRunoffForSub(token, srs)
-	if err != nil {
-		return "", err
-	}
-
-	return "", nil
 }
 
 // voteCollider is used to prevent duplicate votes at the tlog level. The
@@ -769,7 +285,7 @@ func castVoteVerifySignature(cv ticketvote.CastVote, addr string, net *chaincfg.
 	// message function expects.
 	b, err := hex.DecodeString(cv.Signature)
 	if err != nil {
-		return fmt.Errorf("invalid hex")
+		return errors.Errorf("invalid hex")
 	}
 	sig := base64.StdEncoding.EncodeToString(b)
 
@@ -779,7 +295,7 @@ func castVoteVerifySignature(cv ticketvote.CastVote, addr string, net *chaincfg.
 		return err
 	}
 	if !validated {
-		return fmt.Errorf("could not verify message")
+		return errors.Errorf("could not verify message")
 	}
 
 	return nil
@@ -1069,7 +585,7 @@ func (p *plugin) cmdCastBallot(token []byte, payload string) (string, error) {
 		// Get commitment addresses from dcrdata
 		caddrs, err := p.largestCommitmentAddrs(tickets)
 		if err != nil {
-			return "", fmt.Errorf("largestCommitmentAddrs: %v", err)
+			return "", errors.Errorf("largestCommitmentAddrs: %v", err)
 		}
 
 		// Add addresses to the existing map
@@ -1243,13 +759,13 @@ func (p *plugin) cmdDetails(token []byte) (string, error) {
 	// Get vote authorizations
 	auths, err := p.auths(token)
 	if err != nil {
-		return "", fmt.Errorf("auths: %v", err)
+		return "", errors.Errorf("auths: %v", err)
 	}
 
 	// Get vote details
 	vd, err := p.voteDetails(token)
 	if err != nil {
-		return "", fmt.Errorf("voteDetails: %v", err)
+		return "", errors.Errorf("voteDetails: %v", err)
 	}
 
 	// Prepare rely
@@ -1313,13 +829,13 @@ func (p *plugin) cmdSummary(token []byte) (string, error) {
 	// have to use the safe best block.
 	bb, err := p.bestBlockUnsafe()
 	if err != nil {
-		return "", fmt.Errorf("bestBlockUnsafe: %v", err)
+		return "", errors.Errorf("bestBlockUnsafe: %v", err)
 	}
 
 	// Get summary
 	sr, err := p.summary(token, bb)
 	if err != nil {
-		return "", fmt.Errorf("summary: %v", err)
+		return "", errors.Errorf("summary: %v", err)
 	}
 
 	// Prepare reply
@@ -1344,13 +860,13 @@ func (p *plugin) cmdInventory(payload string) (string, error) {
 	// use the unsafe best block.
 	bb, err := p.bestBlockUnsafe()
 	if err != nil {
-		return "", fmt.Errorf("bestBlockUnsafe: %v", err)
+		return "", errors.Errorf("bestBlockUnsafe: %v", err)
 	}
 
 	// Get the inventory
 	ibs, err := p.inventoryByStatus(bb, i.Status, i.Page)
 	if err != nil {
-		return "", fmt.Errorf("invByStatus: %v", err)
+		return "", errors.Errorf("invByStatus: %v", err)
 	}
 
 	// Prepare reply
@@ -1393,7 +909,7 @@ func (p *plugin) cmdTimestamps(token []byte, payload string) (string, error) {
 		digests, err := tstore.DigestsByDataDesc(token,
 			[]string{dataDescriptorCastVoteDetails})
 		if err != nil {
-			return "", fmt.Errorf("digestsByKeyPrefix %x %v: %v",
+			return "", errors.Errorf("digestsByKeyPrefix %x %v: %v",
 				token, dataDescriptorVoteDetails, err)
 		}
 
@@ -1404,7 +920,7 @@ func (p *plugin) cmdTimestamps(token []byte, payload string) (string, error) {
 			}
 			ts, err := p.timestamp(token, v)
 			if err != nil {
-				return "", fmt.Errorf("timestamp %x %x: %v",
+				return "", errors.Errorf("timestamp %x %x: %v",
 					token, v, err)
 			}
 			votes = append(votes, *ts)
@@ -1422,14 +938,14 @@ func (p *plugin) cmdTimestamps(token []byte, payload string) (string, error) {
 		digests, err := tstore.DigestsByDataDesc(token,
 			[]string{dataDescriptorAuthDetails})
 		if err != nil {
-			return "", fmt.Errorf("DigestByDataDesc %x %v: %v",
+			return "", errors.Errorf("DigestByDataDesc %x %v: %v",
 				token, dataDescriptorAuthDetails, err)
 		}
 		auths = make([]ticketvote.Timestamp, 0, len(digests))
 		for _, v := range digests {
 			ts, err := p.timestamp(token, v)
 			if err != nil {
-				return "", fmt.Errorf("timestamp %x %x: %v",
+				return "", errors.Errorf("timestamp %x %x: %v",
 					token, v, err)
 			}
 			auths = append(auths, *ts)
@@ -1439,18 +955,18 @@ func (p *plugin) cmdTimestamps(token []byte, payload string) (string, error) {
 		digests, err = tstore.DigestsByDataDesc(token,
 			[]string{dataDescriptorVoteDetails})
 		if err != nil {
-			return "", fmt.Errorf("DigestsByDataDesc %x %v: %v",
+			return "", errors.Errorf("DigestsByDataDesc %x %v: %v",
 				token, dataDescriptorVoteDetails, err)
 		}
 		// There should never be more than a one vote details
 		if len(digests) > 1 {
-			return "", fmt.Errorf("invalid vote details count: "+
+			return "", errors.Errorf("invalid vote details count: "+
 				"got %v, want 1", len(digests))
 		}
 		for _, v := range digests {
 			ts, err := p.timestamp(token, v)
 			if err != nil {
-				return "", fmt.Errorf("timestamp %x %x: %v",
+				return "", errors.Errorf("timestamp %x %x: %v",
 					token, v, err)
 			}
 			details = ts
@@ -1564,7 +1080,7 @@ func (p *plugin) voteResults(token []byte) ([]ticketvote.CastVoteDetails, error)
 			// Sanity check
 			_, ok := colliderIndexes[vc.Ticket]
 			if ok {
-				return nil, fmt.Errorf("duplicate vote "+
+				return nil, errors.Errorf("duplicate vote "+
 					"colliders found %v", vc.Ticket)
 			}
 
@@ -1572,7 +1088,7 @@ func (p *plugin) voteResults(token []byte) ([]ticketvote.CastVoteDetails, error)
 			colliderIndexes[vc.Ticket] = i
 
 		default:
-			return nil, fmt.Errorf("invalid data descriptor: %v",
+			return nil, errors.Errorf("invalid data descriptor: %v",
 				dd.Descriptor)
 		}
 	}
@@ -1596,7 +1112,7 @@ func (p *plugin) voteResults(token []byte) ([]ticketvote.CastVoteDetails, error)
 
 		// Sanity check
 		if len(indexes) == 0 {
-			return nil, fmt.Errorf("no cast vote index found %v",
+			return nil, errors.Errorf("no cast vote index found %v",
 				ticket)
 		}
 
@@ -1701,7 +1217,7 @@ func (p *plugin) summariesForRunoff(parentToken string) (map[string]ticketvote.S
 	reply, err := p.backend.PluginRead(parent, ticketvote.PluginID,
 		cmdRunoffDetails, "")
 	if err != nil {
-		return nil, fmt.Errorf("PluginRead %x %v %v: %v",
+		return nil, errors.Errorf("PluginRead %x %v %v: %v",
 			parent, ticketvote.PluginID, cmdRunoffDetails, err)
 	}
 	var rdr runoffDetailsReply
@@ -1785,7 +1301,7 @@ func (p *plugin) summariesForRunoff(parentToken string) (map[string]ticketvote.S
 			default:
 				// Runoff vote options can only be
 				// approve/reject
-				return nil, fmt.Errorf("unknown runoff vote "+
+				return nil, errors.Errorf("unknown runoff vote "+
 					"option %v", vor.ID)
 			}
 
@@ -1823,7 +1339,7 @@ func (p *plugin) summary(token []byte, bestBlock uint32) (*ticketvote.SummaryRep
 		// Cached summary not found. Continue.
 	case err != nil:
 		// Some other error
-		return nil, fmt.Errorf("summaryCache: %v", err)
+		return nil, errors.Errorf("summaryCache: %v", err)
 	default:
 		// Cached summary was found. Update the best block and return it.
 		s.BestBlock = bestBlock
@@ -1840,7 +1356,7 @@ func (p *plugin) summary(token []byte, bestBlock uint32) (*ticketvote.SummaryRep
 	// require an authorization.
 	auths, err := p.auths(token)
 	if err != nil {
-		return nil, fmt.Errorf("auths: %v", err)
+		return nil, errors.Errorf("auths: %v", err)
 	}
 	if len(auths) > 0 {
 		lastAuth := auths[len(auths)-1]
@@ -1863,7 +1379,7 @@ func (p *plugin) summary(token []byte, bestBlock uint32) (*ticketvote.SummaryRep
 	// Check if the vote has been started
 	vd, err := p.voteDetails(token)
 	if err != nil {
-		return nil, fmt.Errorf("startDetails: %v", err)
+		return nil, errors.Errorf("startDetails: %v", err)
 	}
 	if vd == nil {
 		// Vote has not been started yet
@@ -1945,7 +1461,7 @@ func (p *plugin) summary(token []byte, bestBlock uint32) (*ticketvote.SummaryRep
 		summary = summaries[vd.Params.Token]
 
 	default:
-		return nil, fmt.Errorf("unknown vote type")
+		return nil, errors.Errorf("unknown vote type")
 	}
 
 	return &summary, nil
@@ -1956,7 +1472,7 @@ func (p *plugin) summaryByToken(token []byte) (*ticketvote.SummaryReply, error) 
 	reply, err := p.backend.PluginRead(token, ticketvote.PluginID,
 		ticketvote.CmdSummary, "")
 	if err != nil {
-		return nil, fmt.Errorf("PluginRead %x %v %v: %v",
+		return nil, errors.Errorf("PluginRead %x %v %v: %v",
 			token, ticketvote.PluginID, ticketvote.CmdSummary, err)
 	}
 	var sr ticketvote.SummaryReply
@@ -1971,7 +1487,7 @@ func (p *plugin) summaryByToken(token []byte) (*ticketvote.SummaryReply, error) 
 func (p *plugin) timestamp(token []byte, digest []byte) (*ticketvote.Timestamp, error) {
 	t, err := tstore.Timestamp(token, digest)
 	if err != nil {
-		return nil, fmt.Errorf("timestamp %x %x: %v",
+		return nil, errors.Errorf("timestamp %x %x: %v",
 			token, digest, err)
 	}
 
@@ -2092,35 +1608,35 @@ func convertCastVoteDetailsFromBlobEntry(be store.BlobEntry) (*ticketvote.CastVo
 	// Decode and validate data hint
 	b, err := base64.StdEncoding.DecodeString(be.DataHint)
 	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
+		return nil, errors.Errorf("decode DataHint: %v", err)
 	}
 	var dd store.DataDescriptor
 	err = json.Unmarshal(b, &dd)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
+		return nil, errors.Errorf("unmarshal DataHint: %v", err)
 	}
 	if dd.Descriptor != dataDescriptorCastVoteDetails {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, "+
+		return nil, errors.Errorf("unexpected data descriptor: got %v, "+
 			"want %v", dd.Descriptor, dataDescriptorCastVoteDetails)
 	}
 
 	// Decode data
 	b, err = base64.StdEncoding.DecodeString(be.Data)
 	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
+		return nil, errors.Errorf("decode Data: %v", err)
 	}
 	digest, err := hex.DecodeString(be.Digest)
 	if err != nil {
-		return nil, fmt.Errorf("decode digest: %v", err)
+		return nil, errors.Errorf("decode digest: %v", err)
 	}
 	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
+		return nil, errors.Errorf("data is not coherent; got %x, want %x",
 			util.Digest(b), digest)
 	}
 	var cv ticketvote.CastVoteDetails
 	err = json.Unmarshal(b, &cv)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal CastVoteDetails: %v", err)
+		return nil, errors.Errorf("unmarshal CastVoteDetails: %v", err)
 	}
 
 	return &cv, nil
@@ -2130,76 +1646,38 @@ func convertVoteColliderFromBlobEntry(be store.BlobEntry) (*voteCollider, error)
 	// Decode and validate data hint
 	b, err := base64.StdEncoding.DecodeString(be.DataHint)
 	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
+		return nil, errors.Errorf("decode DataHint: %v", err)
 	}
 	var dd store.DataDescriptor
 	err = json.Unmarshal(b, &dd)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
+		return nil, errors.Errorf("unmarshal DataHint: %v", err)
 	}
 	if dd.Descriptor != dataDescriptorVoteCollider {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, "+
+		return nil, errors.Errorf("unexpected data descriptor: got %v, "+
 			"want %v", dd.Descriptor, dataDescriptorVoteCollider)
 	}
 
 	// Decode data
 	b, err = base64.StdEncoding.DecodeString(be.Data)
 	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
+		return nil, errors.Errorf("decode Data: %v", err)
 	}
 	digest, err := hex.DecodeString(be.Digest)
 	if err != nil {
-		return nil, fmt.Errorf("decode digest: %v", err)
+		return nil, errors.Errorf("decode digest: %v", err)
 	}
 	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
+		return nil, errors.Errorf("data is not coherent; got %x, want %x",
 			util.Digest(b), digest)
 	}
 	var vc voteCollider
 	err = json.Unmarshal(b, &vc)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal vote collider: %v", err)
+		return nil, errors.Errorf("unmarshal vote collider: %v", err)
 	}
 
 	return &vc, nil
-}
-
-func convertStartRunoffFromBlobEntry(be store.BlobEntry) (*startRunoffRecord, error) {
-	// Decode and validate data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
-	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
-	}
-	if dd.Descriptor != dataDescriptorStartRunoff {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, "+
-			"want %v", dd.Descriptor, dataDescriptorStartRunoff)
-	}
-
-	// Decode data
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
-	}
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, fmt.Errorf("decode digest: %v", err)
-	}
-	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), digest)
-	}
-	var srr startRunoffRecord
-	err = json.Unmarshal(b, &srr)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal StartRunoffRecord: %v", err)
-	}
-
-	return &srr, nil
 }
 
 func convertBlobEntryFromCastVoteDetails(cv ticketvote.CastVoteDetails) (*store.BlobEntry, error) {
@@ -2236,20 +1714,5 @@ func convertBlobEntryFromVoteCollider(vc voteCollider) (*store.BlobEntry, error)
 	return &be, nil
 }
 
-func convertBlobEntryFromStartRunoff(srr startRunoffRecord) (*store.BlobEntry, error) {
-	data, err := json.Marshal(srr)
-	if err != nil {
-		return nil, err
-	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorStartRunoff,
-		})
-	if err != nil {
-		return nil, err
-	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
-}
+
 */

@@ -219,8 +219,8 @@ func voteDetailsSave(tstore plugins.TstoreClient, token []byte, vd ticketvote.Vo
 	return tstore.BlobSave(token, *be)
 }
 
-// voteDetails returns the VoteDetails for a record. nil is returned if a vote
-// details is not found.
+// voteDetails returns the VoteDetails for a record. nil is returned if a
+// VoteDetails is not found.
 func voteDetails(tstore plugins.TstoreClient, token []byte) (*ticketvote.VoteDetails, error) {
 	// Retrieve blobs
 	blobs, err := tstore.BlobsByDataDesc(token,

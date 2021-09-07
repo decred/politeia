@@ -68,8 +68,8 @@ func decodeRunoffDetails(be store.BlobEntry) (*runoffDetails, error) {
 	return &rd, nil
 }
 
-// getRunoffDetails returns the runoffDetails for the provided record if one
-// exists. nil is returned if a runoffDetails is not found.
+// getRunoffDetails returns the runoffDetails for a record. nil is returned if
+// a runoffDetails is not found.
 func getRunoffDetails(tstore plugins.TstoreClient, token []byte) (*runoffDetails, error) {
 	blobs, err := tstore.BlobsByDataDesc(token,
 		[]string{dataDescriptorRunoffDetails})

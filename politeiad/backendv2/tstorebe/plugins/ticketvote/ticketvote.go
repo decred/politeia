@@ -151,12 +151,13 @@ func (p *plugin) Write(tstore plugins.TstoreClient, token []byte, cmd, payload s
 		return p.cmdAuthorize(tstore, token, payload)
 	case ticketvote.CmdStart:
 		return p.cmdStart(tstore, token, payload)
-		// case ticketvote.CmdCastBallot:
-		// return p.cmdCastBallot(tstore, token, payload)
 
-		// Internal plugin commands
-		// case cmdStartRunoffSubmission:
-		// return p.cmdStartRunoffSubmission(tstore, token, payload)
+	// case ticketvote.CmdCastBallot:
+	// return p.cmdCastBallot(tstore, token, payload)
+
+	// Internal plugin commands
+	case cmdStartRunoffSub:
+		return p.cmdStartRunoffSub(tstore, token, payload)
 	}
 
 	return "", backend.ErrPluginCmdInvalid
