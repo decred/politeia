@@ -235,7 +235,7 @@ Arguments:
 2. duration          (uint32, optional)  Duration of vote in blocks
                                          (default: 2016)
 3. quorumpercentage  (uint32, optional)  Percent of total votes required to
-                                         reach a quorum (default: 10)
+                                         reach a quorum (default: 20)
 4. passpercentage    (uint32, optional)  Percent of cast votes required for
                                          vote to be approved (default: 60)
 Flags:
