@@ -17,6 +17,15 @@ import (
 	errors "github.com/pkg/errors"
 )
 
+const (
+	// recordIndexKey is the key-value store key for a cached
+	// record index.
+	//
+	// {state} is replaced with the human readable record state.
+	// {shorttoken} is replaced with the record's short token.
+	recordIndexKey = pluginID + "{state}-{shorttoken}-index-v1.json"
+)
+
 // recordIndex indexes the comments that have been made on the record. This
 // structure is saved to the tstore cache.
 type recordIndex struct {
@@ -38,7 +47,7 @@ func (r *recordIndex) save(tstore plugins.TstoreClient, s backend.StateT) error 
 	if err != nil {
 		return err
 	}
-	key, err := recordIndexKey(r.Token, s)
+	key, err := getRecordIndexKey(r.Token, s)
 	if err != nil {
 		return err
 	}
@@ -165,7 +174,7 @@ func (r *recordIndex) comments(tstore plugins.TstoreClient, commentIDs []uint32)
 // getRecordIndex returns the cached recordIndex for the provided token. If a
 // cached recordIndex does not exist, a new one will be returned.
 func getRecordIndex(tstore plugins.TstoreClient, token []byte, s backend.StateT) (*recordIndex, error) {
-	key, err := recordIndexKey(token, s)
+	key, err := getRecordIndexKey(token, s)
 	if err != nil {
 		return nil, err
 	}
@@ -289,31 +298,20 @@ func (c *commentIndex) voteScore() (uint64, uint64) {
 	return downvotes, upvotes
 }
 
-const (
-	// Key-value store keys for the cached record indexes.
-	keyRecordIndexUnvetted = "{shorttoken}-index-unvetted.json"
-	keyRecordIndexVetted   = "{shorttoken}-index-vetted.json"
-)
-
-// recordIndexKey returns the key-value store key for a cached record index. It
-// accepts both the full length token or the short token.
-func recordIndexKey(token []byte, s backend.StateT) (string, error) {
-	var key string
-	switch s {
-	case backend.StateUnvetted:
-		key = keyRecordIndexUnvetted
-	case backend.StateVetted:
-		key = keyRecordIndexVetted
-	default:
-		return "", errors.Errorf("invalid state %v", s)
-	}
-
+// getRecordIndexKey returns the key-value store key for a cached record index.
+// It accepts both the full length token or the short token.
+func getRecordIndexKey(token []byte, s backend.StateT) (string, error) {
 	t, err := util.ShortTokenEncode(token)
 	if err != nil {
 		return "", err
 	}
 
-	return strings.Replace(key, "{shorttoken}", t, 1), nil
+	key := strings.Replace(recordIndexKey, "{state}", backend.States[s], 1)
+	key = strings.Replace(key, "{shorttoken}", t, 1)
+
+	log.Tracef("Record index key: %v", key)
+
+	return key, nil
 }
 
 // voteIndex contains the comment vote and the digest of the vote record.
