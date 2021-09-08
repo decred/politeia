@@ -604,7 +604,7 @@ func (p *plugin) startRunoffVoteForParent(tstore plugins.TstoreClient, token []b
 		return nil, err
 	}
 	if r.RecordMetadata.State != backend.StateVetted {
-		// This should not be possible
+		// Should not be possible
 		return nil, errors.Errorf("record is unvetted")
 	}
 	vm, err := decodeVoteMetadata(r.Files)
@@ -632,13 +632,13 @@ func (p *plugin) startRunoffVoteForParent(tstore plugins.TstoreClient, token []b
 	// public records that have linked to the parent record.
 	// The submission list will include abandoned proposals
 	// that need to be filtered out.
-	lf, err := p.submissionsCache(token)
+	rs, err := getRunoffSubs(tstore, encodeToken(token))
 	if err != nil {
 		return nil, err
 	}
 	// map[token]struct{}
-	expected := make(map[string]struct{}, len(lf.Tokens))
-	for k := range lf.Tokens {
+	expected := make(map[string]struct{}, len(rs.Subs))
+	for k := range rs.Subs {
 		token, err := decodeToken(k)
 		if err != nil {
 			return nil, err

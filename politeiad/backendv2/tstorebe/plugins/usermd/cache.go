@@ -19,7 +19,7 @@ const (
 	// userCacheKey is the format that the key-value store key uses
 	// for the userCache data. The "{userid}" is replaced by the real
 	// user ID.
-	userCacheKey = usermd.PluginID + "-{userid}"
+	userCacheKey = usermd.PluginID + "-{userid}-v1"
 )
 
 // userCache contains cached user metadata for an individual user. The data is

@@ -15,8 +15,8 @@ import (
 
 const (
 	// Key-value store keys for the cached ticketvote inventory.
-	invKey          = pluginID + "-inventory"
-	invExtraDataKey = pluginID + "-inventory-extradata"
+	invKey          = pluginID + "-inventory-v1"
+	invExtraDataKey = pluginID + "-inventory-extradata-v1"
 )
 
 // invBits represents bit flags that are used to encode the vote status into an
