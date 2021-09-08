@@ -59,7 +59,7 @@ const tableKeyValue = `
 const tableUsers = `
   id VARCHAR(36) NOT NULL PRIMARY KEY,
   username VARCHAR(64) NOT NULL,
-  u_blob BLOB NOT NULL,
+  u_blob LONGBLOB NOT NULL,
   created_at INT(11) NOT NULL,
   updated_at INT(11),
   UNIQUE (username)
