@@ -144,7 +144,7 @@ func (p *ticketVotePlugin) linkToVerify(linkTo string) error {
 
 	// LinkTo must be a runoff vote parent record, i.e. has specified
 	// a LinkBy deadline.
-	parentVM, err := voteMetadataDecode(r.Files)
+	parentVM, err := decodeVoteMetadata(r.Files)
 	if err != nil {
 		return err
 	}
@@ -193,7 +193,7 @@ func (p *ticketVotePlugin) linkToVerifyOnEdits(r backend.Record, newFiles []back
 		oldLinkTo string
 		newLinkTo string
 	)
-	vm, err := voteMetadataDecode(r.Files)
+	vm, err := decodeVoteMetadata(r.Files)
 	if err != nil {
 		return err
 	}
@@ -201,7 +201,7 @@ func (p *ticketVotePlugin) linkToVerifyOnEdits(r backend.Record, newFiles []back
 	if vm != nil {
 		oldLinkTo = vm.LinkTo
 	}
-	vm, err = voteMetadataDecode(newFiles)
+	vm, err = decodeVoteMetadata(newFiles)
 	if err != nil {
 		return err
 	}
@@ -247,7 +247,7 @@ func (p *ticketVotePlugin) linkToVerifyOnStatusChange(status backend.StatusT, vm
 	}
 
 	// Verify linkby has not expired
-	vmParent, err := voteMetadataDecode(r.Files)
+	vmParent, err := decodeVoteMetadata(r.Files)
 	if err != nil {
 		return err
 	}
@@ -272,7 +272,7 @@ func (p *ticketVotePlugin) linkToVerifyOnStatusChange(status backend.StatusT, vm
 func (p *ticketVotePlugin) voteMetadataVerify(files []backend.File) error {
 	// Decode vote metadata. The vote metadata is optional so one may
 	// not exist.
-	vm, err := voteMetadataDecode(files)
+	vm, err := decodeVoteMetadata(files)
 	if err != nil {
 		return err
 	}
@@ -329,7 +329,7 @@ func (p *ticketVotePlugin) voteMetadataVerifyOnEdits(r backend.Record, newFiles 
 
 	// Decode vote metadata. The vote metadata is optional so one may not
 	// exist.
-	vm, err := voteMetadataDecode(newFiles)
+	vm, err := decodeVoteMetadata(newFiles)
 	if err != nil {
 		return err
 	}
@@ -358,7 +358,7 @@ func (p *ticketVotePlugin) voteMetadataVerifyOnEdits(r backend.Record, newFiles 
 func (p *ticketVotePlugin) voteMetadataVerifyOnStatusChange(status backend.StatusT, files []backend.File) error {
 	// Decode vote metadata. Vote metadata is optional so one may not
 	// exist.
-	vm, err := voteMetadataDecode(files)
+	vm, err := decodeVoteMetadata(files)
 	if err != nil {
 		return err
 	}
@@ -382,7 +382,7 @@ func (p *ticketVotePlugin) voteMetadataVerifyOnStatusChange(status backend.Statu
 func (p *ticketVotePlugin) voteMetadataCacheOnStatusChange(token string, state backend.StateT, status backend.StatusT, files []backend.File) error {
 	// Decode vote metadata. Vote metadata is optional so one may not
 	// exist.
-	vm, err := voteMetadataDecode(files)
+	vm, err := decodeVoteMetadata(files)
 	if err != nil {
 		return err
 	}
@@ -424,28 +424,5 @@ func (p *ticketVotePlugin) voteMetadataCacheOnStatusChange(token string, state b
 	}
 
 	return nil
-}
-
-// voteMetadataDecode decodes and returns the VoteMetadata from the
-// provided backend files. If a VoteMetadata is not found, nil is returned.
-func voteMetadataDecode(files []backend.File) (*ticketvote.VoteMetadata, error) {
-	var voteMD *ticketvote.VoteMetadata
-	for _, v := range files {
-		if v.Name != ticketvote.FileNameVoteMetadata {
-			continue
-		}
-		b, err := base64.StdEncoding.DecodeString(v.Payload)
-		if err != nil {
-			return nil, err
-		}
-		var m ticketvote.VoteMetadata
-		err = json.Unmarshal(b, &m)
-		if err != nil {
-			return nil, err
-		}
-		voteMD = &m
-		break
-	}
-	return voteMD, nil
 }
 */

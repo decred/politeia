@@ -138,7 +138,7 @@ func (p *plugin) Setup() error {
 	return nil
 }
 
-// Write executes a read/write plugin command. All operations are executed
+// Write executes a write plugin command. All operations are executed
 // atomically by tstore when using this method. The plugin does not need to
 // worry about concurrency issues.
 //

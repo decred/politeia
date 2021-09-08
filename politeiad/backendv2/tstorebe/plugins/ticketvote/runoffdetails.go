@@ -33,14 +33,14 @@ type runoffDetails struct {
 }
 
 // encode encodes the runoffDetails into a BlobEntry.
-func (r *runoffDetails) encode() ([]byte, error) {
+func (r *runoffDetails) encode() (*store.BlobEntry, error) {
 	data, err := json.Marshal(r)
 	if err != nil {
 		return nil, err
 	}
 	dd := store.DataDescriptor{
 		Type:       store.DataTypeStructure,
-		Descriptor: dataDescriptorStartRunoff,
+		Descriptor: dataDescriptorRunoffDetails,
 	}
 	return store.NewBlobEntry(dd, data)
 }

@@ -229,110 +229,15 @@ func (p *plugin) cmdStartRunoffSub(tstore plugins.TstoreClient, token []byte, pa
 		return "", err
 	}
 
-	// Sanity check
-	sd := srs.StartDetails
-	t, err := decodeToken(sd.Params.Token)
+	// Start the voting period on the runoff vote
+	// submission.
+	err = p.startRunoffVoteForSub(tstore, token, srs)
 	if err != nil {
-		return err
+		return "", err
 	}
-	if !bytes.Equal(token, t) {
-		return errors.Errorf("invalid token")
-	}
-
-	// Get the runoff details record. This will
-	// be saved to the parent record.
-	parent, err := decodeToken(srs.ParentToken)
-	if err != nil {
-		return err
-	}
-	rd, err := getRunoffDetails(tstore, token)
-	if err != nil {
-		return err
-	}
-
-	// Sanity check. Verify token is part of
-	// the start runoff record submissions.
-	var found bool
-	for _, v := range srr.Submissions {
-		if hex.EncodeToString(token) == v {
-			found = true
-			break
-		}
-	}
-	if !found {
-		// This submission should not be here
-		return errors.Errorf("record not in submission list")
-	}
-
-	// If the vote has already been started, exit gracefully.
-	// This allows us to recover from unexpected errors to
-	// the start runoff vote call as it updates the state of
-	// multiple records. If the call were to fail before
-	// completing, we can simply call the command again with
-	// the same arguments and it will pick up where it left
-	// off.
-	vdp, err := voteDetails(token)
-	if err != nil {
-		return err
-	}
-	if vdp != nil {
-		// Vote has already been started. Exit gracefully.
-		return nil
-	}
-
-	// Verify record version
-	r, err := tstore.RecordPartial(token, 0, nil, true)
-	if err != nil {
-		return err
-	}
-	if r.RecordMetadata.State != backend.StateVetted {
-		// This should not be possible
-		return errors.Errorf("record is unvetted")
-	}
-	if sd.Params.Version != r.RecordMetadata.Version {
-		return backend.PluginError{
-			PluginID:  ticketvote.PluginID,
-			ErrorCode: uint32(ticketvote.ErrorCodeRecordVersionInvalid),
-			ErrorContext: fmt.Sprintf("version is not the latest %v: "+
-				"got %v, want %v", sd.Params.Token, sd.Params.Version,
-				r.RecordMetadata.Version),
-		}
-	}
-
-	// Save vote details
-	receipt := p.identity.SignMessage([]byte(sd.Signature + srr.StartBlockHash))
-	vd := ticketvote.VoteDetails{
-		Params:           sd.Params,
-		PublicKey:        sd.PublicKey,
-		Signature:        sd.Signature,
-		Receipt:          hex.EncodeToString(receipt[:]),
-		StartBlockHeight: srr.StartBlockHeight,
-		StartBlockHash:   srr.StartBlockHash,
-		EndBlockHeight:   srr.EndBlockHeight,
-		EligibleTickets:  srr.EligibleTickets,
-	}
-	err = voteDetailsSave(tstore, token, vd)
-	if err != nil {
-		return err
-	}
-
-	// Update the inventory
-	eed := entryExtraData{
-		EndHeight: vd.EndBlockHeight,
-	}
-	err = updateInv(tstore, vd.Params.Token, ticketvote.VoteStatusStarted,
-		time.Now().Unix(), &eed)
-	if err != nil {
-		return nil, err
-	}
-
-	/* TODO active votes
-	// Update active votes cache
-	p.activeVotesAdd(vd)
-	*/
 
 	// Prepare reply
-	reply, err = json.Marshal(startRunoffSubmissionReply{})
+	reply, err := json.Marshal(startRunoffSubReply{})
 	if err != nil {
 		return "", err
 	}
@@ -405,9 +310,9 @@ func (p *plugin) startStandardVote(tstore plugins.TstoreClient, token []byte, s 
 		return nil, err
 	}
 
-	// Verify the vote authorization status. Multiple authorization
-	// objects may exist. The most recent object is the one that
-	// should be checked.
+	// Verify the vote authorization status. Multiple
+	// authorization objects may exist. The most recent
+	// object is the one that should be checked.
 	auths, err := authDetails(tstore, token)
 	if err != nil {
 		return nil, err
@@ -495,8 +400,8 @@ func (p *plugin) startRunoffVote(tstore plugins.TstoreClient, token []byte, s ti
 		return nil, errors.Errorf("no start details found")
 	}
 
-	// Perform validation that can be done without fetching any records
-	// from the backend.
+	// Perform validation that can be done without fetching
+	// any records from the backend.
 	var (
 		mask     = s.Starts[0].Params.Mask
 		duration = s.Starts[0].Params.Duration
@@ -584,8 +489,8 @@ func (p *plugin) startRunoffVote(tstore plugins.TstoreClient, token []byte, s ti
 			return nil, err
 		}
 
-		// Verify vote options and params. Vote optoins are
-		// required to be approve and reject.
+		// Verify vote options and params. Vote options
+		// are required to be approve and reject.
 		err = verifyVoteParams(v.Params, p.settings.voteDurationMin,
 			p.settings.voteDurationMax)
 		if err != nil {
@@ -593,8 +498,8 @@ func (p *plugin) startRunoffVote(tstore plugins.TstoreClient, token []byte, s ti
 		}
 	}
 
-	// Verify that this plugin command is being executed on the
-	// parent record.
+	// Verify that this plugin command is being executed
+	// on the parent record.
 	if hex.EncodeToString(token) != parent {
 		return nil, backend.PluginError{
 			PluginID:  ticketvote.PluginID,
@@ -604,21 +509,23 @@ func (p *plugin) startRunoffVote(tstore plugins.TstoreClient, token []byte, s ti
 		}
 	}
 
-	// Save a start runoff record to the parent record.
-	srr, err := p.startRunoffForParent(token, s)
+	// Save a runoff details record to the parent record.
+	// Once this has been saved the runoff vote is considered
+	// to be officially started.
+	rd, err := p.startRunoffVoteForParent(tstore, token, s)
 	if err != nil {
 		return nil, err
 	}
 
-	// Start the voting period on each runoff vote submissions.
-	// This is done using the startRunoffSubmission internal
-	// plugin command.
+	// Start the voting period on each runoff vote
+	// submissions. This is done using the internal
+	// plugin command startRunoffSub.
 	for _, v := range s.Starts {
 		token, err = decodeToken(v.Params.Token)
 		if err != nil {
 			return nil, err
 		}
-		srs := startRunoffSubmission{
+		srs := startRunoffSub{
 			ParentToken:  v.Params.Parent,
 			StartDetails: v,
 		}
@@ -627,56 +534,61 @@ func (p *plugin) startRunoffVote(tstore plugins.TstoreClient, token []byte, s ti
 			return nil, err
 		}
 		_, err = p.backend.PluginWrite(token, ticketvote.PluginID,
-			cmdStartRunoffSubmission, string(b))
+			cmdStartRunoffSub, string(b))
 		if err != nil {
 			var ue backend.PluginError
 			if errors.As(err, &ue) {
 				return nil, err
 			}
 			return nil, errors.Errorf("PluginWrite %x %v %v: %v",
-				token, ticketvote.PluginID,
-				cmdStartRunoffSubmission, err)
+				token, ticketvote.PluginID, cmdStartRunoffSub, err)
 		}
 	}
 
 	return &ticketvote.StartReply{
-		StartBlockHeight: srr.StartBlockHeight,
-		StartBlockHash:   srr.StartBlockHash,
-		EndBlockHeight:   srr.EndBlockHeight,
-		EligibleTickets:  srr.EligibleTickets,
+		StartBlockHeight: rd.StartBlockHeight,
+		StartBlockHash:   rd.StartBlockHash,
+		EndBlockHeight:   rd.EndBlockHeight,
+		EligibleTickets:  rd.EligibleTickets,
 	}, nil
 }
 
-// startRunoffForParent saves a startRunoffRecord to the parent record. Once
-// this has been saved the runoff vote is considered to be started and the
-// voting period on individual runoff vote submissions can be started.
-func (p *plugin) startRunoffForParent(token []byte, s ticketvote.Start) (*startRunoffRecord, error) {
-	// Check if the runoff vote data already exists on the parent tree.
-	srr, err := p.startRunoffRecord(token)
+// startRunoffVoteForParent saves a runoffDetails to the parent record and
+// returns it. Once this has been saved the runoff vote is considered to be
+// started and the voting period on individual runoff vote submissions can be
+// started.
+func (p *plugin) startRunoffVoteForParent(tstore plugins.TstoreClient, token []byte, s ticketvote.Start) (*runoffDetails, error) {
+	// Verify that the runoff details record does
+	// not already exist. A runoff details record
+	// will exist if the runoff vote has already
+	// been started.
+	rd, err := getRunoffDetails(tstore, token)
 	if err != nil {
 		return nil, err
 	}
-	if srr != nil {
-		// We already have a start runoff record for this runoff vote.
-		// This can happen if the previous call failed due to an
-		// unexpected error such as a network error. Return the start
-		// runoff record so we can pick up where we left off.
-		return srr, nil
+	if rd != nil {
+		// The runoff vote has already been started. This
+		// can heppen if the prvious call failed due to an
+		// unexpected error. Return the runoff details so
+		// that we can pick up where we left off.
+		return rd, nil
 	}
 
-	// Get blockchain data
+	// Get the blockchain data for the vote
 	var (
 		mask     = s.Starts[0].Params.Mask
 		duration = s.Starts[0].Params.Duration
 		quorum   = s.Starts[0].Params.QuorumPercentage
 		pass     = s.Starts[0].Params.PassPercentage
 	)
-	vcp, err := p.voteChainParams(duration)
+	vcp, err := getVoteChainParams(p.backend, duration,
+		uint32(p.net.TicketMaturity))
 	if err != nil {
 		return nil, err
 	}
 
-	// Verify parent has a LinkBy and the LinkBy deadline is expired.
+	// Verify that the parent record has its LinkBy field
+	// set and that the LinkBy deadline has expired.
 	files := []string{
 		ticketvote.FileNameVoteMetadata,
 	}
@@ -684,70 +596,70 @@ func (p *plugin) startRunoffForParent(token []byte, s ticketvote.Start) (*startR
 	if err != nil {
 		if errors.Is(err, backend.ErrRecordNotFound) {
 			return nil, backend.PluginError{
-				PluginID:  ticketvote.PluginID,
-				ErrorCode: uint32(ticketvote.ErrorCodeVoteParentInvalid),
-				ErrorContext: fmt.Sprintf("parent record not "+
-					"found %x", token),
+				PluginID:     ticketvote.PluginID,
+				ErrorCode:    uint32(ticketvote.ErrorCodeVoteParentInvalid),
+				ErrorContext: fmt.Sprintf("record not found %x", token),
 			}
 		}
-		return nil, errors.Errorf("RecordPartial: %v", err)
+		return nil, err
 	}
 	if r.RecordMetadata.State != backend.StateVetted {
 		// This should not be possible
 		return nil, errors.Errorf("record is unvetted")
 	}
-	vm, err := voteMetadataDecode(r.Files)
+	vm, err := decodeVoteMetadata(r.Files)
 	if err != nil {
 		return nil, err
 	}
 	if vm == nil || vm.LinkBy == 0 {
 		return nil, backend.PluginError{
-			PluginID:  ticketvote.PluginID,
-			ErrorCode: uint32(ticketvote.ErrorCodeVoteParentInvalid),
-			ErrorContext: fmt.Sprintf("%x is not a runoff vote "+
-				"parent", token),
+			PluginID:     ticketvote.PluginID,
+			ErrorCode:    uint32(ticketvote.ErrorCodeVoteParentInvalid),
+			ErrorContext: fmt.Sprintf("parent %x is not an rfp", token),
 		}
 	}
 	if vm.LinkBy > time.Now().Unix() {
 		return nil, backend.PluginError{
 			PluginID:  ticketvote.PluginID,
 			ErrorCode: uint32(ticketvote.ErrorCodeLinkByNotExpired),
-			ErrorContext: fmt.Sprintf("parent record %x linkby "+
-				"deadline (%v) has not expired yet", token, vm.LinkBy),
+			ErrorContext: fmt.Sprintf("parent %x linkby deadline "+
+				"(%v) has not expired yet", token, vm.LinkBy),
 		}
 	}
 
-	// Compile a list of the expected submissions that should be in the
-	// runoff vote. This will be all of the public records that have
-	// linked to the parent record. The parent record's submissions
-	// list will include abandoned proposals that need to be filtered
-	// out.
+	// Compile a list of expected submissions that should be
+	// included in the runoff vote. This will include all
+	// public records that have linked to the parent record.
+	// The submission list will include abandoned proposals
+	// that need to be filtered out.
 	lf, err := p.submissionsCache(token)
 	if err != nil {
 		return nil, err
 	}
-	expected := make(map[string]struct{}, len(lf.Tokens)) // [token]struct{}
+	// map[token]struct{}
+	expected := make(map[string]struct{}, len(lf.Tokens))
 	for k := range lf.Tokens {
 		token, err := decodeToken(k)
 		if err != nil {
 			return nil, err
 		}
-		r, err := p.recordAbridged(token)
+		r, err := recordAbridged(p.backend, token)
 		if err != nil {
 			return nil, err
 		}
 		if r.RecordMetadata.Status != backend.StatusPublic {
-			// This record is not public and should not be included
-			// in the runoff vote.
+			// This record is not public and should
+			// not be included in the runoff vote.
 			continue
 		}
 
-		// This is a public record that is part of the parent record's
-		// submissions list. It is required to be in the runoff vote.
+		// This is a public record that is part of
+		// the parent record's submission list. It
+		// is required to be in the runoff vote.
 		expected[k] = struct{}{}
 	}
 
-	// Verify that there are no extra submissions in the runoff vote
+	// Verify that there are no extra submissions
 	for _, v := range s.Starts {
 		_, ok := expected[v.Params.Token]
 		if !ok {
@@ -761,7 +673,7 @@ func (p *plugin) startRunoffForParent(token []byte, s ticketvote.Start) (*startR
 		}
 	}
 
-	// Verify that the runoff vote is not missing any submissions
+	// Verify that no submissions are missing
 	subs := make(map[string]struct{}, len(s.Starts))
 	for _, v := range s.Starts {
 		subs[v.Params.Token] = struct{}{}
@@ -778,12 +690,12 @@ func (p *plugin) startRunoffForParent(token []byte, s ticketvote.Start) (*startR
 		}
 	}
 
-	// Prepare start runoff record
+	// Save a runoff details record
 	submissions := make([]string, 0, len(subs))
 	for k := range subs {
 		submissions = append(submissions, k)
 	}
-	srr = &startRunoffRecord{
+	rd = &runoffDetails{
 		Submissions:      submissions,
 		Mask:             mask,
 		Duration:         duration,
@@ -794,14 +706,119 @@ func (p *plugin) startRunoffForParent(token []byte, s ticketvote.Start) (*startR
 		EndBlockHeight:   vcp.EndBlockHeight,
 		EligibleTickets:  vcp.EligibleTickets,
 	}
-
-	// Save start runoff record
-	err = p.startRunoffRecordSave(token, *srr)
+	err = rd.save(tstore, token)
 	if err != nil {
 		return nil, err
 	}
 
-	return srr, nil
+	return rd, nil
+}
+
+// startRunoffVoteForSub starts the voting period on a runoff vote submission.
+func (p *plugin) startRunoffVoteForSub(tstore plugins.TstoreClient, token []byte, srs startRunoffSub) error {
+	// Sanity check
+	sd := srs.StartDetails
+	t, err := decodeToken(sd.Params.Token)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(token, t) {
+		return errors.Errorf("invalid token")
+	}
+
+	// Get the runoff details record. This will
+	// be saved to the parent record.
+	parent, err := decodeToken(srs.ParentToken)
+	if err != nil {
+		return err
+	}
+	rd, err := getRunoffDetails(tstore, parent)
+	if err != nil {
+		return err
+	}
+
+	// Sanity check. Verify token is part of
+	// the start runoff record submissions.
+	var found bool
+	for _, v := range rd.Submissions {
+		if hex.EncodeToString(token) == v {
+			found = true
+			break
+		}
+	}
+	if !found {
+		// This submission should not be here
+		return errors.Errorf("record not in submission list")
+	}
+
+	// If the vote has already been started, exit gracefully.
+	// This allows us to recover from unexpected errors to
+	// the start runoff vote call as it updates the state of
+	// multiple records. If the call were to fail before
+	// completing, we can simply call the command again with
+	// the same arguments and it will pick up where it left
+	// off.
+	vdp, err := voteDetails(tstore, token)
+	if err != nil {
+		return err
+	}
+	if vdp != nil {
+		// Vote has already been started. Exit gracefully.
+		return nil
+	}
+
+	// Verify record version
+	r, err := tstore.RecordPartial(token, 0, nil, true)
+	if err != nil {
+		return err
+	}
+	if r.RecordMetadata.State != backend.StateVetted {
+		// This should not be possible
+		return errors.Errorf("record is unvetted")
+	}
+	if sd.Params.Version != r.RecordMetadata.Version {
+		return backend.PluginError{
+			PluginID:  ticketvote.PluginID,
+			ErrorCode: uint32(ticketvote.ErrorCodeRecordVersionInvalid),
+			ErrorContext: fmt.Sprintf("version is not the latest %v: "+
+				"got %v, want %v", sd.Params.Token, sd.Params.Version,
+				r.RecordMetadata.Version),
+		}
+	}
+
+	// Save vote details
+	receipt := p.identity.SignMessage([]byte(sd.Signature + rd.StartBlockHash))
+	vd := ticketvote.VoteDetails{
+		Params:           sd.Params,
+		PublicKey:        sd.PublicKey,
+		Signature:        sd.Signature,
+		Receipt:          hex.EncodeToString(receipt[:]),
+		StartBlockHeight: rd.StartBlockHeight,
+		StartBlockHash:   rd.StartBlockHash,
+		EndBlockHeight:   rd.EndBlockHeight,
+		EligibleTickets:  rd.EligibleTickets,
+	}
+	err = voteDetailsSave(tstore, token, vd)
+	if err != nil {
+		return err
+	}
+
+	// Update the inventory
+	eed := entryExtraData{
+		EndHeight: vd.EndBlockHeight,
+	}
+	err = updateInv(tstore, vd.Params.Token, ticketvote.VoteStatusStarted,
+		time.Now().Unix(), &eed)
+	if err != nil {
+		return err
+	}
+
+	/* TODO active votes
+	// Update active votes cache
+	p.activeVotesAdd(vd)
+	*/
+
+	return nil
 }
 
 // verifyVoteParams verifies that the params of a ticket vote are within
@@ -982,12 +999,12 @@ func getVoteChainParams(backend backend.Backend, duration, ticketMaturity uint32
 		return nil, err
 	}
 
-	// Find the snapshot height. Subtract the ticket maturity from the
-	// block height to get into unforkable territory.
+	// Find the snapshot height. Subtract the ticket maturity
+	// from the block height to get into unforkable territory.
 	snapshotHeight := bb - ticketMaturity
 
-	// Fetch the block details for the snapshot height. We need the
-	// block hash in order to fetch the ticket pool snapshot.
+	// Fetch the block details for the snapshot height. The
+	// block hash is needed to fetch the ticket pool snapshot.
 	bd := dcrdata.BlockDetails{
 		Height: snapshotHeight,
 	}
@@ -1036,10 +1053,10 @@ func getVoteChainParams(backend backend.Backend, duration, ticketMaturity uint32
 			snapshotHeight, snapshotHash)
 	}
 
-	// The start block height has the ticket maturity subtracted from
-	// it to prevent forking issues. This means we the vote starts in
-	// the past. The ticket maturity needs to be added to the end block
-	// height to correct for this.
+	// The start block height has the ticket maturity subtracted
+	// from it to prevent forking issues. This means we the vote
+	// starts in the past. The ticket maturity needs to be added
+	// to the end block height to correct for this.
 	endBlockHeight := snapshotHeight + duration + ticketMaturity
 
 	return &voteChainParams{

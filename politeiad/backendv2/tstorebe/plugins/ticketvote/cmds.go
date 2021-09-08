@@ -1511,28 +1511,6 @@ func (p *plugin) timestamp(token []byte, digest []byte) (*ticketvote.Timestamp, 
 	}, nil
 }
 
-// recordAbridged returns a record where the only record file returned is the
-// vote metadata file if one exists.
-func (p *plugin) recordAbridged(token []byte) (*backend.Record, error) {
-	reqs := []backend.RecordRequest{
-		{
-			Token: token,
-			Filenames: []string{
-				ticketvote.FileNameVoteMetadata,
-			},
-		},
-	}
-	rs, err := p.backend.Records(reqs)
-	if err != nil {
-		return nil, err
-	}
-	r, ok := rs[hex.EncodeToString(token)]
-	if !ok {
-		return nil, backend.ErrRecordNotFound
-	}
-	return &r, nil
-}
-
 // voteHasEnded returns whether the vote has ended.
 func voteHasEnded(bestBlock, endHeight uint32) bool {
 	return bestBlock >= endHeight
