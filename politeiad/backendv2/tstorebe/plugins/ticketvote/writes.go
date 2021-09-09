@@ -90,7 +90,7 @@ func (p *plugin) cmdAuthorize(tstore plugins.TstoreClient, token []byte, payload
 
 	// Get any previous authorizations to verify that the
 	// new action is allowed based on the previous action.
-	auths, err := authDetails(tstore, token)
+	auths, err := getAllAuthDetails(tstore, token)
 	if err != nil {
 		return "", err
 	}
@@ -128,7 +128,7 @@ func (p *plugin) cmdAuthorize(tstore plugins.TstoreClient, token []byte, payload
 
 	// Save authorization
 	receipt := p.identity.SignMessage([]byte(a.Signature))
-	auth := ticketvote.AuthDetails{
+	auth := authDetails{
 		Token:     a.Token,
 		Version:   a.Version,
 		Action:    string(a.Action),
@@ -137,7 +137,7 @@ func (p *plugin) cmdAuthorize(tstore plugins.TstoreClient, token []byte, payload
 		Timestamp: time.Now().Unix(),
 		Receipt:   hex.EncodeToString(receipt[:]),
 	}
-	err = authDetailsSave(tstore, token, auth)
+	err = auth.save(tstore, token)
 	if err != nil {
 		return "", err
 	}
@@ -313,7 +313,7 @@ func (p *plugin) startStandardVote(tstore plugins.TstoreClient, token []byte, s 
 	// Verify the vote authorization status. Multiple
 	// authorization objects may exist. The most recent
 	// object is the one that should be checked.
-	auths, err := authDetails(tstore, token)
+	auths, err := getAllAuthDetails(tstore, token)
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,25 @@
+// Copyright (c) 2021 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
+package ticketvote
+
+import (
+	"testing"
+
+	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/decred/politeia/unittest"
+)
+
+func TestAuthDetails(t *testing.T) {
+	// Verify the local struct contains all the same
+	// fields as the API struct.
+	var (
+		local = authDetails{}
+		api   = ticketvote.AuthDetails{}
+	)
+	err := unittest.CompareStructFields(local, api)
+	if err != nil {
+		t.Error(err)
+	}
+}

@@ -84,73 +84,6 @@ func bestBlockUnsafe(backend backend.Backend) (uint32, error) {
 	return bbr.Height, nil
 }
 
-// authDetailsEncode encodes a AuthDetails into a BlobEntry.
-func authDetailsEncode(ad ticketvote.AuthDetails) (*store.BlobEntry, error) {
-	data, err := json.Marshal(ad)
-	if err != nil {
-		return nil, err
-	}
-	dh := store.DataHint{
-		Type:       store.DataTypeStructure,
-		Descriptor: dataDescriptorAuthDetails,
-	}
-	return store.NewBlobEntry(dh, data)
-}
-
-// authDetailsDecode decodes a BlobEntry into a AuthDetails.
-func authDetailsDecode(be store.BlobEntry) (*ticketvote.AuthDetails, error) {
-	b, err := store.Decode(be, dataDescriptorAuthDetails)
-	if err != nil {
-		return nil, err
-	}
-	var ad ticketvote.AuthDetails
-	err = json.Unmarshal(b, &ad)
-	if err != nil {
-		return nil, err
-	}
-	return &ad, nil
-}
-
-// authDetailsSave saves a AuthDetails to the backend.
-func authDetailsSave(tstore plugins.TstoreClient, token []byte, ad ticketvote.AuthDetails) error {
-	// Prepare blob
-	be, err := authDetailsEncode(ad)
-	if err != nil {
-		return err
-	}
-
-	// Save blob
-	return tstore.BlobSave(token, *be)
-}
-
-// authDetails returns all AuthDetails for a record.
-func authDetails(tstore plugins.TstoreClient, token []byte) ([]ticketvote.AuthDetails, error) {
-	// Retrieve blobs
-	blobs, err := tstore.BlobsByDataDesc(token,
-		[]string{dataDescriptorAuthDetails})
-	if err != nil {
-		return nil, err
-	}
-
-	// Decode blobs
-	auths := make([]ticketvote.AuthDetails, 0, len(blobs))
-	for _, v := range blobs {
-		a, err := authDetailsDecode(v)
-		if err != nil {
-			return nil, err
-		}
-		auths = append(auths, *a)
-	}
-
-	// Sanity check. They should already be sorted from
-	// oldest to newest.
-	sort.SliceStable(auths, func(i, j int) bool {
-		return auths[i].Timestamp < auths[j].Timestamp
-	})
-
-	return auths, nil
-}
-
 // voteDetailsEncode encodes a VoteDetails into a BlobEntry.
 func voteDetailsEncode(vd ticketvote.VoteDetails) (*store.BlobEntry, error) {
 	data, err := json.Marshal(vd)
@@ -239,7 +172,6 @@ func voteDetailsForRecord(backend backend.Backend, token []byte) (*ticketvote.Vo
 
 // voteResults returns the votes that were cast during a ticket vote.
 func voteResults(tstore plugins.TstoreClient, token []byte) ([]ticketvote.CastVoteDetails, error) {
-	/* TODO
 	// Retrieve the blobs for the cast votes and the vote
 	// colliders. A cast vote is not valid unless there is a
 	// corresponding vote collider. If there are multiple
@@ -265,19 +197,14 @@ func voteResults(tstore plugins.TstoreClient, token []byte) ([]ticketvote.CastVo
 	)
 	for i, v := range blobs {
 		// Decode data hint
-		b, err := base64.StdEncoding.DecodeString(v.DataHint)
-		if err != nil {
-			return nil, err
-		}
-		var dh store.DataHint
-		err = json.Unmarshal(b, &dh)
+		dh, err := store.DecodeDataHint(v)
 		if err != nil {
 			return nil, err
 		}
 		switch dh.Descriptor {
 		case dataDescriptorCastVoteDetails:
 			// Decode cast vote
-			cv, err := convertCastVoteDetailsFromBlobEntry(v)
+			cv, err := castVoteDetailsDecode(v)
 			if err != nil {
 				return nil, err
 			}
@@ -295,7 +222,7 @@ func voteResults(tstore plugins.TstoreClient, token []byte) ([]ticketvote.CastVo
 
 		case dataDescriptorVoteCollider:
 			// Decode vote collider
-			vc, err := convertVoteColliderFromBlobEntry(v)
+			vc, err := decodeVoteCollider(v)
 			if err != nil {
 				return nil, err
 			}
@@ -359,7 +286,7 @@ func voteResults(tstore plugins.TstoreClient, token []byte) ([]ticketvote.CastVo
 
 		// Save the valid vote
 		b := blobs[validVoteIndex]
-		cv, err := convertCastVoteDetailsFromBlobEntry(b)
+		cv, err := castVoteDetailsDecode(b)
 		if err != nil {
 			return nil, err
 		}
@@ -378,8 +305,6 @@ func voteResults(tstore plugins.TstoreClient, token []byte) ([]ticketvote.CastVo
 	})
 
 	return cvotes, nil
-	*/
-	return nil, nil
 }
 
 // caseVoteDetailsEncode encodes a CastVoteDetails into a BlobEntry.
