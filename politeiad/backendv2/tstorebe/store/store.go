@@ -138,19 +138,6 @@ type Getter interface {
 	GetBatch(keys []string) (map[string][]byte, error)
 }
 
-const (
-	// DataTypeStructure describes a blob entry that contains a structure.
-	DataTypeStructure = "struct"
-)
-
-// DataDescriptor provides hints about a data blob. In practice we JSON encode
-// this struture and stuff it into BlobEntry.DataHint.
-type DataDescriptor struct {
-	Type       string `json:"type"`                // Type of data
-	Descriptor string `json:"descriptor"`          // Description of the data
-	ExtraData  string `json:"extradata,omitempty"` // Value to be freely used
-}
-
 // BlobEntry is the structure used to store data in the key-value store.
 type BlobEntry struct {
 	Digest   string `json:"digest"`   // SHA256 digest of data, hex encoded
@@ -159,8 +146,8 @@ type BlobEntry struct {
 }
 
 // NewBlobEntry returns a new BlobEntry.
-func NewBlobEntry(dd DataDescriptor, data []byte) (*BlobEntry, error) {
-	dataHint, err := json.Marshal(dd)
+func NewBlobEntry(dh DataHint, data []byte) (*BlobEntry, error) {
+	dataHint, err := json.Marshal(dh)
 	if err != nil {
 		return nil, err
 	}
@@ -169,6 +156,33 @@ func NewBlobEntry(dd DataDescriptor, data []byte) (*BlobEntry, error) {
 		DataHint: base64.StdEncoding.EncodeToString(dataHint),
 		Data:     base64.StdEncoding.EncodeToString(data),
 	}, nil
+}
+
+const (
+	// DataTypeStructure describes a blob entry that contains a structure.
+	DataTypeStructure = "struct"
+)
+
+// DataHint provides hints about a data blob. In practice we JSON encode
+// this struture and stuff it into BlobEntry.DataHint.
+type DataHint struct {
+	Type       string `json:"type"`                // Type of data
+	Descriptor string `json:"descriptor"`          // Description of the data
+	ExtraData  string `json:"extradata,omitempty"` // Value to be freely used
+}
+
+// DecodeDataHint decodes and returns the BlobEntry DataHint.
+func DecodeDataHint(be BlobEntry) (*DataHint, error) {
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	var dh DataHint
+	err = json.Unmarshal(b, &dh)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return &dh, nil
 }
 
 // Blobify encodes the provided BlobEntry into a gzipped byte slice.
@@ -205,23 +219,18 @@ func Deblob(blob []byte) (*BlobEntry, error) {
 // Decode decodes the BlobEntry base64 data payload and returns it as a byte
 // slice. The coherency of the data is verified during this process.
 func Decode(be BlobEntry, dataDescriptor string) ([]byte, error) {
-	// Decode and verify data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	// Decode and verify the data hint
+	dh, err := DecodeDataHint(be)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
-	var dd DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	if dd.Descriptor != dataDescriptor {
+	if dh.Descriptor != dataDescriptor {
 		return nil, errors.Errorf("unexpected data descriptor: "+
-			"got %v, want %v", dd.Descriptor, dataDescriptor)
+			"got %v, want %v", dh.Descriptor, dataDescriptor)
 	}
 
-	// Decode verify data payload
-	b, err = base64.StdEncoding.DecodeString(be.Data)
+	// Decode and verify the data payload
+	b, err := base64.StdEncoding.DecodeString(be.Data)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
