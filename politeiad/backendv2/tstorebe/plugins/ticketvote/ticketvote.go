@@ -152,6 +152,7 @@ func (p *plugin) Write(tstore plugins.TstoreClient, token []byte, cmd, payload s
 	case ticketvote.CmdStart:
 		return p.cmdStart(tstore, token, payload)
 
+	// TODO figure out cast votes
 	// case ticketvote.CmdCastBallot:
 	// return p.cmdCastBallot(tstore, token, payload)
 
@@ -169,26 +170,26 @@ func (p *plugin) Write(tstore plugins.TstoreClient, token []byte, cmd, payload s
 func (p *plugin) Read(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("ticketvote Read: %x %v %v", token, cmd, payload)
 
-	/*
-		switch cmd {
-		case ticketvote.CmdDetails:
-			return p.cmdDetails(token)
-		case ticketvote.CmdResults:
-			return p.cmdResults(token)
-		case ticketvote.CmdSummary:
-			return p.cmdSummary(token)
-		case ticketvote.CmdSubmissions:
-			return p.cmdSubmissions(token)
-		case ticketvote.CmdInventory:
-			return p.cmdInventory(payload)
-		case ticketvote.CmdTimestamps:
-			return p.cmdTimestamps(token, payload)
+	switch cmd {
+	case ticketvote.CmdDetails:
+		return p.cmdDetails(tstore, token)
+	case ticketvote.CmdResults:
+		return p.cmdResults(tstore, token)
+		/*
+			case ticketvote.CmdSummary:
+				return p.cmdSummary(token)
+			case ticketvote.CmdSubmissions:
+				return p.cmdSubmissions(token)
+			case ticketvote.CmdInventory:
+				return p.cmdInventory(payload)
+			case ticketvote.CmdTimestamps:
+				return p.cmdTimestamps(token, payload)
 
-			// Internal plugin commands
-		case cmdRunoffDetails:
-			return p.cmdRunoffDetails(token)
-		}
-	*/
+				// Internal plugin commands
+			case cmdRunoffDetails:
+				return p.cmdRunoffDetails(token)
+		*/
+	}
 
 	return "", backend.ErrPluginCmdInvalid
 }

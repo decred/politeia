@@ -38,11 +38,11 @@ func (r *runoffDetails) encode() (*store.BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	dd := store.DataDescriptor{
+	dh := store.DataHint{
 		Type:       store.DataTypeStructure,
 		Descriptor: dataDescriptorRunoffDetails,
 	}
-	return store.NewBlobEntry(dd, data)
+	return store.NewBlobEntry(dh, data)
 }
 
 // save saves the runoff details record to the database.

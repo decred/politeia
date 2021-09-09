@@ -993,7 +993,7 @@ func filesVerify(files []backend.File, filesDel []string) error {
 		detectedMIMEType := mime.DetectMimeType(payload)
 		if detectedMIMEType != files[i].MIME {
 			e := fmt.Sprintf("%v mime got %v, want %v",
-				files[i].Name, files[i].MIME, detectedMIMEType)
+				files[i].Name, detectedMIMEType, files[i].MIME)
 			return backend.ContentError{
 				ErrorCode:    backend.ContentErrorFileMIMETypeInvalid,
 				ErrorContext: e,
