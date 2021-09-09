@@ -145,11 +145,11 @@ func (d *droppingAnchor) encode() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	dd := store.DataDescriptor{
+	dh := store.DataHint{
 		Type:       store.DataTypeStructure,
 		Descriptor: dataDescriptorDroppingAnchor,
 	}
-	be, err := store.NewBlobEntry(dd, data)
+	be, err := store.NewBlobEntry(dh, data)
 	if err != nil {
 		return nil, err
 	}
@@ -335,11 +335,11 @@ func (a *anchor) encode() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	dd := store.DataDescriptor{
+	dh := store.DataHint{
 		Type:       store.DataTypeStructure,
 		Descriptor: dataDescriptorAnchor,
 	}
-	be, err := store.NewBlobEntry(dd, data)
+	be, err := store.NewBlobEntry(dh, data)
 	if err != nil {
 		return nil, err
 	}

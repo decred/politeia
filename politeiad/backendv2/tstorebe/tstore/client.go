@@ -6,9 +6,7 @@ package tstore
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
@@ -123,12 +121,7 @@ func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
 	// out and saved as part of the leaf extra data so that we
 	// know the type of blob that the leaf corresponds to without
 	// having to pull the blob from the kv store and look.
-	b, err = base64.StdEncoding.DecodeString(be.DataHint)
-	if err != nil {
-		return err
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
+	dh, err := store.DecodeDataHint(be)
 	if err != nil {
 		return err
 	}
@@ -140,7 +133,7 @@ func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
 	if err != nil {
 		return err
 	}
-	ed := newExtraData(key, dd.Descriptor, idx.State)
+	ed := newExtraData(key, dh.Descriptor, idx.State)
 	extraData, err := ed.encode()
 	if err != nil {
 		return err
@@ -168,7 +161,7 @@ func (c *Client) BlobSave(token []byte, be store.BlobEntry) error {
 		return errors.Errorf("queued leaf error: %v", code)
 	}
 
-	log.Debugf("Saved blob %v", dd.Descriptor)
+	log.Debugf("Saved blob %v", dh.Descriptor)
 
 	return nil
 }

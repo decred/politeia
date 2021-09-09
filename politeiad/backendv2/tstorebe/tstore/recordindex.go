@@ -103,11 +103,11 @@ func (r *recordIndex) encode() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	dd := store.DataDescriptor{
+	dh := store.DataHint{
 		Type:       store.DataTypeStructure,
 		Descriptor: dataDescriptorRecordIndex,
 	}
-	be, err := store.NewBlobEntry(dd, data)
+	be, err := store.NewBlobEntry(dh, data)
 	if err != nil {
 		return nil, err
 	}

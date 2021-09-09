@@ -817,57 +817,52 @@ func (t *Tstore) record(g store.Getter, treeID int64, version uint32, filenames 
 	)
 	for _, v := range entries {
 		// Decode the data hint
-		b, err := base64.StdEncoding.DecodeString(v.DataHint)
+		dh, err := store.DecodeDataHint(v)
 		if err != nil {
-			return nil, errors.Errorf("decode DataHint: %v", err)
+			return nil, err
 		}
-		var dd store.DataDescriptor
-		err = json.Unmarshal(b, &dd)
-		if err != nil {
-			return nil, errors.Errorf("unmarshal DataHint: %v", err)
-		}
-		if dd.Type != store.DataTypeStructure {
+		if dh.Type != store.DataTypeStructure {
 			return nil, errors.Errorf("invalid data type; got %v, want %v",
-				dd.Type, store.DataTypeStructure)
+				dh.Type, store.DataTypeStructure)
 		}
 
 		// Decode the data
-		b, err = base64.StdEncoding.DecodeString(v.Data)
+		b, err := base64.StdEncoding.DecodeString(v.Data)
 		if err != nil {
-			return nil, errors.Errorf("decode Data: %v", err)
+			return nil, errors.WithStack(err)
 		}
 		digest, err := hex.DecodeString(v.Digest)
 		if err != nil {
-			return nil, errors.Errorf("decode Hash: %v", err)
+			return nil, errors.WithStack(err)
 		}
 		if !bytes.Equal(util.Digest(b), digest) {
 			return nil, errors.Errorf("data is not coherent; got %x, want %x",
 				util.Digest(b), digest)
 		}
-		switch dd.Descriptor {
+		switch dh.Descriptor {
 		case dataDescriptorRecordMetadata:
 			var rm backend.RecordMetadata
 			err = json.Unmarshal(b, &rm)
 			if err != nil {
-				return nil, errors.Errorf("unmarshal RecordMetadata: %v", err)
+				return nil, errors.WithStack(err)
 			}
 			recordMD = &rm
 		case dataDescriptorMetadataStream:
 			var ms backend.MetadataStream
 			err = json.Unmarshal(b, &ms)
 			if err != nil {
-				return nil, errors.Errorf("unmarshal MetadataStream: %v", err)
+				return nil, errors.WithStack(err)
 			}
 			metadata = append(metadata, ms)
 		case dataDescriptorFile:
 			var f backend.File
 			err = json.Unmarshal(b, &f)
 			if err != nil {
-				return nil, errors.Errorf("unmarshal File: %v", err)
+				return nil, errors.WithStack(err)
 			}
 			files = append(files, f)
 		default:
-			return nil, errors.Errorf("invalid descriptor %v", dd.Descriptor)
+			return nil, errors.Errorf("invalid descriptor %v", dh.Descriptor)
 		}
 	}
 
@@ -1282,11 +1277,11 @@ func encodeFile(f backend.File) (*store.BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	dd := store.DataDescriptor{
+	dh := store.DataHint{
 		Type:       store.DataTypeStructure,
 		Descriptor: dataDescriptorFile,
 	}
-	return store.NewBlobEntry(dd, data)
+	return store.NewBlobEntry(dh, data)
 }
 
 // encodeMetadataStream encodes a MetadataStream into a BlobEntry.
@@ -1295,11 +1290,11 @@ func encodeMetadataStream(ms backend.MetadataStream) (*store.BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	dd := store.DataDescriptor{
+	dh := store.DataHint{
 		Type:       store.DataTypeStructure,
 		Descriptor: dataDescriptorMetadataStream,
 	}
-	return store.NewBlobEntry(dd, data)
+	return store.NewBlobEntry(dh, data)
 }
 
 // encodeRecordMetadata encodes a RecordMetadata into a BlobEntry.
@@ -1308,9 +1303,9 @@ func encodeRecordMetadata(rm backend.RecordMetadata) (*store.BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	dd := store.DataDescriptor{
+	dh := store.DataHint{
 		Type:       store.DataTypeStructure,
 		Descriptor: dataDescriptorRecordMetadata,
 	}
-	return store.NewBlobEntry(dd, data)
+	return store.NewBlobEntry(dh, data)
 }

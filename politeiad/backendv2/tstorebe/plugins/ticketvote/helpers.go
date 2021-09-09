@@ -239,6 +239,7 @@ func voteDetailsForRecord(backend backend.Backend, token []byte) (*ticketvote.Vo
 
 // voteResults returns the votes that were cast during a ticket vote.
 func voteResults(tstore plugins.TstoreClient, token []byte) ([]ticketvote.CastVoteDetails, error) {
+	/* TODO
 	// Retrieve the blobs for the cast votes and the vote
 	// colliders. A cast vote is not valid unless there is a
 	// corresponding vote collider. If there are multiple
@@ -377,6 +378,8 @@ func voteResults(tstore plugins.TstoreClient, token []byte) ([]ticketvote.CastVo
 	})
 
 	return cvotes, nil
+	*/
+	return nil, nil
 }
 
 // caseVoteDetailsEncode encodes a CastVoteDetails into a BlobEntry.

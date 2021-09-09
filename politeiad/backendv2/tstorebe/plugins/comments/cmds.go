@@ -853,11 +853,11 @@ func commentAddEncode(c comments.CommentAdd) (*store.BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	dd := store.DataDescriptor{
+	dh := store.DataHint{
 		Type:       store.DataTypeStructure,
 		Descriptor: dataDescriptorCommentAdd,
 	}
-	return store.NewBlobEntry(dd, data)
+	return store.NewBlobEntry(dh, data)
 }
 
 // commentAddDecode decodes a BlobEntry into a CommentAdd.
@@ -957,11 +957,11 @@ func commentDelEncode(c comments.CommentDel) (*store.BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	dd := store.DataDescriptor{
+	dh := store.DataHint{
 		Type:       store.DataTypeStructure,
 		Descriptor: dataDescriptorCommentDel,
 	}
-	return store.NewBlobEntry(dd, data)
+	return store.NewBlobEntry(dh, data)
 }
 
 // commentDelDecode decodes a BlobEntry into a CommentDel.
@@ -1058,11 +1058,11 @@ func commentVoteEncode(c comments.CommentVote) (*store.BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	dd := store.DataDescriptor{
+	dh := store.DataHint{
 		Type:       store.DataTypeStructure,
 		Descriptor: dataDescriptorCommentVote,
 	}
-	return store.NewBlobEntry(dd, data)
+	return store.NewBlobEntry(dh, data)
 }
 
 // commentVoteDecode decodes a BlobEntry into a CommentVote.

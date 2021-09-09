@@ -164,7 +164,7 @@ const (
 )
 
 // DataHint provides hints about a data blob. In practice we JSON encode
-// this struture and stuff it into BlobEntry.DataHint.
+// this struture and stuff it into the BlobEntry DataHint field.
 type DataHint struct {
 	Type       string `json:"type"`                // Type of data
 	Descriptor string `json:"descriptor"`          // Description of the data
