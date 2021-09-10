@@ -84,44 +84,6 @@ func (r *ballotResults) repliesLen() int {
 	return len(r.replies)
 }
 
-// castVoteDetailsSave saves a CastVoteDetails to the backend.
-func (p *plugin) castVoteDetailsSave(token []byte, cv ticketvote.CastVoteDetails) error {
-	// Prepare blob
-	be, err := convertBlobEntryFromCastVoteDetails(cv)
-	if err != nil {
-		return err
-	}
-
-	// Save blob
-	return tstore.BlobSave(token, *be)
-}
-
-// castVoteVerifySignature verifies the signature of a CastVote. The signature
-// must be created using the largest commitment address from the ticket that is
-// casting a vote.
-func castVoteVerifySignature(cv ticketvote.CastVote, addr string, net *chaincfg.Params) error {
-	msg := cv.Token + cv.Ticket + cv.VoteBit
-
-	// Convert hex signature to base64. This is what the verify
-	// message function expects.
-	b, err := hex.DecodeString(cv.Signature)
-	if err != nil {
-		return errors.Errorf("invalid hex")
-	}
-	sig := base64.StdEncoding.EncodeToString(b)
-
-	// Verify message
-	validated, err := util.VerifyMessage(addr, msg, sig, net)
-	if err != nil {
-		return err
-	}
-	if !validated {
-		return errors.Errorf("could not verify message")
-	}
-
-	return nil
-}
-
 // TODO what happens if the database tx times out? These need to be single
 // op database writes. How are we going to do this?
 //

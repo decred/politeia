@@ -9,11 +9,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"sort"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/util"
@@ -82,170 +79,6 @@ func bestBlockUnsafe(backend backend.Backend) (uint32, error) {
 	}
 
 	return bbr.Height, nil
-}
-
-// voteResults returns the votes that were cast during a ticket vote.
-func voteResults(tstore plugins.TstoreClient, token []byte) ([]ticketvote.CastVoteDetails, error) {
-	// Retrieve the blobs for the cast votes and the vote
-	// colliders. A cast vote is not valid unless there is a
-	// corresponding vote collider. If there are multiple
-	// votes that use the same ticket, the valid vote is the
-	// one that immediately precedes the vote collider entry.
-	desc := []string{
-		dataDescriptorCastVoteDetails,
-		dataDescriptorVoteCollider,
-	}
-	blobs, err := tstore.BlobsByDataDesc(token, desc)
-	if err != nil {
-		return nil, err
-	}
-	var (
-		// map[ticket]CastVoteDetails
-		votes = make(map[string]ticketvote.CastVoteDetails, len(blobs))
-
-		// map[ticket][]index
-		voteIndexes = make(map[string][]int, len(blobs))
-
-		// map[ticket]index
-		colliderIndexes = make(map[string]int, len(blobs))
-	)
-	for i, v := range blobs {
-		// Decode data hint
-		dh, err := store.DecodeDataHint(v)
-		if err != nil {
-			return nil, err
-		}
-		switch dh.Descriptor {
-		case dataDescriptorCastVoteDetails:
-			// Decode cast vote
-			cv, err := castVoteDetailsDecode(v)
-			if err != nil {
-				return nil, err
-			}
-
-			// Save index of the cast vote
-			idx, ok := voteIndexes[cv.Ticket]
-			if !ok {
-				idx = make([]int, 0, 32)
-			}
-			idx = append(idx, i)
-			voteIndexes[cv.Ticket] = idx
-
-			// Save the cast vote
-			votes[cv.Ticket] = *cv
-
-		case dataDescriptorVoteCollider:
-			// Decode vote collider
-			vc, err := decodeVoteCollider(v)
-			if err != nil {
-				return nil, err
-			}
-
-			// Sanity check
-			_, ok := colliderIndexes[vc.Ticket]
-			if ok {
-				return nil, errors.Errorf("duplicate vote "+
-					"colliders found %v", vc.Ticket)
-			}
-
-			// Save the ticket and index for the collider
-			colliderIndexes[vc.Ticket] = i
-
-		default:
-			return nil, errors.Errorf("invalid data descriptor: %v",
-				dh.Descriptor)
-		}
-	}
-
-	for ticket, indexes := range voteIndexes {
-		// Remove any votes that do not have a
-		// corresponding vote collider.
-		colliderIndex, ok := colliderIndexes[ticket]
-		if !ok {
-			// This is not a valid vote
-			delete(votes, ticket)
-			continue
-		}
-
-		// If multiple votes have been cast using the
-		// same ticket then we must manually determine
-		// which vote is valid.
-		if len(indexes) == 1 {
-			// Only one cast vote exists for
-			// this ticket. This is correct.
-			continue
-		}
-
-		// Sanity check
-		if len(indexes) == 0 {
-			return nil, errors.Errorf("cast vote index not found %v", ticket)
-		}
-
-		log.Tracef("Multiple votes found for a single vote collider %v", ticket)
-
-		// Multiple votes exist for this ticket. The valid vote
-		// vote is the one that immediately precedes the vote
-		// collider. Start at the end of the vote indexes and
-		// find the first vote index that precedes the collider
-		// index.
-		var validVoteIndex int
-		for i := len(indexes) - 1; i >= 0; i-- {
-			voteIndex := indexes[i]
-			if voteIndex < colliderIndex {
-				// This is the valid vote
-				validVoteIndex = voteIndex
-				break
-			}
-		}
-
-		// Save the valid vote
-		b := blobs[validVoteIndex]
-		cv, err := castVoteDetailsDecode(b)
-		if err != nil {
-			return nil, err
-		}
-		votes[cv.Ticket] = *cv
-	}
-
-	// Put votes into an array
-	cvotes := make([]ticketvote.CastVoteDetails, 0, len(blobs))
-	for _, v := range votes {
-		cvotes = append(cvotes, v)
-	}
-
-	// Sort by ticket hash
-	sort.SliceStable(cvotes, func(i, j int) bool {
-		return cvotes[i].Ticket < cvotes[j].Ticket
-	})
-
-	return cvotes, nil
-}
-
-// caseVoteDetailsEncode encodes a CastVoteDetails into a BlobEntry.
-func castVoteDetailsEncode(cv ticketvote.CastVoteDetails) (*store.BlobEntry, error) {
-	data, err := json.Marshal(cv)
-	if err != nil {
-		return nil, err
-	}
-	dh := store.DataHint{
-		Type:       store.DataTypeStructure,
-		Descriptor: dataDescriptorCastVoteDetails,
-	}
-	return store.NewBlobEntry(dh, data)
-}
-
-// castVoteDetailsDecode decodes a BlobEntry into a CastVoteDetails.
-func castVoteDetailsDecode(be store.BlobEntry) (*ticketvote.CastVoteDetails, error) {
-	b, err := store.Decode(be, dataDescriptorCastVoteDetails)
-	if err != nil {
-		return nil, err
-	}
-	var cvd ticketvote.CastVoteDetails
-	err = json.Unmarshal(b, &cvd)
-	if err != nil {
-		return nil, err
-	}
-	return &cvd, nil
 }
 
 // recordAbridged returns a record where the only record file returned is the
@@ -335,8 +168,8 @@ func convertSignatureError(err error) backend.PluginError {
 	}
 }
 
-// decodeVoteMetadata decodes and returns the VoteMetadata from the
-// provided backend files. nil is returned if a VoteMetadata is not found.
+// decodeVoteMetadata decodes and returns the VoteMetadata from the provided
+// backend files. nil is returned if a VoteMetadata is not found.
 func decodeVoteMetadata(files []backend.File) (*ticketvote.VoteMetadata, error) {
 	var voteMD *ticketvote.VoteMetadata
 	for _, v := range files {

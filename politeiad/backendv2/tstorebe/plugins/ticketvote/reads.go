@@ -49,13 +49,17 @@ func (p *plugin) cmdDetails(tstore plugins.TstoreClient, token []byte) (string, 
 
 // cmdResults returns the votes that were cast during a ticket vote.
 func (p *plugin) cmdResults(tstore plugins.TstoreClient, token []byte) (string, error) {
-	// Get vote results
-	votes, err := voteResults(tstore, token)
+	// Get all votes that were cast
+	castVotes, err := getAllCastVoteDetails(tstore, token)
 	if err != nil {
 		return "", err
 	}
 
 	// Prepare reply
+	votes := make([]ticketvote.CastVoteDetails, 0, len(castVotes))
+	for _, v := range castVotes {
+		votes = append(votes, v.convert())
+	}
 	rr := ticketvote.ResultsReply{
 		Votes: votes,
 	}
