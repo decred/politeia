@@ -175,9 +175,9 @@ func (p *plugin) Read(tstore plugins.TstoreClient, token []byte, cmd, payload st
 		return p.cmdDetails(tstore, token)
 	case ticketvote.CmdResults:
 		return p.cmdResults(tstore, token)
+	case ticketvote.CmdSummary:
+		return p.cmdSummary(tstore, token)
 		/*
-			case ticketvote.CmdSummary:
-				return p.cmdSummary(token)
 			case ticketvote.CmdSubmissions:
 				return p.cmdSubmissions(token)
 			case ticketvote.CmdInventory:

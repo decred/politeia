@@ -70,3 +70,32 @@ func (p *plugin) cmdResults(tstore plugins.TstoreClient, token []byte) (string, 
 
 	return string(reply), nil
 }
+
+// cmdSummary requests the vote summary for a record.
+func (p *plugin) cmdSummary(tstore plugins.TstoreClient, token []byte) (string, error) {
+	/* TODO
+	// Get the best block. This cmd does not write
+	// any data so we can use the unsafe best block
+	// function.
+	bb, err := bestBlockUnsafe(p.backend)
+	if err != nil {
+		return "", err
+	}
+
+	// Get the vote summary
+	sr, err := summary(token, bb)
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare the reply
+	reply, err := json.Marshal(sr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+	*/
+
+	return "", nil
+}
