@@ -28,20 +28,6 @@ type voteDetails struct {
 	EligibleTickets  []string   `json:"eligibletickets"`
 }
 
-// convertVoteDetailsToLocal converts a v1 VoteDetails to a local voteDetails.
-func convertVoteDetailsToLocal(vd ticketvote.VoteDetails) voteDetails {
-	return voteDetails{
-		Params:           convertVoteParamsToLocal(vd.Params),
-		PublicKey:        vd.PublicKey,
-		Signature:        vd.Signature,
-		Receipt:          vd.Receipt,
-		StartBlockHeight: vd.StartBlockHeight,
-		StartBlockHash:   vd.StartBlockHash,
-		EndBlockHeight:   vd.EndBlockHeight,
-		EligibleTickets:  vd.EligibleTickets,
-	}
-}
-
 // convert converts the voteDetails into a v1 VoteDetails.
 func (d *voteDetails) convert() ticketvote.VoteDetails {
 	return ticketvote.VoteDetails{

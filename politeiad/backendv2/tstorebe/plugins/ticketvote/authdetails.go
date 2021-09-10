@@ -26,19 +26,6 @@ type authDetails struct {
 	Receipt   string `json:"receipt"`
 }
 
-// convertAuthDetailsToLocal converts a v1 AuthDetails to a local authDetails.
-func convertAuthDetailsToLocal(a ticketvote.AuthDetails) authDetails {
-	return authDetails{
-		Token:     a.Token,
-		Version:   a.Version,
-		Action:    a.Action,
-		PublicKey: a.PublicKey,
-		Signature: a.Signature,
-		Timestamp: a.Timestamp,
-		Receipt:   a.Receipt,
-	}
-}
-
 // convert converts the authDetails to a v1 AuthDetails.
 func (a *authDetails) convert() ticketvote.AuthDetails {
 	return ticketvote.AuthDetails{
