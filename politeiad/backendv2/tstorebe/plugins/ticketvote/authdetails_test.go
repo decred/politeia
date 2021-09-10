@@ -12,13 +12,10 @@ import (
 )
 
 func TestAuthDetails(t *testing.T) {
-	// Verify the local struct contains all the same
+	// Verify the local struct contains the all same
 	// fields as the API struct.
-	var (
-		local = authDetails{}
-		api   = ticketvote.AuthDetails{}
-	)
-	err := unittest.CompareStructFields(local, api)
+	err := unittest.CompareStructFields(authDetails{},
+		ticketvote.AuthDetails{})
 	if err != nil {
 		t.Error(err)
 	}

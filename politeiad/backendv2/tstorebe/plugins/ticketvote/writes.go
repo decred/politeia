@@ -334,7 +334,7 @@ func (p *plugin) startStandardVote(tstore plugins.TstoreClient, token []byte, s 
 	}
 
 	// Verify vote has not already been started
-	vdp, err := voteDetails(tstore, token)
+	vdp, err := getVoteDetails(tstore, token)
 	if err != nil {
 		return nil, err
 	}
@@ -349,8 +349,8 @@ func (p *plugin) startStandardVote(tstore plugins.TstoreClient, token []byte, s 
 
 	// Save the vote details
 	receipt := p.identity.SignMessage([]byte(sd.Signature + vcp.StartBlockHash))
-	vd := ticketvote.VoteDetails{
-		Params:           sd.Params,
+	vd := voteDetails{
+		Params:           convertVoteParamsToLocal(sd.Params),
 		PublicKey:        sd.PublicKey,
 		Signature:        sd.Signature,
 		Receipt:          hex.EncodeToString(receipt[:]),
@@ -359,7 +359,7 @@ func (p *plugin) startStandardVote(tstore plugins.TstoreClient, token []byte, s 
 		EndBlockHeight:   vcp.EndBlockHeight,
 		EligibleTickets:  vcp.EligibleTickets,
 	}
-	err = voteDetailsSave(tstore, token, vd)
+	err = vd.save(tstore, token)
 	if err != nil {
 		return nil, err
 	}
@@ -758,7 +758,7 @@ func (p *plugin) startRunoffVoteForSub(tstore plugins.TstoreClient, token []byte
 	// completing, we can simply call the command again with
 	// the same arguments and it will pick up where it left
 	// off.
-	vdp, err := voteDetails(tstore, token)
+	vdp, err := getVoteDetails(tstore, token)
 	if err != nil {
 		return err
 	}
@@ -788,8 +788,8 @@ func (p *plugin) startRunoffVoteForSub(tstore plugins.TstoreClient, token []byte
 
 	// Save vote details
 	receipt := p.identity.SignMessage([]byte(sd.Signature + rd.StartBlockHash))
-	vd := ticketvote.VoteDetails{
-		Params:           sd.Params,
+	vd := voteDetails{
+		Params:           convertVoteParamsToLocal(sd.Params),
 		PublicKey:        sd.PublicKey,
 		Signature:        sd.Signature,
 		Receipt:          hex.EncodeToString(receipt[:]),
@@ -798,7 +798,7 @@ func (p *plugin) startRunoffVoteForSub(tstore plugins.TstoreClient, token []byte
 		EndBlockHeight:   rd.EndBlockHeight,
 		EligibleTickets:  rd.EligibleTickets,
 	}
-	err = voteDetailsSave(tstore, token, vd)
+	err = vd.save(tstore, token)
 	if err != nil {
 		return err
 	}

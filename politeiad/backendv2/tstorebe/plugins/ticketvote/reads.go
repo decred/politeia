@@ -14,25 +14,30 @@ import (
 // cmdDetails returns the vote details for a record.
 func (p *plugin) cmdDetails(tstore plugins.TstoreClient, token []byte) (string, error) {
 	// Get vote authorizations
-	auths, err := getAllAuthDetails(tstore, token)
+	allAuths, err := getAllAuthDetails(tstore, token)
 	if err != nil {
 		return "", err
 	}
 
 	// Get vote details
-	vd, err := voteDetails(tstore, token)
+	vd, err := getVoteDetails(tstore, token)
 	if err != nil {
 		return "", err
 	}
 
 	// Prepare rely
-	a := make([]ticketvote.AuthDetails, 0, len(auths))
-	for _, v := range auths {
-		a = append(a, v.convert())
+	auths := make([]ticketvote.AuthDetails, 0, len(allAuths))
+	for _, v := range allAuths {
+		auths = append(auths, v.convert())
+	}
+	var vote *ticketvote.VoteDetails
+	if vd != nil {
+		v := vd.convert()
+		vote = &v
 	}
 	dr := ticketvote.DetailsReply{
-		Auths: a,
-		Vote:  vd,
+		Auths: auths,
+		Vote:  vote,
 	}
 	reply, err := json.Marshal(dr)
 	if err != nil {
