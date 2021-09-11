@@ -10,10 +10,13 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 )
 
+// TODO add a client for the backend
+// TODO make a local PluginError that doesn't have the plugin ID. The backend
+// converts it to an API plugin error, which does have a plugin ID, and fills
+// in the plugin ID.
 // TODO rename backendv2 to db
 // TODO move this package into politeiad/plugins
 // TODO move plugin APIs into politeiad/plugins/plugin/api/v1/v1.go
-// TODO move plugin implemenations into politeiad/plugins
 
 // HookT represents a plugin hook.
 type HookT int
@@ -160,7 +163,7 @@ type PluginClient interface {
 	Settings() []backend.PluginSetting
 }
 
-// TODO rename to DBClient
+// TODO rename to DBClient or RecordClient
 //
 // TODO remove the token argument. It will use the token that the command is
 // being executed on.  Executing commands on other records requires the use
@@ -187,8 +190,6 @@ type TstoreClient interface {
 	// be thought of as the blob ID that can be used to get/del the
 	// blob from tstore.
 	BlobSave(token []byte, be store.BlobEntry) error
-
-	// TODO Add BlobSaveUnsafe()
 
 	// BlobsDel deletes the blobs that correspond to the provided
 	// digests.

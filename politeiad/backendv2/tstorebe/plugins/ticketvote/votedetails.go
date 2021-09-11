@@ -94,10 +94,10 @@ func getVoteDetails(tstore plugins.TstoreClient, token []byte) (*voteDetails, er
 	case 1:
 		// A vote details exists; continue
 	default:
-		// This should not happen. There should only ever be a max of
-		// one vote details.
-		return nil, errors.Errorf("multiple vote details found (%v) on %x",
-			len(blobs), token)
+		// This should not happen. There should only ever
+		// be one vote details object.
+		return nil, errors.Errorf("multiple vote details "+
+			"found (%v) on %x", len(blobs), token)
 	}
 
 	// Decode blob

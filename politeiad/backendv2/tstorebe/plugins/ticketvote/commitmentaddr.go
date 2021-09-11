@@ -6,9 +6,10 @@ package ticketvote
 
 import (
 	"encoding/json"
-	"fmt"
 
+	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
+	"github.com/pkg/errors"
 )
 
 // commitmentAddr represents the largest commitment address for a dcr ticket.
@@ -17,12 +18,14 @@ type commitmentAddr struct {
 	err  error  // Error if one occurred
 }
 
-// largestCommitmentAddrs retrieves the largest commitment addresses for each
-// of the provided tickets from dcrdata. A map[ticket]commitmentAddr is
-// returned. If an error is encountered while retrieving a commitment address,
-// the error will be included in the commitmentAddr struct in the returned
-// map.
-func (p *plugin) largestCommitmentAddrs(tickets []string) (map[string]commitmentAddr, error) {
+// getCommitmentAddrs retrieves the largest commitment addresses for each of
+// the provided tickets from dcrdata. If an error is encountered while
+// retrieving a commitment address, the error will be included in the
+// commitmentAddr struct. Individual errors will not cause this function to
+// exit.
+//
+//  A map[ticket]commitmentAddr is returned.
+func getCommitmentAddrs(backend backend.Backend, tickets []string) (map[string]commitmentAddr, error) {
 	// Get tx details
 	tt := dcrdata.TxsTrimmed{
 		TxIDs: tickets,
@@ -34,7 +37,7 @@ func (p *plugin) largestCommitmentAddrs(tickets []string) (map[string]commitment
 	reply, err := p.backend.PluginRead(nil, dcrdata.PluginID,
 		dcrdata.CmdTxsTrimmed, string(payload))
 	if err != nil {
-		return nil, fmt.Errorf("PluginRead %v %v: %v",
+		return nil, errors.Errorf("PluginRead %v %v: %v",
 			dcrdata.PluginID, dcrdata.CmdTxsTrimmed, err)
 	}
 	var ttr dcrdata.TxsTrimmedReply
@@ -65,8 +68,7 @@ func (p *plugin) largestCommitmentAddrs(tickets []string) (map[string]commitment
 			}
 		}
 		if bestAddr == "" || bestAmt == 0.0 {
-			addrErr = fmt.Errorf("no largest commitment address " +
-				"found")
+			addrErr = errors.Errorf("no largest commitment address found")
 		}
 
 		// Store result

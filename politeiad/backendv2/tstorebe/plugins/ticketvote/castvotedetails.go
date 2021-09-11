@@ -58,7 +58,11 @@ func (c *castVoteDetails) encode() (*store.BlobEntry, error) {
 }
 
 // save saves the castVoteDetails to the database.
-func (c *castVoteDetails) save(tstore plugins.TstoreClient, token []byte) error {
+func (c *castVoteDetails) save(tstore plugins.TstoreClient) error {
+	token, err := decodeToken(c.Token)
+	if err != nil {
+		return err
+	}
 	be, err := c.encode()
 	if err != nil {
 		return err

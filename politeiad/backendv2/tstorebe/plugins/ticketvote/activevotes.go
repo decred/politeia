@@ -5,10 +5,13 @@
 package ticketvote
 
 /*
-// activeVotes provides a memory cache for data that is required to validate
+// activeVotes provides a cache for data that is required to validate
 // vote ballots in a time efficient manner. An active vote is added to the
 // cache when a vote is started and is removed from the cache lazily when a
 // vote summary is created for the finished vote.
+//
+// This cache is required in order to increase the performance of the cast
+// vote validation.
 //
 // Record locking is handled by the backend, not by individual plugins. This
 // makes the plugin implementations simpler and easier to reason about, but it
@@ -308,5 +311,107 @@ func (p *plugin) activeVotesAdd(vd ticketvote.VoteDetails) {
 
 	// Fetch the commitment addresses asynchronously
 	go p.activeVotePopulateAddrs(vd)
+}
+*/
+
+/*
+type activeVotes struct {
+	sync.Mutex
+	votes map[string]*activeVote // [token]activeVote
+}
+
+// get returns the activeVote for the provided token. If an activeVote doesn't
+// exist yet, a new one is created and returned.
+func (a *activeVotes) get(token []byte) *activeVote {
+	a.Lock()
+	defer a.Unlock()
+
+	t := encodeToken(token)
+	av, ok := a.votes[t]
+	if ok {
+		// Active vote already exists
+		return av
+	}
+
+	// Active vote doesn't exist yet.
+	// Create and save a new one.
+	av = &activeVote{}
+	a.votes[t] = av
+
+	log.Debugf("Active vote cached for %x", token)
+
+	return av
+}
+
+// del deletes the activeVote from the cache for the provided token.
+func (a *activeVotes) del(token []byte) {
+	a.Lock()
+	defer a.Unlock()
+
+	delete(a.votes, encodeToken(token))
+
+	log.Debugf("Active vote deleted for %x", token)
+}
+
+
+
+
+type activeVote struct {
+	sync.Mutex
+	token    []byte
+	details  *ticketvote.VoteDetails
+	eligible map[string]struct{} // [ticket]struct{}
+}
+
+func (a *activeVote) voteDetails(tstore plugins.PluginClient) (*voteDetails, error) {
+	if a.details != nil {
+		// Vote details has already been cached
+		return a.details, nil
+	}
+
+	// Get the vote details
+	vd, err := getVoteDetails(tstore, token)
+	if err != nil {
+		return nil, err
+	}
+	if vd == nil {
+		return nil, nil
+	}
+
+	// Cache the results
+	a.Lock()
+	defer a.Unlock()
+
+	a.details = vd
+
+	return vd, nil
+}
+
+func (a *activeVote) eligibleTickets(tstore plugins.PluginClient) (map[string]struct{}, error) {
+	if len(eligible) > 0 {
+		// Eligible tickets have already
+		// been lazy loaded. Return them.
+		return a.eligible
+	}
+
+	// Get the vote details
+	vd, err := a.voteDetails(tstore)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert tickets slice to a map
+	eligible := make(map[string]struct{}, len(vd.EligibleTickets))
+	for _, v := range v.EligibleTickets {
+		eligible[v] = struct{}{}
+	}
+
+	// Cache the results
+	a.Lock()
+	defer a.Unlock()
+
+	a.eligible = eligible
+
+	return eligible, nil
 }
 */

@@ -24,9 +24,10 @@ var (
 //
 // This struct satisfies the PluginClient interface.
 type plugin struct {
-	backend  backend.Backend
-	net      chaincfg.Params // Decred network
-	settings settings        // Plugin settings
+	backend backend.Backend
+	// TODO this should be a pointer
+	net      *chaincfg.Params // Decred network
+	settings settings         // Plugin settings
 
 	// identity contains the full identity that the plugin uses to
 	// create receipts, i.e. signatures of user provided data that
@@ -42,7 +43,7 @@ func New(backend backend.Backend, bs backend.BackendSettings, ps []backend.Plugi
 	}
 	return &plugin{
 		backend:  backend,
-		net:      bs.Net,
+		net:      &bs.Net,
 		identity: bs.Identity,
 		settings: *settings,
 	}, nil
