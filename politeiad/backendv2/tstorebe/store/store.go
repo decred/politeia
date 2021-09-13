@@ -10,10 +10,9 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/hex"
-	"errors"
-	"fmt"
 
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -53,17 +52,25 @@ func NewBlobEntry(dataHint, data []byte) BlobEntry {
 }
 
 // Blobify encodes the provided BlobEntry into a gzipped byte slice.
-func Blobify(be BlobEntry) ([]byte, error) {
+func Blobify(be BlobEntry) (gb []byte, err error) {
 	var b bytes.Buffer
 	zw := gzip.NewWriter(&b)
 	defer func() {
-		err := zw.Close() // we must flush gzip buffers
-		if err != nil {
-			fmt.Printf("Close gzip writer err: %v\n", err)
+		err2 := zw.Close() // we must flush gzip buffers
+		if err2 != nil && err != nil {
+			// There was both a pre existing error and a gzip
+			// close error. Wrap the pre existing error in the
+			// gzip close error.
+			err = errors.Errorf("%v: close gzip writer failed: %v",
+				err, err2)
+		} else if err2 != nil {
+			// There was no pre existing error,
+			// but there was a gzip close error.
+			err = err2
 		}
 	}()
 	enc := gob.NewEncoder(zw)
-	err := enc.Encode(be)
+	err = enc.Encode(be)
 	if err != nil {
 		return nil, err
 	}
@@ -71,15 +78,23 @@ func Blobify(be BlobEntry) ([]byte, error) {
 }
 
 // Deblob decodes the provided gzipped byte slice into a BlobEntry.
-func Deblob(blob []byte) (*BlobEntry, error) {
+func Deblob(blob []byte) (bep *BlobEntry, err error) {
 	zr, err := gzip.NewReader(bytes.NewReader(blob))
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
-		err := zr.Close()
-		if err != nil {
-			fmt.Printf("Close gzip reader err: %v\n", err)
+		err2 := zr.Close()
+		if err2 != nil && err != nil {
+			// There was both a pre existing error and a gzip
+			// close error. Wrap the pre existing error in the
+			// gzip close error.
+			err = errors.Errorf("%v: close gzip reader failed: %v",
+				err, err2)
+		} else if err2 != nil {
+			// There was no pre existing error,
+			// but there was a gzip close error.
+			err = err2
 		}
 	}()
 	r := gob.NewDecoder(zr)
