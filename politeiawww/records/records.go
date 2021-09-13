@@ -5,7 +5,6 @@
 package records
 
 import (
-	"encoding/json"
 	"net/http"
 
 	pdclient "github.com/decred/politeia/politeiad/client"
@@ -31,7 +30,7 @@ func (c *Records) HandleNew(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleNew")
 
 	var n v1.New
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&n); err != nil {
 		respondWithError(w, r, "HandleNew: unmarshal",
 			v1.UserErrorReply{
@@ -62,7 +61,7 @@ func (c *Records) HandleEdit(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleEdit")
 
 	var e v1.Edit
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&e); err != nil {
 		respondWithError(w, r, "HandleEdit: unmarshal",
 			v1.UserErrorReply{
@@ -93,7 +92,7 @@ func (c *Records) HandleSetStatus(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleSetStatus")
 
 	var ss v1.SetStatus
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&ss); err != nil {
 		respondWithError(w, r, "HandleSetStatus: unmarshal",
 			v1.UserErrorReply{
@@ -124,7 +123,7 @@ func (c *Records) HandleDetails(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleDetails")
 
 	var d v1.Details
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&d); err != nil {
 		respondWithError(w, r, "HandleDetails: unmarshal",
 			v1.UserErrorReply{
@@ -157,7 +156,7 @@ func (c *Records) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleTimestamps")
 
 	var t v1.Timestamps
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		respondWithError(w, r, "HandleTimestamps: unmarshal",
 			v1.UserErrorReply{
@@ -191,7 +190,7 @@ func (c *Records) HandleRecords(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleRecords")
 
 	var rs v1.Records
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&rs); err != nil {
 		respondWithError(w, r, "HandleRecords: unmarshal",
 			v1.UserErrorReply{
@@ -224,7 +223,7 @@ func (c *Records) HandleInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleInventory")
 
 	var i v1.Inventory
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&i); err != nil {
 		respondWithError(w, r, "HandleInventory: unmarshal",
 			v1.UserErrorReply{
@@ -258,7 +257,7 @@ func (c *Records) HandleInventoryOrdered(w http.ResponseWriter, r *http.Request)
 	log.Tracef("HandleInventoryOrdered")
 
 	var i v1.InventoryOrdered
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&i); err != nil {
 		respondWithError(w, r, "HandleInventoryOrdered: unmarshal",
 			v1.UserErrorReply{
@@ -292,7 +291,7 @@ func (c *Records) HandleUserRecords(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleUserRecords")
 
 	var ur v1.UserRecords
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&ur); err != nil {
 		respondWithError(w, r, "HandleUserRecords: unmaurhal",
 			v1.UserErrorReply{

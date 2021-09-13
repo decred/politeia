@@ -271,7 +271,7 @@ func statusChangesDecode(metadata []backend.MetadataStream) ([]usermd.StatusChan
 			// Not the mdstream we're looking for
 			continue
 		}
-		d := json.NewDecoder(strings.NewReader(v.Payload))
+		d := util.NewJSONDecoder(strings.NewReader(v.Payload))
 		for {
 			var sc usermd.StatusChangeMetadata
 			err := d.Decode(&sc)

@@ -5,7 +5,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -27,7 +26,7 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 
 	// Get the new user command.
 	var u www.NewUser
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&u); err != nil {
 		RespondWithError(w, r, 0, "handleNewUser: unmarshal", www.UserError{
 			ErrorCode: www.ErrorStatusInvalidInput,
@@ -80,7 +79,7 @@ func (p *politeiawww) handleResendVerification(w http.ResponseWriter, r *http.Re
 
 	// Get the resend verification command.
 	var rv www.ResendVerification
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&rv); err != nil {
 		RespondWithError(w, r, 0, "handleResendVerification: unmarshal",
 			www.UserError{
@@ -121,7 +120,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Get the login command.
 	var l www.Login
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&l); err != nil {
 		RespondWithError(w, r, 0, "handleLogin: failed to decode: %v",
 			www.UserError{
@@ -182,7 +181,7 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 
 	// Get the reset password command.
 	var rp www.ResetPassword
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&rp); err != nil {
 		RespondWithError(w, r, 0, "handleResetPassword: unmarshal",
 			www.UserError{
@@ -207,7 +206,7 @@ func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.R
 	log.Trace("handleVerifyResetPassword")
 
 	var vrp www.VerifyResetPassword
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&vrp); err != nil {
 		RespondWithError(w, r, 0, "handleVerifyResetPassword: unmarshal",
 			www.UserError{
@@ -321,7 +320,7 @@ func (p *politeiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request
 
 	// Get the update user key command.
 	var u www.UpdateUserKey
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&u); err != nil {
 		RespondWithError(w, r, 0, "handleUpdateUserKey: unmarshal", www.UserError{
 			ErrorCode: www.ErrorStatusInvalidInput,
@@ -354,7 +353,7 @@ func (p *politeiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.R
 
 	// Get the new user verify command.
 	var vuu www.VerifyUpdateUserKey
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&vuu); err != nil {
 		RespondWithError(w, r, 0, "handleVerifyUpdateUserKey: unmarshal",
 			www.UserError{
@@ -386,7 +385,7 @@ func (p *politeiawww) handleChangeUsername(w http.ResponseWriter, r *http.Reques
 
 	// Get the change username command.
 	var cu www.ChangeUsername
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&cu); err != nil {
 		RespondWithError(w, r, 0, "handleChangeUsername: unmarshal",
 			www.UserError{
@@ -419,7 +418,7 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 
 	// Get the change password command.
 	var cp www.ChangePassword
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&cp); err != nil {
 		RespondWithError(w, r, 0, "handleChangePassword: unmarshal",
 			www.UserError{
@@ -466,7 +465,7 @@ func (p *politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleEditUser")
 
 	var eu www.EditUser
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&eu); err != nil {
 		RespondWithError(w, r, 0, "handleEditUser: unmarshal",
 			www.UserError{
@@ -555,7 +554,7 @@ func (p *politeiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleManageUser")
 
 	var mu www.ManageUser
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&mu); err != nil {
 		RespondWithError(w, r, 0, "handleManageUser: unmarshal",
 			www.UserError{
@@ -678,7 +677,7 @@ func (p *politeiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Re
 	log.Tracef("handleUserPaymentsRescan")
 
 	var upr www.UserPaymentsRescan
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&upr); err != nil {
 		RespondWithError(w, r, 0, "handleUserPaymentsRescan: unmarshal",
 			www.UserError{
@@ -705,7 +704,7 @@ func (p *politeiawww) handleRegisterUser(w http.ResponseWriter, r *http.Request)
 
 	// Get the new user command.
 	var u cms.RegisterUser
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&u); err != nil {
 		RespondWithError(w, r, 0, "handleRegisterUser: unmarshal", www.UserError{
 			ErrorCode: www.ErrorStatusInvalidInput,
@@ -728,7 +727,7 @@ func (p *politeiawww) handleSetTOTP(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleSetTOTP")
 
 	var st www.SetTOTP
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&st); err != nil {
 		RespondWithError(w, r, 0, "handleSetTOTP: unmarshal",
 			www.UserError{
@@ -759,7 +758,7 @@ func (p *politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVerifyTOTP")
 
 	var vt www.VerifyTOTP
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&vt); err != nil {
 		RespondWithError(w, r, 0, "handleVerifyTOTP: unmarshal",
 			www.UserError{

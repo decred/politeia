@@ -5,7 +5,6 @@
 package comments
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -43,7 +42,7 @@ func (c *Comments) HandleNew(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleNew")
 
 	var n v1.New
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&n); err != nil {
 		respondWithError(w, r, "HandleNew: unmarshal",
 			v1.UserErrorReply{
@@ -74,7 +73,7 @@ func (c *Comments) HandleVote(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleVote")
 
 	var v v1.Vote
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&v); err != nil {
 		respondWithError(w, r, "HandleVote: unmarshal",
 			v1.UserErrorReply{
@@ -105,7 +104,7 @@ func (c *Comments) HandleDel(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleDel")
 
 	var d v1.Del
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&d); err != nil {
 		respondWithError(w, r, "HandleDel: unmarshal",
 			v1.UserErrorReply{
@@ -136,7 +135,7 @@ func (c *Comments) HandleCount(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleCount")
 
 	var ct v1.Count
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&ct); err != nil {
 		respondWithError(w, r, "HandleCount: unmarshal",
 			v1.UserErrorReply{
@@ -160,7 +159,7 @@ func (c *Comments) HandleComments(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleComments")
 
 	var cs v1.Comments
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&cs); err != nil {
 		respondWithError(w, r, "HandleComments: unmarshal",
 			v1.UserErrorReply{
@@ -193,7 +192,7 @@ func (c *Comments) HandleVotes(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleVotes")
 
 	var v v1.Votes
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&v); err != nil {
 		respondWithError(w, r, "HandleVotes: unmarshal",
 			v1.UserErrorReply{
@@ -218,7 +217,7 @@ func (c *Comments) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleTimestamps")
 
 	var t v1.Timestamps
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		respondWithError(w, r, "HandleTimestamps: unmarshal",
 			v1.UserErrorReply{

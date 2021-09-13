@@ -5,7 +5,6 @@
 package ticketvote
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -42,7 +41,7 @@ func (t *TicketVote) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleAuthorize")
 
 	var a v1.Authorize
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&a); err != nil {
 		respondWithError(w, r, "HandleAuthorize: unmarshal",
 			v1.UserErrorReply{
@@ -73,7 +72,7 @@ func (t *TicketVote) HandleStart(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleStart")
 
 	var s v1.Start
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&s); err != nil {
 		respondWithError(w, r, "HandleStart: unmarshal",
 			v1.UserErrorReply{
@@ -105,7 +104,7 @@ func (t *TicketVote) HandleCastBallot(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleCastBallot")
 
 	var cb v1.CastBallot
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&cb); err != nil {
 		respondWithError(w, r, "HandleCastBallot: unmarshal",
 			v1.UserErrorReply{
@@ -129,7 +128,7 @@ func (t *TicketVote) HandleDetails(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleDetails")
 
 	var d v1.Details
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&d); err != nil {
 		respondWithError(w, r, "HandleDetails: unmarshal",
 			v1.UserErrorReply{
@@ -153,7 +152,7 @@ func (t *TicketVote) HandleResults(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleResults")
 
 	var rs v1.Results
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&rs); err != nil {
 		respondWithError(w, r, "HandleResults: unmarshal",
 			v1.UserErrorReply{
@@ -178,7 +177,7 @@ func (t *TicketVote) HandleSummaries(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleSummaries")
 
 	var s v1.Summaries
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&s); err != nil {
 		respondWithError(w, r, "HandleSummaries: unmarshal",
 			v1.UserErrorReply{
@@ -203,7 +202,7 @@ func (t *TicketVote) HandleSubmissions(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleSubmissions")
 
 	var s v1.Submissions
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&s); err != nil {
 		respondWithError(w, r, "HandleSubmissions: unmarshal",
 			v1.UserErrorReply{
@@ -228,7 +227,7 @@ func (t *TicketVote) HandleInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleInventory")
 
 	var i v1.Inventory
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&i); err != nil {
 		respondWithError(w, r, "HandleInventory: unmarshal",
 			v1.UserErrorReply{
@@ -253,7 +252,7 @@ func (t *TicketVote) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleTimestamps")
 
 	var ts v1.Timestamps
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&ts); err != nil {
 		respondWithError(w, r, "HandleTimestamps: unmarshal",
 			v1.UserErrorReply{

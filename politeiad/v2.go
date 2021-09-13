@@ -5,7 +5,6 @@ package main
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -22,7 +21,7 @@ func (p *politeia) handleRecordNew(w http.ResponseWriter, r *http.Request) {
 
 	// Decode request
 	var rn v2.RecordNew
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&rn); err != nil {
 		respondWithErrorV2(w, r, "handleRecordNew: unmarshal",
 			v2.UserErrorReply{
@@ -69,7 +68,7 @@ func (p *politeia) handleRecordEdit(w http.ResponseWriter, r *http.Request) {
 
 	// Decode request
 	var re v2.RecordEdit
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&re); err != nil {
 		respondWithErrorV2(w, r, "handleRecordEdit: unmarshal",
 			v2.UserErrorReply{
@@ -127,7 +126,7 @@ func (p *politeia) handleRecordEditMetadata(w http.ResponseWriter, r *http.Reque
 
 	// Decode request
 	var re v2.RecordEditMetadata
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&re); err != nil {
 		respondWithErrorV2(w, r, "handleRecordEditMetadata: unmarshal",
 			v2.UserErrorReply{
@@ -180,7 +179,7 @@ func (p *politeia) handleRecordSetStatus(w http.ResponseWriter, r *http.Request)
 
 	// Decode request
 	var rss v2.RecordSetStatus
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&rss); err != nil {
 		respondWithErrorV2(w, r, "handleRecordSetStatus: unmarshal",
 			v2.UserErrorReply{
@@ -238,7 +237,7 @@ func (p *politeia) handleRecords(w http.ResponseWriter, r *http.Request) {
 
 	// Decode request
 	var rgb v2.Records
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&rgb); err != nil {
 		respondWithErrorV2(w, r, "handleRecords: unmarshal",
 			v2.UserErrorReply{
@@ -292,7 +291,7 @@ func (p *politeia) handleRecordTimestamps(w http.ResponseWriter, r *http.Request
 
 	// Decode request
 	var rgt v2.RecordTimestamps
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&rgt); err != nil {
 		respondWithErrorV2(w, r, "handleRecordTimestamps: unmarshal",
 			v2.UserErrorReply{
@@ -343,7 +342,7 @@ func (p *politeia) handleInventory(w http.ResponseWriter, r *http.Request) {
 
 	// Decode request
 	var i v2.Inventory
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&i); err != nil {
 		respondWithErrorV2(w, r, "handleInventory: unmarshal",
 			v2.UserErrorReply{
@@ -423,7 +422,7 @@ func (p *politeia) handleInventoryOrdered(w http.ResponseWriter, r *http.Request
 
 	// Decode request
 	var i v2.InventoryOrdered
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&i); err != nil {
 		respondWithErrorV2(w, r, "handleInventoryOrdered: unmarshal",
 			v2.UserErrorReply{
@@ -476,7 +475,7 @@ func (p *politeia) handlePluginWrite(w http.ResponseWriter, r *http.Request) {
 
 	// Decode request
 	var pw v2.PluginWrite
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&pw); err != nil {
 		respondWithErrorV2(w, r, "handlePluginWrite: unmarshal",
 			v2.UserErrorReply{
@@ -529,7 +528,7 @@ func (p *politeia) handlePluginReads(w http.ResponseWriter, r *http.Request) {
 
 	// Decode request
 	var pr v2.PluginReads
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&pr); err != nil {
 		respondWithErrorV2(w, r, "handlePluginReads: unmarshal",
 			v2.UserErrorReply{
@@ -635,7 +634,7 @@ func (p *politeia) handlePluginInventory(w http.ResponseWriter, r *http.Request)
 
 	// Decode request
 	var pi v2.PluginInventory
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&pi); err != nil {
 		respondWithErrorV2(w, r, "handlePluginInventory: unmarshal",
 			v2.UserErrorReply{

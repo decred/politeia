@@ -5,7 +5,6 @@ package main
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -17,7 +16,7 @@ import (
 
 func (p *politeia) getIdentity(w http.ResponseWriter, r *http.Request) {
 	var t v1.Identity
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
@@ -40,7 +39,7 @@ func (p *politeia) getIdentity(w http.ResponseWriter, r *http.Request) {
 
 func (p *politeia) newRecord(w http.ResponseWriter, r *http.Request) {
 	var t v1.NewRecord
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
@@ -103,7 +102,7 @@ func (p *politeia) updateRecord(w http.ResponseWriter, r *http.Request, vetted b
 	}
 
 	var t v1.UpdateRecord
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
 			nil)
@@ -202,7 +201,7 @@ func (p *politeia) updateVetted(w http.ResponseWriter, r *http.Request) {
 
 func (p *politeia) updateReadme(w http.ResponseWriter, r *http.Request) {
 	var t v1.UpdateReadme
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
@@ -233,7 +232,7 @@ func (p *politeia) updateReadme(w http.ResponseWriter, r *http.Request) {
 
 func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 	var t v1.GetUnvetted
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
@@ -297,7 +296,7 @@ func (p *politeia) getUnvetted(w http.ResponseWriter, r *http.Request) {
 
 func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 	var t v1.GetVetted
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
@@ -360,7 +359,7 @@ func (p *politeia) getVetted(w http.ResponseWriter, r *http.Request) {
 
 func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
 	var i v1.Inventory
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&i); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
@@ -409,7 +408,7 @@ func (p *politeia) inventory(w http.ResponseWriter, r *http.Request) {
 
 func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 	var t v1.SetVettedStatus
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
@@ -472,7 +471,7 @@ func (p *politeia) setVettedStatus(w http.ResponseWriter, r *http.Request) {
 
 func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 	var t v1.SetUnvettedStatus
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
@@ -535,7 +534,7 @@ func (p *politeia) setUnvettedStatus(w http.ResponseWriter, r *http.Request) {
 
 func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) {
 	var t v1.UpdateVettedMetadata
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&t); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload, nil)
 		return
@@ -598,7 +597,7 @@ func (p *politeia) updateVettedMetadata(w http.ResponseWriter, r *http.Request) 
 
 func (p *politeia) pluginInventory(w http.ResponseWriter, r *http.Request) {
 	var pi v1.PluginInventory
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&pi); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
 			nil)
@@ -634,7 +633,7 @@ func (p *politeia) pluginInventory(w http.ResponseWriter, r *http.Request) {
 
 func (p *politeia) pluginCommand(w http.ResponseWriter, r *http.Request) {
 	var pc v1.PluginCommand
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&pc); err != nil {
 		p.respondWithUserError(w, v1.ErrorStatusInvalidRequestPayload,
 			nil)

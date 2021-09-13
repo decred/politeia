@@ -46,7 +46,7 @@ func (p *Pi) HandleSetBillingStatus(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("HandleSetBillingStatus")
 
 	var sbs v1.SetBillingStatus
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&sbs); err != nil {
 		respondWithError(w, r, "HandleSetBillingStatus: unmarshal",
 			v1.UserErrorReply{

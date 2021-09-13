@@ -11,6 +11,14 @@ import (
 	"net/http"
 )
 
+// NewJSONDecoder returns a new JSON Decoder that does not allow unknown
+// fields.
+func NewJSONDecoder(r io.Reader) *json.Decoder {
+	d := json.NewDecoder(r)
+	d.DisallowUnknownFields()
+	return d
+}
+
 func RespondWithError(w http.ResponseWriter, code int, message string) {
 	RespondWithJSON(w, code, map[string]string{"error": message})
 }

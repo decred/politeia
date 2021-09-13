@@ -694,7 +694,7 @@ func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Reques
 	log.Tracef("handleBatchProposals")
 
 	var bp www.BatchProposals
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&bp); err != nil {
 		RespondWithError(w, r, 0, "handleBatchProposals: unmarshal",
 			www.UserError{
@@ -725,7 +725,7 @@ func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Requ
 	log.Tracef("handleBatchVoteSummary")
 
 	var bvs www.BatchVoteSummary
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&bvs); err != nil {
 		RespondWithError(w, r, 0, "handleBatchVoteSummary: unmarshal",
 			www.UserError{
@@ -790,7 +790,7 @@ func (p *politeiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleCastVotes")
 
 	var cv www.Ballot
-	decoder := json.NewDecoder(r.Body)
+	decoder := util.NewJSONDecoder(r.Body)
 	if err := decoder.Decode(&cv); err != nil {
 		RespondWithError(w, r, 0, "handleCastVotes: unmarshal", www.UserError{
 			ErrorCode: www.ErrorStatusInvalidInput,
@@ -895,7 +895,7 @@ func convertRecordToProposal(r pdv2.Record) (*www.ProposalRecord, error) {
 			}
 			um = &m
 		case umplugin.StreamIDStatusChanges:
-			d := json.NewDecoder(strings.NewReader(v.Payload))
+			d := util.NewJSONDecoder(strings.NewReader(v.Payload))
 			for {
 				var sc umplugin.StatusChangeMetadata
 				err := d.Decode(&sc)
