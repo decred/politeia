@@ -66,7 +66,6 @@ func Blobify(be BlobEntry) ([]byte, error) {
 		return nil, err
 	}
 	return b.Bytes(), nil
-
 }
 
 // Deblob decodes the provided gzipped byte slice into a BlobEntry.
