@@ -74,23 +74,14 @@ func Deblob(blob []byte) (bep *BlobEntry, err error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		err2 := zr.Close()
-		if err2 != nil && err != nil {
-			// There was both a pre existing error and a gzip
-			// close error. Wrap the pre existing error in the
-			// gzip close error.
-			err = errors.Errorf("%v: close gzip reader failed: %v",
-				err, err2)
-		} else if err2 != nil {
-			// There was no pre existing error,
-			// but there was a gzip close error.
-			err = err2
-		}
-	}()
 	r := gob.NewDecoder(zr)
 	var be BlobEntry
 	err = r.Decode(&be)
+	if err != nil {
+		zr.Close()
+		return nil, err
+	}
+	err = zr.Close()
 	if err != nil {
 		return nil, err
 	}
