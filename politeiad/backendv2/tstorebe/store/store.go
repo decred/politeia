@@ -11,6 +11,7 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"errors"
+	"fmt"
 
 	"github.com/decred/politeia/util"
 )
@@ -55,13 +56,14 @@ func NewBlobEntry(dataHint, data []byte) BlobEntry {
 func Blobify(be BlobEntry) ([]byte, error) {
 	var b bytes.Buffer
 	zw := gzip.NewWriter(&b)
+	defer func() {
+		err := zw.Close() // we must flush gzip buffers
+		if err != nil {
+			fmt.Printf("Close gzip writer err: %v\n", err)
+		}
+	}()
 	enc := gob.NewEncoder(zw)
 	err := enc.Encode(be)
-	if err != nil {
-		zw.Close()
-		return nil, err
-	}
-	err = zw.Close() // we must flush gzip buffers
 	if err != nil {
 		return nil, err
 	}
@@ -74,14 +76,15 @@ func Deblob(blob []byte) (*BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		err := zr.Close()
+		if err != nil {
+			fmt.Printf("Close gzip reader err: %v\n", err)
+		}
+	}()
 	r := gob.NewDecoder(zr)
 	var be BlobEntry
 	err = r.Decode(&be)
-	if err != nil {
-		zr.Close()
-		return nil, err
-	}
-	err = zr.Close()
 	if err != nil {
 		return nil, err
 	}
