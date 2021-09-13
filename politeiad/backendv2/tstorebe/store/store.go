@@ -69,7 +69,7 @@ func Blobify(be BlobEntry) ([]byte, error) {
 }
 
 // Deblob decodes the provided gzipped byte slice into a BlobEntry.
-func Deblob(blob []byte) (bep *BlobEntry, err error) {
+func Deblob(blob []byte) (*BlobEntry, error) {
 	zr, err := gzip.NewReader(bytes.NewReader(blob))
 	if err != nil {
 		return nil, err
