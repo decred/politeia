@@ -52,29 +52,21 @@ func NewBlobEntry(dataHint, data []byte) BlobEntry {
 }
 
 // Blobify encodes the provided BlobEntry into a gzipped byte slice.
-func Blobify(be BlobEntry) (gb []byte, err error) {
+func Blobify(be BlobEntry) ([]byte, error) {
 	var b bytes.Buffer
 	zw := gzip.NewWriter(&b)
-	defer func() {
-		err2 := zw.Close() // we must flush gzip buffers
-		if err2 != nil && err != nil {
-			// There was both a pre existing error and a gzip
-			// close error. Wrap the pre existing error in the
-			// gzip close error.
-			err = errors.Errorf("%v: close gzip writer failed: %v",
-				err, err2)
-		} else if err2 != nil {
-			// There was no pre existing error,
-			// but there was a gzip close error.
-			err = err2
-		}
-	}()
 	enc := gob.NewEncoder(zw)
-	err = enc.Encode(be)
+	err := enc.Encode(be)
+	if err != nil {
+		zw.Close()
+		return nil, err
+	}
+	err = zw.Close() // we must flush gzip buffers
 	if err != nil {
 		return nil, err
 	}
 	return b.Bytes(), nil
+
 }
 
 // Deblob decodes the provided gzipped byte slice into a BlobEntry.
