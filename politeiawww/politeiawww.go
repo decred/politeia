@@ -37,6 +37,12 @@ import (
 	"github.com/robfig/cron"
 )
 
+const (
+	// websocketReadLimit is the maximum number of bytes allowed for a message
+	// read from a websocket client.
+	websocketReadLimit = 1 << 12 // 4 KiB
+)
+
 // wsContext is the websocket context. If uuid == "" then it is an
 // unauthenticated websocket.
 type wsContext struct {
@@ -351,6 +357,9 @@ func (p *politeiawww) handleWebsocket(w http.ResponseWriter, r *http.Request, id
 		return
 	}
 	defer wc.conn.Close() // causes read to exit as well
+
+	// Set connection read limit
+	wc.conn.SetReadLimit(websocketReadLimit)
 
 	// Create and assign session to map
 	p.wsMtx.Lock()

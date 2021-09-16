@@ -762,9 +762,11 @@ func _main() error {
 				},
 			}
 			srv := &http.Server{
-				Handler:   p.router,
-				Addr:      listen,
-				TLSConfig: cfg,
+				Handler:      p.router,
+				Addr:         listen,
+				ReadTimeout:  5 * time.Second,
+				WriteTimeout: 60 * time.Second, // Kill hung requests
+				TLSConfig:    cfg,
 				TLSNextProto: make(map[string]func(*http.Server,
 					*tls.Conn, http.Handler)),
 			}
