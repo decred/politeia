@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	// reqBodyLimit is the maximum number of bytes allowed in a request body.
-	reqBodyLimit = 3 * 1024 * 1024 // 3 MiB
+	// reqBodySizeLimit is the maximum number of bytes allowed in a request body.
+	reqBodySizeLimit = 3 * 1024 * 1024 // 3 MiB
 )
 
 // isLoggedIn ensures that a user is logged in before calling the next
@@ -91,10 +91,10 @@ func closeBodyMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// bodySizeLimitMiddleware applies a request body size limit to requests.
-func bodySizeLimitMiddleware(next http.Handler) http.Handler {
+// maxBodySizeMiddleware applies a request body size limit to requests.
+func maxBodySizeMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, reqBodyLimit)
+		r.Body = http.MaxBytesReader(w, r.Body, reqBodySizeLimit)
 		next.ServeHTTP(w, r)
 	})
 }
