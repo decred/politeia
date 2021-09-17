@@ -230,7 +230,18 @@ func (r *Records) processSetStatus(ctx context.Context, ss v1.SetStatus, u user.
 		return nil, err
 	}
 	rc := convertRecordToV1(*pdr)
-	recordPopulateUserData(&rc, u)
+
+	// Get record to populate username.
+	record, err := r.record(ctx, ss.Token, ss.Version)
+	if err != nil {
+		if err == errRecordNotFound {
+			return nil, v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeRecordNotFound,
+			}
+		}
+		return nil, err
+	}
+	rc.Username = record.Username
 
 	// Emit event
 	r.events.Emit(EventTypeSetStatus,
