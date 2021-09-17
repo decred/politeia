@@ -38,8 +38,6 @@ func maxBodySizeMiddleware(next http.Handler) http.Handler {
 
 // loggingMiddleware logs all incoming commands before calling the next
 // function.
-//
-// NOTE: LOGGING WILL LOG PASSWORDS IF TRACING IS ENABLED.
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Trace incoming request
