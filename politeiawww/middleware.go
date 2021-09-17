@@ -15,6 +15,11 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+const (
+	// reqBodyLimit is the maximum number of bytes allowed in a request body.
+	reqBodyLimit = 3 * 1024 * 1024 // 3 MiB
+)
+
 // isLoggedIn ensures that a user is logged in before calling the next
 // function.
 func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
@@ -83,6 +88,14 @@ func closeBodyMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r)
 		r.Body.Close()
+	})
+}
+
+// bodySizeLimitMiddleware applies a request body size limit to requests.
+func bodySizeLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, reqBodyLimit)
+		next.ServeHTTP(w, r)
 	})
 }
 

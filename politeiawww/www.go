@@ -600,6 +600,7 @@ func _main() error {
 	// Setup router
 	router := mux.NewRouter()
 	router.Use(closeBodyMiddleware)
+	router.Use(bodySizeLimitMiddleware)
 	router.Use(loggingMiddleware)
 	router.Use(recoverMiddleware)
 
