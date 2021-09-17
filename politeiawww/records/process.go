@@ -229,17 +229,19 @@ func (r *Records) processSetStatus(ctx context.Context, ss v1.SetStatus, u user.
 	if err != nil {
 		return nil, err
 	}
-	rc := convertRecordToV1(*pdr)
-	recordPopulateUserData(&rc, u)
+	rc, err := r.convertRecordToV1(*pdr)
+	if err != nil {
+		return nil, err
+	}
 
 	// Emit event
 	r.events.Emit(EventTypeSetStatus,
 		EventSetStatus{
-			Record: rc,
+			Record: *rc,
 		})
 
 	return &v1.SetStatusReply{
-		Record: rc,
+		Record: *rc,
 	}, nil
 }
 
@@ -522,6 +524,8 @@ func (r *Records) record(ctx context.Context, token string, version uint32) (*v1
 	return &rc, nil
 }
 
+// convertRecordToV1 converts a politeiad's Record to a records API Record,
+// then it populates the user data.
 func (r *Records) convertRecordToV1(pdr pdv2.Record) (*v1.Record, error) {
 	rc := convertRecordToV1(pdr)
 
