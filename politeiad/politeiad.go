@@ -514,8 +514,7 @@ func _main() error {
 			}
 
 			log.Infof("Listen: %v", listen)
-			listenC <- http.ListenAndServeTLS(listen,
-				cfg.HTTPSCert, cfg.HTTPSKey, p.router)
+			listenC <- s.ListenAndServeTLS(cfg.HTTPSCert, cfg.HTTPSKey)
 		}()
 	}
 
