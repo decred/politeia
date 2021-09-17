@@ -142,8 +142,8 @@ func (p *politeia) setupBackendGit(anp *chaincfg.Params) error {
 		return errors.Errorf("router must be initialized")
 	}
 
-	b, err := gitbe.New(activeNetParams.Params, p.cfg.DataDir,
-		p.cfg.DcrtimeHost, "", p.identity, p.cfg.GitTrace, p.cfg.DcrdataHost)
+	b, err := gitbe.New(anp, p.cfg.DataDir, p.cfg.DcrtimeHost,
+		"", p.identity, p.cfg.GitTrace, p.cfg.DcrdataHost)
 	if err != nil {
 		return fmt.Errorf("new gitbe: %v", err)
 	}
