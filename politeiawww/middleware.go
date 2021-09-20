@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,11 +13,6 @@ import (
 
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
-)
-
-const (
-	// reqBodySizeLimit is the maximum number of bytes allowed in a request body.
-	reqBodySizeLimit = 3 * 1024 * 1024 // 3 MiB
 )
 
 // isLoggedIn ensures that a user is logged in before calling the next
@@ -91,14 +86,6 @@ func closeBodyMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// maxBodySizeMiddleware applies a request body size limit to requests.
-func maxBodySizeMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, reqBodySizeLimit)
-		next.ServeHTTP(w, r)
-	})
-}
-
 // loggingMiddleware logs all incoming commands before calling the next
 // function.
 //
@@ -145,6 +132,26 @@ func recoverMiddleware(next http.Handler) http.Handler {
 			}
 		}()
 
+		next.ServeHTTP(w, r)
+	})
+}
+
+// middleware contains the middleware that use configurable settings.
+type middleware struct {
+	reqBodySizeLimit int64 // In bytes
+}
+
+// reqBodySizeLimitMiddleware applies a maximum request body size limit to
+// requests.
+//
+// NOTE: This will only cause an error if the request body is read by the
+// request handler, e.g. the JSON from a POST request is decoded into a struct.
+func (m *middleware) reqBodySizeLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Tracef("Applying a max body size of %v bytes to the request body",
+			m.reqBodySizeLimit)
+
+		r.Body = http.MaxBytesReader(w, r.Body, m.reqBodySizeLimit)
 		next.ServeHTTP(w, r)
 	})
 }
