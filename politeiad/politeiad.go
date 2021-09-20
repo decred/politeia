@@ -426,10 +426,14 @@ func _main() error {
 		log.Infof("Signing identity created...")
 	}
 
-	// Setup the router
+	// Setup the router. Middleware is executed in
+	// the same order that they are registered in.
 	router := mux.NewRouter()
-	router.Use(closeBodyMiddleware)
-	router.Use(maxBodySizeMiddleware)
+	m := middleware{
+		reqBodySizeLimit: cfg.ReqBodySizeLimit,
+	}
+	router.Use(closeBodyMiddleware) // MUST be registered first
+	router.Use(m.reqBodySizeLimitMiddleware)
 	router.Use(loggingMiddleware)
 	router.Use(recoverMiddleware)
 
