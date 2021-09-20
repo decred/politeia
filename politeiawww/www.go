@@ -597,8 +597,8 @@ func _main() error {
 		csrf.MaxAge(sessions.SessionMaxAge),
 	)
 
-	// Setup router. Middleware is executed in the same order
-	// that they are registered in.
+	// Setup the router. Middleware is executed in
+	// the same order that they are registered in.
 	router := mux.NewRouter()
 	m := middleware{
 		reqBodySizeLimit: loadedCfg.ReqBodySizeLimit,
