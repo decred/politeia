@@ -10,17 +10,33 @@ const (
 	// APIRoute is prefixed onto all routes defined in this package.
 	APIRoute = "/records/v1"
 
-	// Record routes
-	RouteNew              = "/new"
-	RouteEdit             = "/edit"
-	RouteSetStatus        = "/setstatus"
-	RouteDetails          = "/details"
-	RouteTimestamps       = "/timestamps"
-	RouteRecords          = "/records"
-	RouteInventory        = "/inventory"
+	// RouteNew adds a new record.
+	RouteNew = "/new"
+
+	// RouteEdit edits a record.
+	RouteEdit = "/edit"
+
+	// RouteSetStatus sets the status of a record.
+	RouteSetStatus = "/setstatus"
+
+	// RouteDetails returns the details of a record.
+	RouteDetails = "/details"
+
+	// RouteTimestamps returns the timestamps of a record.
+	RouteTimestamps = "/timestamps"
+
+	// RouteRecords returns a batch of records.
+	RouteRecords = "/records"
+
+	// RouteInventory returns the tokens of the records in the inventory,
+	// categorized by record state and record status.
+	RouteInventory = "/inventory"
+
+	// RouteInventoryOrdered returns a page of record tokens ordered by the
+	// timestamp of their most recent status change from newest to oldest.
 	RouteInventoryOrdered = "/inventoryordered"
 
-	// Metadata routes
+	// RouteUserRecords returnes the tokens of all records submitted by a user.
 	RouteUserRecords = "/userrecords"
 )
 
@@ -28,29 +44,91 @@ const (
 type ErrorCodeT uint32
 
 const (
-	// Error codes
-	ErrorCodeInvalid                 ErrorCodeT = 0
-	ErrorCodeInputInvalid            ErrorCodeT = 1
-	ErrorCodeFilesEmpty              ErrorCodeT = 2
-	ErrorCodeFileNameInvalid         ErrorCodeT = 3
-	ErrorCodeFileNameDuplicate       ErrorCodeT = 4
-	ErrorCodeFileMIMETypeInvalid     ErrorCodeT = 5
+	// ErrorCodeInvalid is an invalid error code.
+	ErrorCodeInvalid ErrorCodeT = 0
+
+	// ErrorCodeInputInvalid is returned when there is an error
+	// while prasing a command payload.
+	ErrorCodeInputInvalid ErrorCodeT = 1
+
+	// ErrorCodeFilesEmpty is returned when record's files are
+	// empty.
+	ErrorCodeFilesEmpty ErrorCodeT = 2
+
+	// ErrorCodeFileNameInvalid is returned when a file name is
+	// invalid.
+	ErrorCodeFileNameInvalid ErrorCodeT = 3
+
+	// ErrorCodeFileNameDuplicate is returned when a file name is
+	// a duplicate.
+	ErrorCodeFileNameDuplicate ErrorCodeT = 4
+
+	// ErrorCodeFileMIMETypeInvalid is returned when a file MIME type
+	// is invalid.
+	ErrorCodeFileMIMETypeInvalid ErrorCodeT = 5
+
+	// ErrorCodeFileMIMETypeUnsupported is returned when a file MIME
+	// type is unsupported.
 	ErrorCodeFileMIMETypeUnsupported ErrorCodeT = 6
-	ErrorCodeFileDigestInvalid       ErrorCodeT = 7
-	ErrorCodeFilePayloadInvalid      ErrorCodeT = 8
+
+	// ErrorCodeFileDigestInvalid is returned when an invalid file
+	// digest found.
+	ErrorCodeFileDigestInvalid ErrorCodeT = 7
+
+	// ErrorCodeFilePayloadInvalid is returned when an invalid file
+	// payload found.
+	ErrorCodeFilePayloadInvalid ErrorCodeT = 8
+
+	// ErrorCodeMetadataStreamIDInvalid is returned a metadata stream
+	// ID is invalid.
 	ErrorCodeMetadataStreamIDInvalid ErrorCodeT = 9
-	ErrorCodePublicKeyInvalid        ErrorCodeT = 10
-	ErrorCodeSignatureInvalid        ErrorCodeT = 11
-	ErrorCodeRecordTokenInvalid      ErrorCodeT = 12
-	ErrorCodeRecordNotFound          ErrorCodeT = 13
-	ErrorCodeRecordLocked            ErrorCodeT = 14
-	ErrorCodeNoRecordChanges         ErrorCodeT = 15
-	ErrorCodeRecordStateInvalid      ErrorCodeT = 16
-	ErrorCodeRecordStatusInvalid     ErrorCodeT = 17
-	ErrorCodeStatusChangeInvalid     ErrorCodeT = 18
-	ErrorCodeStatusReasonNotFound    ErrorCodeT = 19
-	ErrorCodePageSizeExceeded        ErrorCodeT = 20
-	ErrorCodeLast                    ErrorCodeT = 21
+
+	// ErrorCodePublicKeyInvalid is returned when a public key is not
+	// a valid hex encoded, Ed25519 public key.
+	ErrorCodePublicKeyInvalid ErrorCodeT = 10
+
+	// ErrorCodeSignatureInvalid is returned when a signature is not
+	// a valid hex encoded, Ed25519 signature or when the signature is
+	// wrong.
+	ErrorCodeSignatureInvalid ErrorCodeT = 11
+
+	// ErrorCodeRecordTokenInvalid is returned when a record token is
+	// invalid.
+	ErrorCodeRecordTokenInvalid ErrorCodeT = 12
+
+	// ErrorCodeRecordNotFound is returned when a record is not found.
+	ErrorCodeRecordNotFound ErrorCodeT = 13
+
+	// ErrorCodeRecordLocked is returned when a record is locked.
+	ErrorCodeRecordLocked ErrorCodeT = 14
+
+	// ErrorCodeNoRecordChanges is retuned when no record changes found.
+	ErrorCodeNoRecordChanges ErrorCodeT = 15
+
+	// ErrorCodeRecordStateInvalid is returned when a record state is
+	// invalid.
+	ErrorCodeRecordStateInvalid ErrorCodeT = 16
+
+	// ErrorCodeRecordStatusInvalid is returned when a record status is
+	// invalid.
+	ErrorCodeRecordStatusInvalid ErrorCodeT = 17
+
+	// ErrorCodeStatusChangeInvalid is returned when a record status change
+	// is invalid.
+	ErrorCodeStatusChangeInvalid ErrorCodeT = 18
+
+	// ErrorCodeStatusReasonNotFound is returned when a record status change
+	// reason is not found.
+	ErrorCodeStatusReasonNotFound ErrorCodeT = 19
+
+	// ErrorCodePageSizeExceeded is returned when the request's page size
+	// exceeds the maximum page size of the request.
+	ErrorCodePageSizeExceeded ErrorCodeT = 20
+
+	// ErrorCodeLast is used by unit tests to verify that all error codes have
+	// a human readable entry in the ErrorCodes map. This error will never be
+	// returned.
+	ErrorCodeLast ErrorCodeT = 21
 )
 
 var (
@@ -318,8 +396,8 @@ type DetailsReply struct {
 // Proof contains an inclusion proof for the digest in the merkle root. All
 // digests are hex encoded SHA256 digests.
 //
-// The ExtraData field is used by certain types of proofs to include additional
-// data that is required to validate the proof.
+// The ExtraData field is used by certain types of proofs to include
+// additional data that is required to validate the proof.
 type Proof struct {
 	Type       string   `json:"type"`
 	Digest     string   `json:"digest"`
@@ -328,15 +406,15 @@ type Proof struct {
 	ExtraData  string   `json:"extradata"` // JSON encoded
 }
 
-// Timestamp contains all of the data required to verify that a piece of record
-// data was timestamped onto the decred blockchain.
+// Timestamp contains all of the data required to verify that a piece of
+// record data was timestamped onto the decred blockchain.
 //
-// All digests are hex encoded SHA256 digests. The merkle root can be found in
-// the OP_RETURN of the specified DCR transaction.
+// All digests are hex encoded SHA256 digests. The merkle root can be found
+// in the OP_RETURN of the specified DCR transaction.
 //
-// TxID, MerkleRoot, and Proofs will only be populated once the merkle root has
-// been included in a DCR tx and the tx has 6 confirmations. The Data field
-// will not be populated if the data has been censored.
+// TxID, MerkleRoot, and Proofs will only be populated once the merkle root
+// has been included in a DCR tx and the tx has 6 confirmations. The Data
+// field will not be populated if the data has been censored.
 type Timestamp struct {
 	Data       string  `json:"data"` // JSON encoded
 	Digest     string  `json:"digest"`
@@ -440,8 +518,8 @@ type InventoryOrderedReply struct {
 	Tokens []string `json:"tokens"`
 }
 
-// UserRecords requests the tokens of all records submitted by a user. Unvetted
-// record tokens are only returned to admins and the record author.
+// UserRecords requests the tokens of all records submitted by a user.
+// Unvetted record tokens are only returned to admins and the record author.
 type UserRecords struct {
 	UserID string `json:"userid"`
 }
