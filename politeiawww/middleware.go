@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -132,6 +132,26 @@ func recoverMiddleware(next http.Handler) http.Handler {
 			}
 		}()
 
+		next.ServeHTTP(w, r)
+	})
+}
+
+// middleware contains the middleware that use configurable settings.
+type middleware struct {
+	reqBodySizeLimit int64 // In bytes
+}
+
+// reqBodySizeLimitMiddleware applies a maximum request body size limit to
+// requests.
+//
+// NOTE: This will only cause an error if the request body is read by the
+// request handler, e.g. the JSON from a POST request is decoded into a struct.
+func (m *middleware) reqBodySizeLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Tracef("Applying a max body size of %v bytes to the request body",
+			m.reqBodySizeLimit)
+
+		r.Body = http.MaxBytesReader(w, r.Body, m.reqBodySizeLimit)
 		next.ServeHTTP(w, r)
 	})
 }
