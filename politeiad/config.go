@@ -64,8 +64,8 @@ var (
 	defaultLogDir        = filepath.Join(defaultHomeDir, defaultLogDirname)
 	defaultIdentityFile  = filepath.Join(defaultHomeDir, defaultIdentityFilename)
 
-	// defaultReadTimeout is the maximum duration in seconds for reading the
-	// request headers and body.
+	// defaultReadTimeout is the maximum duration in seconds that is spent
+	// reading the request headers and body.
 	defaultReadTimeout int64 = 5
 
 	// defaultWriteTimeout is the maximum duration in seconds that a request
@@ -108,7 +108,7 @@ type config struct {
 	Backend     string `long:"backend" description:"Backend type"`
 
 	// Web server settings
-	ReadTimeout      int64 `long:"readtimeout" description:"Maximum duration in seconds for reading the request headers and body"`
+	ReadTimeout      int64 `long:"readtimeout" description:"Maximum duration in seconds that is spent reading the request headers and body"`
 	WriteTimeout     int64 `long:"writetimeout" description:"Maximum duration in seconds that a request connection is kept open"`
 	ReqBodySizeLimit int64 `long:"reqbodysizelimit" description:"Maximum number of bytes allowed for a request body from a http client"`
 

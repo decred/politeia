@@ -70,7 +70,7 @@ type Config struct {
 	Mode            string   `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
 
 	// Web server settings
-	ReadTimeout        int64 `long:"readtimeout" description:"Maximum duration in seconds for reading the request headers and body"`
+	ReadTimeout        int64 `long:"readtimeout" description:"Maximum duration in seconds that is spent reading the request headers and body"`
 	WriteTimeout       int64 `long:"writetimeout" description:"Maximum duration in seconds that a request connection is kept open"`
 	ReqBodySizeLimit   int64 `long:"reqbodysizelimit" description:"Maximum number of bytes allowed for a request body from a http client"`
 	WebsocketReadLimit int64 `long:"websocketreadlimit" description:"Maximum number of bytes allowed for a message read from a websocket client"`

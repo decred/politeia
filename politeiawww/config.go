@@ -90,8 +90,8 @@ var (
 	defaultCookieKeyFile = filepath.Join(defaultHomeDir, "cookie.key")
 	defaultLogDir        = filepath.Join(defaultHomeDir, defaultLogDirname)
 
-	// defaultReadTimeout is the maximum duration in seconds for reading the
-	// request headers and body.
+	// defaultReadTimeout is the maximum duration in seconds that is spent
+	// reading the request headers and body.
 	defaultReadTimeout int64 = 5
 
 	// defaultWriteTimeout is the maximum duration in seconds that a request
