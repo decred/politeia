@@ -303,7 +303,6 @@ func New(backend backend.Backend, bs backend.BackendSettings, ps []backend.Plugi
 		backend:                    backend,
 		identity:                   bs.Identity,
 		textFileSizeMax:            textFileSizeMax,
-		tstore:                     tstore,
 		imageFileCountMax:          imageFileCountMax,
 		imageFileSizeMax:           imageFileSizeMax,
 		proposalNameLengthMin:      nameLengthMin,

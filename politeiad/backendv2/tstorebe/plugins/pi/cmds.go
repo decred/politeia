@@ -6,7 +6,6 @@ package pi
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -231,53 +230,23 @@ func billingStatusEncode(bsc pi.BillingStatusChange) (*store.BlobEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	hint, err := json.Marshal(
-		store.DataDescriptor{
-			Type:       store.DataTypeStructure,
-			Descriptor: dataDescriptorBillingStatus,
-		})
-	if err != nil {
-		return nil, err
+	dh := store.DataHint{
+		Type:       store.DataTypeStructure,
+		Descriptor: dataDescriptorBillingStatus,
 	}
-	be := store.NewBlobEntry(hint, data)
-	return &be, nil
+	return store.NewBlobEntry(dh, data)
 }
 
 // billingStatusDecode decodes a BlobEntry into a BillingStatusChange.
 func billingStatusDecode(be store.BlobEntry) (*pi.BillingStatusChange, error) {
-	// Decode and validate data hint
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	b, err := store.Decode(be, dataDescriptorBillingStatus)
 	if err != nil {
-		return nil, fmt.Errorf("decode DataHint: %v", err)
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal DataHint: %v", err)
-	}
-	if dd.Descriptor != dataDescriptorBillingStatus {
-		return nil, fmt.Errorf("unexpected data descriptor: got %v, "+
-			"want %v", dd.Descriptor, dataDescriptorBillingStatus)
-	}
-
-	// Decode data
-	b, err = base64.StdEncoding.DecodeString(be.Data)
-	if err != nil {
-		return nil, fmt.Errorf("decode Data: %v", err)
-	}
-	digest, err := hex.DecodeString(be.Digest)
-	if err != nil {
-		return nil, fmt.Errorf("decode digest: %v", err)
-	}
-	if !bytes.Equal(util.Digest(b), digest) {
-		return nil, fmt.Errorf("data is not coherent; got %x, want %x",
-			util.Digest(b), digest)
+		return nil, err
 	}
 	var bsc pi.BillingStatusChange
 	err = json.Unmarshal(b, &bsc)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal AuthDetails: %v", err)
+		return nil, err
 	}
-
 	return &bsc, nil
 }
