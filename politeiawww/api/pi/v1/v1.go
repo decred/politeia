@@ -4,13 +4,94 @@
 
 package v1
 
+import "fmt"
+
 const (
 	// APIRoute is prefixed onto all routes defined in this package.
 	APIRoute = "/pi/v1"
 
 	// RoutePolicy returns the policy for the pi API.
 	RoutePolicy = "/policy"
+
+	// RouteSetBillingStatus sets the record's billing status.
+	RouteSetBillingStatus = "/setbillingstatus"
 )
+
+// ErrorCodeT represents a user error code.
+type ErrorCodeT uint32
+
+const (
+	// ErrorCodeInvalid is an invalid error code.
+	ErrorCodeInvalid ErrorCodeT = 0
+
+	// ErrorCodeInputInvalid is returned when there is an error
+	// while prasing a command payload.
+	ErrorCodeInputInvalid ErrorCodeT = 1
+
+	// ErrorCodePublicKeyInvalid is returned when a public key is
+	// invalid.
+	ErrorCodePublicKeyInvalid ErrorCodeT = 2
+
+	// ErrorCodeRecordTokenInvalid is returned when a record token is
+	// invalid.
+	ErrorCodeRecordTokenInvalid ErrorCodeT = 3
+
+	// ErrorCodeRecordNotFound is returned when no record was found.
+	ErrorCodeRecordNotFound ErrorCodeT = 4
+
+	// ErrorCodeLast unit test only
+	ErrorCodeLast ErrorCodeT = 5
+)
+
+var (
+	// ErrorCodes contains the human readable errors.
+	ErrorCodes = map[ErrorCodeT]string{
+		ErrorCodeInvalid:            "error invalid",
+		ErrorCodeInputInvalid:       "input invalid",
+		ErrorCodePublicKeyInvalid:   "public key invalid",
+		ErrorCodeRecordTokenInvalid: "record token invalid",
+		ErrorCodeRecordNotFound:     "record not found",
+	}
+)
+
+// UserErrorReply is the reply that the server returns when it encounters an
+// error that is caused by something that the user did (malformed input, bad
+// timing, etc). The HTTP status code will be 400.
+type UserErrorReply struct {
+	ErrorCode    ErrorCodeT `json:"errorcode"`
+	ErrorContext string     `json:"errorcontext,omitempty"`
+}
+
+// Error satisfies the error interface.
+func (e UserErrorReply) Error() string {
+	return fmt.Sprintf("user error code: %v", e.ErrorCode)
+}
+
+// PluginErrorReply is the reply that the server returns when it encounters
+// a plugin error.
+type PluginErrorReply struct {
+	PluginID     string `json:"pluginid"`
+	ErrorCode    uint32 `json:"errorcode"`
+	ErrorContext string `json:"errorcontext,omitempty"`
+}
+
+// Error satisfies the error interface.
+func (e PluginErrorReply) Error() string {
+	return fmt.Sprintf("plugin %v error code: %v", e.PluginID, e.ErrorCode)
+}
+
+// ServerErrorReply is the reply that the server returns when it encounters an
+// unrecoverable error while executing a command. The HTTP status code will be
+// 500 and the ErrorCode field will contain a UNIX timestamp that the user can
+// provide to the server admin to track down the error details in the logs.
+type ServerErrorReply struct {
+	ErrorCode int64 `json:"errorcode"`
+}
+
+// Error satisfies the error interface.
+func (e ServerErrorReply) Error() string {
+	return fmt.Sprintf("server error: %v", e.ErrorCode)
+}
 
 // Policy requests the policy settings for the pi API. It includes the policy
 // guidlines for the contents of a proposal record.
@@ -71,4 +152,94 @@ type VoteMetadata struct {
 	// It is set when a proposal is being submitted as a vote options
 	// in the runoff vote.
 	LinkTo string `json:"linkto,omitempty"`
+}
+
+// BillingStatusT represents the billing status of a proposal that has been
+// approved by the Decred stakeholders.
+type BillingStatusT uint32
+
+const (
+	// BillingStatusInvalid is an invalid billing status.
+	BillingStatusInvalid BillingStatusT = 0
+
+	// BillingStatusActive represents a proposal that was approved by
+	// the Decred stakeholders and is being actively billed against.
+	BillingStatusActive BillingStatusT = 1
+
+	// BillingStatusClosed represents a proposal that was approved by
+	// the Decred stakeholders, but has been closed by an admin prior
+	// to the proposal being completed. The most common reason for this
+	// is because a proposal author failed to deliver on the work that
+	// was funded in the proposal. A closed proposal can no longer be
+	// billed against.
+	BillingStatusClosed BillingStatusT = 2
+
+	// BillingStatusCompleted represents a proposal that was approved
+	// by the Decred stakeholders and has been successfully completed.
+	// A completed proposal can no longer be billed against. A proposal
+	// is marked as completed by an admin.
+	BillingStatusCompleted BillingStatusT = 3
+
+	// BillingStatusLast unit test only.
+	BillingStatusLast BillingStatusT = 4
+)
+
+var (
+	// BillingStatuses contains the human readable billing statuses.
+	BillingStatuses = map[BillingStatusT]string{
+		BillingStatusInvalid:   "invalid",
+		BillingStatusActive:    "active",
+		BillingStatusClosed:    "closed",
+		BillingStatusCompleted: "completed",
+	}
+)
+
+// BillingStatusChange represents the structure that is saved to disk when
+// a proposal has its billing status updated. Some billing status changes
+// require a reason to be given. Only admins can update the billing status
+// of a proposal.
+//
+// PublicKey is the admin public key that can be used to verify the signature.
+//
+// Signature is the admin signature of the Token+Status+Reason.
+//
+// Receipt is the server signature of the admin signature.
+//
+// The PublicKey, Signature, and Receipt are all hex encoded and use the
+// ed25519 signature scheme.
+type BillingStatusChange struct {
+	Token     string         `json:"token"`
+	Status    BillingStatusT `json:"status"`
+	Reason    string         `json:"reason,omitempty"`
+	PublicKey string         `json:"publickey"`
+	Signature string         `json:"signature"`
+	Receipt   string         `json:"receipt"`
+	Timestamp int64          `json:"timestamp"` // Unix timestamp
+}
+
+// SetBillingStatus sets the billing status of a proposal. Some billing status
+// changes require a reason to be given. Only admins can update the billing
+// status of a proposal.
+//
+// PublicKey is the admin public key that can be used to verify the signature.
+//
+// Signature is the admin signature of the Token+Status+Reason.
+//
+// The PublicKey and Signature are hex encoded and use the ed25519 signature
+// scheme.
+type SetBillingStatus struct {
+	Token     string         `json:"token"`
+	Status    BillingStatusT `json:"status"`
+	Reason    string         `json:"reason,omitempty"`
+	PublicKey string         `json:"publickey"`
+	Signature string         `json:"signature"`
+}
+
+// SetBillingStatusReply is the reply to the SetBillingStatus command.
+//
+// Receipt is the server signature of the client signature. It is hex encoded
+// and uses the ed25519 signature scheme.
+type SetBillingStatusReply struct {
+	Receipt   string `json:"receipt"`
+	Timestamp int64  `json:"timestamp"` // Unix timestamp
 }

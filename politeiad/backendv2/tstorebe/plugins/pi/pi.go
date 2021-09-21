@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/pi"
@@ -27,6 +28,12 @@ var (
 // piPlugin satisfies the plugins PluginClient interface.
 type piPlugin struct {
 	backend backend.Backend
+	tstore  plugins.TstoreClient
+
+	// identity contains the full identity that the plugin uses to
+	// create receipts, i.e. signatures of user provided data that
+	// prove the backend received and processed a plugin command.
+	identity identity.FullIdentity
 
 	// Plugin settings
 	textFileCountMax           uint32
@@ -70,6 +77,11 @@ func (p *piPlugin) Write(tstore plugins.TstoreClient, token []byte, cmd, payload
 // This function satisfies the plugins PluginClient interface.
 func (p *piPlugin) Read(tstore plugins.TstoreClient, token []byte, cmd, payload string) (string, error) {
 	log.Tracef("pi Read: %x %v %v", token, cmd, payload)
+
+	switch cmd {
+	case pi.CmdSetBillingStatus:
+		return p.cmdSetBillingStatus(token, payload)
+	}
 
 	return "", backend.ErrPluginCmdInvalid
 }
@@ -160,7 +172,7 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 }
 
 // New returns a new piPlugin.
-func New(backend backend.Backend, ps []backend.PluginSetting) (*piPlugin, error) {
+func New(backend backend.Backend, bs backend.BackendSettings, ps []backend.PluginSetting) (*piPlugin, error) {
 	// Setup plugin setting default values
 	var (
 		textFileSizeMax    = pi.SettingTextFileSizeMax
@@ -289,7 +301,9 @@ func New(backend backend.Backend, ps []backend.PluginSetting) (*piPlugin, error)
 
 	return &piPlugin{
 		backend:                    backend,
+		identity:                   bs.Identity,
 		textFileSizeMax:            textFileSizeMax,
+		tstore:                     tstore,
 		imageFileCountMax:          imageFileCountMax,
 		imageFileSizeMax:           imageFileSizeMax,
 		proposalNameLengthMin:      nameLengthMin,

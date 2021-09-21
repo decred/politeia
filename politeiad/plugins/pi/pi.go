@@ -9,6 +9,9 @@ package pi
 const (
 	// PluginID is the unique identifier for this plugin.
 	PluginID = "pi"
+
+	// CmdSetBillingStatus command sets the billing status.
+	CmdSetBillingStatus = "setbillingstatus"
 )
 
 // Plugin setting keys can be used to specify custom plugin settings. Default
@@ -121,7 +124,7 @@ var (
 type ErrorCodeT uint32
 
 const (
-	// ErrorCodeInvalid represents and invalid error code.
+	// ErrorCodeInvalid represents an invalid error code.
 	ErrorCodeInvalid ErrorCodeT = 0
 
 	// ErrorCodeTextFileNameInvalid is returned when a text file has
@@ -168,25 +171,53 @@ const (
 	// is not one of the supported domains.
 	ErrorCodeProposalDomainInvalid ErrorCodeT = 11
 
+	// ErrorCodeTokenInvalid is returned when a record token is
+	// provided as part of a plugin command payload and is not a valid
+	// token or the payload token does not match the token that was
+	// used in the API request.
+	ErrorCodeTokenInvalid ErrorCodeT = 12
+
+	// ErrorCodePublicKeyInvalid is returned when a public key is not
+	// a valid hex encoded, Ed25519 public key.
+	ErrorCodePublicKeyInvalid ErrorCodeT = 13
+
+	// ErrorCodeSignatureInvalid is returned when a signature is not
+	// a valid hex encoded, Ed25519 signature or when the signature is
+	// wrong.
+	ErrorCodeSignatureInvalid ErrorCodeT = 14
+
+	// ErrorCodeBillingStatusChangeNotAllowed is returned when a billing status
+	// change is not allowed.
+	ErrorCodeBillingStatusChangeNotAllowed = 15
+
+	// ErrorCodeBillingStatusInvalid is returned when an invalid billing status
+	// is provided.
+	ErrorCodeBillingStatusInvalid = 16
+
 	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 12
+	ErrorCodeLast ErrorCodeT = 17
 )
 
 var (
 	// ErrorCodes contains the human readable errors.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid:                  "error code invalid",
-		ErrorCodeTextFileNameInvalid:      "text file name invalid",
-		ErrorCodeTextFileSizeInvalid:      "text file size invalid",
-		ErrorCodeTextFileMissing:          "text file is misisng",
-		ErrorCodeImageFileCountInvalid:    "image file count invalid",
-		ErrorCodeImageFileSizeInvalid:     "image file size invalid",
-		ErrorCodeProposalNameInvalid:      "proposal name invalid",
-		ErrorCodeVoteStatusInvalid:        "vote status invalid",
-		ErrorCodeProposalAmountInvalid:    "proposal amount invalid",
-		ErrorCodeProposalStartDateInvalid: "proposal start date invalid",
-		ErrorCodeProposalEndDateInvalid:   "proposal end date invalid",
-		ErrorCodeProposalDomainInvalid:    "proposal domain invalid",
+		ErrorCodeInvalid:                       "error code invalid",
+		ErrorCodeTextFileNameInvalid:           "text file name invalid",
+		ErrorCodeTextFileSizeInvalid:           "text file size invalid",
+		ErrorCodeTextFileMissing:               "text file is misisng",
+		ErrorCodeImageFileCountInvalid:         "image file count invalid",
+		ErrorCodeImageFileSizeInvalid:          "image file size invalid",
+		ErrorCodeProposalNameInvalid:           "proposal name invalid",
+		ErrorCodeVoteStatusInvalid:             "vote status invalid",
+		ErrorCodeProposalAmountInvalid:         "proposal amount invalid",
+		ErrorCodeProposalStartDateInvalid:      "proposal start date invalid",
+		ErrorCodeProposalEndDateInvalid:        "proposal end date invalid",
+		ErrorCodeProposalDomainInvalid:         "proposal domain invalid",
+		ErrorCodeTokenInvalid:                  "token invalid",
+		ErrorCodePublicKeyInvalid:              "public key invalid",
+		ErrorCodeSignatureInvalid:              "signature invalid",
+		ErrorCodeBillingStatusChangeNotAllowed: "billing status change is not allowed",
+		ErrorCodeBillingStatusInvalid:          "billing status invalid",
 	}
 )
 
@@ -215,4 +246,81 @@ type ProposalMetadata struct {
 	StartDate int64  `json:"startdate"` // Start date, Unix time
 	EndDate   int64  `json:"enddate"`   // Estimated end date, Unix time
 	Domain    string `json:"domain"`    // Proposal domain
+}
+
+// BillingStatusT represents the billing status of a proposal that has been
+// approved by the Decred stakeholders.
+type BillingStatusT uint32
+
+const (
+	// BillingStatusInvalid is an invalid billing status.
+	BillingStatusInvalid BillingStatusT = 0
+
+	// BillingStatusActive represents a proposal that was approved by
+	// the Decred stakeholders and is being actively billed against.
+	BillingStatusActive BillingStatusT = 1
+
+	// BillingStatusClosed represents a proposal that was approved by
+	// the Decred stakeholders, but has been closed by an admin prior
+	// to the proposal being completed. The most common reason for this
+	// is because a proposal author failed to deliver on the work that
+	// was funded in the proposal. A closed proposal can no longer be
+	// billed against.
+	BillingStatusClosed BillingStatusT = 2
+
+	// BillingStatusCompleted represents a proposal that was approved
+	// by the Decred stakeholders and has been successfully completed.
+	// A completed proposal can no longer be billed against. A proposal
+	// is marked as completed by an admin.
+	BillingStatusCompleted BillingStatusT = 3
+)
+
+// BillingStatusChange represents the structure that is saved to disk when
+// a proposal has its billing status updated. Some billing status changes
+// require a reason to be given. Only admins can update the billing status
+// of a proposal.
+//
+// PublicKey is the admin public key that can be used to verify the signature.
+//
+// Signature is the admin signature of the Token+Status+Reason.
+//
+// Receipt is the server signature of the admin signature.
+//
+// The PublicKey, Signature, and Receipt are all hex encoded and use the
+// ed25519 signature scheme.
+type BillingStatusChange struct {
+	Token     string         `json:"token"`
+	Status    BillingStatusT `json:"status"`
+	Reason    string         `json:"reason,omitempty"`
+	PublicKey string         `json:"publickey"`
+	Signature string         `json:"signature"`
+	Receipt   string         `json:"receipt"`
+	Timestamp int64          `json:"timestamp"` // Unix timestamp
+}
+
+// SetBillingStatus sets the billing status of a proposal. Some billing status
+// changes require a reason to be given. Only admins can update the billing
+// status of a proposal.
+//
+// PublicKey is the admin public key that can be used to verify the signature.
+//
+// Signature is the admin signature of the Token+Status+Reason.
+//
+// The PublicKey and Signature are hex encoded and use the ed25519 signature
+// scheme.
+type SetBillingStatus struct {
+	Token     string         `json:"token"`
+	Status    BillingStatusT `json:"status"`
+	Reason    string         `json:"reason,omitempty"`
+	PublicKey string         `json:"publickey"`
+	Signature string         `json:"signature"`
+}
+
+// SetBillingStatusReply is the reply to the SetBillingStatus command.
+//
+// Receipt is the server signature of the client signature. It is hex encoded
+// and uses the ed25519 signature scheme.
+type SetBillingStatusReply struct {
+	Receipt   string `json:"receipt"`
+	Timestamp int64  `json:"timestamp"` // Unix timestamp
 }
