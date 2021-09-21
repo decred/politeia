@@ -125,38 +125,10 @@ func (p *politeia) auth(fn http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func logging(f http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Trace incoming request
-		log.Tracef("%v", newLogClosure(func() string {
-			trace, err := httputil.DumpRequest(r, true)
-			if err != nil {
-				trace = []byte(fmt.Sprintf("logging: "+
-					"DumpRequest %v", err))
-			}
-			return string(trace)
-		}))
-
-		// Log incoming connection
-		log.Infof("%v %v %v %v", remoteAddr(r), r.Method, r.URL, r.Proto)
-		f(w, r)
-	}
-}
-
-// closeBody closes the request body after the provided handler is called.
-func closeBody(f http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		f(w, r)
-		r.Body.Close()
-	}
-}
-
 func (p *politeia) addRoute(method string, route string, handler http.HandlerFunc, perm permission) {
 	if perm == permissionAuth {
 		handler = p.auth(handler)
 	}
-	handler = closeBody(logging(handler))
-
 	p.router.StrictSlash(true).HandleFunc(route, handler).Methods(method)
 }
 
@@ -166,18 +138,19 @@ func (p *politeia) addRouteV2(method string, route string, handler http.HandlerF
 }
 
 func (p *politeia) setupBackendGit(anp *chaincfg.Params) error {
-	b, err := gitbe.New(activeNetParams.Params, p.cfg.DataDir,
-		p.cfg.DcrtimeHost, "", p.identity, p.cfg.GitTrace, p.cfg.DcrdataHost)
+	if p.router == nil {
+		return errors.Errorf("router must be initialized")
+	}
+
+	b, err := gitbe.New(anp, p.cfg.DataDir, p.cfg.DcrtimeHost,
+		"", p.identity, p.cfg.GitTrace, p.cfg.DcrdataHost)
 	if err != nil {
 		return errors.Errorf("new gitbe: %v", err)
 	}
 	p.backend = b
 
-	// Setup mux
-	p.router = mux.NewRouter()
-
 	// Not found
-	p.router.NotFoundHandler = closeBody(p.handleNotFound)
+	p.router.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
 
 	// Unprivileged routes
 	p.addRoute(http.MethodPost, v1.IdentityRoute, p.getIdentity,
@@ -297,6 +270,10 @@ func parsePluginSetting(setting string) (string, *backendv2.PluginSetting, error
 }
 
 func (p *politeia) setupBackendTstore(net *chaincfg.Params) error {
+	if p.router == nil {
+		return errors.Errorf("router must be initialized")
+	}
+
 	b, err := tstorebe.New(p.cfg.HomeDir, p.cfg.DataDir,
 		p.cfg.TlogHost, p.cfg.TlogPass, p.cfg.DBType, p.cfg.DBHost,
 		p.cfg.DBPass, p.cfg.DcrtimeHost, p.cfg.DcrtimeCert,
@@ -306,11 +283,8 @@ func (p *politeia) setupBackendTstore(net *chaincfg.Params) error {
 	}
 	p.backendv2 = b
 
-	// Setup mux
-	p.router = mux.NewRouter()
-
 	// Setup not found handler
-	p.router.NotFoundHandler = closeBody(p.handleNotFound)
+	p.router.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
 
 	// Setup v1 routes
 	p.addRoute(http.MethodPost, v1.IdentityRoute,
@@ -452,9 +426,21 @@ func _main() error {
 		log.Infof("Signing identity created...")
 	}
 
+	// Setup the router. Middleware is executed in
+	// the same order that they are registered in.
+	router := mux.NewRouter()
+	m := middleware{
+		reqBodySizeLimit: cfg.ReqBodySizeLimit,
+	}
+	router.Use(closeBodyMiddleware) // MUST be registered first
+	router.Use(m.reqBodySizeLimitMiddleware)
+	router.Use(loggingMiddleware)
+	router.Use(recoverMiddleware)
+
 	// Setup application context.
 	p := &politeia{
-		cfg: cfg,
+		cfg:    cfg,
+		router: router,
 	}
 
 	// Load identity.
