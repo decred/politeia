@@ -18,6 +18,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	v1 "github.com/decred/politeia/politeiad/api/v1"
@@ -491,9 +492,15 @@ func _main() error {
 	for _, listener := range cfg.Listeners {
 		listen := listener
 		go func() {
+			s := &http.Server{
+				Handler:      p.router,
+				Addr:         listen,
+				ReadTimeout:  time.Duration(cfg.ReadTimeout) * time.Second,
+				WriteTimeout: time.Duration(cfg.WriteTimeout) * time.Second,
+			}
+
 			log.Infof("Listen: %v", listen)
-			listenC <- http.ListenAndServeTLS(listen,
-				cfg.HTTPSCert, cfg.HTTPSKey, p.router)
+			listenC <- s.ListenAndServeTLS(cfg.HTTPSCert, cfg.HTTPSKey)
 		}()
 	}
 
