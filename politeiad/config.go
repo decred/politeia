@@ -64,6 +64,14 @@ var (
 	defaultLogDir        = filepath.Join(defaultHomeDir, defaultLogDirname)
 	defaultIdentityFile  = filepath.Join(defaultHomeDir, defaultIdentityFilename)
 
+	// defaultReadTimeout is the maximum duration in seconds that is spent
+	// reading the request headers and body.
+	defaultReadTimeout int64 = 5
+
+	// defaultWriteTimeout is the maximum duration in seconds that a request
+	// connection is kept open.
+	defaultWriteTimeout int64 = 60
+
 	// defaultReqBodySizeLimit is the maximum number of bytes allowed in a
 	// request body.
 	defaultReqBodySizeLimit int64 = 3 * 1024 * 1024 // 3 MiB
@@ -77,29 +85,33 @@ var runServiceCommand func(string) error
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
-	HomeDir          string   `short:"A" long:"appdata" description:"Path to application home directory"`
-	ShowVersion      bool     `short:"V" long:"version" description:"Display version information and exit"`
-	ConfigFile       string   `short:"C" long:"configfile" description:"Path to configuration file"`
-	DataDir          string   `short:"b" long:"datadir" description:"Directory to store data"`
-	LogDir           string   `long:"logdir" description:"Directory to log output."`
-	TestNet          bool     `long:"testnet" description:"Use the test network"`
-	SimNet           bool     `long:"simnet" description:"Use the simulation test network"`
-	Profile          string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CPUProfile       string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile       string   `long:"memprofile" description:"Write mem profile to the specified file"`
-	DebugLevel       string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	Listeners        []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
-	Version          string
-	HTTPSCert        string `long:"httpscert" description:"File containing the https certificate file"`
-	HTTPSKey         string `long:"httpskey" description:"File containing the https certificate key"`
-	RPCUser          string `long:"rpcuser" description:"RPC user name for privileged commands"`
-	RPCPass          string `long:"rpcpass" description:"RPC password for privileged commands"`
-	DcrtimeHost      string `long:"dcrtimehost" description:"Dcrtime ip:port"`
-	DcrtimeCert      string // Provided in env variable "DCRTIMECERT"
-	Identity         string `long:"identity" description:"File containing the politeiad identity file"`
-	Backend          string `long:"backend" description:"Backend type"`
-	Fsck             bool   `long:"fsck" description:"Perform filesystem checks on all record and plugin data"`
-	ReqBodySizeLimit int64  `long:"reqbodysizelimit" description:"Maximum number of bytes allowed for a request body from a http client"`
+	HomeDir     string   `short:"A" long:"appdata" description:"Path to application home directory"`
+	ShowVersion bool     `short:"V" long:"version" description:"Display version information and exit"`
+	ConfigFile  string   `short:"C" long:"configfile" description:"Path to configuration file"`
+	DataDir     string   `short:"b" long:"datadir" description:"Directory to store data"`
+	LogDir      string   `long:"logdir" description:"Directory to log output."`
+	TestNet     bool     `long:"testnet" description:"Use the test network"`
+	SimNet      bool     `long:"simnet" description:"Use the simulation test network"`
+	Profile     string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
+	CPUProfile  string   `long:"cpuprofile" description:"Write CPU profile to the specified file"`
+	MemProfile  string   `long:"memprofile" description:"Write mem profile to the specified file"`
+	DebugLevel  string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	Listeners   []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 49152, testnet: 59152)"`
+	Version     string
+	HTTPSCert   string `long:"httpscert" description:"File containing the https certificate file"`
+	HTTPSKey    string `long:"httpskey" description:"File containing the https certificate key"`
+	RPCUser     string `long:"rpcuser" description:"RPC user name for privileged commands"`
+	RPCPass     string `long:"rpcpass" description:"RPC password for privileged commands"`
+	DcrtimeHost string `long:"dcrtimehost" description:"Dcrtime ip:port"`
+	DcrtimeCert string // Provided in env variable "DCRTIMECERT"
+	Identity    string `long:"identity" description:"File containing the politeiad identity file"`
+	Backend     string `long:"backend" description:"Backend type"`
+	Fsck        bool   `long:"fsck" description:"Perform filesystem checks on all record and plugin data"`
+
+	// Web server settings
+	ReadTimeout      int64 `long:"readtimeout" description:"Maximum duration in seconds that is spent reading the request headers and body"`
+	WriteTimeout     int64 `long:"writetimeout" description:"Maximum duration in seconds that a request connection is kept open"`
+	ReqBodySizeLimit int64 `long:"reqbodysizelimit" description:"Maximum number of bytes allowed for a request body from a http client"`
 
 	// Git backend options
 	GitTrace    bool   `long:"gittrace" description:"Enable git tracing in logs"`
@@ -264,6 +276,8 @@ func loadConfig() (*config, []string, error) {
 		HTTPSCert:        defaultHTTPSCertFile,
 		Version:          version.String(),
 		Backend:          defaultBackend,
+		ReadTimeout:      defaultReadTimeout,
+		WriteTimeout:     defaultWriteTimeout,
 		ReqBodySizeLimit: defaultReqBodySizeLimit,
 		DBType:           defaultDBType,
 		DBHost:           defaultDBHost,
