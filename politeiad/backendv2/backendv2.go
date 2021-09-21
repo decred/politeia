@@ -364,6 +364,10 @@ type Backend interface {
 	// PluginInventory returns all registered plugins.
 	PluginInventory() []Plugin
 
+	// Fsck performs a synchronous filesystem check that verifies
+	// the coherency of record and plugin data and caches.
+	Fsck() error
+
 	// Close performs cleanup of the backend.
 	Close()
 }

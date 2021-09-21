@@ -156,8 +156,9 @@ type PluginClient interface {
 	// does not need to worry about concurrency issues.
 	Hook(t TstoreClient, h HookT, payload string) error
 
-	// Fsck performs a plugin file system check.
-	Fsck() error
+	// Fsck performs a plugin file system check. The plugin is
+	// provided with the tokens for all records in the backend.
+	Fsck(tokens [][]byte) error
 
 	// Settings returns the plugin settings.
 	Settings() []backend.PluginSetting

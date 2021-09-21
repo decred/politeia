@@ -788,6 +788,39 @@ func (t *tstoreBackend) PluginInventory() []backend.Plugin {
 	return t.tstore.Plugins()
 }
 
+// Fsck performs a synchronous filesystem check that verifies the coherency
+// of record and plugin data and caches.
+//
+// This function satisfies the backendv2 Backend interface.
+func (t *tstoreBackend) Fsck() error {
+	log.Infof("Performing record fsck")
+
+	// Get the tokens for all records in the backend
+	allTokens, err := t.tstore.Inventory()
+	if err != nil {
+		return err
+	}
+
+	// Rebuild the inventory cache. This is a multi-step process:
+	//
+	// 1. Sort the tokens into two groups; unvetted and vetted. Each
+	//    group is additionally sorted by the timestamp of their most
+	//    recent status change.
+	//
+	// 2. Add the vetted tokens to the inventory cache. They MUST be
+	//    added starting with the oldest timestamp. The vetted token
+	//    is first added to the unvetted cache then moved to the vetted
+	//    cache. This is a limitation of the inventory API and mimicks
+	//    how records are added and updated when using the politeiad
+	//    API.
+	//
+	// 3. Add the unvetted tokens to the inventory cache. They MUST be
+	//    added starting with the oldest timestamp.
+
+	// Update all plugin caches
+	return t.tstore.Fsck(allTokens)
+}
+
 // Close performs cleanup of the backend.
 //
 // This function satisfies the backendv2 Backend interface.

@@ -10,6 +10,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
+	"github.com/pkg/errors"
 	"github.com/robfig/cron"
 )
 
@@ -52,16 +53,30 @@ func (t *Tstore) Tx() (store.Tx, func(), error) {
 
 // TODO implement all fsck's
 // Fsck performs a filesystem check on the tstore.
-func (t *Tstore) Fsck() {
-	log.Tracef("Fsck")
+func (t *Tstore) Fsck(allTokens [][]byte) error {
+	// Set tree status to frozen for any trees that are frozen and have
+	// been anchored one last time.
+
+	// Verify all file blobs have been deleted for censored records.
 
 	// Verify that a short token cache entry exists for all trees that
 	// have leaves. If a tree is empty then it doesn't need a short token
 	// cache entry.
 
-	// Set tree status to frozen for any trees that are frozen and have
-	// been anchored one last time.
-	// Verify all file blobs have been deleted for censored records.
+	// Run plugin fscks's
+	for _, pluginID := range t.pluginIDs() {
+		p, _ := t.plugin(pluginID)
+
+		log.Infof("Performing plugin fsck for the %v plugin", pluginID)
+
+		err := p.client.Fsck(allTokens)
+		if err != nil {
+			return errors.Errorf("plugin %v fsck: %v",
+				pluginID, err)
+		}
+	}
+
+	return nil
 }
 
 // Close performs cleanup of the tstore.

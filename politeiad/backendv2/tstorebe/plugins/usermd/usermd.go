@@ -80,11 +80,24 @@ func (p *usermdPlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payloa
 	return nil
 }
 
-// Fsck performs a plugin filesystem check.
+// Fsck performs a plugin file system check. The plugin is provided with the
+// tokens for all records in the backend.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *usermdPlugin) Fsck() error {
+func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 	log.Tracef("usermd Fsck")
+
+	// Verify the user cache using the following process:
+	//
+	// 1. For each record, get the user metadata file from the db.
+	//
+	// 2. Get the user cache for the record's author.
+	//
+	// 3. Verify that the record is listed in the user cache under the
+	//    correct category. The tokens listed in the user cache MUST be
+	//    ordered by the timestamp of their most recent status change
+	//    from newest to oldest. If the record is not found in the user
+	//    cache, add it.
 
 	return nil
 }

@@ -104,10 +104,11 @@ func (p *piPlugin) Hook(tstore plugins.TstoreClient, h plugins.HookT, payload st
 	return nil
 }
 
-// Fsck performs a plugin filesystem check.
+// Fsck performs a plugin file system check. The plugin is provided with the
+// tokens for all records in the backend.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *piPlugin) Fsck() error {
+func (p *piPlugin) Fsck(tokens [][]byte) error {
 	log.Tracef("pi Fsck")
 
 	return nil
