@@ -269,6 +269,7 @@ See the MySQL/MariaDB installation section for more details.
     plugin=dcrdata
     plugin=ticketvote
     plugin=usermd
+    pluginsetting=comments,allowextradata,1
     ```
 5. Start up politeiad.
 

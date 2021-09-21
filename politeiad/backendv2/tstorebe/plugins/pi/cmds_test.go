@@ -18,8 +18,7 @@ import (
 
 func TestCmdBillingStatus(t *testing.T) {
 	// Setup pi plugin
-	p, cleanup := newTestPiPlugin(t)
-	defer cleanup()
+	p := newTestPiPlugin(t)
 
 	// Setup an identity that will be used to create the payload
 	// signatures.

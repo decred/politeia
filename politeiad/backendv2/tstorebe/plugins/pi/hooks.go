@@ -16,6 +16,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 	"github.com/decred/politeia/util"
 	"github.com/pkg/errors"
 )
@@ -93,20 +94,20 @@ func (p *piPlugin) hookRecordEditPre(payload string) error {
 
 // hookCommentNew adds pi specific validation onto the comments plugin New
 // command.
-func (p *piPlugin) hookCommentNew(token []byte) error {
-	return p.commentWritesAllowed(token)
+func (p *piPlugin) hookCommentNew(token []byte, cmd, payload string) error {
+	return p.commentWritesAllowed(token, cmd, payload)
 }
 
 // hookCommentDel adds pi specific validation onto the comments plugin Del
 // command.
-func (p *piPlugin) hookCommentDel(token []byte) error {
-	return p.commentWritesAllowed(token)
+func (p *piPlugin) hookCommentDel(token []byte, cmd, payload string) error {
+	return p.commentWritesAllowed(token, cmd, payload)
 }
 
 // hookCommentVote adds pi specific validation onto the comments plugin Vote
 // command.
-func (p *piPlugin) hookCommentVote(token []byte) error {
-	return p.commentWritesAllowed(token)
+func (p *piPlugin) hookCommentVote(token []byte, cmd, payload string) error {
+	return p.commentWritesAllowed(token, cmd, payload)
 }
 
 // hookPluginWritePre extends plugin write commands from other plugins with pi
@@ -124,21 +125,21 @@ func (p *piPlugin) hookPluginWritePre(payload string) error {
 	case comments.PluginID:
 		switch pw.Cmd {
 		case comments.CmdNew:
-			return p.hookCommentNew(pw.Token)
+			return p.hookCommentNew(pw.Token, pw.Cmd, pw.Payload)
 		case comments.CmdDel:
-			return p.hookCommentDel(pw.Token)
+			return p.hookCommentDel(pw.Token, pw.Cmd, pw.Payload)
 		case comments.CmdVote:
-			return p.hookCommentVote(pw.Token)
+			return p.hookCommentVote(pw.Token, pw.Cmd, pw.Payload)
 		}
 	}
 
 	return nil
 }
 
-// proposalNameIsValid returns whether the provided name is a valid proposal
-// name.
-func (p *piPlugin) proposalNameIsValid(name string) bool {
-	return p.proposalNameRegexp.MatchString(name)
+// titleIsValid returns whether the provided title, which can be either a
+// proposal name or an author update title, matches the pi plugin title regex.
+func (p *piPlugin) titleIsValid(title string) bool {
+	return p.titleRegexp.MatchString(title)
 }
 
 // proposalStartDateIsValid returns whether the provided start date is valid.
@@ -317,11 +318,11 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 	}
 
 	// Verify proposal name
-	if !p.proposalNameIsValid(pm.Name) {
+	if !p.titleIsValid(pm.Name) {
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
-			ErrorCode:    uint32(pi.ErrorCodeProposalNameInvalid),
-			ErrorContext: p.proposalNameRegexp.String(),
+			ErrorCode:    uint32(pi.ErrorCodeTitleInvalid),
+			ErrorContext: p.titleRegexp.String(),
 		}
 	}
 
@@ -390,11 +391,267 @@ func (p *piPlugin) voteSummary(token []byte) (*ticketvote.SummaryReply, error) {
 	return &sr, nil
 }
 
+// comments requests all comments on a record from the comments plugin.
+func (p *piPlugin) comments(token []byte) (*comments.GetAllReply, error) {
+	reply, err := p.backend.PluginRead(token, comments.PluginID,
+		comments.CmdGetAll, "")
+	if err != nil {
+		return nil, err
+	}
+	var gar comments.GetAllReply
+	err = json.Unmarshal([]byte(reply), &gar)
+	if err != nil {
+		return nil, err
+	}
+	return &gar, nil
+}
+
+// isInCommentTree returns whether the leafID is part of the provided comment
+// tree. A leaf is considered to be part of the tree if the leaf is a child of
+// the root or the leaf references the root itself.
+func isInCommentTree(rootID, leafID uint32, cs []comments.Comment) bool {
+	if leafID == rootID {
+		return true
+	}
+	// Convert comments slice to a map
+	commentsMap := make(map[uint32]comments.Comment, len(cs))
+	for _, c := range cs {
+		commentsMap[c.CommentID] = c
+	}
+
+	// Start with the provided comment leaf and traverse the comment tree up
+	// until either the provided root ID is found or we reach the tree head. The
+	// tree head will have a comment ID of 0.
+	current := commentsMap[leafID]
+	for current.ParentID != 0 {
+		// Check if next parent in the tree is the rootID.
+		if current.ParentID == rootID {
+			return true
+		}
+		leafID = current.ParentID
+		current = commentsMap[leafID]
+	}
+	return false
+}
+
+// latestAuthorUpdate gets the latest author update on a record, if
+// the record has no author update it returns nil.
+func latestAuthorUpdate(token []byte, cs []comments.Comment) *comments.Comment {
+	var latestAuthorUpdate comments.Comment
+	for _, c := range cs {
+		if c.ExtraDataHint != pi.ProposalUpdateHint {
+			continue
+		}
+		if c.Timestamp > latestAuthorUpdate.Timestamp {
+			latestAuthorUpdate = c
+		}
+	}
+	return &latestAuthorUpdate
+}
+
+// recordAuthor returns the author's userID of the record associated with
+// the provided token.
+func (p *piPlugin) recordAuthor(token []byte) (string, error) {
+	reply, err := p.backend.PluginRead(token, usermd.PluginID,
+		usermd.CmdAuthor, "")
+	if err != nil {
+		return "", err
+	}
+	var ar usermd.AuthorReply
+	err = json.Unmarshal([]byte(reply), &ar)
+	if err != nil {
+		return "", err
+	}
+	return ar.UserID, nil
+}
+
+// commentVoteAllowedOnApprovedProposal verifies that the given comment
+// vote is allowed on a proposal which finished voting and it's vote was
+// approved.
+func (p *piPlugin) commentVoteAllowedOnApprovedProposal(token []byte, payload string, latestAuthorUpdate comments.Comment, cs []comments.Comment) error {
+	// Decode payload
+	var v comments.Vote
+	err := json.Unmarshal([]byte(payload), &v)
+	if err != nil {
+		return err
+	}
+
+	if !isInCommentTree(latestAuthorUpdate.CommentID, v.CommentID, cs) {
+		return backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeCommentWriteNotAllowed),
+			ErrorContext: "votes are only allowed on the author's " +
+				"most recent update thread",
+		}
+	}
+
+	return nil
+}
+
+// isValidAuthorUpdate returns whether the given new comment is a valid author
+// update.
+//
+// The comment must include proper proposal update metadata and the comment
+// must be submitted by the proposal author for it to be considered a valid
+// author update.
+func (p *piPlugin) isValidAuthorUpdate(token []byte, n comments.New) error {
+	// Get the proposal author. The proposal author
+	// and the comment author must be the same user.
+	recordAuthorID, err := p.recordAuthor(token)
+	if err != nil {
+		return err
+	}
+	if recordAuthorID != n.UserID {
+		return backend.PluginError{
+			PluginID:     pi.PluginID,
+			ErrorCode:    uint32(pi.ErrorCodeCommentWriteNotAllowed),
+			ErrorContext: "user is not the proposal author",
+		}
+	}
+
+	// Verify extra data fields
+	if n.ExtraDataHint != pi.ProposalUpdateHint {
+		return backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeExtraDataHintInvalid),
+			ErrorContext: fmt.Sprintf("got %v, want %v",
+				n.ExtraDataHint, pi.ProposalUpdateHint),
+		}
+	}
+	var pum pi.ProposalUpdateMetadata
+	err = json.Unmarshal([]byte(n.ExtraData), &pum)
+	if err != nil {
+		return backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeExtraDataInvalid),
+		}
+	}
+
+	// Verify update title
+	if !p.titleIsValid(pum.Title) {
+		return backend.PluginError{
+			PluginID:     pi.PluginID,
+			ErrorCode:    uint32(pi.ErrorCodeTitleInvalid),
+			ErrorContext: p.titleRegexp.String(),
+		}
+	}
+
+	// The comment is a valid author update.
+	return nil
+}
+
+// commentNewAllowedOnApprovedProposal verifies that the given new comment
+// is allowed on a proposal which finished voting and it's vote was approved.
+func (p *piPlugin) commentNewAllowedOnApprovedProposal(token []byte, payload string, latestAuthorUpdate comments.Comment, cs []comments.Comment) error {
+	// Decode payload
+	var n comments.New
+	err := json.Unmarshal([]byte(payload), &n)
+	if err != nil {
+		return err
+	}
+
+	// A new comment on an approved proposal must either be an update
+	// from the author (parent ID will be 0) or a reply to the latest
+	// author update.
+	isUpdateReply := isInCommentTree(latestAuthorUpdate.CommentID,
+		n.ParentID, cs)
+	switch {
+	case n.ParentID == 0:
+		// This might be an update from the author.
+		return p.isValidAuthorUpdate(token, n)
+
+	case isUpdateReply:
+		// This is a reply to the latest update. This is allowed.
+		return nil
+
+	case !isUpdateReply:
+		// New comment is a reply, but is not a reply to the latest update. This
+		// is not allowed.
+		return backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeCommentWriteNotAllowed),
+			ErrorContext: "comment replies are only allowed on " +
+				"the author's most recent update thread",
+		}
+
+	default:
+		// This should not happen
+		return errors.Errorf("unknown comment write state")
+	}
+}
+
+// writesAllowedOnApprovedProposal verifies that the given comment write is
+// allowed on a proposal which finished voting and it's vote was approved. This
+// includes both comments and comment votes.
+func (p *piPlugin) writesAllowedOnApprovedProposal(token []byte, cmd, payload string) error {
+	// Get billing status to determine whether to allow author updates
+	// or not.
+	var bsc pi.BillingStatusChange
+	billingStatuses, err := p.billingStatuses(token)
+	if err != nil {
+		return err
+	}
+	// We assume here that admins can set a billing status only once
+	if len(billingStatuses) > 0 {
+		bsc = billingStatuses[0]
+		if bsc.Status == pi.BillingStatusClosed ||
+			bsc.Status == pi.BillingStatusCompleted {
+			// If billing status is set to closed or completed, comment writes
+			// are not allowed.
+			return backend.PluginError{
+				PluginID:  pi.PluginID,
+				ErrorCode: uint32(pi.ErrorCodeBillingStatusInvalid),
+				ErrorContext: "billing status is set to closed/completed;" +
+					" proposal is locked",
+			}
+		}
+	}
+
+	// Get latest proposal author update
+	gar, err := p.comments(token)
+	if err != nil {
+		return err
+	}
+	latestAuthorUpdate := latestAuthorUpdate(token, gar.Comments)
+
+	switch cmd {
+	// If the user is submitting a new comment then it must be either a new
+	// author update or a comment on the latest author update thread.
+	case comments.CmdNew:
+		return p.commentNewAllowedOnApprovedProposal(token, payload,
+			*latestAuthorUpdate, gar.Comments)
+
+	// If the user is voting on a comment then it must be on one of the latest
+	// author update thread comments.
+	case comments.CmdVote:
+		return p.commentVoteAllowedOnApprovedProposal(token, payload,
+			*latestAuthorUpdate, gar.Comments)
+
+	}
+
+	return nil
+}
+
 // commentWritesAllowed verifies that a proposal has a vote status that allows
 // comment writes to be made to the proposal. This includes both comments and
-// comment votes. Comment writes are allowed up until the proposal has finished
-// voting.
-func (p *piPlugin) commentWritesAllowed(token []byte) error {
+// comment votes.
+//
+// Once a proposal vote has finished, all existing comment threads are locked.
+//
+// When a proposal author wants to give an update on their **approved**
+// proposal they can start a new comment thread.
+//
+// The author is the only user that will have the ability to
+// start a new comment thread once the voting period has finished.
+//
+// Each update must have an author provided title.
+//
+// Anyone can reply to any comments in the thread and can cast
+// upvotes/downvotes for any comments in the thread.
+//
+// The comment thread will remain open until either the author starts a new
+// update thread or an admin marks the proposal as closed/completed.
+func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error {
 	vs, err := p.voteSummary(token)
 	if err != nil {
 		return err
@@ -404,12 +661,16 @@ func (p *piPlugin) commentWritesAllowed(token []byte) error {
 		ticketvote.VoteStatusStarted:
 		// Comment writes are allowed on these vote statuses
 		return nil
+
+	case ticketvote.VoteStatusApproved:
+		return p.writesAllowedOnApprovedProposal(token, cmd, payload)
+
 	default:
 		// Vote status does not allow writes
 		return backend.PluginError{
 			PluginID:     pi.PluginID,
-			ErrorCode:    uint32(pi.ErrorCodeVoteStatusInvalid),
-			ErrorContext: "vote has ended; proposal is locked",
+			ErrorCode:    uint32(pi.ErrorCodeCommentWriteNotAllowed),
+			ErrorContext: "vote has ended; comments are locked",
 		}
 	}
 }

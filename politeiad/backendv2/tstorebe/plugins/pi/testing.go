@@ -14,25 +14,25 @@ import (
 
 // newTestPiPlugin returns a piPlugin that has been setup for testing.
 func newTestPiPlugin(t *testing.T) *piPlugin {
-	// Setup proposal name regex
+	// Setup title regex
 	var (
-		nameSupportedChars = pi.SettingProposalNameSupportedChars
-		nameLengthMin      = pi.SettingProposalNameLengthMin
-		nameLengthMax      = pi.SettingProposalNameLengthMax
+		titleSupportedChars = pi.SettingTitleSupportedChars
+		titleLengthMin      = pi.SettingTitleLengthMin
+		titleLengthMax      = pi.SettingTitleLengthMax
 	)
-	rexp, err := util.Regexp(nameSupportedChars, uint64(nameLengthMin),
-		uint64(nameLengthMax))
+	rexp, err := util.Regexp(titleSupportedChars, uint64(titleLengthMin),
+		uint64(titleLengthMax))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Encode the supported chars. This is done so that they can be
 	// returned as a plugin setting string.
-	b, err := json.Marshal(nameSupportedChars)
+	b, err := json.Marshal(titleSupportedChars)
 	if err != nil {
 		t.Fatal(err)
 	}
-	nameSupportedCharsString := string(b)
+	titleSupportedCharsString := string(b)
 
 	// Encode the proposal domains. This is done so that they can be
 	// returned as a plugin setting string.
@@ -51,19 +51,19 @@ func newTestPiPlugin(t *testing.T) *piPlugin {
 
 	// Setup plugin context
 	p := piPlugin{
-		textFileSizeMax:            pi.SettingTextFileSizeMax,
-		imageFileCountMax:          pi.SettingImageFileCountMax,
-		imageFileSizeMax:           pi.SettingImageFileSizeMax,
-		proposalNameLengthMin:      nameLengthMin,
-		proposalNameLengthMax:      nameLengthMax,
-		proposalNameSupportedChars: nameSupportedCharsString,
-		proposalNameRegexp:         rexp,
-		proposalAmountMin:          pi.SettingProposalAmountMin,
-		proposalAmountMax:          pi.SettingProposalAmountMax,
-		proposalStartDateMin:       pi.SettingProposalStartDateMin,
-		proposalEndDateMax:         pi.SettingProposalEndDateMax,
-		proposalDomainsEncoded:     domainsString,
-		proposalDomains:            domainsMap,
+		textFileSizeMax:        pi.SettingTextFileSizeMax,
+		imageFileCountMax:      pi.SettingImageFileCountMax,
+		imageFileSizeMax:       pi.SettingImageFileSizeMax,
+		titleLengthMin:         titleLengthMin,
+		titleLengthMax:         titleLengthMax,
+		titleSupportedChars:    titleSupportedCharsString,
+		titleRegexp:            rexp,
+		proposalAmountMin:      pi.SettingProposalAmountMin,
+		proposalAmountMax:      pi.SettingProposalAmountMax,
+		proposalStartDateMin:   pi.SettingProposalStartDateMin,
+		proposalEndDateMax:     pi.SettingProposalEndDateMax,
+		proposalDomainsEncoded: domainsString,
+		proposalDomains:        domainsMap,
 	}
 
 	return &p
