@@ -11,7 +11,7 @@ import (
 )
 
 func TestHooks(t *testing.T) {
-	err := unittest.TestGenericConstMap(Hooks, uint64(HookTypeLast))
+	err := unittest.TestGenericConstMap(Hooks, uint64(HookLast))
 	if err != nil {
 		t.Error(err)
 	}

@@ -15,7 +15,7 @@ func TestVoteSummary(t *testing.T) {
 	// Verify that the local struct match the API spec
 	// struct.
 	err := unittest.CompareStructFields(voteSummary{},
-		ticketvote.VoteSummaryReply{})
+		ticketvote.SummaryReply{})
 	if err != nil {
 		t.Error(err)
 	}

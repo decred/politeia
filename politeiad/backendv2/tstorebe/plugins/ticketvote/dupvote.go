@@ -22,7 +22,7 @@ const (
 func saveVoteToDupsCache(tstore plugins.TstoreClient, token, ticket string) error {
 	c := tstore.CacheClient(false)
 	kv := map[string][]byte{
-		getDupVoteKey(token, ticket): []byte{},
+		getDupVoteKey(token, ticket): {},
 	}
 	return c.Insert(kv)
 }

@@ -45,7 +45,7 @@ func (t *Tstore) cacheShortToken(fullToken []byte) error {
 	return nil
 }
 
-// shortTokenIsUnique returns whether the shortend version of the provided
+// shortTokenIsUnique returns whether the shortened version of the provided
 // token is unique. The provided token can be either a full length token or a
 // shortened token. It's possible for two different full length tokens to have
 // the same shortened version. These types of collisions should be checked for

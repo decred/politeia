@@ -695,7 +695,7 @@ func (t *Tstore) RecordExists(token []byte) bool {
 	token, err = t.fullLengthToken(token)
 	if err != nil {
 		// A short token was provided, but it does
-		// not correspond to a full lenght token.
+		// not correspond to a full length token.
 		return false
 	}
 

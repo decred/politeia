@@ -386,6 +386,17 @@ func (p *plugin) cmdCastBallot(tstore plugins.TstoreClient, token []byte, payloa
 		// Verify that the ticket has not already voted
 		// in a previously cast ballot.
 		isDup, err := voteIsDuplicate(tstore, v.Token, v.Ticket)
+		if err != nil {
+			t := time.Now().Unix()
+			log.Errorf("cmdCastBallot: voteIsDuplicate %v %v: %v",
+				t, v.Ticket, err)
+			e := v1.VoteErrorInternalError
+			receipts[k].Ticket = v.Ticket
+			receipts[k].ErrorCode = e
+			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
+				v1.VoteErrors[e], t)
+			continue
+		}
 		if isDup {
 			e := v1.VoteErrorTicketAlreadyVoted
 			receipts[k].Ticket = v.Ticket
@@ -642,7 +653,7 @@ func (p *plugin) castBallot(tstore plugins.TstoreClient, token []byte, votes []v
 		wg.Add(1)
 
 		// Cast the vote
-		go p.castVote(tstore, wg, v, br)
+		go p.castVote(tstore, &wg, v, br)
 	}
 
 	// Wait for the full ballot to be cast
@@ -652,7 +663,7 @@ func (p *plugin) castBallot(tstore plugins.TstoreClient, token []byte, votes []v
 // castVote casts a ticket vote. This includes saving the vote to the database
 // as well as a vote collider. See the vote collider documentation for more
 // details on why this is needed.
-func (p *plugin) castVote(tstore plugins.TstoreClient, wg sync.WaitGroup, cv v1.CastVote, results *ballotResults) {
+func (p *plugin) castVote(tstore plugins.TstoreClient, wg *sync.WaitGroup, cv v1.CastVote, results *ballotResults) {
 	// Decrement the wait group counter
 	// once the vote is cast or errors.
 	defer wg.Done()

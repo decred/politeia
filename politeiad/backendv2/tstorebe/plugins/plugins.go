@@ -172,7 +172,7 @@ type PluginClient interface {
 //
 // TODO remove the token argument. It will use the token that the command is
 // being executed on.  Executing commands on other records requires the use
-// of the Backend interace.
+// of the Backend interface.
 //
 // TODO add in check that all reads and writes are prefixed with the plugin id
 // for all write methods of TstoreClient, CacheClient, and InvClient.
