@@ -352,6 +352,9 @@ func (p *politeiawww) handleWebsocket(w http.ResponseWriter, r *http.Request, id
 	}
 	defer wc.conn.Close() // causes read to exit as well
 
+	// Set connection read limit
+	wc.conn.SetReadLimit(p.cfg.WebsocketReadLimit)
+
 	// Create and assign session to map
 	p.wsMtx.Lock()
 	if _, ok := p.ws[id]; !ok {
