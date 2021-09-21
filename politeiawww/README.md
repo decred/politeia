@@ -147,13 +147,13 @@ must already be setup and running before you attempt to run politeiawww.
    is referred to as politeiad's identity and can be retrieved using the
    `--fetchidentity` flag. politeiawww will save the identity locally so that
    this only needs to be done once.
-
+    ```
     $ politeiawww --fetchidentity
-
+    ```
 3. Start up politeiawww.
-
+    ```
     $ politeiawww
-
+    ```
 ## API
 
 The [politeiawww APIs](https://github.com/decred/politeia/tree/master/politeiawww/api/)
