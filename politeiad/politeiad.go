@@ -495,8 +495,8 @@ func _main() error {
 			s := &http.Server{
 				Handler:      p.router,
 				Addr:         listen,
-				ReadTimeout:  5 * time.Second,
-				WriteTimeout: 60 * time.Second, // Kill hung requests
+				ReadTimeout:  time.Duration(cfg.ReadTimeout) * time.Second,
+				WriteTimeout: time.Duration(cfg.WriteTimeout) * time.Second,
 			}
 
 			log.Infof("Listen: %v", listen)

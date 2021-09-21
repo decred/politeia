@@ -90,6 +90,14 @@ var (
 	defaultCookieKeyFile = filepath.Join(defaultHomeDir, "cookie.key")
 	defaultLogDir        = filepath.Join(defaultHomeDir, defaultLogDirname)
 
+	// defaultReadTimeout is the maximum duration in seconds for reading the
+	// request headers and body.
+	defaultReadTimeout int64 = 5
+
+	// defaultWriteTimeout is the maximum duration in seconds that a request
+	// connection is kept open.
+	defaultWriteTimeout int64 = 60
+
 	// defaultReqBodySizeLimit is the maximum number of bytes allowed in a
 	// request body.
 	defaultReqBodySizeLimit int64 = 3 * 1024 * 1024 // 3 MiB
@@ -341,6 +349,8 @@ func loadConfig() (*config.Config, []string, error) {
 		RPCCert:                  defaultRPCCertFile,
 		CookieKeyFile:            defaultCookieKeyFile,
 		Version:                  version.String(),
+		ReadTimeout:              defaultReadTimeout,
+		WriteTimeout:             defaultWriteTimeout,
 		ReqBodySizeLimit:         defaultReqBodySizeLimit,
 		WebsocketReadLimit:       defaultWebsocketReadLimit,
 		Mode:                     defaultWWWMode,
