@@ -15,6 +15,10 @@ const (
 
 	// RouteSetBillingStatus sets the record's billing status.
 	RouteSetBillingStatus = "/setbillingstatus"
+
+	// RouteSummaries returns the proposal summary for a page of
+	// records.
+	RouteSummaries = "/summaries"
 )
 
 // ErrorCodeT represents a user error code.
@@ -265,4 +269,24 @@ const (
 // from the proposal author.
 type ProposalUpdateMetadata struct {
 	Title string `json:"title"`
+}
+
+// Summaries requests the proposal summaries for the provided record tokens.
+type Summaries struct {
+	Tokens []string `json:"tokens"`
+}
+
+// SummariesReply is the reply to the Summaries command.
+//
+// Summaries field contains a vote summary for each of the provided tokens.
+// The map will not contain an entry for any tokens that did not correspond
+// to an actual record. It is the callers responsibility to ensure that a
+// summary is returned for all provided tokens.
+type SummariesReply struct {
+	Summaries map[string]Summary `json:"summaries"` // [token]Summary
+}
+
+// Summary summarizes proposal information.
+type Summary struct {
+	Status string
 }

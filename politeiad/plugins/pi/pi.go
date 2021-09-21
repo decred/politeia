@@ -12,6 +12,9 @@ const (
 
 	// CmdSetBillingStatus command sets the billing status.
 	CmdSetBillingStatus = "setbillingstatus"
+
+	// CmdSummary command returns a summary for a proposal.
+	CmdSummary = "summary"
 )
 
 // Plugin setting keys can be used to specify custom plugin settings. Default
@@ -345,6 +348,16 @@ type SetBillingStatusReply struct {
 	Timestamp int64  `json:"timestamp"` // Unix timestamp
 }
 
+// Summary requests the summary of a reocrd.
+type Summary struct {
+	Token string `json:"tokens"`
+}
+
+// SummaryReply is the reply to the Summary command.
+type SummaryReply struct {
+	Summary ProposalSummary `json:"summary"`
+}
+
 const (
 	// ProposalUpdateHint is the hint that is included in a comment's
 	// ExtraDataHint field to indicate that the comment is an update
@@ -357,4 +370,110 @@ const (
 // from the proposal author.
 type ProposalUpdateMetadata struct {
 	Title string `json:"title"`
+}
+
+// PropStatusT represents the status of a proposal. It combines record and
+// plugin metadata in order to create a unified map of the various paths a
+// proposal can take throughout the proposal process. This serves as the
+// source of truth for clients so that they don't need to try and decipher
+// what various combinations of plugin metadata mean for the proposal.
+type PropStatusT string
+
+const (
+	// PropStatusUnvetted represents a proposal that has been submitted but has
+	// not yet been made public by the admins.
+	PropStatusUnvetted PropStatusT = "unvetted"
+
+	// PropStatusUnvettedAbandoned represents a proposal that has been
+	// submitted, but was abandoned by the author prior to being made public.
+	// The proposal can be marked as abandoned by either the proposal author
+	// or an admin. Abandoned proposal files are not deleted from the backend
+	// and are still retreivable. An abandoned proposal is locked against any
+	// additional proposal or plugin changes.
+	PropStatusUnvettedAbandoned PropStatusT = "unvetted-abandoned"
+
+	// PropStatusUnvettedCensored represents a proposal that has been submitted,
+	// but was censored by an admin prior to being made public. Censored
+	// proposal files are permanently deleted from the backend. No additional
+	// changes can be made to the proposal once it has been censored.
+	PropStatusUnvettedCensored PropStatusT = "unvetted-censored"
+
+	// PropStatusUnderReview represents a proposal that has been made public and
+	// is being reviewed by the Decred stakeholders, but has not had it's voting
+	// period started yet.
+	PropStatusUnderReview PropStatusT = "under-review"
+
+	// PropStatusAbandoned represents a proposal that has been made public, but
+	// has been abandoned. A proposal can be marked as abandoned by either the
+	// proposal author or by an admin. Abandoned proposals are locked from any
+	// additional changes. Abandoned proposal files are not deleted from the
+	// backend.
+	PropStatusAbandoned PropStatusT = "abandoned"
+
+	// PropStatusCensored represents a proposal that was censored by an admin
+	// after it had already been made public. This can happen if an edit to the
+	// proposal adds content that requires censoring.  Censored proposal files
+	// are permanently deleted from the backend. No additional changes can be
+	// made to the proposal once it has been censored.
+	PropStatusCensored PropStatusT = "censored"
+
+	// PropStatusVoteAuthorized represents a public proposal whose voting period
+	// has been authorized by the author. An admin cannot start the voting
+	// period of a proposal until the author has authorized it.
+	PropStatusVoteAuthorized PropStatusT = "vote-authorized"
+
+	// PropStatusVoteStarted represents a public proposal that is currently
+	// under vote by the Decred stakeholders. The voting period for a proposal
+	// is started by an admin. The proposal content cannot change once the
+	// voting period has been started, but some plugin data (e.g. comments) can
+	// still be added.
+	PropStatusVoteStarted PropStatusT = "vote-started"
+
+	// PropStatusRejected represents a proposal that was voted on by the Decred
+	// stakeholders and did not meet the approval criteria. A rejected proposal
+	// is locked against any additional proposal or plugin changes.
+	PropStatusRejected PropStatusT = "rejected"
+
+	// PropStatusActive represents a proposal that was voted on by the Decred
+	// stakeholders, met the approval criteria, and is now eligible to be billed
+	// against. The proposal automatically becomes active once the voting period
+	// ends. The proposal content of an active proposal cannot be altered. Some
+	// plugin functionality is still allowed. For example, an author is allowed
+	// to start a new comment thread in order to give proposal updates that
+	// users can reply to.
+	PropStatusActive PropStatusT = "active"
+
+	// PropStatusCompleted represents a proposal that was funded by the Decred
+	// stakeholders and has been completed. A completed proposal is marked as
+	// completed by an admin and is no longer being billed against. A completed
+	// proposal is locked against any additional proposal or plugin changes.
+	PropStatusCompleted PropStatusT = "completed"
+
+	// PropStatusClosed represents a proposal that was funded, but was never
+	// completed. A proposal is marked as closed by an admin and cannot be
+	// billed against any further. The most common reason a proposal would be
+	// closed is because the author failed to deliver on the milestones laid
+	// out in the  proposal. A closed proposal is locked against any additional
+	// proposal or plugin changes.
+	PropStatusClosed PropStatusT = "closed"
+)
+
+// Summaries requests the proposal summaries for the provided record tokens.
+type Summaries struct {
+	Tokens []string `json:"tokens"`
+}
+
+// SummariesReply is the reply to the Summaries command.
+//
+// Summaries field contains a summary for each of the provided tokens.
+// The map will not contain an entry for any tokens that did not correspond
+// to an actual record. It is the callers responsibility to ensure that a
+// summary is returned for all provided tokens.
+type SummariesReply struct {
+	Summaries map[string]ProposalSummary `json:"summaries"` // [token]Summary
+}
+
+// ProposalSummary summarizes proposal information.
+type ProposalSummary struct {
+	Status PropStatusT
 }

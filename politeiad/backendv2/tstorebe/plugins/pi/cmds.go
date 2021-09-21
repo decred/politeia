@@ -9,11 +9,12 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/pkg/errors"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
@@ -28,6 +29,116 @@ const (
 	// Blob entry data descriptors
 	dataDescriptorBillingStatus = pluginID + "-billingstatus-v1"
 )
+
+// cmdSummary returns the pi summary of a proposal.
+func (p *piPlugin) cmdSummary(token []byte) (string, error) {
+	proposalStatus, err := p.proposalStatus(token)
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare reply
+	sr := pi.SummaryReply{
+		Summary: pi.ProposalSummary{
+			Status: proposalStatus,
+		},
+	}
+	reply, err := json.Marshal(sr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
+// proposalStatus combines record metadata and plugin metadata in order to
+// create a unified map of the various paths a proposal can take throughout
+// the proposal process.
+func (p *piPlugin) proposalStatus(token []byte) (pi.PropStatusT, error) {
+	// Get record metadata
+	rmd, err := p.recordMetadata(token)
+	if err != nil {
+		return "", err
+	}
+	mdState := rmd.State
+	mdStatus := rmd.Status
+
+	switch mdState {
+	case backend.StateUnvetted:
+		switch mdStatus {
+		case backend.StatusUnreviewed:
+			return pi.PropStatusUnvetted, nil
+		case backend.StatusArchived:
+			return pi.PropStatusUnvettedAbandoned, nil
+		case backend.StatusCensored:
+			return pi.PropStatusUnvettedCensored, nil
+		}
+	case backend.StateVetted:
+		switch mdStatus {
+		case backend.StatusArchived:
+			return pi.PropStatusAbandoned, nil
+		case backend.StatusCensored:
+			return pi.PropStatusCensored, nil
+		case backend.StatusPublic:
+			s, err := p.voteSummary(token)
+			if err != nil {
+				return pi.PropStatusUnvetted, err
+			}
+			switch s.Status {
+			case ticketvote.VoteStatusUnauthorized:
+				return pi.PropStatusUnderReview, nil
+			case ticketvote.VoteStatusAuthorized:
+				return pi.PropStatusVoteAuthorized, nil
+			case ticketvote.VoteStatusStarted:
+				return pi.PropStatusVoteStarted, nil
+			case ticketvote.VoteStatusRejected:
+				return pi.PropStatusRejected, nil
+			case ticketvote.VoteStatusApproved:
+				// Get billing status to determine whether proposal is still active.
+				// XXX Move to proposalStatusApproved func.
+				bsc, err := p.billingStatusChange(token)
+				if err != nil {
+					return pi.PropStatusUnvetted, err
+				}
+				switch bsc.Status {
+				case pi.BillingStatusClosed:
+					return pi.PropStatusClosed, nil
+				case pi.BillingStatusCompleted:
+					return pi.PropStatusCompleted, nil
+				// If a billing status of an approved proposal not set to closed
+				// or completed then proposal considered as active.
+				default:
+					return pi.PropStatusActive, nil
+				}
+			}
+		}
+	}
+	// Shouldn't happen return an error
+	return pi.PropStatusUnvetted,
+		errors.Errorf(
+			"couldn't determine proposal status: record state: %v, record status %v",
+			mdState, mdStatus)
+}
+
+// recordAbridged returns a record's metadata.
+func (p *piPlugin) recordMetadata(token []byte) (*backend.RecordMetadata, error) {
+	reqs := []backend.RecordRequest{
+		{
+			Token:        token,
+			OmitAllFiles: true,
+		},
+	}
+	rs, err := p.backend.Records(reqs)
+	if err != nil {
+		return nil, err
+	}
+	r, ok := rs[hex.EncodeToString(token)]
+	if !ok {
+		return nil, backend.ErrRecordNotFound
+	}
+
+	return &r.RecordMetadata, nil
+}
 
 // cmdSetBillingStatus sets proposal's billing status.
 func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, error) {
@@ -85,11 +196,11 @@ func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, er
 	}
 
 	// Ensure no billing status already exists
-	statuses, err := p.billingStatuses(token)
+	sc, err := p.billingStatusChange(token)
 	if err != nil {
 		return "", err
 	}
-	if len(statuses) > 0 {
+	if sc != nil {
 		return "", backend.PluginError{
 			PluginID:     pi.PluginID,
 			ErrorCode:    uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
@@ -197,8 +308,10 @@ func (p *piPlugin) billingStatusSave(token []byte, bsc pi.BillingStatusChange) e
 	return p.tstore.BlobSave(token, *be)
 }
 
-// billingStatuses returns all BillingStatusChange for a record.
-func (p *piPlugin) billingStatuses(token []byte) ([]pi.BillingStatusChange, error) {
+// billingStatus returns a pointer to a BillingStatusChange for a record if
+// it's billing status was set and nil otherwise. It assumes that a billing
+// status can be set only once.
+func (p *piPlugin) billingStatusChange(token []byte) (*pi.BillingStatusChange, error) {
 	// Retrieve blobs
 	blobs, err := p.tstore.BlobsByDataDesc(token,
 		[]string{dataDescriptorBillingStatus})
@@ -222,7 +335,10 @@ func (p *piPlugin) billingStatuses(token []byte) ([]pi.BillingStatusChange, erro
 		return statuses[i].Timestamp < statuses[j].Timestamp
 	})
 
-	return statuses, nil
+	if len(statuses) > 0 {
+		return &statuses[0], nil
+	}
+	return nil, nil
 }
 
 // billingStatusEncode encodes a BillingStatusChange into a BlobEntry.

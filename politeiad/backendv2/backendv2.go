@@ -56,7 +56,7 @@ const (
 	// StateVetted indicates a record has been made public.
 	StateVetted StateT = 2
 
-	// StateVettedLast used for unit test only.
+	// StateLast used for unit test only.
 	StateLast StateT = 3
 )
 
