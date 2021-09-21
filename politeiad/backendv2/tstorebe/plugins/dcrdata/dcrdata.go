@@ -220,10 +220,11 @@ func (p *dcrdataPlugin) Hook(h plugins.HookT, payload string) error {
 	return nil
 }
 
-// Fsck performs a plugin filesystem check.
+// Fsck performs a plugin file system check. The plugin is provided with the
+// tokens for all records in the backend.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *dcrdataPlugin) Fsck() error {
+func (p *dcrdataPlugin) Fsck(tokens [][]byte) error {
 	log.Tracef("dcrdata Fsck")
 
 	return nil

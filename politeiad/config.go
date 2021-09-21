@@ -94,6 +94,7 @@ type config struct {
 	DcrtimeCert string // Provided in env variable "DCRTIMECERT"
 	Identity    string `long:"identity" description:"File containing the politeiad identity file"`
 	Backend     string `long:"backend" description:"Backend type"`
+	Fsck        bool   `long:"fsck" description:"Perform filesystem checks on all record and plugin data"`
 
 	// Git backend options
 	GitTrace    bool   `long:"gittrace" description:"Enable git tracing in logs"`

@@ -205,17 +205,38 @@ func (p *ticketVotePlugin) Hook(h plugins.HookT, payload string) error {
 	return nil
 }
 
-// Fsck performs a plugin filesystem check.
+// Fsck performs a plugin filesystem check. The plugin is provided with the
+// tokens for all records in the backend.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *ticketVotePlugin) Fsck() error {
+func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 	log.Tracef("ticketvote Fsck")
 
-	// Verify all caches
+	// Verify the coherency of the summaries cache. This can be
+	// accomplished by simply calling the summary() method on each
+	// record.
 
-	// Audit all finished votes
-	//  - All votes that were cast were eligible
-	//  - No duplicate votes
+	// Verify the coherency of the submissions cache. All records
+	// that have the vote metadata LinkTo field set must be included
+	// in the parent record submissions list.
+
+	// Verify the coherency of the cached inventory. This is done in
+	// multi steps.
+	//
+	// 1. For each record, store the token, vote status, and timestamp
+	//    of the most recent vote status change.
+	//
+	// 2. Sort the stored records into vote status groups where each
+	//    vote status group is ordered from oldest to newest using the
+	//    timestamp of their most recent vote status change.
+	//
+	// 3. Add all tokens to the inventory. The tokens MUST be added
+	//    by vote status from oldest to newest. Ongoing votes MUST
+	//    be added to the inventory then updated using the inventory
+	//    method that updates an entry to the started vote status.
+
+	// Audit all finished votes. This verifies that all cast votes
+	// use eligible tickets and that there are no duplicate votes.
 
 	return nil
 }

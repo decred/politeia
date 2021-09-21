@@ -95,14 +95,19 @@ func (p *commentsPlugin) Hook(h plugins.HookT, payload string) error {
 	return nil
 }
 
-// Fsck performs a plugin filesystem check.
+// Fsck performs a plugin file system check. The plugin is provided with the
+// tokens for all records in the backend.
 //
 // This function satisfies the plugins PluginClient interface.
-func (p *commentsPlugin) Fsck() error {
+func (p *commentsPlugin) Fsck(tokens [][]byte) error {
 	log.Tracef("comments Fsck")
 
-	// Verify record index coherency
-	// Verify CommentDel blobs were actually deleted
+	// Verify the cohereny of the record index for each token. This
+	// includes verifying that:
+	// - All comment adds are present in the record index.
+	// - All comment dels are present in the record index and the
+	//   corresponding comment adds have been deleted from the db.
+	// - All comment votes are present in the record index.
 
 	return nil
 }

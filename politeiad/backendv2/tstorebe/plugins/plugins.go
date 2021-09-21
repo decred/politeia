@@ -145,8 +145,9 @@ type PluginClient interface {
 	// Hook executes a plugin hook.
 	Hook(h HookT, payload string) error
 
-	// Fsck performs a plugin file system check.
-	Fsck() error
+	// Fsck performs a plugin file system check. The plugin is
+	// provided with the tokens for all records in the backend.
+	Fsck(tokens [][]byte) error
 
 	// Settings returns the plugin settings.
 	Settings() []backend.PluginSetting

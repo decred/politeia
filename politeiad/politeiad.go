@@ -395,6 +395,14 @@ func (p *politeia) setupBackendTstore(anp *chaincfg.Params) error {
 		}
 	}
 
+	// Perform filesytem check
+	if p.cfg.Fsck {
+		err = p.backendv2.Fsck()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
