@@ -192,6 +192,7 @@ func Blobify(be BlobEntry) ([]byte, error) {
 	enc := gob.NewEncoder(zw)
 	err := enc.Encode(be)
 	if err != nil {
+		zw.Close()
 		return nil, err
 	}
 	err = zw.Close() // we must flush gzip buffers
@@ -210,6 +211,11 @@ func Deblob(blob []byte) (*BlobEntry, error) {
 	r := gob.NewDecoder(zr)
 	var be BlobEntry
 	err = r.Decode(&be)
+	if err != nil {
+		zr.Close()
+		return nil, err
+	}
+	err = zr.Close()
 	if err != nil {
 		return nil, err
 	}
