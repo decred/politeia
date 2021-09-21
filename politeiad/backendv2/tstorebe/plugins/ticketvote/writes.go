@@ -432,7 +432,7 @@ func (p *plugin) cmdCastBallot(tstore plugins.TstoreClient, token []byte, payloa
 		return string(reply), nil
 	}
 
-	addrs := p.activeVotes.CommitmentAddrs(token, tickets)
+	addrs := getCommitmentAddrs(token, tickets)
 	notInCache := make([]string, 0, len(tickets))
 	for _, v := range tickets {
 		_, ok := addrs[v]
@@ -871,6 +871,7 @@ func (p *plugin) startStandardVote(tstore plugins.TstoreClient, token []byte, s 
 	// Update the active votes cache
 	p.activeVotesAdd(vd)
 	*/
+	// TODO fetch commitment addresses
 
 	return &v1.StartReply{
 		Receipt:          vd.Receipt,
@@ -1310,6 +1311,7 @@ func (p *plugin) startRunoffVoteForSub(tstore plugins.TstoreClient, token []byte
 	// Update active votes cache
 	p.activeVotesAdd(vd)
 	*/
+	// TODO fetch commitment addresses
 
 	return nil
 }

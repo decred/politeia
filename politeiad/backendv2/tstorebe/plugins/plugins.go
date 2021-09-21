@@ -163,7 +163,11 @@ type PluginClient interface {
 	Settings() []backend.PluginSetting
 }
 
-// TODO rename to DBClient or RecordClient
+// TODO rename to DBClient or RecordClient or TxClient
+// TxClient spawns other clients that use the tx
+// DBClient provides methods for interacting with the backend API and spawns
+// clients that don't use the tx.
+// Pass both TxClient and DBClient to the plugin command execution.
 //
 // TODO remove the token argument. It will use the token that the command is
 // being executed on.  Executing commands on other records requires the use
