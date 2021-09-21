@@ -6,7 +6,6 @@ package ticketvote
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
@@ -23,11 +22,13 @@ const (
 	commitmentAddrsKey = pluginID + "-{token}-commitmentadddrs"
 )
 
+// TODO implement getCommentAddrs
 func getCommitmentAddrs(backend backend.Backend, tstore plugins.TstoreClient, tickets []string) (map[string]commitmentAddr, error) {
 	// Check cache
 
 	// Pull manually from dcrdata if needed
 
+	return nil, nil
 }
 
 // commietmentAddrs contains the largest commitment address for each eligible
@@ -46,6 +47,8 @@ func cacheCommitmentAddrs(backend backend.Backend, tstore plugins.TstoreClient, 
 	// It takes ~1.5 minutes to get the largest commitment
 	// address for 41k eligible tickets from an off premise
 	// dcrdata instance with minimal latency.
+
+	/* TODO add back in
 	var (
 		pageSize = 500
 		startIdx int
@@ -98,6 +101,7 @@ func cacheCommitmentAddrs(backend backend.Backend, tstore plugins.TstoreClient, 
 		fmt.Errorf("Insert commitment addrs %v: %v",
 			token, err)
 	}
+	*/
 }
 
 // commitmentAddr represents the largest commitment address for a dcr ticket.
@@ -122,7 +126,7 @@ func getCommitmentAddrsFromDcrdata(backend backend.Backend, tickets []string) (m
 	if err != nil {
 		return nil, err
 	}
-	reply, err := p.backend.PluginRead(nil, dcrdata.PluginID,
+	reply, err := backend.PluginRead(nil, dcrdata.PluginID,
 		dcrdata.CmdTxsTrimmed, string(payload))
 	if err != nil {
 		return nil, errors.Errorf("PluginRead %v %v: %v",
@@ -172,5 +176,5 @@ func getCommitmentAddrsFromDcrdata(backend backend.Backend, tickets []string) (m
 // getCommitmentAddrsKey returns the key-value store key for a cached
 // commitmentAddrs.
 func getCommitmentAddrsKey(token string) string {
-	return strings.Replace(commitmentAddrskey, "{token}", token, 1)
+	return strings.Replace(commitmentAddrsKey, "{token}", token, 1)
 }

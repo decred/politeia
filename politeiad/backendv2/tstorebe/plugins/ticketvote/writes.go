@@ -300,7 +300,7 @@ func (p *plugin) cmdCastBallot(tstore plugins.TstoreClient, token []byte, payloa
 	// Perform all validation that does not require
 	// fetching the commitment addresses.
 	receipts := make([]v1.CastVoteReply, len(votes))
-	dups := make(map[string]struct{}, 0, len(votes)) // [ticket]struct{}
+	dups := make(map[string]struct{}, len(votes)) // [ticket]struct{}
 	for k, v := range votes {
 		// Verify token is valid
 		t, err := decodeToken(v.Token)
@@ -373,7 +373,7 @@ func (p *plugin) cmdCastBallot(tstore plugins.TstoreClient, token []byte, payloa
 
 		// Verify that the ballot does not contain
 		// multiple votes that use the same ticket.
-		_, ok := dups[v.Ticket]
+		_, ok = dups[v.Ticket]
 		if ok {
 			e := v1.VoteErrorTicketAlreadyVoted
 			receipts[k].Ticket = v.Ticket
@@ -432,7 +432,9 @@ func (p *plugin) cmdCastBallot(tstore plugins.TstoreClient, token []byte, payloa
 		return string(reply), nil
 	}
 
-	addrs := getCommitmentAddrs(token, tickets)
+	// TODO add back in
+	addrs := map[string]commitmentAddr{}
+	// addrs, err := getCommitmentAddrs(token, tickets)
 	notInCache := make([]string, 0, len(tickets))
 	for _, v := range tickets {
 		_, ok := addrs[v]
@@ -446,6 +448,7 @@ func (p *plugin) cmdCastBallot(tstore plugins.TstoreClient, token []byte, payloa
 
 	if len(notInCache) > 0 {
 		// Get commitment addresses from dcrdata
+		/* TODO add back in
 		caddrs, err := p.largestCommitmentAddrs(tickets)
 		if err != nil {
 			return "", err
@@ -455,6 +458,7 @@ func (p *plugin) cmdCastBallot(tstore plugins.TstoreClient, token []byte, payloa
 		for k, v := range caddrs {
 			addrs[k] = v
 		}
+		*/
 	}
 
 	// Verify the signatures
@@ -607,7 +611,7 @@ func (p *plugin) cmdCastBallot(tstore plugins.TstoreClient, token []byte, payloa
 
 		// Cache the votes so that duplicates can be validated in
 		// future ballots.
-		err = saveVoteToDupsCache(tstore, cv.Token, cv.Ticket)
+		err = saveVoteToDupsCache(tstore, v.Token, v.Ticket)
 		if err != nil {
 			log.Errorf("cmdCastBallot: saveVoteToDupsCache: %v ", err)
 		}
@@ -1504,6 +1508,8 @@ func verifyVoteParams(vote v1.VoteParams, voteDurationMin, voteDurationMax uint3
 
 	// Verify vote bits are somewhat sane
 	for _, v := range vote.Options {
+		_ = v
+		/* TODO put back in
 		err := verifyVoteBit(vote.Options, vote.Mask, v.Bit)
 		if err != nil {
 			return backend.PluginError{
@@ -1512,6 +1518,7 @@ func verifyVoteParams(vote v1.VoteParams, voteDurationMin, voteDurationMax uint3
 				ErrorContext: err.Error(),
 			}
 		}
+		*/
 	}
 
 	// Verify parent token

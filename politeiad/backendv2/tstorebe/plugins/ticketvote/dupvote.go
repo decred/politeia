@@ -15,7 +15,7 @@ const (
 	// dupVoteKey is the key-value store for a empty vote record that
 	// is used to verify that a ticket is not attempting to vote more
 	// than one time.
-	dupVoteKey = pluginsID + "-{token}-dupvote-{ticket}"
+	dupVoteKey = pluginID + "-{token}-dupvote-{ticket}"
 )
 
 // saveVoteToDupsCache inserts a dup vote entry into the cache.
@@ -48,5 +48,5 @@ func voteIsDuplicate(tstore plugins.TstoreClient, token, ticket string) (bool, e
 // getDupVoteKey returns the dupVoteKey for the provided token and ticket.
 func getDupVoteKey(token, ticket string) string {
 	k := strings.Replace(dupVoteKey, "{token}", token, 1)
-	return strings.Replace(dupVoteKey, "{ticket}", ticket, 1)
+	return strings.Replace(k, "{ticket}", ticket, 1)
 }
