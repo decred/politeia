@@ -10,7 +10,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -1017,21 +1019,76 @@ func (t *tstoreBackend) Fsck() error {
 		return err
 	}
 
-	// Rebuild the inventory cache. This is a multi-step process:
-	//
-	// 1. Sort the tokens into two groups; unvetted and vetted. Each
-	//    group is additionally sorted by the timestamp of their most
-	//    recent status change.
-	//
-	// 2. Add the vetted tokens to the inventory cache. They MUST be
-	//    added starting with the oldest timestamp. The vetted token
-	//    is first added to the unvetted cache then moved to the vetted
-	//    cache. This is a limitation of the inventory API and mimicks
-	//    how records are added and updated when using the politeiad
-	//    API.
-	//
-	// 3. Add the unvetted tokens to the inventory cache. They MUST be
-	//    added starting with the oldest timestamp.
+	// Get the partial record for all tokens. This also guarantees that all
+	// tokens being manipulated actually correspond to a record on the backend.
+	records := make(map[string]*backend.Record, len(allTokens))
+	for _, token := range allTokens {
+		r, err := t.tstore.RecordPartial(token, 0, nil, true)
+		if err != nil {
+			return err
+		}
+		records[r.RecordMetadata.Token] = r
+	}
+
+	// Sort records into vetted and unvetted groups.
+	vetted := make([]*backend.Record, len(allTokens))
+	unvetted := make([]*backend.Record, len(allTokens))
+	for _, token := range allTokens {
+		record := records[hex.EncodeToString(token)]
+		if record.RecordMetadata.State == backend.StateVetted {
+			vetted = append(vetted, record)
+		}
+		if record.RecordMetadata.State == backend.StateUnvetted {
+			unvetted = append(unvetted, record)
+		}
+	}
+
+	// Sort records from both groups by the timestamp of their record metadata,
+	// from oldest to newest. The order of the record inventory will be
+	// slightly different. On runtime, the timestamp order is through the most
+	// recent status change md. On this fsck rebuild, the order is through the
+	// record metadata's timestamp from their last update.
+	sort.Slice(vetted, func(i, j int) bool {
+		return vetted[i].RecordMetadata.Timestamp <
+			vetted[j].RecordMetadata.Timestamp
+	})
+	sort.Slice(unvetted, func(i, j int) bool {
+		return unvetted[i].RecordMetadata.Timestamp <
+			unvetted[j].RecordMetadata.Timestamp
+	})
+
+	// Now that data is sorted, delete inventory cache before building the new,
+	// updated one.
+	err = os.RemoveAll(t.invPathVetted())
+	if err != nil {
+		return err
+	}
+	err = os.RemoveAll(t.invPathUnvetted())
+	if err != nil {
+		return err
+	}
+
+	// Add vetted tokens to inventory cache. First add to inventory as unvetted,
+	// then move to vetted. This is a temporary limitation of the inventory API,
+	// which was done this way to mimick the way records are added and updated
+	// on the politeiad API.
+	for _, record := range vetted {
+		bToken, err := hex.DecodeString(record.RecordMetadata.Token)
+		if err != nil {
+			return err
+		}
+		t.inventoryAdd(backend.StateUnvetted, bToken, backend.StatusUnreviewed)
+		t.inventoryMoveToVetted(bToken, record.RecordMetadata.Status)
+	}
+
+	// Add unvetted tokens to inventory cache.
+	for _, record := range unvetted {
+		bToken, err := hex.DecodeString(record.RecordMetadata.Token)
+		if err != nil {
+			return err
+		}
+		t.inventoryAdd(record.RecordMetadata.State, bToken, record.RecordMetadata.Status)
+	}
 
 	// Update all plugin caches
 	return t.tstore.Fsck(allTokens)
