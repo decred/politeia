@@ -176,10 +176,13 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	mdState := r.RecordMetadata.State
-	mdStatus := r.RecordMetadata.Status
-	voteStatus := ticketvote.VoteStatusInvalid
-	var bsc *pi.BillingStatusChange
+	var (
+		mdState    = r.RecordMetadata.State
+		mdStatus   = r.RecordMetadata.Status
+		voteStatus = ticketvote.VoteStatusInvalid
+
+		bsc *pi.BillingStatusChange
+	)
 
 	// Fetch vote status & billing status change if they are needed in order
 	// to determine the proposal status.
