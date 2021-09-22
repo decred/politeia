@@ -128,6 +128,7 @@ type PolicyReply struct {
 	StartDateMin       int64    `json:"startdatemin"` // Seconds from current time
 	EndDateMax         int64    `json:"enddatemax"`   // Seconds from current time
 	Domains            []string `json:"domains"`
+	SummariesPageSize  uint32   `json:"summariespagesize"`
 }
 
 const (

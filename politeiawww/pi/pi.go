@@ -251,6 +251,7 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 			StartDateMin:       startDateMin,
 			EndDateMax:         endDateMax,
 			Domains:            domains,
+			SummariesPageSize:  v1.SummariesPageSize,
 		},
 	}
 
