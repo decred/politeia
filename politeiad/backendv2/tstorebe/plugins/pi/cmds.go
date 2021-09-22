@@ -51,6 +51,31 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 	return string(reply), nil
 }
 
+// proposalStatusApproved returns the proposal status of an apprvoed proposal.
+func (p *piPlugin) proposalStatusApproved(token []byte) (pi.PropStatusT, error) {
+	// Get billing status to determine the proposal status.
+	bsc, err := p.billingStatusChange(token)
+	if err != nil {
+		return pi.PropStatusUnvetted, err
+	}
+	// If a billing status of an approved proposal not set then the
+	// proposal is considered as active.
+	if bsc == nil {
+		return pi.PropStatusActive, nil
+	}
+	switch bsc.Status {
+	case pi.BillingStatusClosed:
+		return pi.PropStatusClosed, nil
+	case pi.BillingStatusCompleted:
+		return pi.PropStatusCompleted, nil
+	}
+	// Shouldn't happen return an error
+	return pi.PropStatusUnvetted,
+		errors.Errorf(
+			"couldn't determine proposal status of an apprvoed propsoal: "+
+				"token: %v, billingStatus: %v", hex.EncodeToString(token), bsc.Status)
+}
+
 // proposalStatus combines record metadata and plugin metadata in order to
 // create a unified map of the various paths a proposal can take throughout
 // the proposal process.
@@ -94,31 +119,15 @@ func (p *piPlugin) proposalStatus(token []byte) (pi.PropStatusT, error) {
 			case ticketvote.VoteStatusRejected:
 				return pi.PropStatusRejected, nil
 			case ticketvote.VoteStatusApproved:
-				// Get billing status to determine whether proposal is still active.
-				// XXX Move to proposalStatusApproved func.
-				bsc, err := p.billingStatusChange(token)
-				if err != nil {
-					return pi.PropStatusUnvetted, err
-				}
-				// If a billing status of an approved proposal not set to closed
-				// or completed then proposal considered as active.
-				if bsc == nil {
-					return pi.PropStatusActive, nil
-				}
-				switch bsc.Status {
-				case pi.BillingStatusClosed:
-					return pi.PropStatusClosed, nil
-				case pi.BillingStatusCompleted:
-					return pi.PropStatusCompleted, nil
-				}
+				return p.proposalStatusApproved(token)
 			}
 		}
 	}
 	// Shouldn't happen return an error
 	return pi.PropStatusUnvetted,
 		errors.Errorf(
-			"couldn't determine proposal status: record state: %v, record status %v",
-			mdState, mdStatus)
+			"couldn't determine proposal status: token: %v, record state: %v, "+
+				"record status %v", hex.EncodeToString(token), mdState, mdStatus)
 }
 
 // recordAbridged returns a record's metadata.
