@@ -171,7 +171,37 @@ func tokenMatches(cmdToken []byte, payloadToken string) error {
 
 // cmdSummary returns the pi summary of a proposal.
 func (p *piPlugin) cmdSummary(token []byte) (string, error) {
-	proposalStatus, err := p.proposalStatus(token)
+	// Get record metadata
+	r, err := p.recordAbridged(token)
+	if err != nil {
+		return "", err
+	}
+	mdState := r.RecordMetadata.State
+	mdStatus := r.RecordMetadata.Status
+	voteStatus := ticketvote.VoteStatusInvalid
+	var bsc *pi.BillingStatusChange
+
+	// Fetch vote status & billing status change if they are needed in order
+	// to determine the proposal status.
+	if mdState == backend.StateVetted {
+		// If proposal status is public fetch vote status.
+		if mdStatus == backend.StatusPublic {
+			vs, err := p.voteSummary(token)
+			if err != nil {
+				return "", err
+			}
+			voteStatus = vs.Status
+			// If vote status is approved fetch billing status change.
+			if voteStatus == ticketvote.VoteStatusApproved {
+				bsc, err = p.billingStatusChange(token)
+				if err != nil {
+					return "", err
+				}
+			}
+		}
+	}
+
+	proposalStatus, err := p.proposalStatus(mdState, mdStatus, voteStatus, bsc)
 	if err != nil {
 		return "", err
 	}
@@ -181,15 +211,12 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 	switch proposalStatus {
 	case pi.PropStatusUnvettedAbandoned, pi.PropStatusAbandoned,
 		pi.PropStatusUnvettedCensored, pi.PropStatusCensored:
-		reason, err = p.lastStatusChangeReason(token)
+		reason, err = p.lastStatusChangeReason(r.Metadata)
 		if err != nil {
 			return "", err
 		}
 	case pi.PropStatusClosed:
-		reason, err = p.billingStatusChangeReason(token)
-		if err != nil {
-			return "", err
-		}
+		reason = bsc.Reason
 	}
 
 	// Prepare reply
@@ -207,29 +234,11 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 	return string(reply), nil
 }
 
-// billingStatusChangeReason returns the billing status change of a proposal.
-// This function assumes the proposal has exactly one billing status change.
-func (p *piPlugin) billingStatusChangeReason(token []byte) (string, error) {
-	// Get billing status change.
-	bsc, err := p.billingStatusChange(token)
-	if err != nil {
-		return "", err
-	}
-
-	return bsc.Reason, nil
-}
-
 // statusChangeReason returns the last status change reason of a proposal.
 // This function assumes the proposal has at least one status change.
-func (p *piPlugin) lastStatusChangeReason(token []byte) (string, error) {
-	// Get record metadata streams
-	r, err := p.recordAbridged(token)
-	if err != nil {
-		return "", err
-	}
-
+func (p *piPlugin) lastStatusChangeReason(metadata []backend.MetadataStream) (string, error) {
 	// Decode status changes
-	statusChanges, err := statusChangesDecode(r.Metadata)
+	statusChanges, err := statusChangesDecode(metadata)
 	if err != nil {
 		return "", err
 	}
@@ -265,12 +274,7 @@ func statusChangesDecode(metadata []backend.MetadataStream) ([]usermd.StatusChan
 }
 
 // proposalStatusApproved returns the proposal status of an approved proposal.
-func (p *piPlugin) proposalStatusApproved(token []byte) (pi.PropStatusT, error) {
-	// Get billing status to determine the proposal status.
-	bsc, err := p.billingStatusChange(token)
-	if err != nil {
-		return pi.PropStatusInvalid, err
-	}
+func (p *piPlugin) proposalStatusApproved(bsc *pi.BillingStatusChange) (pi.PropStatusT, error) {
 	// If a billing status of an approved proposal not set then the
 	// proposal is considered as active.
 	if bsc == nil {
@@ -286,24 +290,16 @@ func (p *piPlugin) proposalStatusApproved(token []byte) (pi.PropStatusT, error) 
 	return pi.PropStatusInvalid,
 		errors.Errorf(
 			"couldn't determine proposal status of an approved propsoal: "+
-				"token: %v, billingStatus: %v", hex.EncodeToString(token), bsc.Status)
+				"billingStatus: %v", bsc.Status)
 }
 
 // proposalStatus combines record metadata and plugin metadata in order to
 // create a unified map of the various paths a proposal can take throughout
 // the proposal process.
-func (p *piPlugin) proposalStatus(token []byte) (pi.PropStatusT, error) {
-	// Get record metadata
-	r, err := p.recordAbridged(token)
-	if err != nil {
-		return "", err
-	}
-	mdState := r.RecordMetadata.State
-	mdStatus := r.RecordMetadata.Status
-
-	switch mdState {
+func (p *piPlugin) proposalStatus(state backend.StateT, status backend.StatusT, voteStatus ticketvote.VoteStatusT, bsc *pi.BillingStatusChange) (pi.PropStatusT, error) {
+	switch state {
 	case backend.StateUnvetted:
-		switch mdStatus {
+		switch status {
 		case backend.StatusUnreviewed:
 			return pi.PropStatusUnvetted, nil
 		case backend.StatusArchived:
@@ -312,17 +308,13 @@ func (p *piPlugin) proposalStatus(token []byte) (pi.PropStatusT, error) {
 			return pi.PropStatusUnvettedCensored, nil
 		}
 	case backend.StateVetted:
-		switch mdStatus {
+		switch status {
 		case backend.StatusArchived:
 			return pi.PropStatusAbandoned, nil
 		case backend.StatusCensored:
 			return pi.PropStatusCensored, nil
 		case backend.StatusPublic:
-			s, err := p.voteSummary(token)
-			if err != nil {
-				return pi.PropStatusInvalid, err
-			}
-			switch s.Status {
+			switch voteStatus {
 			case ticketvote.VoteStatusUnauthorized:
 				return pi.PropStatusUnderReview, nil
 			case ticketvote.VoteStatusAuthorized:
@@ -332,15 +324,15 @@ func (p *piPlugin) proposalStatus(token []byte) (pi.PropStatusT, error) {
 			case ticketvote.VoteStatusRejected:
 				return pi.PropStatusRejected, nil
 			case ticketvote.VoteStatusApproved:
-				return p.proposalStatusApproved(token)
+				return p.proposalStatusApproved(bsc)
 			}
 		}
 	}
 	// Shouldn't happen return an error
 	return pi.PropStatusInvalid,
 		errors.Errorf(
-			"couldn't determine proposal status: token: %v, record state: %v, "+
-				"record status %v", hex.EncodeToString(token), mdState, mdStatus)
+			"couldn't determine proposal status: proposal state: %v, "+
+				"proposal status %v, vote status: %v", state, status, voteStatus)
 }
 
 // recordAbridged returns a record with all files omitted.
