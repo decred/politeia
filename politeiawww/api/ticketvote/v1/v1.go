@@ -217,7 +217,7 @@ const (
 )
 
 var (
-	// VoteType contains the human readable vote types.
+	// VoteTypes contains the human readable vote types.
 	VoteTypes = map[VoteT]string{
 		VoteTypeInvalid:  "invalid vote type",
 		VoteTypeStandard: "standard",
@@ -407,7 +407,7 @@ const (
 	// for a single record at a time.
 	VoteErrorMultipleRecordVotes VoteErrorT = 4
 
-	// VoteStatusInvalid is returned when a vote is cast on a record
+	// VoteErrorVoteStatusInvalid is returned when a vote is cast on a record
 	// that is not being actively voted on.
 	VoteErrorVoteStatusInvalid VoteErrorT = 5
 

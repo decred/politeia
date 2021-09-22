@@ -43,10 +43,14 @@ const (
 	// ErrorCodeRecordNotFound is returned when no record was found.
 	ErrorCodeRecordNotFound ErrorCodeT = 4
 
+	// ErrorCodePageSizeExceeded is returned when the request's page size
+	// exceeds the maximum page size of the request.
+	ErrorCodePageSizeExceeded ErrorCodeT = 5
+
 	// ErrorCodeLast is used by unit tests to verify that all error codes have
 	// a human readable entry in the ErrorCodes map. This error will never be
 	// returned.
-	ErrorCodeLast ErrorCodeT = 5
+	ErrorCodeLast ErrorCodeT = 6
 )
 
 var (
@@ -57,6 +61,7 @@ var (
 		ErrorCodePublicKeyInvalid:   "public key invalid",
 		ErrorCodeRecordTokenInvalid: "record token invalid",
 		ErrorCodeRecordNotFound:     "record not found",
+		ErrorCodePageSizeExceeded:   "page size exceeded",
 	}
 )
 
@@ -270,6 +275,12 @@ const (
 type ProposalUpdateMetadata struct {
 	Title string `json:"title"`
 }
+
+const (
+	// SummariesPageSize is the maximum number of proposal summaries that
+	// can be requested at any one time.
+	SummariesPageSize uint32 = 5
+)
 
 // Summaries requests the proposal summaries for the provided record tokens.
 type Summaries struct {
