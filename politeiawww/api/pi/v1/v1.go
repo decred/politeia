@@ -288,5 +288,5 @@ type SummariesReply struct {
 
 // Summary summarizes proposal information.
 type Summary struct {
-	Status string
+	Status string `json:"string"`
 }

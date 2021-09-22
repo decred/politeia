@@ -350,7 +350,7 @@ type SetBillingStatusReply struct {
 
 // Summary requests the summary of a reocrd.
 type Summary struct {
-	Token string `json:"tokens"`
+	Token string `json:"token"`
 }
 
 // SummaryReply is the reply to the Summary command.
@@ -475,5 +475,5 @@ type SummariesReply struct {
 
 // ProposalSummary summarizes proposal information.
 type ProposalSummary struct {
-	Status PropStatusT
+	Status PropStatusT `json:"status"`
 }
