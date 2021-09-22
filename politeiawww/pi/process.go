@@ -13,29 +13,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (p *Pi) processSummaries(ctx context.Context, ss v1.Summaries) (*v1.SummariesReply, error) {
-	log.Tracef("processSummaries: %v", ss.Tokens)
-
-	ps := pi.Summaries{
-		Tokens: ss.Tokens,
-	}
-	psr, err := p.politeiad.PiSummaries(ctx, ps)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert reply to API
-	var ssr v1.SummariesReply
-	ssr.Summaries = make(map[string]v1.Summary, len(psr.Summaries))
-	for token, s := range psr.Summaries {
-		ssr.Summaries[token] = v1.Summary{
-			Status: string(s.Status),
-		}
-	}
-
-	return &ssr, nil
-}
-
 func (p *Pi) processSetBillingStatus(ctx context.Context, sbs v1.SetBillingStatus, u user.User) (*v1.SetBillingStatusReply, error) {
 	log.Tracef("processSetBillingStatus: %v", sbs.Token)
 
@@ -62,6 +39,28 @@ func (p *Pi) processSetBillingStatus(ctx context.Context, sbs v1.SetBillingStatu
 	return &v1.SetBillingStatusReply{
 		Timestamp: psbsr.Timestamp,
 		Receipt:   psbsr.Receipt,
+	}, nil
+}
+
+// processSummaries processes a pi v1 summaries request.
+func (p *Pi) processSummaries(ctx context.Context, s v1.Summaries) (*v1.SummariesReply, error) {
+	log.Tracef("processSummaries: %v", s.Tokens)
+
+	psr, err := p.politeiad.PiSummaries(ctx, s.Tokens)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert reply to API
+	ss := make(map[string]v1.Summary, len(psr))
+	for token, s := range psr {
+		ss[token] = v1.Summary{
+			Status: string(s.Summary.Status),
+		}
+	}
+
+	return &v1.SummariesReply{
+		Summaries: ss,
 	}, nil
 }
 

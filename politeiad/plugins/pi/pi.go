@@ -348,7 +348,7 @@ type SetBillingStatusReply struct {
 	Timestamp int64  `json:"timestamp"` // Unix timestamp
 }
 
-// Summary requests the summary of a reocrd.
+// Summary requests the summary of a proposal.
 type Summary struct {
 	Token string `json:"token"`
 }
@@ -358,18 +358,9 @@ type SummaryReply struct {
 	Summary ProposalSummary `json:"summary"`
 }
 
-const (
-	// ProposalUpdateHint is the hint that is included in a comment's
-	// ExtraDataHint field to indicate that the comment is an update
-	// from the proposal author.
-	ProposalUpdateHint = "proposalupdate"
-)
-
-// ProposalUpdateMetadata contains the metadata that is attached to a comment
-// in the comment's ExtraData field to indicate that the comment is an update
-// from the proposal author.
-type ProposalUpdateMetadata struct {
-	Title string `json:"title"`
+// ProposalSummary summarizes proposal information.
+type ProposalSummary struct {
+	Status PropStatusT `json:"status"`
 }
 
 // PropStatusT represents the status of a proposal. It combines record and
@@ -380,6 +371,9 @@ type ProposalUpdateMetadata struct {
 type PropStatusT string
 
 const (
+	// PropStatusInvalid represents an invalid proposal status.
+	PropStatusInvalid PropStatusT = ""
+
 	// PropStatusUnvetted represents a proposal that has been submitted but has
 	// not yet been made public by the admins.
 	PropStatusUnvetted PropStatusT = "unvetted"
@@ -458,22 +452,16 @@ const (
 	PropStatusClosed PropStatusT = "closed"
 )
 
-// Summaries requests the proposal summaries for the provided record tokens.
-type Summaries struct {
-	Tokens []string `json:"tokens"`
-}
+const (
+	// ProposalUpdateHint is the hint that is included in a comment's
+	// ExtraDataHint field to indicate that the comment is an update
+	// from the proposal author.
+	ProposalUpdateHint = "proposalupdate"
+)
 
-// SummariesReply is the reply to the Summaries command.
-//
-// Summaries field contains a summary for each of the provided tokens.
-// The map will not contain an entry for any tokens that did not correspond
-// to an actual record. It is the callers responsibility to ensure that a
-// summary is returned for all provided tokens.
-type SummariesReply struct {
-	Summaries map[string]ProposalSummary `json:"summaries"` // [token]Summary
-}
-
-// ProposalSummary summarizes proposal information.
-type ProposalSummary struct {
-	Status PropStatusT `json:"status"`
+// ProposalUpdateMetadata contains the metadata that is attached to a comment
+// in the comment's ExtraData field to indicate that the comment is an update
+// from the proposal author.
+type ProposalUpdateMetadata struct {
+	Title string `json:"title"`
 }

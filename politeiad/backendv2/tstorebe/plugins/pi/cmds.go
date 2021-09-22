@@ -30,126 +30,6 @@ const (
 	dataDescriptorBillingStatus = pluginID + "-billingstatus-v1"
 )
 
-// cmdSummary returns the pi summary of a proposal.
-func (p *piPlugin) cmdSummary(token []byte) (string, error) {
-	proposalStatus, err := p.proposalStatus(token)
-	if err != nil {
-		return "", err
-	}
-
-	// Prepare reply
-	sr := pi.SummaryReply{
-		Summary: pi.ProposalSummary{
-			Status: proposalStatus,
-		},
-	}
-	reply, err := json.Marshal(sr)
-	if err != nil {
-		return "", err
-	}
-
-	return string(reply), nil
-}
-
-// proposalStatusApproved returns the proposal status of an apprvoed proposal.
-func (p *piPlugin) proposalStatusApproved(token []byte) (pi.PropStatusT, error) {
-	// Get billing status to determine the proposal status.
-	bsc, err := p.billingStatusChange(token)
-	if err != nil {
-		return pi.PropStatusUnvetted, err
-	}
-	// If a billing status of an approved proposal not set then the
-	// proposal is considered as active.
-	if bsc == nil {
-		return pi.PropStatusActive, nil
-	}
-	switch bsc.Status {
-	case pi.BillingStatusClosed:
-		return pi.PropStatusClosed, nil
-	case pi.BillingStatusCompleted:
-		return pi.PropStatusCompleted, nil
-	}
-	// Shouldn't happen return an error
-	return pi.PropStatusUnvetted,
-		errors.Errorf(
-			"couldn't determine proposal status of an apprvoed propsoal: "+
-				"token: %v, billingStatus: %v", hex.EncodeToString(token), bsc.Status)
-}
-
-// proposalStatus combines record metadata and plugin metadata in order to
-// create a unified map of the various paths a proposal can take throughout
-// the proposal process.
-func (p *piPlugin) proposalStatus(token []byte) (pi.PropStatusT, error) {
-	// Get record metadata
-	rmd, err := p.recordMetadata(token)
-	if err != nil {
-		return "", err
-	}
-	mdState := rmd.State
-	mdStatus := rmd.Status
-
-	switch mdState {
-	case backend.StateUnvetted:
-		switch mdStatus {
-		case backend.StatusUnreviewed:
-			return pi.PropStatusUnvetted, nil
-		case backend.StatusArchived:
-			return pi.PropStatusUnvettedAbandoned, nil
-		case backend.StatusCensored:
-			return pi.PropStatusUnvettedCensored, nil
-		}
-	case backend.StateVetted:
-		switch mdStatus {
-		case backend.StatusArchived:
-			return pi.PropStatusAbandoned, nil
-		case backend.StatusCensored:
-			return pi.PropStatusCensored, nil
-		case backend.StatusPublic:
-			s, err := p.voteSummary(token)
-			if err != nil {
-				return pi.PropStatusUnvetted, err
-			}
-			switch s.Status {
-			case ticketvote.VoteStatusUnauthorized:
-				return pi.PropStatusUnderReview, nil
-			case ticketvote.VoteStatusAuthorized:
-				return pi.PropStatusVoteAuthorized, nil
-			case ticketvote.VoteStatusStarted:
-				return pi.PropStatusVoteStarted, nil
-			case ticketvote.VoteStatusRejected:
-				return pi.PropStatusRejected, nil
-			case ticketvote.VoteStatusApproved:
-				return p.proposalStatusApproved(token)
-			}
-		}
-	}
-	// Shouldn't happen return an error
-	return pi.PropStatusUnvetted,
-		errors.Errorf(
-			"couldn't determine proposal status: token: %v, record state: %v, "+
-				"record status %v", hex.EncodeToString(token), mdState, mdStatus)
-}
-
-// recordAbridged returns a record's metadata.
-func (p *piPlugin) recordMetadata(token []byte) (*backend.RecordMetadata, error) {
-	reqs := []backend.RecordRequest{
-		{
-			Token:        token,
-			OmitAllFiles: true,
-		},
-	}
-	rs, err := p.backend.Records(reqs)
-	if err != nil {
-		return nil, err
-	}
-	r, ok := rs[hex.EncodeToString(token)]
-	if !ok {
-		return nil, backend.ErrRecordNotFound
-	}
-
-	return &r.RecordMetadata, nil
-}
-
 // cmdSetBillingStatus sets proposal's billing status.
 func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, error) {
 	// Decode payload
@@ -284,6 +164,126 @@ func tokenMatches(cmdToken []byte, payloadToken string) error {
 		}
 	}
 	return nil
+}
+
+// cmdSummary returns the pi summary of a proposal.
+func (p *piPlugin) cmdSummary(token []byte) (string, error) {
+	proposalStatus, err := p.proposalStatus(token)
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare reply
+	sr := pi.SummaryReply{
+		Summary: pi.ProposalSummary{
+			Status: proposalStatus,
+		},
+	}
+	reply, err := json.Marshal(sr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
+// proposalStatusApproved returns the proposal status of an approved proposal.
+func (p *piPlugin) proposalStatusApproved(token []byte) (pi.PropStatusT, error) {
+	// Get billing status to determine the proposal status.
+	bsc, err := p.billingStatusChange(token)
+	if err != nil {
+		return pi.PropStatusInvalid, err
+	}
+	// If a billing status of an approved proposal not set then the
+	// proposal is considered as active.
+	if bsc == nil {
+		return pi.PropStatusActive, nil
+	}
+	switch bsc.Status {
+	case pi.BillingStatusClosed:
+		return pi.PropStatusClosed, nil
+	case pi.BillingStatusCompleted:
+		return pi.PropStatusCompleted, nil
+	}
+	// Shouldn't happen return an error
+	return pi.PropStatusInvalid,
+		errors.Errorf(
+			"couldn't determine proposal status of an approved propsoal: "+
+				"token: %v, billingStatus: %v", hex.EncodeToString(token), bsc.Status)
+}
+
+// proposalStatus combines record metadata and plugin metadata in order to
+// create a unified map of the various paths a proposal can take throughout
+// the proposal process.
+func (p *piPlugin) proposalStatus(token []byte) (pi.PropStatusT, error) {
+	// Get record metadata
+	r, err := p.recordAbridged(token)
+	if err != nil {
+		return "", err
+	}
+	mdState := r.RecordMetadata.State
+	mdStatus := r.RecordMetadata.Status
+
+	switch mdState {
+	case backend.StateUnvetted:
+		switch mdStatus {
+		case backend.StatusUnreviewed:
+			return pi.PropStatusUnvetted, nil
+		case backend.StatusArchived:
+			return pi.PropStatusUnvettedAbandoned, nil
+		case backend.StatusCensored:
+			return pi.PropStatusUnvettedCensored, nil
+		}
+	case backend.StateVetted:
+		switch mdStatus {
+		case backend.StatusArchived:
+			return pi.PropStatusAbandoned, nil
+		case backend.StatusCensored:
+			return pi.PropStatusCensored, nil
+		case backend.StatusPublic:
+			s, err := p.voteSummary(token)
+			if err != nil {
+				return pi.PropStatusInvalid, err
+			}
+			switch s.Status {
+			case ticketvote.VoteStatusUnauthorized:
+				return pi.PropStatusUnderReview, nil
+			case ticketvote.VoteStatusAuthorized:
+				return pi.PropStatusVoteAuthorized, nil
+			case ticketvote.VoteStatusStarted:
+				return pi.PropStatusVoteStarted, nil
+			case ticketvote.VoteStatusRejected:
+				return pi.PropStatusRejected, nil
+			case ticketvote.VoteStatusApproved:
+				return p.proposalStatusApproved(token)
+			}
+		}
+	}
+	// Shouldn't happen return an error
+	return pi.PropStatusInvalid,
+		errors.Errorf(
+			"couldn't determine proposal status: token: %v, record state: %v, "+
+				"record status %v", hex.EncodeToString(token), mdState, mdStatus)
+}
+
+// recordAbridged returns a record with all files omitted.
+func (p *piPlugin) recordAbridged(token []byte) (*backend.Record, error) {
+	reqs := []backend.RecordRequest{
+		{
+			Token:        token,
+			OmitAllFiles: true,
+		},
+	}
+	rs, err := p.backend.Records(reqs)
+	if err != nil {
+		return nil, err
+	}
+	r, ok := rs[hex.EncodeToString(token)]
+	if !ok {
+		return nil, backend.ErrRecordNotFound
+	}
+
+	return &r, nil
 }
 
 // convertSignatureError converts a util SignatureError to a backend

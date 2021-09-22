@@ -14,10 +14,10 @@ import (
 
 // PiSummaries sends a page of pi plugin Summary commands to the politeiad
 // v2 API.
-func (c *Client) PiSummaries(ctx context.Context, s pi.Summaries) (*pi.SummariesReply, error) {
+func (c *Client) PiSummaries(ctx context.Context, tokens []string) (map[string]pi.SummaryReply, error) {
 	// Setup request
-	cmds := make([]pdv2.PluginCmd, 0, len(s.Tokens))
-	for _, v := range s.Tokens {
+	cmds := make([]pdv2.PluginCmd, 0, len(tokens))
+	for _, v := range tokens {
 		cmds = append(cmds, pdv2.PluginCmd{
 			Token:   v,
 			ID:      pi.PluginID,
@@ -33,8 +33,7 @@ func (c *Client) PiSummaries(ctx context.Context, s pi.Summaries) (*pi.Summaries
 	}
 
 	// Prepare reply
-	ssr := pi.SummariesReply{}
-	ssr.Summaries = make(map[string]pi.ProposalSummary, len(replies))
+	ssr := make(map[string]pi.SummaryReply, len(replies))
 	for _, v := range replies {
 		err = extractPluginCmdError(v)
 		if err != nil {
@@ -47,10 +46,10 @@ func (c *Client) PiSummaries(ctx context.Context, s pi.Summaries) (*pi.Summaries
 		if err != nil {
 			return nil, err
 		}
-		ssr.Summaries[v.Token] = sr.Summary
+		ssr[v.Token] = sr
 	}
 
-	return &ssr, nil
+	return ssr, nil
 }
 
 // PiSetBillingStatus sends the pi plugin BillingStatus command to the

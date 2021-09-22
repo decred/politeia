@@ -52,8 +52,9 @@ func (c *cmdProposalSummaries) Execute(args []string) error {
 
 // proposalSummariesHelpMsg is printed to stdout by the help command.
 const proposalSummariesHelpMsg = `proposalsummaries "tokens..."
-Fetch the pi summaries for the provided tokens. This command accepts both
+Fetch the proposal summaries for the provided tokens. This command accepts both
 full length tokens and token prefixes.
+
 Example usage:
 $ pictl proposalsummaries cda97ace0a476514 71dd3a110500fb6a
 $ pictl proposalsummaries cda97ac 71dd3a1`

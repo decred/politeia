@@ -287,6 +287,9 @@ type SummariesReply struct {
 }
 
 // Summary summarizes proposal information.
+//
+// Status field is the string value of the PropStatusT type which is defined
+// along with all of it's possible values in the pi plugin API.
 type Summary struct {
 	Status string `json:"string"`
 }
