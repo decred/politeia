@@ -100,15 +100,16 @@ func (p *piPlugin) proposalStatus(token []byte) (pi.PropStatusT, error) {
 				if err != nil {
 					return pi.PropStatusUnvetted, err
 				}
+				// If a billing status of an approved proposal not set to closed
+				// or completed then proposal considered as active.
+				if bsc == nil {
+					return pi.PropStatusActive, nil
+				}
 				switch bsc.Status {
 				case pi.BillingStatusClosed:
 					return pi.PropStatusClosed, nil
 				case pi.BillingStatusCompleted:
 					return pi.PropStatusCompleted, nil
-				// If a billing status of an approved proposal not set to closed
-				// or completed then proposal considered as active.
-				default:
-					return pi.PropStatusActive, nil
 				}
 			}
 		}

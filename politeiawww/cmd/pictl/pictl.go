@@ -72,6 +72,7 @@ type pictl struct {
 	ProposalDetails          cmdProposalDetails          `command:"proposaldetails"`
 	ProposalTimestamps       cmdProposalTimestamps       `command:"proposaltimestamps"`
 	Proposals                cmdProposals                `command:"proposals"`
+	ProposalSummaries        cmdProposalSummaries        `command:"proposalsummaries"`
 	ProposalInv              cmdProposalInv              `command:"proposalinv"`
 	ProposalInvOrdered       cmdProposalInvOrdered       `command:"proposalinvordered"`
 	UserProposals            cmdUserProposals            `command:"userproposals"`
