@@ -65,7 +65,8 @@ func (p *Pi) processSummaries(ctx context.Context, s v1.Summaries) (*v1.Summarie
 	ss := make(map[string]v1.Summary, len(psr))
 	for token, s := range psr {
 		ss[token] = v1.Summary{
-			Status: string(s.Summary.Status),
+			Status:       string(s.Summary.Status),
+			StatusReason: s.Summary.StatusReason,
 		}
 	}
 

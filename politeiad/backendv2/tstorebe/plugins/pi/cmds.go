@@ -10,8 +10,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -20,6 +22,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 	"github.com/decred/politeia/util"
 )
 
@@ -173,10 +176,27 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		return "", err
 	}
 
+	// Get status reason if status should have a reason.
+	var reason string
+	switch proposalStatus {
+	case pi.PropStatusUnvettedAbandoned, pi.PropStatusAbandoned,
+		pi.PropStatusUnvettedCensored, pi.PropStatusCensored:
+		reason, err = p.lastStatusChangeReason(token)
+		if err != nil {
+			return "", err
+		}
+	case pi.PropStatusClosed:
+		reason, err = p.billingStatusChangeReason(token)
+		if err != nil {
+			return "", err
+		}
+	}
+
 	// Prepare reply
 	sr := pi.SummaryReply{
 		Summary: pi.ProposalSummary{
-			Status: proposalStatus,
+			Status:       proposalStatus,
+			StatusReason: reason,
 		},
 	}
 	reply, err := json.Marshal(sr)
@@ -185,6 +205,63 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 	}
 
 	return string(reply), nil
+}
+
+// billingStatusChangeReason returns the billing status change of a proposal.
+// This function assumes the proposal has exactly one billing status change.
+func (p *piPlugin) billingStatusChangeReason(token []byte) (string, error) {
+	// Get billing status change.
+	bsc, err := p.billingStatusChange(token)
+	if err != nil {
+		return "", err
+	}
+
+	return bsc.Reason, nil
+}
+
+// statusChangeReason returns the last status change reason of a proposal.
+// This function assumes the proposal has at least one status change.
+func (p *piPlugin) lastStatusChangeReason(token []byte) (string, error) {
+	// Get record metadata streams
+	r, err := p.recordAbridged(token)
+	if err != nil {
+		return "", err
+	}
+
+	// Decode status changes
+	statusChanges, err := statusChangesDecode(r.Metadata)
+	if err != nil {
+		return "", err
+	}
+
+	// Return latest status change reason
+	return statusChanges[len(statusChanges)-1].Reason, nil
+}
+
+// statusChangesDecode decodes and returns the StatusChangeMetadata from the
+// metadata streams if one is present.
+func statusChangesDecode(metadata []backend.MetadataStream) ([]usermd.StatusChangeMetadata, error) {
+	statuses := make([]usermd.StatusChangeMetadata, 0, 16)
+	for _, v := range metadata {
+		if v.PluginID != usermd.PluginID ||
+			v.StreamID != usermd.StreamIDStatusChanges {
+			// Not the mdstream we're looking for
+			continue
+		}
+		d := json.NewDecoder(strings.NewReader(v.Payload))
+		for {
+			var sc usermd.StatusChangeMetadata
+			err := d.Decode(&sc)
+			if errors.Is(err, io.EOF) {
+				break
+			} else if err != nil {
+				return nil, err
+			}
+			statuses = append(statuses, sc)
+		}
+		break
+	}
+	return statuses, nil
 }
 
 // proposalStatusApproved returns the proposal status of an approved proposal.

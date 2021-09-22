@@ -359,8 +359,13 @@ type SummaryReply struct {
 }
 
 // ProposalSummary summarizes proposal information.
+//
+// StatusReason field will be populated only if the proposal status is one
+// of the following: abandoned (vetted or unvetted), censored (vetted
+// or unvetted) or closed.
 type ProposalSummary struct {
-	Status PropStatusT `json:"status"`
+	Status       PropStatusT `json:"status"`
+	StatusReason string      `json:"statusreason"`
 }
 
 // PropStatusT represents the status of a proposal. It combines record and
