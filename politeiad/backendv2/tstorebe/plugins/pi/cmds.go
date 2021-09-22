@@ -204,7 +204,7 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		}
 	}
 
-	proposalStatus, err := p.proposalStatus(mdState, mdStatus, voteStatus, bsc)
+	proposalStatus, err := proposalStatus(mdState, mdStatus, voteStatus, bsc)
 	if err != nil {
 		return "", err
 	}
@@ -277,7 +277,7 @@ func statusChangesDecode(metadata []backend.MetadataStream) ([]usermd.StatusChan
 }
 
 // proposalStatusApproved returns the proposal status of an approved proposal.
-func (p *piPlugin) proposalStatusApproved(bsc *pi.BillingStatusChange) (pi.PropStatusT, error) {
+func proposalStatusApproved(bsc *pi.BillingStatusChange) (pi.PropStatusT, error) {
 	// If a billing status of an approved proposal not set then the
 	// proposal is considered as active.
 	if bsc == nil {
@@ -299,7 +299,7 @@ func (p *piPlugin) proposalStatusApproved(bsc *pi.BillingStatusChange) (pi.PropS
 // proposalStatus combines record metadata and plugin metadata in order to
 // create a unified map of the various paths a proposal can take throughout
 // the proposal process.
-func (p *piPlugin) proposalStatus(state backend.StateT, status backend.StatusT, voteStatus ticketvote.VoteStatusT, bsc *pi.BillingStatusChange) (pi.PropStatusT, error) {
+func proposalStatus(state backend.StateT, status backend.StatusT, voteStatus ticketvote.VoteStatusT, bsc *pi.BillingStatusChange) (pi.PropStatusT, error) {
 	switch state {
 	case backend.StateUnvetted:
 		switch status {
@@ -327,7 +327,7 @@ func (p *piPlugin) proposalStatus(state backend.StateT, status backend.StatusT, 
 			case ticketvote.VoteStatusRejected:
 				return pi.PropStatusRejected, nil
 			case ticketvote.VoteStatusApproved:
-				return p.proposalStatusApproved(bsc)
+				return proposalStatusApproved(bsc)
 			}
 		}
 	}
