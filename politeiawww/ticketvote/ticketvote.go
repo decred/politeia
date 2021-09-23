@@ -340,10 +340,13 @@ func New(cfg *config.Config, pdc *pdclient.Client, s *sessions.Sessions, e *even
 		sessions:  s,
 		events:    e,
 		policy: &v1.PolicyReply{
-			LinkByPeriodMin: linkByPeriodMin,
-			LinkByPeriodMax: linkByPeriodMax,
-			VoteDurationMin: voteDurationMin,
-			VoteDurationMax: voteDurationMax,
+			LinkByPeriodMin:        linkByPeriodMin,
+			LinkByPeriodMax:        linkByPeriodMax,
+			VoteDurationMin:        voteDurationMin,
+			VoteDurationMax:        voteDurationMax,
+			SummariesPageSize:      v1.SummariesPageSize,
+			InventoryPageSize:      v1.InventoryPageSize,
+			VoteTimestampsPageSize: v1.VoteTimestampsPageSize,
 		},
 	}, nil
 }

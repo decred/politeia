@@ -297,8 +297,10 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 		sessions:  s,
 		events:    e,
 		policy: &v1.PolicyReply{
-			LengthMax:      lengthMax,
-			VoteChangesMax: voteChangesMax,
+			LengthMax:          lengthMax,
+			VoteChangesMax:     voteChangesMax,
+			CountPageSize:      v1.CountPageSize,
+			TimestampsPageSize: v1.TimestampsPageSize,
 		},
 	}, nil
 }
