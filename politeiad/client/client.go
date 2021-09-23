@@ -34,7 +34,7 @@ type ErrorReply struct {
 	ErrorContext string `json:"errorcontext"`
 }
 
-// RespErr represents a politeiad response error. A RespError is returned
+// RespError represents a politeiad response error. A RespError is returned
 // anytime the politeiad response is not a 200.
 type RespError struct {
 	HTTPCode   int

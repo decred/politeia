@@ -77,6 +77,8 @@ func (p *piPlugin) Cmd(token []byte, cmd, payload string) (string, error) {
 	switch cmd {
 	case pi.CmdSetBillingStatus:
 		return p.cmdSetBillingStatus(token, payload)
+	case pi.CmdSummary:
+		return p.cmdSummary(token)
 	}
 
 	return "", backend.ErrPluginCmdInvalid

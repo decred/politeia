@@ -72,6 +72,30 @@ func (p *Pi) HandleSetBillingStatus(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, bsr)
 }
 
+// HandleSummaries is the request handler for the pi v1 Summaries route.
+func (p *Pi) HandleSummaries(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleSummaries")
+
+	var s v1.Summaries
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&s); err != nil {
+		respondWithError(w, r, "HandleSummaries: unmarshal",
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	bsr, err := p.processSummaries(r.Context(), s)
+	if err != nil {
+		respondWithError(w, r,
+			"HandleSummaries: processSummaries: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, bsr)
+}
+
 // New returns a new Pi context.
 func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mailer, s *sessions.Sessions, e *events.Manager, plugins []pdv2.Plugin) (*Pi, error) {
 	// Parse plugin settings
@@ -227,6 +251,7 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 			StartDateMin:       startDateMin,
 			EndDateMax:         endDateMax,
 			Domains:            domains,
+			SummariesPageSize:  v1.SummariesPageSize,
 		},
 	}
 

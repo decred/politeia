@@ -15,6 +15,10 @@ const (
 
 	// RouteSetBillingStatus sets the record's billing status.
 	RouteSetBillingStatus = "/setbillingstatus"
+
+	// RouteSummaries returns the proposal summary for a page of
+	// records.
+	RouteSummaries = "/summaries"
 )
 
 // ErrorCodeT represents a user error code.
@@ -39,10 +43,14 @@ const (
 	// ErrorCodeRecordNotFound is returned when no record was found.
 	ErrorCodeRecordNotFound ErrorCodeT = 4
 
+	// ErrorCodePageSizeExceeded is returned when the request's page size
+	// exceeds the maximum page size of the request.
+	ErrorCodePageSizeExceeded ErrorCodeT = 5
+
 	// ErrorCodeLast is used by unit tests to verify that all error codes have
 	// a human readable entry in the ErrorCodes map. This error will never be
 	// returned.
-	ErrorCodeLast ErrorCodeT = 5
+	ErrorCodeLast ErrorCodeT = 6
 )
 
 var (
@@ -53,6 +61,7 @@ var (
 		ErrorCodePublicKeyInvalid:   "public key invalid",
 		ErrorCodeRecordTokenInvalid: "record token invalid",
 		ErrorCodeRecordNotFound:     "record not found",
+		ErrorCodePageSizeExceeded:   "page size exceeded",
 	}
 )
 
@@ -119,6 +128,7 @@ type PolicyReply struct {
 	StartDateMin       int64    `json:"startdatemin"` // Seconds from current time
 	EndDateMax         int64    `json:"enddatemax"`   // Seconds from current time
 	Domains            []string `json:"domains"`
+	SummariesPageSize  uint32   `json:"summariespagesize"`
 }
 
 const (
@@ -265,4 +275,38 @@ const (
 // from the proposal author.
 type ProposalUpdateMetadata struct {
 	Title string `json:"title"`
+}
+
+const (
+	// SummariesPageSize is the maximum number of proposal summaries that
+	// can be requested at any one time.
+	SummariesPageSize uint32 = 5
+)
+
+// Summaries requests the proposal summaries for the provided record tokens.
+type Summaries struct {
+	Tokens []string `json:"tokens"`
+}
+
+// SummariesReply is the reply to the Summaries command.
+//
+// Summaries field contains a vote summary for each of the provided tokens.
+// The map will not contain an entry for any tokens that did not correspond
+// to an actual record. It is the callers responsibility to ensure that a
+// summary is returned for all provided tokens.
+type SummariesReply struct {
+	Summaries map[string]Summary `json:"summaries"` // [token]Summary
+}
+
+// Summary summarizes proposal information.
+//
+// Status field is the string value of the PropStatusT type which is defined
+// along with all of it's possible values in the pi plugin API.
+//
+// StatusReason field will be populated if the status change required a
+// reason to be given. Examples include when a proposal is censored/abandoned
+// or when the billing status of the proposal is set to closed.
+type Summary struct {
+	Status       string `json:"string"`
+	StatusReason string `json:"statusreason"`
 }

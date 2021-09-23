@@ -118,6 +118,15 @@ func printProposal(r rcv1.Record) error {
 	return printProposalFiles(r.Files)
 }
 
+// printProposalSummary prints a proposal summary.
+func printProposalSummary(token string, s piv1.Summary) {
+	printf("Token       : %v\n", token)
+	printf("Status      : %v\n", s.Status)
+	if s.StatusReason != "" {
+		printf("StatusReason: %v\n", s.StatusReason)
+	}
+}
+
 // indexFileRandom returns a proposal index file filled with random data.
 func indexFileRandom(sizeInBytes int) (*rcv1.File, error) {
 	// Create lines of text that are 80 characters long

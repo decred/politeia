@@ -85,6 +85,8 @@ func (c *cmdHelp) Execute(args []string) error {
 		fmt.Printf("%s\n", proposalTimestampsHelpMsg)
 	case "proposals":
 		fmt.Printf("%s\n", proposalsHelpMsg)
+	case "proposalsummaries":
+		fmt.Printf("%s\n", proposalSummariesHelpMsg)
 	case "proposalinv":
 		fmt.Printf("%s\n", proposalInvHelpMsg)
 	case "proposalinvordered":

@@ -14,6 +14,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/plugins/pi"
+	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
 
 func TestCmdBillingStatus(t *testing.T) {
@@ -246,6 +247,124 @@ func TestCmdBillingStatus(t *testing.T) {
 			case tc.err == nil && err == nil:
 				// Success; continue to next test
 				return
+			}
+		})
+	}
+}
+
+func TestProposalStatus(t *testing.T) {
+	// Setup tests
+	var tests = []struct {
+		name           string // Test name
+		state          backend.StateT
+		status         backend.StatusT
+		voteStatus     ticketvote.VoteStatusT
+		bsc            *pi.BillingStatusChange
+		proposalStatus pi.PropStatusT // Expected proposal status
+	}{
+		{
+			"unvetted",
+			backend.StateUnvetted,
+			backend.StatusUnreviewed,
+			ticketvote.VoteStatusInvalid,
+			nil,
+			pi.PropStatusUnvetted,
+		},
+		{
+			"unvetted-censored",
+			backend.StateUnvetted,
+			backend.StatusCensored,
+			ticketvote.VoteStatusInvalid,
+			nil,
+			pi.PropStatusUnvettedCensored,
+		},
+		{
+			"unvetted-abandoned",
+			backend.StateUnvetted,
+			backend.StatusArchived,
+			ticketvote.VoteStatusInvalid,
+			nil,
+			pi.PropStatusUnvettedAbandoned,
+		},
+		{
+			"abandoned",
+			backend.StateVetted,
+			backend.StatusArchived,
+			ticketvote.VoteStatusInvalid,
+			nil,
+			pi.PropStatusAbandoned,
+		},
+		{
+			"censored",
+			backend.StateVetted,
+			backend.StatusCensored,
+			ticketvote.VoteStatusInvalid,
+			nil,
+			pi.PropStatusCensored,
+		},
+		{
+			"under-review",
+			backend.StateVetted,
+			backend.StatusPublic,
+			ticketvote.VoteStatusUnauthorized,
+			nil,
+			pi.PropStatusUnderReview,
+		},
+		{
+			"vote-authorized",
+			backend.StateVetted,
+			backend.StatusPublic,
+			ticketvote.VoteStatusAuthorized,
+			nil,
+			pi.PropStatusVoteAuthorized,
+		},
+		{
+			"vote-started",
+			backend.StateVetted,
+			backend.StatusPublic,
+			ticketvote.VoteStatusStarted,
+			nil,
+			pi.PropStatusVoteStarted,
+		},
+		{
+			"closed",
+			backend.StateVetted,
+			backend.StatusPublic,
+			ticketvote.VoteStatusApproved,
+			&pi.BillingStatusChange{
+				Status: pi.BillingStatusClosed,
+			},
+			pi.PropStatusClosed,
+		},
+		{
+			"completed",
+			backend.StateVetted,
+			backend.StatusPublic,
+			ticketvote.VoteStatusApproved,
+			&pi.BillingStatusChange{
+				Status: pi.BillingStatusCompleted,
+			},
+			pi.PropStatusCompleted,
+		},
+		{
+			"invalid",
+			backend.StateUnvetted,
+			backend.StatusPublic,
+			ticketvote.VoteStatusApproved,
+			nil,
+			pi.PropStatusInvalid,
+		},
+	}
+
+	// Run tests
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Run test
+			status, _ := proposalStatus(tc.state, tc.status, tc.voteStatus, tc.bsc)
+			// Check if received proposal status euqal to the expected.
+			if tc.proposalStatus != status {
+				t.Errorf("want proposal status %v, got '%v'", tc.proposalStatus,
+					status)
 			}
 		})
 	}
