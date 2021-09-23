@@ -90,6 +90,22 @@ var (
 	defaultCookieKeyFile = filepath.Join(defaultHomeDir, "cookie.key")
 	defaultLogDir        = filepath.Join(defaultHomeDir, defaultLogDirname)
 
+	// defaultReadTimeout is the maximum duration in seconds that is spent
+	// reading the request headers and body.
+	defaultReadTimeout int64 = 5
+
+	// defaultWriteTimeout is the maximum duration in seconds that a request
+	// connection is kept open.
+	defaultWriteTimeout int64 = 60
+
+	// defaultReqBodySizeLimit is the maximum number of bytes allowed in a
+	// request body.
+	defaultReqBodySizeLimit int64 = 3 * 1024 * 1024 // 3 MiB
+
+	// defaultWebsocketReadLimit is the maximum number of bytes allowed for a
+	// message read from a websocket client.
+	defaultWebsocketReadLimit int64 = 4 * 1024 * 1024 // 4 KiB
+
 	// Default start date to start pulling code statistics if none specified.
 	defaultCodeStatStart = time.Now().Add(-1 * time.Minute * 60 * 24 * 7 * 26) // 6 months in minutes 60min * 24h * 7days * 26 weeks
 
@@ -333,6 +349,10 @@ func loadConfig() (*config.Config, []string, error) {
 		RPCCert:                  defaultRPCCertFile,
 		CookieKeyFile:            defaultCookieKeyFile,
 		Version:                  version.String(),
+		ReadTimeout:              defaultReadTimeout,
+		WriteTimeout:             defaultWriteTimeout,
+		ReqBodySizeLimit:         defaultReqBodySizeLimit,
+		WebsocketReadLimit:       defaultWebsocketReadLimit,
 		Mode:                     defaultWWWMode,
 		UserDB:                   defaultUserDB,
 		PaywallAmount:            defaultPaywallAmount,

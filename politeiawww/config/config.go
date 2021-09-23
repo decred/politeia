@@ -69,6 +69,12 @@ type Config struct {
 	AdminLogFile    string   `long:"adminlogfile" description:"admin log filename (Default: admin.log)"`
 	Mode            string   `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
 
+	// Web server settings
+	ReadTimeout        int64 `long:"readtimeout" description:"Maximum duration in seconds that is spent reading the request headers and body"`
+	WriteTimeout       int64 `long:"writetimeout" description:"Maximum duration in seconds that a request connection is kept open"`
+	ReqBodySizeLimit   int64 `long:"reqbodysizelimit" description:"Maximum number of bytes allowed for a request body from a http client"`
+	WebsocketReadLimit int64 `long:"websocketreadlimit" description:"Maximum number of bytes allowed for a message read from a websocket client"`
+
 	// User database settings
 	UserDB           string `long:"userdb" description:"Database choice for the user database"`
 	DBHost           string `long:"dbhost" description:"Database ip:port"`

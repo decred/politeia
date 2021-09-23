@@ -597,9 +597,14 @@ func _main() error {
 		csrf.MaxAge(sessions.SessionMaxAge),
 	)
 
-	// Setup router
+	// Setup the router. Middleware is executed in
+	// the same order that they are registered in.
 	router := mux.NewRouter()
-	router.Use(closeBodyMiddleware)
+	m := middleware{
+		reqBodySizeLimit: loadedCfg.ReqBodySizeLimit,
+	}
+	router.Use(closeBodyMiddleware) // MUST be registered first
+	router.Use(m.reqBodySizeLimitMiddleware)
 	router.Use(loggingMiddleware)
 	router.Use(recoverMiddleware)
 
@@ -762,9 +767,11 @@ func _main() error {
 				},
 			}
 			srv := &http.Server{
-				Handler:   p.router,
-				Addr:      listen,
-				TLSConfig: cfg,
+				Handler:      p.router,
+				Addr:         listen,
+				ReadTimeout:  time.Duration(loadedCfg.ReadTimeout) * time.Second,
+				WriteTimeout: time.Duration(loadedCfg.WriteTimeout) * time.Second,
+				TLSConfig:    cfg,
 				TLSNextProto: make(map[string]func(*http.Server,
 					*tls.Conn, http.Handler)),
 			}

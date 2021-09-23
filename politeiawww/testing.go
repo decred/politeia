@@ -21,7 +21,6 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
-	"github.com/decred/politeia/politeiad/testpoliteiad"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/config"
@@ -283,6 +282,10 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 	// Setup config
 	xpub := "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFm" +
 		"uMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx"
+	fid, err := identity.New()
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg := &config.Config{
 		DataDir:         dataDir,
 		PaywallAmount:   1e7,
@@ -290,6 +293,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 		TestNet:         true,
 		VoteDurationMin: 2016,
 		VoteDurationMax: 4032,
+		Identity:        &fid.Public,
 	}
 
 	// Setup database
@@ -451,13 +455,4 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 			t.Fatalf("remove tmp dir: %v", err)
 		}
 	}
-}
-
-// newTestPoliteiad returns a new TestPoliteiad context. The relevant
-// politeiawww config params are updated with the TestPoliteiad info.
-func newTestPoliteiad(t *testing.T, p *politeiawww) *testpoliteiad.TestPoliteiad {
-	td := testpoliteiad.New(t)
-	p.cfg.RPCHost = td.URL
-	p.cfg.Identity = td.PublicIdentity
-	return td
 }

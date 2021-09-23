@@ -18,9 +18,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/decred/dcrd/dcrutil/v3"
 	v1 "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
-	"github.com/decred/politeia/politeiad/sharedconfig"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	flags "github.com/jessevdk/go-flags"
@@ -28,7 +28,7 @@ import (
 
 const (
 	defaultConfigFilename   = "politeiad.conf"
-	defaultDataDirname      = sharedconfig.DefaultDataDirname
+	defaultDataDirname      = "data"
 	defaultLogLevel         = "info"
 	defaultLogDirname       = "logs"
 	defaultLogFilename      = "politeiad.log"
@@ -56,13 +56,25 @@ const (
 )
 
 var (
-	defaultHomeDir       = sharedconfig.DefaultHomeDir
+	defaultHomeDir       = dcrutil.AppDataDir("politeiad", false)
 	defaultConfigFile    = filepath.Join(defaultHomeDir, defaultConfigFilename)
 	defaultDataDir       = filepath.Join(defaultHomeDir, defaultDataDirname)
 	defaultHTTPSKeyFile  = filepath.Join(defaultHomeDir, "https.key")
 	defaultHTTPSCertFile = filepath.Join(defaultHomeDir, "https.cert")
 	defaultLogDir        = filepath.Join(defaultHomeDir, defaultLogDirname)
 	defaultIdentityFile  = filepath.Join(defaultHomeDir, defaultIdentityFilename)
+
+	// defaultReadTimeout is the maximum duration in seconds that is spent
+	// reading the request headers and body.
+	defaultReadTimeout int64 = 5
+
+	// defaultWriteTimeout is the maximum duration in seconds that a request
+	// connection is kept open.
+	defaultWriteTimeout int64 = 60
+
+	// defaultReqBodySizeLimit is the maximum number of bytes allowed in a
+	// request body.
+	defaultReqBodySizeLimit int64 = 3 * 1024 * 1024 // 3 MiB
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -94,6 +106,12 @@ type config struct {
 	DcrtimeCert string // Provided in env variable "DCRTIMECERT"
 	Identity    string `long:"identity" description:"File containing the politeiad identity file"`
 	Backend     string `long:"backend" description:"Backend type"`
+	Fsck        bool   `long:"fsck" description:"Perform filesystem checks on all record and plugin data"`
+
+	// Web server settings
+	ReadTimeout      int64 `long:"readtimeout" description:"Maximum duration in seconds that is spent reading the request headers and body"`
+	WriteTimeout     int64 `long:"writetimeout" description:"Maximum duration in seconds that a request connection is kept open"`
+	ReqBodySizeLimit int64 `long:"reqbodysizelimit" description:"Maximum number of bytes allowed for a request body from a http client"`
 
 	// Git backend options
 	GitTrace    bool   `long:"gittrace" description:"Enable git tracing in logs"`
@@ -249,18 +267,21 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 func loadConfig() (*config, []string, error) {
 	// Default config.
 	cfg := config{
-		HomeDir:    defaultHomeDir,
-		ConfigFile: defaultConfigFile,
-		DebugLevel: defaultLogLevel,
-		DataDir:    defaultDataDir,
-		LogDir:     defaultLogDir,
-		HTTPSKey:   defaultHTTPSKeyFile,
-		HTTPSCert:  defaultHTTPSCertFile,
-		Version:    version.String(),
-		Backend:    defaultBackend,
-		DBType:     defaultDBType,
-		DBHost:     defaultDBHost,
-		TlogHost:   defaultTlogHost,
+		HomeDir:          defaultHomeDir,
+		ConfigFile:       defaultConfigFile,
+		DebugLevel:       defaultLogLevel,
+		DataDir:          defaultDataDir,
+		LogDir:           defaultLogDir,
+		HTTPSKey:         defaultHTTPSKeyFile,
+		HTTPSCert:        defaultHTTPSCertFile,
+		Version:          version.String(),
+		Backend:          defaultBackend,
+		ReadTimeout:      defaultReadTimeout,
+		WriteTimeout:     defaultWriteTimeout,
+		ReqBodySizeLimit: defaultReqBodySizeLimit,
+		DBType:           defaultDBType,
+		DBHost:           defaultDBHost,
+		TlogHost:         defaultTlogHost,
 	}
 
 	// Service options which are only added on Windows.

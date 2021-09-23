@@ -19,6 +19,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/mysql"
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 	"github.com/robfig/cron"
 )
 
@@ -168,10 +169,25 @@ func (t *Tstore) fullLengthToken(token []byte) ([]byte, error) {
 }
 
 // Fsck performs a filesystem check on the tstore.
-func (t *Tstore) Fsck() {
+func (t *Tstore) Fsck(allTokens [][]byte) error {
 	// Set tree status to frozen for any trees that are frozen and have
 	// been anchored one last time.
 	// Verify all file blobs have been deleted for censored records.
+
+	// Run plugin fscks's
+	for _, pluginID := range t.pluginIDs() {
+		p, _ := t.plugin(pluginID)
+
+		log.Infof("Performing plugin fsck for the %v plugin", pluginID)
+
+		err := p.client.Fsck(allTokens)
+		if err != nil {
+			return errors.Errorf("plugin %v fsck: %v",
+				pluginID, err)
+		}
+	}
+
+	return nil
 }
 
 // Close performs cleanup of the tstore.
