@@ -52,6 +52,7 @@ func (c *cmdProposalSummaries) Execute(args []string) error {
 
 // proposalSummariesHelpMsg is printed to stdout by the help command.
 const proposalSummariesHelpMsg = `proposalsummaries "tokens..."
+
 Fetch the proposal summaries for the provided tokens. This command accepts both
 full length tokens and token prefixes.
 
