@@ -10,6 +10,9 @@ const (
 	// APIRoute is prefixed onto all routes defined in this package.
 	APIRoute = "/records/v1"
 
+	// RoutePolicy returns the policy for the records API.
+	RoutePolicy = "/policy"
+
 	// RouteNew adds a new record.
 	RouteNew = "/new"
 
@@ -195,6 +198,15 @@ type ServerErrorReply struct {
 // Error satisfies the error interface.
 func (e ServerErrorReply) Error() string {
 	return fmt.Sprintf("server error: %v", e.ErrorCode)
+}
+
+// Policy requests the policy settings for the records API.
+type Policy struct{}
+
+// PolicyReply is the reply to the Policy command.
+type PolicyReply struct {
+	RecordsPageSize   uint32 `json:"recordspagesize"`
+	InventoryPageSize uint32 `json:"inventorypagesize"`
 }
 
 // RecordStateT represents the state of a record.

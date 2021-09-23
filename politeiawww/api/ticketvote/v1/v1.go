@@ -146,10 +146,13 @@ type Policy struct{}
 
 // PolicyReply is the reply to the Policy command.
 type PolicyReply struct {
-	LinkByPeriodMin int64  `json:"linkbyperiodmin"` // In seconds
-	LinkByPeriodMax int64  `json:"linkbyperiodmax"` // In seconds
-	VoteDurationMin uint32 `json:"votedurationmin"` // In blocks
-	VoteDurationMax uint32 `json:"votedurationmax"` // In blocks
+	LinkByPeriodMin    int64  `json:"linkbyperiodmin"` // In seconds
+	LinkByPeriodMax    int64  `json:"linkbyperiodmax"` // In seconds
+	VoteDurationMin    uint32 `json:"votedurationmin"` // In blocks
+	VoteDurationMax    uint32 `json:"votedurationmax"` // In blocks
+	SummariesPageSize  uint32 `json:"summariespagesize"`
+	InventoryPageSize  uint32 `json:"inventorypagesize"`
+	TimestampsPageSize uint32 `json:"timestampspagesize"`
 }
 
 // AuthActionT represents an Authorize action.

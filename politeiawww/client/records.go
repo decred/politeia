@@ -24,6 +24,23 @@ import (
 	"github.com/google/uuid"
 )
 
+// RecordPolicy sends a records v1 Policy request to politeiawww.
+func (c *Client) RecordPolicy() (*rcv1.PolicyReply, error) {
+	resBody, err := c.makeReq(http.MethodPost,
+		rcv1.APIRoute, rcv1.RoutePolicy, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var pr rcv1.PolicyReply
+	err = json.Unmarshal(resBody, &pr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pr, nil
+}
+
 // RecordNew sends a records v1 New request to politeiawww.
 func (c *Client) RecordNew(n rcv1.New) (*rcv1.NewReply, error) {
 	resBody, err := c.makeReq(http.MethodPost,

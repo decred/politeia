@@ -148,8 +148,10 @@ type Policy struct{}
 
 // PolicyReply is the reply to the policy command.
 type PolicyReply struct {
-	LengthMax      uint32 `json:"lengthmax"` // In characters
-	VoteChangesMax uint32 `json:"votechangesmax"`
+	LengthMax          uint32 `json:"lengthmax"` // In characters
+	VoteChangesMax     uint32 `json:"votechangesmax"`
+	CountPageSize      uint32 `json:"countpagesize"`
+	TimestampsPageSize uint32 `json:"timestampspagesize"`
 }
 
 // RecordStateT represents the state of a record.

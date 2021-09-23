@@ -24,6 +24,14 @@ type Records struct {
 	userdb    user.Database
 	sessions  *sessions.Sessions
 	events    *events.Manager
+	policy    *v1.PolicyReply
+}
+
+// HandlePolicy is the request handler for the records v1 Policy route.
+func (c *Records) HandlePolicy(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandlePolicy")
+
+	util.RespondWithJSON(w, http.StatusOK, c.policy)
 }
 
 // HandleNew is the request handler for the records v1 New route.
@@ -328,5 +336,9 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 		userdb:    udb,
 		sessions:  s,
 		events:    e,
+		policy: &v1.PolicyReply{
+			RecordsPageSize:   v1.RecordsPageSize,
+			InventoryPageSize: v1.InventoryPageSize,
+		},
 	}
 }
