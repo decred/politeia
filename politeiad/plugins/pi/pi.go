@@ -377,7 +377,7 @@ type PropStatusT string
 
 const (
 	// PropStatusInvalid represents an invalid proposal status.
-	PropStatusInvalid PropStatusT = ""
+	PropStatusInvalid PropStatusT = "invalid"
 
 	// PropStatusUnvetted represents a proposal that has been submitted but has
 	// not yet been made public by the admins.
