@@ -373,6 +373,9 @@ type ProposalSummary struct {
 // proposal can take throughout the proposal process. This serves as the
 // source of truth for clients so that they don't need to try and decipher
 // what various combinations of plugin metadata mean for the proposal.
+//
+// The proposal status is determined at runtime by the pi plugin based on the
+// various record and plugin metadata that a proposal contains.
 type PropStatusT string
 
 const (
