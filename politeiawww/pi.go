@@ -74,6 +74,9 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 
 	// Record routes
 	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RoutePolicy, r.HandlePolicy,
+		permissionPublic)
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
 		rcv1.RouteNew, r.HandleNew,
 		permissionLogin)
 	p.addRoute(http.MethodPost, rcv1.APIRoute,

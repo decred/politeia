@@ -92,6 +92,10 @@ func (c *cmdHelp) Execute(args []string) error {
 	case "userproposals":
 		fmt.Printf("%s\n", userProposalsHelpMsg)
 
+		// Record commands
+	case "recordpolicy":
+		fmt.Printf("%s\n", recordPolicyHelpMsg)
+
 		// Comment commands
 	case "commentpolicy":
 		fmt.Printf("%s\n", commentPolicyHelpMsg)

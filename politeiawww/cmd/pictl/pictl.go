@@ -76,6 +76,9 @@ type pictl struct {
 	ProposalInvOrdered       cmdProposalInvOrdered       `command:"proposalinvordered"`
 	UserProposals            cmdUserProposals            `command:"userproposals"`
 
+	// Records commands
+	RecordsPolict cmdRecordPolicy `command:"recordpolicy"`
+
 	// Comments commands
 	CommentsPolicy    cmdCommentPolicy     `command:"commentpolicy"`
 	CommentNew        cmdCommentNew        `command:"commentnew"`
