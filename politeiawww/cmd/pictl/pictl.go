@@ -77,7 +77,7 @@ type pictl struct {
 	UserProposals            cmdUserProposals            `command:"userproposals"`
 
 	// Records commands
-	RecordsPolict cmdRecordPolicy `command:"recordpolicy"`
+	RecordsPolicy cmdRecordPolicy `command:"recordpolicy"`
 
 	// Comments commands
 	CommentsPolicy    cmdCommentPolicy     `command:"commentpolicy"`
@@ -164,9 +164,13 @@ Proposal commands
   proposaldetails          (public) Get a full proposal record
   proposaltimestamps       (public) Get timestamps for a proposal
   proposals                (public) Get proposals without their files
+  proposalsummaries        (public( Get proposal summaries
   proposalinv              (public) Get inventory by proposal status
   proposalinvordered       (public) Get inventory ordered chronologically
   userproposals            (public) Get proposals submitted by a user
+
+Record commands
+  recordpolicy             (public) Get the records api policy
 
 Comment commands
   commentpolicy            (public) Get the comments api policy
