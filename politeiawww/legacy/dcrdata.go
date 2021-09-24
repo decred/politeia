@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package util
+package legacy
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -32,6 +31,14 @@ const (
 	// Must match dcrwallets udb.ExternalBranch
 	externalBranch uint32 = 0
 )
+
+func (p *LegacyPoliteiawww) dcrdataHostHTTP() string {
+	return fmt.Sprintf("https://%v/api", p.cfg.DcrdataHost)
+}
+
+func (p *LegacyPoliteiawww) dcrdataHostWS() string {
+	return fmt.Sprintf("wss://%v/ps", p.cfg.DcrdataHost)
+}
 
 // FaucetResponse represents the expected JSON response from the testnet faucet.
 type FaucetResponse struct {
@@ -114,9 +121,9 @@ func makeRequest(ctx context.Context, url string, timeout time.Duration) ([]byte
 	return ioutil.ReadAll(response.Body)
 }
 
-// DcrStringToAmount converts a DCR amount as a string into a uint64
+// dcrStringToAmount converts a DCR amount as a string into a uint64
 // representing atoms. Supported input variations: "1", ".1", "0.1"
-func DcrStringToAmount(dcrstr string) (uint64, error) {
+func dcrStringToAmount(dcrstr string) (uint64, error) {
 	match, err := regexp.MatchString("(\\d*\\.)*\\d+", dcrstr)
 	if err != nil {
 		return 0, err
@@ -170,7 +177,7 @@ func fetchTxWithBE(ctx context.Context, url string, address string, minimumAmoun
 		}
 
 		for _, vout := range v.Vout {
-			amount, err := DcrStringToAmount(vout.Amount.String())
+			amount, err := dcrStringToAmount(vout.Amount.String())
 			if err != nil {
 				return "", 0, err
 			}
@@ -190,9 +197,9 @@ func fetchTxWithBE(ctx context.Context, url string, address string, minimumAmoun
 	return "", 0, nil
 }
 
-// DerivePaywallAddress derives a paywall address using the provided xpub and
+// derivePaywallAddress derives a paywall address using the provided xpub and
 // index.
-func DerivePaywallAddress(params *chaincfg.Params, xpub string, index uint32) (string, error) {
+func derivePaywallAddress(params *chaincfg.Params, xpub string, index uint32) (string, error) {
 	// Parse the extended public key.
 	acctKey, err := hdkeychain.NewKeyFromString(xpub, params)
 	if err != nil {
@@ -219,8 +226,8 @@ func DerivePaywallAddress(params *chaincfg.Params, xpub string, index uint32) (s
 	return addr.Address(), nil
 }
 
-// PayWithTestnetFaucet makes a request to the testnet faucet.
-func PayWithTestnetFaucet(ctx context.Context, faucetURL string, address string, amount uint64, overridetoken string) (string, error) {
+// payWithTestnetFaucet makes a request to the testnet faucet.
+func payWithTestnetFaucet(ctx context.Context, faucetURL string, address string, amount uint64, overridetoken string) (string, error) {
 	_, err := dcrutil.DecodeAddress(address, chaincfg.TestNet3Params())
 	if err != nil {
 		return "", fmt.Errorf("address is invalid: %v", err)
@@ -289,10 +296,10 @@ func PayWithTestnetFaucet(ctx context.Context, faucetURL string, address string,
 	return fr.Txid, nil
 }
 
-// FetchTxWithBlockExplorers uses public block explorers to look for a
+// fetchTxWithBlockExplorers uses public block explorers to look for a
 // transaction for the given address that equals or exceeds the given amount,
 // occurs after the txnotbefore time and has the minimum number of confirmations.
-func FetchTxWithBlockExplorers(ctx context.Context, params *chaincfg.Params, address string, amount uint64, txnotbefore int64, minConfirmations uint64, dcrdataURL string) (string, uint64, error) {
+func fetchTxWithBlockExplorers(ctx context.Context, params *chaincfg.Params, address string, amount uint64, txnotbefore int64, minConfirmations uint64, dcrdataURL string) (string, uint64, error) {
 	// pre-validate that the passed address, amount, and tx are at least
 	// somewhat valid before querying the explorers
 	addr, err := dcrutil.DecodeAddress(address, params)
@@ -333,7 +340,7 @@ func fetchTxsWithBE(ctx context.Context, url string) ([]BETransaction, error) {
 func convertBETransactionToTxDetails(address string, tx BETransaction) (*TxDetails, error) {
 	var amount uint64
 	for _, vout := range tx.Vout {
-		amt, err := DcrStringToAmount(vout.Amount.String())
+		amt, err := dcrStringToAmount(vout.Amount.String())
 		if err != nil {
 			return nil, err
 		}
@@ -359,9 +366,9 @@ func convertBETransactionToTxDetails(address string, tx BETransaction) (*TxDetai
 	}, nil
 }
 
-// FetchTxsForAddress fetches the transactions that have been sent to the
+// fetchTxsForAddress fetches the transactions that have been sent to the
 // provided wallet address from the dcrdata block explorer
-func FetchTxsForAddress(ctx context.Context, params *chaincfg.Params, address string, dcrdataURL string) ([]TxDetails, error) {
+func fetchTxsForAddress(ctx context.Context, params *chaincfg.Params, address string, dcrdataURL string) ([]TxDetails, error) {
 	// Get block explorer URL
 	addr, err := dcrutil.DecodeAddress(address, params)
 	if err != nil {
@@ -390,9 +397,9 @@ func FetchTxsForAddress(ctx context.Context, params *chaincfg.Params, address st
 	return txs, nil
 }
 
-// FetchTxsForAddressNotBefore fetches all transactions for a wallet address
+// fetchTxsForAddressNotBefore fetches all transactions for a wallet address
 // that occurred after the passed in notBefore timestamp.
-func FetchTxsForAddressNotBefore(ctx context.Context, params *chaincfg.Params, address string, notBefore int64, dcrdataURL string) ([]TxDetails, error) {
+func fetchTxsForAddressNotBefore(ctx context.Context, params *chaincfg.Params, address string, notBefore int64, dcrdataURL string) ([]TxDetails, error) {
 	// Get block explorer URL
 	addr, err := dcrutil.DecodeAddress(address, params)
 	if err != nil {
@@ -456,8 +463,8 @@ func FetchTxsForAddressNotBefore(ctx context.Context, params *chaincfg.Params, a
 	return targetTxs, nil
 }
 
-// FetchTx fetches a given transaction based on the provided txid.
-func FetchTx(ctx context.Context, params *chaincfg.Params, address, txid, dcrdataURL string) (*TxDetails, error) {
+// fetchTx fetches a given transaction based on the provided txid.
+func fetchTx(ctx context.Context, params *chaincfg.Params, address, txid, dcrdataURL string) (*TxDetails, error) {
 	// Get block explorer URLs
 	addr, err := dcrutil.DecodeAddress(address, params)
 	if err != nil {
@@ -469,7 +476,7 @@ func FetchTx(ctx context.Context, params *chaincfg.Params, address, txid, dcrdat
 
 	primaryURL := dcrdataURL + "/raw"
 
-	log.Printf("fetching tx %s %s from primary %s\n", address, txid, primaryURL)
+	log.Debugf("fetching tx %s %s from primary %s\n", address, txid, primaryURL)
 	// Try the primary (dcrdata)
 	primaryTxs, err := fetchTxsWithBE(ctx, primaryURL)
 	if err != nil {

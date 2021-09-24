@@ -881,11 +881,3 @@ func loadConfig() (*config.Config, []string, error) {
 
 	return &cfg, remainingArgs, nil
 }
-
-func (p *politeiawww) dcrdataHostHTTP() string {
-	return fmt.Sprintf("https://%v/api", p.cfg.DcrdataHost)
-}
-
-func (p *politeiawww) dcrdataHostWS() string {
-	return fmt.Sprintf("wss://%v/ps", p.cfg.DcrdataHost)
-}

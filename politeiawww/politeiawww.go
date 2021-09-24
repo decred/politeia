@@ -30,7 +30,6 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/decred/politeia/wsdcrdata"
-	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -81,25 +80,11 @@ type politeiawww struct {
 	ws    map[string]map[string]*wsContext // [uuid][]*context
 	wsMtx sync.RWMutex
 
-	// userEmails contains a mapping of all user emails to user ID.
-	// This is required for now because the email is stored as part of
-	// the encrypted user blob in the user database, but we also allow
-	// the user to sign in using their email address, requiring a user
-	// lookup by email. This is a temporary measure and should be
-	// removed once all user by email lookups have been taken out.
-	userEmails map[string]uuid.UUID // [email]userID
-
-	// These fields are only used during piwww mode
-	userPaywallPool map[uuid.UUID]paywallPoolMember // [userid][paywallPoolMember]
-
 	// These fields are use only during cmswww mode
 	cmsDB     cmsdatabase.Database
 	cron      *cron.Cron
 	wsDcrdata *wsdcrdata.Client
 	tracker   codetracker.CodeTracker
-
-	// The following fields are only used during testing
-	test bool
 }
 
 // handleNotFound is a generic handler for an invalid route.

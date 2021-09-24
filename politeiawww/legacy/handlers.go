@@ -1,28 +1,22 @@
-// Copyright (c) 2019-2020 The Decred developers
+// Copyright (c) 2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package main
+package legacy
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	"net/http"
 
-	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/util"
-	"github.com/google/uuid"
-	"github.com/gorilla/mux"
 )
 
 // handleNewUser handles the incoming new user command. It verifies that the
 // new user doesn't already exist, and then creates a new user in the db and
 // generates a random code used for verification. The code is intended to be
 // sent to the specified email.
-func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewUser")
 
 	// Get the new user command.
@@ -45,11 +39,12 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
+/*
 // handleVerifyNewUser handles the incoming new user verify command. It
 // verifies that the user with the provided email has a verification token that
 // matches the provided token and that the verification token has not yet
 // expired.
-func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVerifyNewUser")
 
 	// Get the new user verify command.
@@ -75,7 +70,7 @@ func (p *politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request
 
 // handleResendVerification sends another verification email for new user
 // signup, if there is an existing verification token and it is expired.
-func (p *politeiawww) handleResendVerification(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleResendVerification(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleResendVerification")
 
 	// Get the resend verification command.
@@ -116,7 +111,7 @@ func (p *politeiawww) handleResendVerification(w http.ResponseWriter, r *http.Re
 // handleLogin handles the incoming login command.  It verifies that the user
 // exists and the accompanying password.  On success a cookie is added to the
 // gorilla sessions that must be returned on subsequent calls.
-func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleLogin")
 
 	// Get the login command.
@@ -153,7 +148,7 @@ func (p *politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleLogout logs the user out.
-func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleLogout")
 
 	_, err := p.sessions.GetSessionUser(w, r)
@@ -177,7 +172,7 @@ func (p *politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleResetPassword handles the reset password command.
-func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	log.Trace("handleResetPassword")
 
 	// Get the reset password command.
@@ -203,7 +198,7 @@ func (p *politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request
 }
 
 // handleVerifyResetPassword handles the verify reset password command.
-func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleVerifyResetPassword(w http.ResponseWriter, r *http.Request) {
 	log.Trace("handleVerifyResetPassword")
 
 	var vrp www.VerifyResetPassword
@@ -243,7 +238,7 @@ func (p *politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.R
 }
 
 // handleUserDetails handles fetching user details by user id.
-func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleUserDetails(w http.ResponseWriter, r *http.Request) {
 	// Add the path param to the struct.
 	log.Tracef("handleUserDetails")
 	pathParams := mux.Vars(r)
@@ -283,14 +278,14 @@ func (p *politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleSecret is a mock handler to test privileged routes.
-func (p *politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleSecret(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleSecret")
 
 	fmt.Fprintf(w, "secret sauce")
 }
 
 // handleMe returns logged in user information.
-func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleMe(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleMe")
 
 	user, err := p.sessions.GetSessionUser(w, r)
@@ -316,7 +311,7 @@ func (p *politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 // handleUpdateUserKey handles the incoming update user key command. It generates
 // a random code used for verification. The code is intended to be sent to the
 // email of the logged in user.
-func (p *politeiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUpdateUserKey")
 
 	// Get the update user key command.
@@ -349,7 +344,7 @@ func (p *politeiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request
 // handleVerifyUpdateUserKey handles the incoming update user key verify command. It verifies
 // that the user with the provided email has a verification token that matches
 // the provided token and that the verification token has not yet expired.
-func (p *politeiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVerifyUpdateUserKey")
 
 	// Get the new user verify command.
@@ -381,7 +376,7 @@ func (p *politeiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.R
 }
 
 // handleChangeUsername handles the change user name command.
-func (p *politeiawww) handleChangeUsername(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleChangeUsername(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleChangeUsername")
 
 	// Get the change username command.
@@ -414,7 +409,7 @@ func (p *politeiawww) handleChangeUsername(w http.ResponseWriter, r *http.Reques
 }
 
 // handleChangePassword handles the change password command.
-func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleChangePassword")
 
 	// Get the change password command.
@@ -462,7 +457,7 @@ func (p *politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Reques
 }
 
 // handleEditUser handles editing a user's preferences.
-func (p *politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleEditUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleEditUser")
 
 	var eu www.EditUser
@@ -493,7 +488,7 @@ func (p *politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleUsers handles fetching a list of users.
-func (p *politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleUsers(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUsers")
 
 	var u www.Users
@@ -527,7 +522,7 @@ func (p *politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleCMSUsers handles fetching a list of cms users.
-func (p *politeiawww) handleCMSUsers(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleCMSUsers(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleCMSUsers")
 
 	var cu cms.CMSUsers
@@ -551,7 +546,7 @@ func (p *politeiawww) handleCMSUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleManageUser handles editing a user's details.
-func (p *politeiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleManageUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleManageUser")
 
 	var mu www.ManageUser
@@ -584,7 +579,7 @@ func (p *politeiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
 // handleUserRegistrationPayment checks whether the provided transaction
 // is on the blockchain and meets the requirements to consider the user
 // registration fee as paid.
-func (p *politeiawww) handleUserRegistrationPayment(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleUserRegistrationPayment(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserRegistrationPayment")
 
 	user, err := p.sessions.GetSessionUser(w, r)
@@ -607,7 +602,7 @@ func (p *politeiawww) handleUserRegistrationPayment(w http.ResponseWriter, r *ht
 
 // handleUserProposalPaywall returns paywall details that allows the user to
 // purchase proposal credits.
-func (p *politeiawww) handleUserProposalPaywall(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleUserProposalPaywall(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserProposalPaywall")
 
 	user, err := p.sessions.GetSessionUser(w, r)
@@ -629,7 +624,7 @@ func (p *politeiawww) handleUserProposalPaywall(w http.ResponseWriter, r *http.R
 
 // handleUserProposalPaywallTx returns the payment details for a pending
 // proposal paywall payment.
-func (p *politeiawww) handleUserProposalPaywallTx(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleUserProposalPaywallTx(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserProposalPaywallTx")
 
 	user, err := p.sessions.GetSessionUser(w, r)
@@ -652,7 +647,7 @@ func (p *politeiawww) handleUserProposalPaywallTx(w http.ResponseWriter, r *http
 
 // handleUserProposalCredits returns the spent and unspent proposal credits for
 // the logged in user.
-func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleUserProposalCredits(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserProposalCredits")
 
 	user, err := p.sessions.GetSessionUser(w, r)
@@ -674,7 +669,7 @@ func (p *politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.R
 
 // handleUserPaymentsRescan allows an admin to rescan a user's paywall address
 // to check for any payments that may have been missed by paywall polling.
-func (p *politeiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserPaymentsRescan")
 
 	var upr www.UserPaymentsRescan
@@ -700,7 +695,7 @@ func (p *politeiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Re
 
 // handleRegisterUser handles the completion of registration by invited users of
 // the Contractor Management System.
-func (p *politeiawww) handleRegisterUser(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleRegisterUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleRegisterUser")
 
 	// Get the new user command.
@@ -724,7 +719,7 @@ func (p *politeiawww) handleRegisterUser(w http.ResponseWriter, r *http.Request)
 }
 
 // handleSetTOTP handles the setting of TOTP Key
-func (p *politeiawww) handleSetTOTP(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleSetTOTP(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleSetTOTP")
 
 	var st www.SetTOTP
@@ -755,7 +750,7 @@ func (p *politeiawww) handleSetTOTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleVerifyTOTP handles the request to verify a set TOTP Key.
-func (p *politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
+func (p *LegacyPoliteiawwww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVerifyTOTP")
 
 	var vt www.VerifyTOTP
@@ -784,155 +779,4 @@ func (p *politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 
 	util.RespondWithJSON(w, http.StatusOK, vtr)
 }
-
-// setUserWWWRoutes setsup the user routes.
-func (p *politeiawww) setUserWWWRoutes() {
-	// Public routes
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteNewUser, p.handleNewUser,
-		permissionPublic)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteVerifyNewUser, p.handleVerifyNewUser,
-		permissionPublic)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteResendVerification, p.handleResendVerification,
-		permissionPublic)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteLogout, p.handleLogout,
-		permissionPublic)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteResetPassword, p.handleResetPassword,
-		permissionPublic)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteVerifyResetPassword, p.handleVerifyResetPassword,
-		permissionPublic)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteUserDetails, p.handleUserDetails,
-		permissionPublic)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteUsers, p.handleUsers,
-		permissionPublic)
-
-	// Setup the login route.
-	p.addLoginRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteLogin, p.handleLogin)
-
-	// Routes that require being logged in.
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteSecret, p.handleSecret,
-		permissionLogin)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteUserMe, p.handleMe,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteUpdateUserKey, p.handleUpdateUserKey,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteVerifyUpdateUserKey, p.handleVerifyUpdateUserKey,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteChangeUsername, p.handleChangeUsername,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteChangePassword, p.handleChangePassword,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteEditUser, p.handleEditUser,
-		permissionLogin)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteUserRegistrationPayment, p.handleUserRegistrationPayment,
-		permissionLogin)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteUserProposalPaywall, p.handleUserProposalPaywall,
-		permissionLogin)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteUserProposalPaywallTx, p.handleUserProposalPaywallTx,
-		permissionLogin)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteUserProposalCredits, p.handleUserProposalCredits,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteSetTOTP, p.handleSetTOTP,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteVerifyTOTP, p.handleVerifyTOTP,
-		permissionLogin)
-
-	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodPut, www.PoliteiaWWWAPIRoute,
-		www.RouteUserPaymentsRescan, p.handleUserPaymentsRescan,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteManageUser, p.handleManageUser,
-		permissionAdmin)
-}
-
-// setCMSUserWWWRoutes setsup the user routes for cms mode
-func (p *politeiawww) setCMSUserWWWRoutes() {
-	// Public routes
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteLogout, p.handleLogout,
-		permissionPublic)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteResetPassword, p.handleResetPassword,
-		permissionPublic)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteVerifyResetPassword, p.handleVerifyResetPassword,
-		permissionPublic)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteRegisterUser, p.handleRegisterUser,
-		permissionPublic)
-
-	// Setup the login route.
-	p.addLoginRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteLogin, p.handleLogin)
-
-	// Routes that require being logged in.
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteSecret, p.handleSecret,
-		permissionLogin)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteUserMe, p.handleMe,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteUpdateUserKey, p.handleUpdateUserKey,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteVerifyUpdateUserKey, p.handleVerifyUpdateUserKey,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteChangeUsername, p.handleChangeUsername,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteChangePassword, p.handleChangePassword,
-		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		www.RouteUserDetails, p.handleCMSUserDetails,
-		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		www.RouteEditUser, p.handleEditCMSUser,
-		permissionLogin)
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteUsers, p.handleUsers,
-		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteCMSUsers, p.handleCMSUsers,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteSetTOTP, p.handleSetTOTP,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteVerifyTOTP, p.handleVerifyTOTP,
-		permissionLogin)
-
-	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-		www.RouteUsers, p.handleUsers,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteManageCMSUser, p.handleManageCMSUser,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteManageUser, p.handleManageUser,
-		permissionAdmin)
-}
+*/

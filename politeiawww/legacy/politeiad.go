@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package main
+package legacy
 
 import (
 	"bytes"
@@ -41,7 +41,7 @@ func (e pdError) Error() string {
 // This method has been DEPRECATED. The politeiad client on the politeiawww
 // context should be used instead. This method can be removed once all of the
 // cms invocations have been switched over to use the politeaid client.
-func (p *politeiawww) makeRequest(ctx context.Context, method string, route string, v interface{}) ([]byte, error) {
+func (p *LegacyPoliteiawww) makeRequest(ctx context.Context, method string, route string, v interface{}) ([]byte, error) {
 	var (
 		reqBody []byte
 		err     error
