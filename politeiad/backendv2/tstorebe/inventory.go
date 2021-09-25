@@ -43,6 +43,16 @@ func (t *tstoreBackend) invPathVetted() string {
 	return filepath.Join(t.dataDir, filenameInvVetted)
 }
 
+// invRemoveUnvetted removes the unvetted inventory from its respective path.
+func (t *tstoreBackend) invRemoveUnvetted() error {
+	return os.RemoveAll(t.invPathUnvetted())
+}
+
+// invRemoveVetted removes the vetted inventory from its respective path.
+func (t *tstoreBackend) invRemoveVetted() error {
+	return os.RemoveAll(t.invPathVetted())
+}
+
 // invGetLocked retrieves the inventory from disk. A new inventory is returned
 // if one does not exist yet.
 //

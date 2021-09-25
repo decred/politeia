@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -1046,8 +1045,10 @@ func (t *tstoreBackend) Fsck() error {
 	// Sort records from both groups by the timestamp of their record metadata,
 	// from oldest to newest. The order of the record inventory will be
 	// slightly different. On runtime, the timestamp order is through the most
-	// recent status change md. On this fsck rebuild, the order is through the
-	// record metadata's timestamp from their last update.
+	// recent status change metadata. On this fsck rebuild, the order is
+	// through the record timestamp from their last edit. This happens because
+	// the record timestamp gets updated on both status changes and edits, so
+	// the status change timestamp gets lost when the record is edited.
 	sort.Slice(vetted, func(i, j int) bool {
 		return vetted[i].RecordMetadata.Timestamp <
 			vetted[j].RecordMetadata.Timestamp
@@ -1059,19 +1060,19 @@ func (t *tstoreBackend) Fsck() error {
 
 	// Now that data is sorted, delete inventory cache before building the new,
 	// updated one.
-	err = os.RemoveAll(t.invPathVetted())
+	err = t.invRemoveVetted()
 	if err != nil {
 		return err
 	}
-	err = os.RemoveAll(t.invPathUnvetted())
+	err = t.invRemoveUnvetted()
 	if err != nil {
 		return err
 	}
 
-	// Add vetted tokens to inventory cache. First add to inventory as unvetted,
-	// then move to vetted. This is a temporary limitation of the inventory API,
-	// which was done this way to mimick the way records are added and updated
-	// on the politeiad API.
+	// Add vetted tokens to inventory cache. First add to inventory as
+	// unvetted, then move to vetted. This is a temporary limitation of the
+	// inventory API, which was done this way to mimick the way records are
+	// added and updated on the politeiad API.
 	for _, record := range vetted {
 		bToken, err := hex.DecodeString(record.RecordMetadata.Token)
 		if err != nil {
@@ -1087,7 +1088,8 @@ func (t *tstoreBackend) Fsck() error {
 		if err != nil {
 			return err
 		}
-		t.inventoryAdd(record.RecordMetadata.State, bToken, record.RecordMetadata.Status)
+		t.inventoryAdd(record.RecordMetadata.State, bToken,
+			record.RecordMetadata.Status)
 	}
 
 	// Update all plugin caches
