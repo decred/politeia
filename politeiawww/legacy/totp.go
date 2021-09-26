@@ -1,11 +1,13 @@
 // Copyright (c) 2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
-package main
+
+package legacy
 
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"image/png"
 	"time"
 
@@ -33,7 +35,7 @@ var (
 )
 
 // processSetTOTP attempts to set a new TOTP key based on the given TOTP type.
-func (p *politeiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTPReply, error) {
+func (p *LegacyPoliteiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTPReply, error) {
 	log.Tracef("processSetTOTP: %v", u.ID.String())
 	// if the user already has a TOTP secret set, check the code that was given
 	// as well to see if it matches to update.
@@ -94,7 +96,7 @@ func (p *politeiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTP
 
 // processVerifyTOTP attempts to confirm a newly set TOTP key based on the
 // given TOTP type.
-func (p *politeiawww) processVerifyTOTP(vt www.VerifyTOTP, u *user.User) (*www.VerifyTOTPReply, error) {
+func (p *LegacyPoliteiawww) processVerifyTOTP(vt www.VerifyTOTP, u *user.User) (*www.VerifyTOTPReply, error) {
 	valid, err := p.totpValidate(vt.Code, u.TOTPSecret, time.Now())
 	if err != nil {
 		log.Debugf("Error valdiating totp code %v", err)
@@ -119,7 +121,7 @@ func (p *politeiawww) processVerifyTOTP(vt www.VerifyTOTP, u *user.User) (*www.V
 	return nil, nil
 }
 
-func (p *politeiawww) totpGenerateOpts(issuer, accountName string) totp.GenerateOpts {
+func (p *LegacyPoliteiawww) totpGenerateOpts(issuer, accountName string) totp.GenerateOpts {
 	if p.test {
 		// Set the period a totp code is valid for to 1 second when
 		// testing so the unit tests don't take forever.
@@ -135,7 +137,7 @@ func (p *politeiawww) totpGenerateOpts(issuer, accountName string) totp.Generate
 	}
 }
 
-func (p *politeiawww) totpGenerateCode(secret string, t time.Time) (string, error) {
+func (p *LegacyPoliteiawww) totpGenerateCode(secret string, t time.Time) (string, error) {
 	if p.test {
 		// Set the period a totp code is valid for to 1 second when
 		// testing so the unit tests don't take forever.
@@ -149,7 +151,7 @@ func (p *politeiawww) totpGenerateCode(secret string, t time.Time) (string, erro
 	return totp.GenerateCode(secret, t)
 }
 
-func (p *politeiawww) totpValidate(code, secret string, t time.Time) (bool, error) {
+func (p *LegacyPoliteiawww) totpValidate(code, secret string, t time.Time) (bool, error) {
 	if p.test {
 		// Set the period a totp code is valid for to 1 second when
 		// testing so the unit tests don't take forever.
@@ -161,4 +163,70 @@ func (p *politeiawww) totpValidate(code, secret string, t time.Time) (bool, erro
 		})
 	}
 	return totp.Validate(code, secret), nil
+}
+
+func (p *LegacyPoliteiawww) totpCheck(code string, u *user.User) error {
+	// Return error to alert that a code is required.
+	if code == "" {
+		log.Debugf("login: totp code required %v", u.Email)
+		return www.UserError{
+			ErrorCode: www.ErrorStatusRequiresTOTPCode,
+		}
+	}
+
+	// Get the generated totp code. The provided code must match this
+	// generated code.
+	requestTime := time.Now()
+	currentCode, err := p.totpGenerateCode(u.TOTPSecret, requestTime)
+	if err != nil {
+		return fmt.Errorf("totpGenerateCode: %v", err)
+	}
+
+	// Verify the user does not have too many failed attempts for this
+	// epoch.
+	if len(u.TOTPLastFailedCodeTime) >= totpFailedAttempts {
+		// The user has too many failed attempts. We must first verify
+		// that the failed attempts are from this epoch before this is
+		// considered to be an error. If the generated code from the
+		// failed timestamp matches the generated code from the current
+		// timestamp then we know the failures occurred during this epoch.
+		failedTS := u.TOTPLastFailedCodeTime[len(u.TOTPLastFailedCodeTime)-1]
+		oldCode, err := p.totpGenerateCode(u.TOTPSecret, time.Unix(failedTS, 0))
+		if err != nil {
+			return fmt.Errorf("totpGenerateCode: %v", err)
+		}
+		if oldCode == currentCode {
+			// The failures occurred in the same epoch which means the user
+			// has exceeded their max allowed attempts.
+			return www.UserError{
+				ErrorCode: www.ErrorStatusTOTPWaitForNewCode,
+			}
+		}
+
+		// Previous failures are not from this epoch. Clear them out.
+		u.TOTPLastFailedCodeTime = []int64{}
+	}
+
+	// Verify the provided code matches the generated code
+	var replyError error
+	if currentCode == code {
+		// The code matches. Clear out all previous failed attempts
+		// before returning.
+		u.TOTPLastFailedCodeTime = []int64{}
+	} else {
+		// The code doesn't match. Save the failure and return an error.
+		ts := requestTime.Unix()
+		u.TOTPLastFailedCodeTime = append(u.TOTPLastFailedCodeTime, ts)
+		replyError = www.UserError{
+			ErrorCode: www.ErrorStatusTOTPFailedValidation,
+		}
+	}
+
+	// Update the user database
+	err = p.db.UserUpdate(*u)
+	if err != nil {
+		return fmt.Errorf("UserUpdate: %v", err)
+	}
+
+	return replyError
 }

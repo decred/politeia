@@ -26,10 +26,10 @@ func (p *LegacyPoliteiawww) SetUserWWWRoutes() {
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteNewUser, p.handleNewUser,
 		permissionPublic)
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyNewUser, p.handleVerifyNewUser,
+		permissionPublic)
 	/*
-		p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
-			www.RouteVerifyNewUser, p.handleVerifyNewUser,
-			permissionPublic)
 		p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 			www.RouteResendVerification, p.handleResendVerification,
 			permissionPublic)
