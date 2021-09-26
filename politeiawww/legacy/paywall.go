@@ -53,6 +53,23 @@ func (p *LegacyPoliteiawww) paywallIsEnabled() bool {
 	return p.cfg.PaywallAmount != 0 && p.cfg.PaywallXpub != ""
 }
 
+// initPaywallCheck is intended to be called
+func (p *LegacyPoliteiawww) initPaywallChecker() error {
+	if p.cfg.PaywallAmount == 0 {
+		// Paywall not configured.
+		return nil
+	}
+
+	err := p.addUsersToPaywallPool()
+	if err != nil {
+		return err
+	}
+
+	// Start the thread that checks for payments.
+	go p.checkForPayments()
+	return nil
+}
+
 // checkForProposalPayments checks if any of the proposal paywalls in the
 // paywall pool have received a payment.  If so, proposal credits are created
 // for the user, the user database is updated, and the user is removed from
@@ -497,23 +514,6 @@ func (p *LegacyPoliteiawww) checkForUserPayments(ctx context.Context, pool map[u
 	}
 
 	return true, userIDsToRemove
-}
-
-// initPaywallCheck is intended to be called
-func (p *LegacyPoliteiawww) initPaywallChecker() error {
-	if p.cfg.PaywallAmount == 0 {
-		// Paywall not configured.
-		return nil
-	}
-
-	err := p.addUsersToPaywallPool()
-	if err != nil {
-		return err
-	}
-
-	// Start the thread that checks for payments.
-	go p.checkForPayments()
-	return nil
 }
 
 // userHasPaid returns whether the user has paid the user registration paywall.

@@ -5,7 +5,6 @@
 package legacy
 
 import (
-	"bytes"
 	"net/url"
 	"strings"
 	"text/template"
@@ -15,40 +14,8 @@ import (
 const (
 	// GUI routes. These are used in notification emails to direct the
 	// user to the correct GUI pages.
-	guiRouteRegisterNewUser = "/register"
-	guiRouteDCCDetails      = "/dcc/{token}"
+	guiRouteDCCDetails = "/dcc/{token}"
 )
-
-func createBody(tpl *template.Template, tplData interface{}) (string, error) {
-	var buf bytes.Buffer
-	err := tpl.Execute(&buf, tplData)
-	if err != nil {
-		return "", err
-	}
-
-	return buf.String(), nil
-}
-
-func (p *LegacyPoliteiawww) createEmailLink(path, email, token, username string) (string, error) {
-	l, err := url.Parse(p.cfg.WebServerAddress + path)
-	if err != nil {
-		return "", err
-	}
-
-	q := l.Query()
-	if email != "" {
-		q.Set("email", email)
-	}
-	if token != "" {
-		q.Set("verificationtoken", token)
-	}
-	if username != "" {
-		q.Set("username", username)
-	}
-	l.RawQuery = q.Encode()
-
-	return l.String(), nil
-}
 
 // emailUserCMSInvite emails the invitation link for the Contractor Management
 // System to the provided user email address.

@@ -6,12 +6,10 @@ package legacy
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"net/http"
-	"net/url"
+	"image/png"
 	"regexp"
 	"sort"
 	"strconv"
@@ -21,11 +19,11 @@ import (
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/sessions"
+	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
-	"github.com/gorilla/mux"
+	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -61,546 +59,6 @@ var (
 	// response is specific to a bad email or a bad password.
 	loginMinWaitTime = 500 * time.Millisecond
 )
-
-// handleSecret is a mock handler to test privileged routes.
-func (p *LegacyPoliteiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleSecret")
-
-	fmt.Fprintf(w, "secret sauce")
-}
-
-// handleNewUser handles the incoming new user command. It verifies that the
-// new user doesn't already exist, and then creates a new user in the db and
-// generates a random code used for verification. The code is intended to be
-// sent to the specified email.
-func (p *LegacyPoliteiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleNewUser")
-
-	// Get the new user command.
-	var u www.NewUser
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&u); err != nil {
-		RespondWithError(w, r, 0, "handleNewUser: unmarshal", www.UserError{
-			ErrorCode: www.ErrorStatusInvalidInput,
-		})
-		return
-	}
-
-	reply, err := p.processNewUser(u)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleNewUser: processNewUser %v", err)
-		return
-	}
-
-	// Reply with the verification token.
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-// handleVerifyNewUser handles the incoming new user verify command. It
-// verifies that the user with the provided email has a verification token that
-// matches the provided token and that the verification token has not yet
-// expired.
-func (p *LegacyPoliteiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVerifyNewUser")
-
-	// Get the new user verify command.
-	var vnu www.VerifyNewUser
-	err := util.ParseGetParams(r, &vnu)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleVerifyNewUser: ParseGetParams",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	_, err = p.processVerifyNewUser(vnu)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleVerifyNewUser: "+
-			"processVerifyNewUser %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, www.VerifyNewUserReply{})
-}
-
-// handleResendVerification sends another verification email for new user
-// signup, if there is an existing verification token and it is expired.
-func (p *LegacyPoliteiawww) handleResendVerification(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleResendVerification")
-
-	// Get the resend verification command.
-	var rv www.ResendVerification
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&rv); err != nil {
-		RespondWithError(w, r, 0, "handleResendVerification: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	rvr, err := p.processResendVerification(&rv)
-	if err != nil {
-		var usrErr www.UserError
-		if errors.As(err, &usrErr) {
-			switch usrErr.ErrorCode {
-			case www.ErrorStatusUserNotFound, www.ErrorStatusEmailAlreadyVerified,
-				www.ErrorStatusVerificationTokenUnexpired:
-				// We do not return these errors because we do not want
-				// the caller to be able to ascertain whether an email
-				// address has an acount.
-				util.RespondWithJSON(w, http.StatusOK, &www.ResendVerificationReply{})
-				return
-			}
-		}
-
-		RespondWithError(w, r, 0, "handleResendVerification: "+
-			"processResendVerification %v", err)
-		return
-	}
-
-	// Reply with the verification token.
-	util.RespondWithJSON(w, http.StatusOK, *rvr)
-}
-
-// handleLogin handles the incoming login command.  It verifies that the user
-// exists and the accompanying password.  On success a cookie is added to the
-// gorilla sessions that must be returned on subsequent calls.
-func (p *LegacyPoliteiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleLogin")
-
-	// Get the login command.
-	var l www.Login
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&l); err != nil {
-		RespondWithError(w, r, 0, "handleLogin: failed to decode: %v",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	reply, err := p.processLogin(l)
-	if err != nil {
-		RespondWithError(w, r, http.StatusUnauthorized,
-			"handleLogin: processLogin: %v", err)
-		return
-	}
-
-	// Initialize a session for the logged in user
-	err = p.sessions.NewSession(w, r, reply.UserID)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleLogin: initSession: %v", err)
-		return
-	}
-
-	// Set session max age
-	reply.SessionMaxAge = sessions.SessionMaxAge
-
-	// Reply with the user information.
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-// handleLogout logs the user out.
-func (p *LegacyPoliteiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleLogout")
-
-	_, err := p.sessions.GetSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleLogout: getSessionUser", www.UserError{
-			ErrorCode: www.ErrorStatusNotLoggedIn,
-		})
-		return
-	}
-
-	err = p.sessions.DelSession(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleLogout: removeSession %v", err)
-		return
-	}
-
-	// Reply with the user information.
-	var reply www.LogoutReply
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-// handleMe returns logged in user information.
-func (p *LegacyPoliteiawww) handleMe(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleMe")
-
-	user, err := p.sessions.GetSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleMe: getSessionUser %v", err)
-		return
-	}
-
-	reply, err := p.createLoginReply(user, user.LastLoginTime)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleMe: createLoginReply %v", err)
-		return
-	}
-
-	// Set session max age
-	reply.SessionMaxAge = sessions.SessionMaxAge
-
-	util.RespondWithJSON(w, http.StatusOK, *reply)
-}
-
-// handleResetPassword handles the reset password command.
-func (p *LegacyPoliteiawww) handleResetPassword(w http.ResponseWriter, r *http.Request) {
-	log.Trace("handleResetPassword")
-
-	// Get the reset password command.
-	var rp www.ResetPassword
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&rp); err != nil {
-		RespondWithError(w, r, 0, "handleResetPassword: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	rpr, err := p.processResetPassword(rp)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleResetPassword: processResetPassword %v", err)
-		return
-	}
-
-	// Reply with the error code.
-	util.RespondWithJSON(w, http.StatusOK, rpr)
-}
-
-// handleVerifyResetPassword handles the verify reset password command.
-func (p *LegacyPoliteiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.Request) {
-	log.Trace("handleVerifyResetPassword")
-
-	var vrp www.VerifyResetPassword
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vrp); err != nil {
-		RespondWithError(w, r, 0, "handleVerifyResetPassword: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	reply, err := p.processVerifyResetPassword(vrp)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleVerifyResetPassword: processVerifyResetPassword %v", err)
-		return
-	}
-
-	// Delete all existing sessions for the user. Return a 200 if
-	// either of these calls fail since the password was verified
-	// correctly.
-	user, err := p.db.UserGetByUsername(vrp.Username)
-	if err != nil {
-		log.Errorf("handleVerifyResetPassword: UserGetByUsername(%v): %v",
-			vrp.Username, err)
-		util.RespondWithJSON(w, http.StatusOK, reply)
-		return
-	}
-	err = p.db.SessionsDeleteByUserID(user.ID, []string{})
-	if err != nil {
-		log.Errorf("handleVerifyResetPassword: SessionsDeleteByUserID(%v, %v): %v",
-			user.ID, []string{}, err)
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-// handleUserDetails handles fetching user details by user id.
-func (p *LegacyPoliteiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) {
-	// Add the path param to the struct.
-	log.Tracef("handleUserDetails")
-	pathParams := mux.Vars(r)
-	var ud www.UserDetails
-	ud.UserID = pathParams["userid"]
-
-	userID, err := uuid.Parse(ud.UserID)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleUserDetails: ParseUint",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	// Get session user. This is a public route so one might not exist.
-	user, err := p.sessions.GetSessionUser(w, r)
-	if err != nil && !errors.Is(err, sessions.ErrSessionNotFound) {
-		RespondWithError(w, r, 0,
-			"handleUserDetails: getSessionUser %v", err)
-		return
-	}
-
-	udr, err := p.processUserDetails(&ud,
-		user != nil && user.ID == userID,
-		user != nil && user.Admin,
-	)
-
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleUserDetails: processUserDetails %v", err)
-		return
-	}
-
-	// Reply with the proposal details.
-	util.RespondWithJSON(w, http.StatusOK, udr)
-}
-
-// handleEditUser handles editing a user's preferences.
-func (p *LegacyPoliteiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleEditUser")
-
-	var eu www.EditUser
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&eu); err != nil {
-		RespondWithError(w, r, 0, "handleEditUser: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	adminUser, err := p.sessions.GetSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleEditUser: getSessionUser %v",
-			err)
-		return
-	}
-
-	eur, err := p.processEditUser(&eu, adminUser)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleEditUser: processEditUser %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, eur)
-}
-
-// handleUpdateUserKey handles the incoming update user key command. It
-// generates a random code used for verification. The code is intended to be
-// sent to the email of the logged in user.
-func (p *LegacyPoliteiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleUpdateUserKey")
-
-	// Get the update user key command.
-	var u www.UpdateUserKey
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&u); err != nil {
-		RespondWithError(w, r, 0, "handleUpdateUserKey: unmarshal", www.UserError{
-			ErrorCode: www.ErrorStatusInvalidInput,
-		})
-		return
-	}
-
-	user, err := p.sessions.GetSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleUpdateUserKey: getSessionUser %v", err)
-		return
-	}
-
-	reply, err := p.processUpdateUserKey(user, u)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleUpdateUserKey: processUpdateUserKey %v", err)
-		return
-	}
-
-	// Reply with the verification token.
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-// handleVerifyUpdateUserKey handles the incoming update user key verify
-// command. It verifies that the user with the provided email has a
-// verification token that matches the provided token and that the verification
-// token has not yet expired.
-func (p *LegacyPoliteiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVerifyUpdateUserKey")
-
-	// Get the new user verify command.
-	var vuu www.VerifyUpdateUserKey
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&vuu); err != nil {
-		RespondWithError(w, r, 0, "handleVerifyUpdateUserKey: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	user, err := p.sessions.GetSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleVerifyUpdateUserKey: getSessionUser %v", err)
-		return
-	}
-
-	_, err = p.processVerifyUpdateUserKey(user, vuu)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleVerifyUpdateUserKey: "+
-			"processVerifyUpdateUserKey %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, www.VerifyUpdateUserKeyReply{})
-}
-
-// handleChangeUsername handles the change user name command.
-func (p *LegacyPoliteiawww) handleChangeUsername(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleChangeUsername")
-
-	// Get the change username command.
-	var cu www.ChangeUsername
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&cu); err != nil {
-		RespondWithError(w, r, 0, "handleChangeUsername: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	user, err := p.sessions.GetSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleChangeUsername: getSessionUser %v", err)
-		return
-	}
-
-	reply, err := p.processChangeUsername(user.Email, cu)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleChangeUsername: processChangeUsername %v", err)
-		return
-	}
-
-	// Reply with the error code.
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-// handleChangePassword handles the change password command.
-func (p *LegacyPoliteiawww) handleChangePassword(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleChangePassword")
-
-	// Get the change password command.
-	var cp www.ChangePassword
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&cp); err != nil {
-		RespondWithError(w, r, 0, "handleChangePassword: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	session, err := p.sessions.GetSession(r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleChangePassword: getSession %v", err)
-		return
-	}
-	user, err := p.sessions.GetSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleChangePassword: getSessionUser %v", err)
-		return
-	}
-
-	reply, err := p.processChangePassword(user.Email, cp)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleChangePassword: processChangePassword %v", err)
-		return
-	}
-
-	// Delete all existing sessions for the user except the current.
-	// Return a 200 if this call fails since the password was changed
-	// correctly.
-	err = p.db.SessionsDeleteByUserID(user.ID, []string{session.ID})
-	if err != nil {
-		log.Errorf("handleChangePassword: SessionsDeleteByUserID(%v, %v): %v",
-			user.ID, []string{session.ID}, err)
-	}
-
-	// Reply with the error code.
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-// handleUsers handles fetching a list of users.
-func (p *LegacyPoliteiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleUsers")
-
-	var u www.Users
-	err := util.ParseGetParams(r, &u)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleUsers: ParseGetParams",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	// Get session user. This is a public route so one might not exist.
-	user, err := p.sessions.GetSessionUser(w, r)
-	if err != nil && !errors.Is(err, sessions.ErrSessionNotFound) {
-		RespondWithError(w, r, 0,
-			"handleUsers: getSessionUser %v", err)
-		return
-	}
-
-	isAdmin := (user != nil && user.Admin)
-	ur, err := p.processUsers(&u, isAdmin)
-
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleUsers: processUsers %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, ur)
-}
-
-// handleManageUser handles editing a user's details.
-func (p *LegacyPoliteiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleManageUser")
-
-	var mu www.ManageUser
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&mu); err != nil {
-		RespondWithError(w, r, 0, "handleManageUser: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	adminUser, err := p.sessions.GetSessionUser(w, r)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleManageUser: getSessionUser %v",
-			err)
-		return
-	}
-
-	mur, err := p.processManageUser(&mu, adminUser)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleManageUser: processManageUser %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, mur)
-}
 
 // processNewUser creates a new user in the db if it doesn't already
 // exist and sets a verification token and expiry; the token must be
@@ -1670,48 +1128,327 @@ func (p *LegacyPoliteiawww) processManageUser(mu *www.ManageUser, adminUser *use
 	return &www.ManageUserReply{}, nil
 }
 
-// initUserEmailsCache initializes the userEmails cache by iterating through
-// all the users in the database and adding a email-userID mapping for them.
-//
-// This function must be called WITHOUT the lock held.
-func (p *LegacyPoliteiawww) initUserEmailsCache() error {
-	p.Lock()
-	defer p.Unlock()
-
-	return p.db.AllUsers(func(u *user.User) {
-		p.userEmails[u.Email] = u.ID
-	})
-}
-
-// setUserEmailsCache sets a email-userID mapping in the user emails cache.
-//
-// This function must be called WITHOUT the lock held.
-func (p *LegacyPoliteiawww) setUserEmailsCache(email string, id uuid.UUID) {
-	p.Lock()
-	defer p.Unlock()
-	p.userEmails[email] = id
-}
-
-// userIDByEmail returns a userID given their email address.
-//
-// This function must be called WITHOUT the lock held.
-func (p *LegacyPoliteiawww) userIDByEmail(email string) (uuid.UUID, bool) {
-	p.RLock()
-	defer p.RUnlock()
-	id, ok := p.userEmails[email]
-	return id, ok
-}
-
-// userByEmail returns a User object given their email address.
-//
-// This function must be called WITHOUT the lock held.
-func (p *LegacyPoliteiawww) userByEmail(email string) (*user.User, error) {
-	id, ok := p.userIDByEmail(email)
-	if !ok {
-		log.Debugf("userByEmail: email lookup failed for '%v'", email)
-		return nil, user.ErrUserNotFound
+// processSetTOTP attempts to set a new TOTP key based on the given TOTP type.
+func (p *LegacyPoliteiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTPReply, error) {
+	log.Tracef("processSetTOTP: %v", u.ID.String())
+	// if the user already has a TOTP secret set, check the code that was given
+	// as well to see if it matches to update.
+	if u.TOTPSecret != "" && u.TOTPVerified {
+		valid, err := p.totpValidate(st.Code, u.TOTPSecret, time.Now())
+		if err != nil {
+			log.Debugf("Error valdiating totp code %v", err)
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusTOTPFailedValidation,
+			}
+		}
+		if !valid {
+			return nil, www.UserError{
+				ErrorCode: www.ErrorStatusTOTPFailedValidation,
+			}
+		}
 	}
-	return p.db.UserGetById(id)
+
+	// Validate TOTP type that was selected.
+	if _, ok := validTOTPTypes[st.Type]; !ok {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusTOTPInvalidType,
+		}
+	}
+
+	issuer := defaultPoliteiaIssuer
+	if p.cfg.Mode == config.CMSWWWMode {
+		issuer = defaultCMSIssuer
+	}
+	opts := p.totpGenerateOpts(issuer, u.Username)
+	key, err := totp.Generate(opts)
+	if err != nil {
+		return nil, err
+	}
+	// Convert TOTP key into a PNG
+	var buf bytes.Buffer
+	img, err := key.Image(200, 200)
+	if err != nil {
+		return nil, err
+	}
+	png.Encode(&buf, img)
+
+	u.TOTPType = int(st.Type)
+	u.TOTPSecret = key.Secret()
+	u.TOTPVerified = false
+	u.TOTPLastUpdated = append(u.TOTPLastUpdated, time.Now().Unix())
+
+	err = p.db.UserUpdate(*u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &www.SetTOTPReply{
+		Key:   key.Secret(),
+		Image: base64.StdEncoding.EncodeToString(buf.Bytes()),
+	}, nil
+}
+
+// processVerifyTOTP attempts to confirm a newly set TOTP key based on the
+// given TOTP type.
+func (p *LegacyPoliteiawww) processVerifyTOTP(vt www.VerifyTOTP, u *user.User) (*www.VerifyTOTPReply, error) {
+	valid, err := p.totpValidate(vt.Code, u.TOTPSecret, time.Now())
+	if err != nil {
+		log.Debugf("Error valdiating totp code %v", err)
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusTOTPFailedValidation,
+		}
+	}
+	if !valid {
+		return nil, www.UserError{
+			ErrorCode: www.ErrorStatusTOTPFailedValidation,
+		}
+	}
+
+	u.TOTPVerified = true
+	u.TOTPLastUpdated = append(u.TOTPLastUpdated, time.Now().Unix())
+
+	err = p.db.UserUpdate(*u)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+// loginReply is used to pass the results of the login command between go
+// routines.
+type loginResult struct {
+	reply *www.LoginReply
+	err   error
+}
+
+func (p *LegacyPoliteiawww) login(l www.Login) loginResult {
+	// Get user record
+	u, err := p.userByEmail(l.Email)
+	if err != nil {
+		if errors.Is(err, user.ErrUserNotFound) {
+			log.Debugf("login: user not found for email '%v'",
+				l.Email)
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusInvalidLogin,
+			}
+		}
+		return loginResult{
+			reply: nil,
+			err:   err,
+		}
+	}
+
+	// First check if TOTP is enabled and verified.
+	if u.TOTPVerified {
+		err := p.totpCheck(l.Code, u)
+		if err != nil {
+			return loginResult{
+				reply: nil,
+				err:   err,
+			}
+		}
+	}
+
+	// Verify password
+	err = bcrypt.CompareHashAndPassword(u.HashedPassword,
+		[]byte(l.Password))
+	if err != nil {
+		// Wrong password. Update user record with failed attempt.
+		log.Debugf("login: wrong password")
+		if !userIsLocked(u.FailedLoginAttempts) {
+			u.FailedLoginAttempts++
+			u.TOTPLastFailedCodeTime = make([]int64, 0, 2)
+			err := p.db.UserUpdate(*u)
+			if err != nil {
+				return loginResult{
+					reply: nil,
+					err:   err,
+				}
+			}
+			// If the failed attempt puts the user over the limit,
+			// send them an email informing them their account is
+			// now locked.
+			if userIsLocked(u.FailedLoginAttempts) {
+				recipient := map[uuid.UUID]string{
+					u.ID: u.Email,
+				}
+				err := p.emailUserAccountLocked(u.Username, recipient)
+				if err != nil {
+					return loginResult{
+						reply: nil,
+						err:   err,
+					}
+				}
+			}
+		}
+		return loginResult{
+			reply: nil,
+			err: www.UserError{
+				ErrorCode: www.ErrorStatusInvalidLogin,
+			},
+		}
+	}
+
+	// Verify user account is in good standing
+	if u.NewUserVerificationToken != nil {
+		return loginResult{
+			reply: nil,
+			err: www.UserError{
+				ErrorCode: www.ErrorStatusEmailNotVerified,
+			},
+		}
+	}
+	if u.Deactivated {
+		return loginResult{
+			reply: nil,
+			err: www.UserError{
+				ErrorCode: www.ErrorStatusUserDeactivated,
+			},
+		}
+	}
+	if userIsLocked(u.FailedLoginAttempts) {
+		return loginResult{
+			reply: nil,
+			err: www.UserError{
+				ErrorCode: www.ErrorStatusUserLocked,
+			},
+		}
+	}
+
+	// Update user record with successful login
+	lastLoginTime := u.LastLoginTime
+	u.FailedLoginAttempts = 0
+	u.LastLoginTime = time.Now().Unix()
+	u.TOTPLastFailedCodeTime = make([]int64, 0, 2)
+	err = p.db.UserUpdate(*u)
+	if err != nil {
+		return loginResult{
+			reply: nil,
+			err:   err,
+		}
+	}
+
+	reply, err := p.createLoginReply(u, lastLoginTime)
+	return loginResult{
+		reply: reply,
+		err:   err,
+	}
+}
+
+// createLoginReply creates a login reply.
+func (p *LegacyPoliteiawww) createLoginReply(u *user.User, lastLoginTime int64) (*www.LoginReply, error) {
+	reply := www.LoginReply{
+		IsAdmin:            u.Admin,
+		UserID:             u.ID.String(),
+		Email:              u.Email,
+		Username:           u.Username,
+		PublicKey:          u.PublicKey(),
+		PaywallAddress:     u.NewUserPaywallAddress,
+		PaywallAmount:      u.NewUserPaywallAmount,
+		PaywallTxNotBefore: u.NewUserPaywallTxNotBefore,
+		PaywallTxID:        u.NewUserPaywallTx,
+		ProposalCredits:    uint64(len(u.UnspentProposalCredits)),
+		LastLoginTime:      lastLoginTime,
+		TOTPVerified:       u.TOTPVerified,
+	}
+
+	if !p.userHasPaid(*u) {
+		err := p.generateNewUserPaywall(u)
+		if err != nil {
+			return nil, err
+		}
+
+		reply.PaywallAddress = u.NewUserPaywallAddress
+		reply.PaywallAmount = u.NewUserPaywallAmount
+		reply.PaywallTxNotBefore = u.NewUserPaywallTxNotBefore
+	}
+
+	return &reply, nil
+}
+
+// resetPassword is used to pass the results of the reset password command
+// between go routines.
+type resetPasswordResult struct {
+	reply www.ResetPasswordReply
+	err   error
+}
+
+func (p *LegacyPoliteiawww) resetPassword(rp www.ResetPassword) resetPasswordResult {
+	// Lookup user
+	u, err := p.db.UserGetByUsername(rp.Username)
+	if err != nil {
+		if errors.Is(err, user.ErrUserNotFound) {
+			err = www.UserError{
+				ErrorCode: www.ErrorStatusUserNotFound,
+			}
+		}
+		return resetPasswordResult{
+			err: err,
+		}
+	}
+
+	// Ensure the provided email address matches the user record
+	// email address. If the addresses does't match, return so
+	// that the verification token doesn't get sent.
+	if rp.Email != u.Email {
+		log.Debugf("resetPassword: wrong email: %v %v",
+			rp.Email, u.Email)
+		return resetPasswordResult{}
+	}
+
+	// If the user already has a verification token that has not
+	// yet expired, do nothing.
+	t := time.Now().Unix()
+	if t < u.ResetPasswordVerificationExpiry {
+		log.Debugf("resetPassword: unexpired verification token: %v %v",
+			t, u.ResetPasswordVerificationExpiry)
+		return resetPasswordResult{}
+	}
+
+	// The verification token is not present or is present but has expired.
+
+	// Generate a new verification token and expiry.
+	tokenb, expiry, err := newVerificationTokenAndExpiry()
+	if err != nil {
+		return resetPasswordResult{
+			err: err,
+		}
+	}
+
+	// Try to email the verification link first. If it fails, the
+	// user record won't be updated in the database.
+	recipient := map[uuid.UUID]string{
+		u.ID: u.Email,
+	}
+	err = p.emailUserPasswordReset(rp.Username, hex.EncodeToString(tokenb),
+		recipient)
+	if err != nil {
+		return resetPasswordResult{
+			err: err,
+		}
+	}
+
+	// Update the user record
+	u.ResetPasswordVerificationToken = tokenb
+	u.ResetPasswordVerificationExpiry = expiry
+	err = p.db.UserUpdate(*u)
+	if err != nil {
+		return resetPasswordResult{
+			err: err,
+		}
+	}
+
+	// Only include the verification token in the reply if the
+	// email server has been disabled.
+	var reply www.ResetPasswordReply
+	if !p.mail.IsEnabled() {
+		reply.VerificationToken = hex.EncodeToString(tokenb)
+	}
+
+	return resetPasswordResult{
+		reply: reply,
+	}
 }
 
 // userByIDStr converts the provided userIDStr to a uuid and returns the
@@ -1735,126 +1472,6 @@ func (p *LegacyPoliteiawww) userByIDStr(userIDStr string) (*user.User, error) {
 	}
 
 	return usr, nil
-}
-
-// emailUserEmailVerify sends a new user verification email to the provided
-// email address. This function is not rate limited by the smtp client because
-// the user is only created/updated when this function is successfully executed
-// and an email with the verification token is sent to the user. This email is
-// also already limited by the verification token expiry hours policy.
-func (p *LegacyPoliteiawww) emailUserEmailVerify(email, token, username string) error {
-	link, err := p.createEmailLink(www.RouteVerifyNewUser, email,
-		token, username)
-	if err != nil {
-		return err
-	}
-
-	tplData := userEmailVerify{
-		Username: username,
-		Link:     link,
-	}
-
-	subject := "Verify Your Email"
-	body, err := createBody(userEmailVerifyTmpl, tplData)
-	if err != nil {
-		return err
-	}
-
-	return p.mail.SendTo(subject, body, []string{email})
-}
-
-// emailUserKeyUpdate emails the link with the verification token used for
-// setting a new key pair if the email server is set up.
-func (p *LegacyPoliteiawww) emailUserKeyUpdate(username, publicKey, token string, recipient map[uuid.UUID]string) error {
-	link, err := p.createEmailLink(www.RouteVerifyUpdateUserKey, "", token, "")
-	if err != nil {
-		return err
-	}
-
-	tplData := userKeyUpdate{
-		PublicKey: publicKey,
-		Username:  username,
-		Link:      link,
-	}
-
-	subject := "Verify Your New Identity"
-	body, err := createBody(userKeyUpdateTmpl, tplData)
-	if err != nil {
-		return err
-	}
-
-	return p.mail.SendToUsers(subject, body, recipient)
-}
-
-// emailUserPasswordReset emails the link with the reset password verification
-// token to the provided email address.
-func (p *LegacyPoliteiawww) emailUserPasswordReset(username, token string, recipient map[uuid.UUID]string) error {
-	// Setup URL
-	u, err := url.Parse(p.cfg.WebServerAddress + www.RouteResetPassword)
-	if err != nil {
-		return err
-	}
-	q := u.Query()
-	q.Set("verificationtoken", token)
-	q.Set("username", username)
-	u.RawQuery = q.Encode()
-
-	// Setup email
-	subject := "Reset Your Password"
-	tplData := userPasswordReset{
-		Link: u.String(),
-	}
-	body, err := createBody(userPasswordResetTmpl, tplData)
-	if err != nil {
-		return err
-	}
-
-	// Send email
-	return p.mail.SendToUsers(subject, body, recipient)
-}
-
-// emailUserAccountLocked notifies the user its account has been locked and
-// emails the link with the reset password verification token if the email
-// server is set up.
-func (p *LegacyPoliteiawww) emailUserAccountLocked(username string, recipient map[uuid.UUID]string) error {
-	var email string
-	for _, e := range recipient {
-		email = e
-	}
-	link, err := p.createEmailLink(ResetPasswordGuiRoute,
-		email, "", "")
-	if err != nil {
-		return err
-	}
-
-	tplData := userAccountLocked{
-		Link:     link,
-		Username: username,
-	}
-
-	subject := "Locked Account - Reset Your Password"
-	body, err := createBody(userAccountLockedTmpl, tplData)
-	if err != nil {
-		return err
-	}
-
-	return p.mail.SendToUsers(subject, body, recipient)
-}
-
-// emailUserPasswordChanged notifies the user that his password was changed,
-// and verifies if he was the author of this action, for security purposes.
-func (p *LegacyPoliteiawww) emailUserPasswordChanged(username string, recipient map[uuid.UUID]string) error {
-	tplData := userPasswordChanged{
-		Username: username,
-	}
-
-	subject := "Password Changed - Security Notification"
-	body, err := createBody(userPasswordChangedTmpl, tplData)
-	if err != nil {
-		return err
-	}
-
-	return p.mail.SendToUsers(subject, body, recipient)
 }
 
 // hashPassword hashes the given password string with the default bcrypt cost

@@ -5,14 +5,10 @@
 package legacy
 
 import (
-	"bytes"
-	"encoding/base64"
 	"fmt"
-	"image/png"
 	"time"
 
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -33,93 +29,6 @@ var (
 		www.TOTPTypeBasic: true,
 	}
 )
-
-// processSetTOTP attempts to set a new TOTP key based on the given TOTP type.
-func (p *LegacyPoliteiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTPReply, error) {
-	log.Tracef("processSetTOTP: %v", u.ID.String())
-	// if the user already has a TOTP secret set, check the code that was given
-	// as well to see if it matches to update.
-	if u.TOTPSecret != "" && u.TOTPVerified {
-		valid, err := p.totpValidate(st.Code, u.TOTPSecret, time.Now())
-		if err != nil {
-			log.Debugf("Error valdiating totp code %v", err)
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusTOTPFailedValidation,
-			}
-		}
-		if !valid {
-			return nil, www.UserError{
-				ErrorCode: www.ErrorStatusTOTPFailedValidation,
-			}
-		}
-	}
-
-	// Validate TOTP type that was selected.
-	if _, ok := validTOTPTypes[st.Type]; !ok {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusTOTPInvalidType,
-		}
-	}
-
-	issuer := defaultPoliteiaIssuer
-	if p.cfg.Mode == config.CMSWWWMode {
-		issuer = defaultCMSIssuer
-	}
-	opts := p.totpGenerateOpts(issuer, u.Username)
-	key, err := totp.Generate(opts)
-	if err != nil {
-		return nil, err
-	}
-	// Convert TOTP key into a PNG
-	var buf bytes.Buffer
-	img, err := key.Image(200, 200)
-	if err != nil {
-		return nil, err
-	}
-	png.Encode(&buf, img)
-
-	u.TOTPType = int(st.Type)
-	u.TOTPSecret = key.Secret()
-	u.TOTPVerified = false
-	u.TOTPLastUpdated = append(u.TOTPLastUpdated, time.Now().Unix())
-
-	err = p.db.UserUpdate(*u)
-	if err != nil {
-		return nil, err
-	}
-
-	return &www.SetTOTPReply{
-		Key:   key.Secret(),
-		Image: base64.StdEncoding.EncodeToString(buf.Bytes()),
-	}, nil
-}
-
-// processVerifyTOTP attempts to confirm a newly set TOTP key based on the
-// given TOTP type.
-func (p *LegacyPoliteiawww) processVerifyTOTP(vt www.VerifyTOTP, u *user.User) (*www.VerifyTOTPReply, error) {
-	valid, err := p.totpValidate(vt.Code, u.TOTPSecret, time.Now())
-	if err != nil {
-		log.Debugf("Error valdiating totp code %v", err)
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusTOTPFailedValidation,
-		}
-	}
-	if !valid {
-		return nil, www.UserError{
-			ErrorCode: www.ErrorStatusTOTPFailedValidation,
-		}
-	}
-
-	u.TOTPVerified = true
-	u.TOTPLastUpdated = append(u.TOTPLastUpdated, time.Now().Unix())
-
-	err = p.db.UserUpdate(*u)
-	if err != nil {
-		return nil, err
-	}
-
-	return nil, nil
-}
 
 func (p *LegacyPoliteiawww) totpGenerateOpts(issuer, accountName string) totp.GenerateOpts {
 	if p.test {
