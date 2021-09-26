@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/decred/dcrd/chaincfg/v3"
+	pdclient "github.com/decred/politeia/politeiad/client"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/decred/politeia/politeiawww/mail"
@@ -20,14 +21,15 @@ import (
 // LegacyPoliteiawww represents the legacy politeiawww server.
 type LegacyPoliteiawww struct {
 	sync.RWMutex
-	cfg      *config.Config
-	params   *chaincfg.Params
-	router   *mux.Router
-	auth     *mux.Router // CSRF protected subrouter
-	db       user.Database
-	sessions *sessions.Sessions
-	mail     mail.Mailer
-	http     *http.Client
+	cfg       *config.Config
+	params    *chaincfg.Params
+	router    *mux.Router
+	auth      *mux.Router // CSRF protected subrouter
+	db        user.Database
+	sessions  *sessions.Sessions
+	mail      mail.Mailer
+	http      *http.Client // Deprecated politeiad client
+	politeiad *pdclient.Client
 
 	// userEmails contains a mapping of all user emails to user ID.
 	// This is required for now because the email is stored as part of

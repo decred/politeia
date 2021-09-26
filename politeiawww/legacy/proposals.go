@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package main
+package legacy
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net/http"
 	"strconv"
 	"strings"
 
@@ -24,14 +23,12 @@ import (
 	umplugin "github.com/decred/politeia/politeiad/plugins/usermd"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/sessions"
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
-	"github.com/gorilla/mux"
 )
 
-func (p *politeiawww) proposals(ctx context.Context, reqs []pdv2.RecordRequest) (map[string]www.ProposalRecord, error) {
+func (p *LegacyPoliteiawww) proposals(ctx context.Context, reqs []pdv2.RecordRequest) (map[string]www.ProposalRecord, error) {
 	// Break the requests up so that they do not exceed the politeiad
 	// records page size.
 	var startIdx int
@@ -106,7 +103,7 @@ func (p *politeiawww) proposals(ctx context.Context, reqs []pdv2.RecordRequest) 
 	return proposals, nil
 }
 
-func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (*www.TokenInventoryReply, error) {
+func (p *LegacyPoliteiawww) processTokenInventory(ctx context.Context, isAdmin bool) (*www.TokenInventoryReply, error) {
 	log.Tracef("processTokenInventory")
 
 	// Get record inventory
@@ -189,7 +186,7 @@ func (p *politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (
 	}, nil
 }
 
-func (p *politeiawww) processAllVetted(ctx context.Context, gav www.GetAllVetted) (*www.GetAllVettedReply, error) {
+func (p *LegacyPoliteiawww) processAllVetted(ctx context.Context, gav www.GetAllVetted) (*www.GetAllVettedReply, error) {
 	log.Tracef("processAllVetted: %v %v", gav.Before, gav.After)
 
 	// NOTE: this route is not scalable and needs to be removed ASAP.
@@ -235,7 +232,7 @@ func (p *politeiawww) processAllVetted(ctx context.Context, gav www.GetAllVetted
 	}, nil
 }
 
-func (p *politeiawww) processProposalDetails(ctx context.Context, pd www.ProposalsDetails, u *user.User) (*www.ProposalDetailsReply, error) {
+func (p *LegacyPoliteiawww) processProposalDetails(ctx context.Context, pd www.ProposalsDetails, u *user.User) (*www.ProposalDetailsReply, error) {
 	log.Tracef("processProposalDetails: %v", pd.Token)
 
 	// Parse version
@@ -273,7 +270,7 @@ func (p *politeiawww) processProposalDetails(ctx context.Context, pd www.Proposa
 	}, nil
 }
 
-func (p *politeiawww) processBatchProposals(ctx context.Context, bp www.BatchProposals, u *user.User) (*www.BatchProposalsReply, error) {
+func (p *LegacyPoliteiawww) processBatchProposals(ctx context.Context, bp www.BatchProposals, u *user.User) (*www.BatchProposalsReply, error) {
 	log.Tracef("processBatchProposals: %v", bp.Tokens)
 
 	if len(bp.Tokens) > www.ProposalListPageSize {
@@ -313,7 +310,7 @@ func (p *politeiawww) processBatchProposals(ctx context.Context, bp www.BatchPro
 	}, nil
 }
 
-func (p *politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
+func (p *LegacyPoliteiawww) processBatchVoteSummary(ctx context.Context, bvs www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
 	log.Tracef("processBatchVoteSummary: %v", bvs.Tokens)
 
 	if len(bvs.Tokens) > www.ProposalListPageSize {
@@ -363,7 +360,7 @@ func (p *politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.Batch
 	}, nil
 }
 
-func (p *politeiawww) processVoteStatus(ctx context.Context, token string) (*www.VoteStatusReply, error) {
+func (p *LegacyPoliteiawww) processVoteStatus(ctx context.Context, token string) (*www.VoteStatusReply, error) {
 	log.Tracef("processVoteStatus")
 
 	// Get vote summaries
@@ -382,7 +379,7 @@ func (p *politeiawww) processVoteStatus(ctx context.Context, token string) (*www
 	return &vsr, nil
 }
 
-func (p *politeiawww) processAllVoteStatus(ctx context.Context) (*www.GetAllVoteStatusReply, error) {
+func (p *LegacyPoliteiawww) processAllVoteStatus(ctx context.Context) (*www.GetAllVoteStatusReply, error) {
 	log.Tracef("processAllVoteStatus")
 
 	// NOTE: This route is suppose to return the vote status of all
@@ -445,7 +442,7 @@ func convertVoteDetails(vd tkplugin.VoteDetails) (www.StartVote, www.StartVoteRe
 	return sv, svr
 }
 
-func (p *politeiawww) processActiveVote(ctx context.Context) (*www.ActiveVoteReply, error) {
+func (p *LegacyPoliteiawww) processActiveVote(ctx context.Context) (*www.ActiveVoteReply, error) {
 	log.Tracef("processActiveVotes")
 
 	// Get a page of ongoing votes. This route is deprecated and should
@@ -524,7 +521,7 @@ func (p *politeiawww) processActiveVote(ctx context.Context) (*www.ActiveVoteRep
 	}, nil
 }
 
-func (p *politeiawww) processCastVotes(ctx context.Context, ballot *www.Ballot) (*www.BallotReply, error) {
+func (p *LegacyPoliteiawww) processCastVotes(ctx context.Context, ballot *www.Ballot) (*www.BallotReply, error) {
 	log.Tracef("processCastVotes")
 
 	// Verify there is work to do
@@ -572,7 +569,7 @@ func (p *politeiawww) processCastVotes(ctx context.Context, ballot *www.Ballot) 
 	}, nil
 }
 
-func (p *politeiawww) processVoteResults(ctx context.Context, token string) (*www.VoteResultsReply, error) {
+func (p *LegacyPoliteiawww) processVoteResults(ctx context.Context, token string) (*www.VoteResultsReply, error) {
 	log.Tracef("processVoteResults: %v", token)
 
 	// Get vote details
@@ -607,222 +604,6 @@ func (p *politeiawww) processVoteResults(ctx context.Context, token string) (*ww
 		StartVoteReply: svr,
 		CastVotes:      votes,
 	}, nil
-}
-
-func (p *politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleTokenInventory")
-
-	// Get session user. This is a public route so one might not exist.
-	user, err := p.sessions.GetSessionUser(w, r)
-	if err != nil && !errors.Is(err, sessions.ErrSessionNotFound) {
-		RespondWithError(w, r, 0,
-			"handleTokenInventory: getSessionUser %v", err)
-		return
-	}
-
-	isAdmin := user != nil && user.Admin
-	reply, err := p.processTokenInventory(r.Context(), isAdmin)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleTokenInventory: processTokenInventory: %v", err)
-		return
-	}
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleAllVetted")
-
-	var v www.GetAllVetted
-	err := util.ParseGetParams(r, &v)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleAllVetted: ParseGetParams",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	vr, err := p.processAllVetted(r.Context(), v)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleAllVetted: processAllVetted %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vr)
-}
-
-func (p *politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleProposalDetails")
-
-	// Get version from query string parameters
-	var pd www.ProposalsDetails
-	err := util.ParseGetParams(r, &pd)
-	if err != nil {
-		RespondWithError(w, r, 0, "handleProposalDetails: ParseGetParams",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	// Get proposal token from path parameters
-	pathParams := mux.Vars(r)
-	pd.Token = pathParams["token"]
-
-	// Get session user. This is a public route so one might not exist.
-	user, err := p.sessions.GetSessionUser(w, r)
-	if err != nil && err != sessions.ErrSessionNotFound {
-		RespondWithError(w, r, 0,
-			"handleProposalDetails: getSessionUser %v", err)
-		return
-	}
-
-	reply, err := p.processProposalDetails(r.Context(), pd, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleProposalDetails: processProposalDetails %v", err)
-		return
-	}
-
-	// Reply with the proposal details.
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleBatchProposals")
-
-	var bp www.BatchProposals
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&bp); err != nil {
-		RespondWithError(w, r, 0, "handleBatchProposals: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	// Get session user. This is a public route so one might not exist.
-	user, err := p.sessions.GetSessionUser(w, r)
-	if err != nil && err != sessions.ErrSessionNotFound {
-		RespondWithError(w, r, 0,
-			"handleBatchProposals: getSessionUser %v", err)
-		return
-	}
-
-	reply, err := p.processBatchProposals(r.Context(), bp, user)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleBatchProposals: processBatchProposals %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleBatchVoteSummary")
-
-	var bvs www.BatchVoteSummary
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&bvs); err != nil {
-		RespondWithError(w, r, 0, "handleBatchVoteSummary: unmarshal",
-			www.UserError{
-				ErrorCode: www.ErrorStatusInvalidInput,
-			})
-		return
-	}
-
-	reply, err := p.processBatchVoteSummary(r.Context(), bvs)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleBatchVoteSummary: processBatchVoteSummary %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeiawww) handleVoteStatus(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVoteStatus")
-
-	pathParams := mux.Vars(r)
-	token := pathParams["token"]
-
-	reply, err := p.processVoteStatus(r.Context(), token)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleVoteStatus: processVoteStatus %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeiawww) handleAllVoteStatus(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleAllVoteStatus")
-
-	reply, err := p.processAllVoteStatus(r.Context())
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleAllVoteStatus: processAllVoteStatus %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-func (p *politeiawww) handleActiveVote(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleActiveVote")
-
-	avr, err := p.processActiveVote(r.Context())
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleActiveVote: processActiveVote %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, avr)
-}
-
-func (p *politeiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleCastVotes")
-
-	var cv www.Ballot
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&cv); err != nil {
-		RespondWithError(w, r, 0, "handleCastVotes: unmarshal", www.UserError{
-			ErrorCode: www.ErrorStatusInvalidInput,
-		})
-		return
-	}
-
-	avr, err := p.processCastVotes(r.Context(), &cv)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleCastVotes: processCastVotes %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, avr)
-}
-
-func (p *politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleVoteResults")
-
-	pathParams := mux.Vars(r)
-	token := pathParams["token"]
-
-	vrr, err := p.processVoteResults(r.Context(), token)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleVoteResults: processVoteResults %v",
-			err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, vrr)
 }
 
 // userMetadataDecode decodes and returns the UserMetadata from the provided
