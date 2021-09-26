@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package main
+package legacy
 
 import (
 	"time"
@@ -22,7 +22,7 @@ const (
 	thirdEmailCheck  = 3
 )
 
-func (p *politeiawww) checkInvoiceNotifications() {
+func (p *LegacyPoliteiawww) checkInvoiceNotifications() {
 	log.Infof("Starting cron for invoice email checking")
 	// Launch invoice notification cron job
 	err := p.cron.AddFunc(firstEmailSchedule, func() {
@@ -48,7 +48,7 @@ func (p *politeiawww) checkInvoiceNotifications() {
 	}
 }
 
-func (p *politeiawww) invoiceNotification(emailCheckVersion int) {
+func (p *LegacyPoliteiawww) invoiceNotification(emailCheckVersion int) {
 	currentMonth := time.Now().Month()
 	currentYear := time.Now().Year()
 	// Check all CMS users

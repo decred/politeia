@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package main
+package legacy
 
 import (
 	"bytes"
@@ -599,7 +599,7 @@ func validateContact(contact string) error {
 }
 
 // processNewInvoice tries to submit a new invoice to politeiad.
-func (p *politeiawww) processNewInvoice(ctx context.Context, ni cms.NewInvoice, u *user.User) (*cms.NewInvoiceReply, error) {
+func (p *LegacyPoliteiawww) processNewInvoice(ctx context.Context, ni cms.NewInvoice, u *user.User) (*cms.NewInvoiceReply, error) {
 	log.Tracef("processNewInvoice")
 
 	cmsUser, err := p.getCMSUserByIDRaw(u.ID.String())
@@ -817,7 +817,7 @@ func merkleRoot(files []www.File) (string, error) {
 	return hex.EncodeToString(merkle.Root(digests)[:]), nil
 }
 
-func (p *politeiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error {
+func (p *LegacyPoliteiawww) validateInvoice(ni cms.NewInvoice, u *user.CMSUser) error {
 	log.Tracef("validateInvoice")
 
 	// Obtain signature
@@ -1183,7 +1183,7 @@ func filterDomainInvoice(inv *cms.InvoiceRecord, requestedDomain int) cms.Invoic
 
 // processInvoiceDetails fetches a specific proposal version from the invoice
 // db and returns it.
-func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *user.User) (*cms.InvoiceDetailsReply, error) {
+func (p *LegacyPoliteiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *user.User) (*cms.InvoiceDetailsReply, error) {
 	log.Tracef("processInvoiceDetails")
 
 	requestingUser, err := p.getCMSUserByIDRaw(u.ID.String())
@@ -1224,7 +1224,7 @@ func (p *politeiawww) processInvoiceDetails(invDetails cms.InvoiceDetails, u *us
 }
 
 // processSetInvoiceStatus updates the status of the specified invoice.
-func (p *politeiawww) processSetInvoiceStatus(ctx context.Context, sis cms.SetInvoiceStatus, u *user.User) (*cms.SetInvoiceStatusReply, error) {
+func (p *LegacyPoliteiawww) processSetInvoiceStatus(ctx context.Context, sis cms.SetInvoiceStatus, u *user.User) (*cms.SetInvoiceStatusReply, error) {
 	log.Tracef("processSetInvoiceStatus")
 
 	invRec, err := p.getInvoice(sis.Token)
@@ -1414,7 +1414,7 @@ func statusInSlice(arr []cms.InvoiceStatusT, status cms.InvoiceStatusT) bool {
 }
 
 // processEditInvoice attempts to edit a proposal on politeiad.
-func (p *politeiawww) processEditInvoice(ctx context.Context, ei cms.EditInvoice, u *user.User) (*cms.EditInvoiceReply, error) {
+func (p *LegacyPoliteiawww) processEditInvoice(ctx context.Context, ei cms.EditInvoice, u *user.User) (*cms.EditInvoiceReply, error) {
 	log.Tracef("processEditInvoice %v", ei.Token)
 
 	invRec, err := p.getInvoice(ei.Token)
@@ -1649,7 +1649,7 @@ func (p *politeiawww) processEditInvoice(ctx context.Context, ei cms.EditInvoice
 // processGeneratePayouts looks for all approved invoices and uses the provided
 // exchange rate to generate a list of addresses and amounts for an admin to
 // process payments.
-func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.User) (*cms.GeneratePayoutsReply, error) {
+func (p *LegacyPoliteiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.User) (*cms.GeneratePayoutsReply, error) {
 	log.Tracef("processGeneratePayouts")
 
 	dbInvs, err := p.cmsDB.InvoicesByStatus(int(cms.InvoiceStatusApproved))
@@ -1676,7 +1676,7 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 
 // getInvoice gets the most recent verions of the given invoice from the db
 // then fills in any missing user fields before returning the invoice record.
-func (p *politeiawww) getInvoice(token string) (*cms.InvoiceRecord, error) {
+func (p *LegacyPoliteiawww) getInvoice(token string) (*cms.InvoiceRecord, error) {
 	// Get invoice from db
 	r, err := p.cmsDB.InvoiceByToken(token)
 	if err != nil {
@@ -1700,7 +1700,7 @@ func (p *politeiawww) getInvoice(token string) (*cms.InvoiceRecord, error) {
 }
 
 // getInvoiceVersion gets a specific version of an invoice from the db.
-func (p *politeiawww) getInvoiceVersion(token, version string) (*cms.InvoiceRecord, error) {
+func (p *LegacyPoliteiawww) getInvoiceVersion(token, version string) (*cms.InvoiceRecord, error) {
 	log.Tracef("getInvoiceVersion: %v %v", token, version)
 
 	r, err := p.cmsDB.InvoiceByTokenVersion(token, version)
@@ -1728,7 +1728,7 @@ func (p *politeiawww) getInvoiceVersion(token, version string) (*cms.InvoiceReco
 
 // processUserInvoices fetches all invoices that are currently stored in the
 // cmsdb for the logged in user.
-func (p *politeiawww) processUserInvoices(user *user.User) (*cms.UserInvoicesReply, error) {
+func (p *LegacyPoliteiawww) processUserInvoices(user *user.User) (*cms.UserInvoicesReply, error) {
 	log.Tracef("processUserInvoices")
 
 	dbInvs, err := p.cmsDB.InvoicesByUserID(user.ID.String())
@@ -1754,7 +1754,7 @@ func (p *politeiawww) processUserInvoices(user *user.User) (*cms.UserInvoicesRep
 
 // processAdminUserInvoices fetches all invoices that are currently stored in the
 // cmsdb for the logged in user.
-func (p *politeiawww) processAdminUserInvoices(aui cms.AdminUserInvoices) (*cms.AdminUserInvoicesReply, error) {
+func (p *LegacyPoliteiawww) processAdminUserInvoices(aui cms.AdminUserInvoices) (*cms.AdminUserInvoicesReply, error) {
 	log.Tracef("processAdminUserInvoices")
 
 	dbInvs, err := p.cmsDB.InvoicesByUserID(aui.UserID)
@@ -1781,7 +1781,7 @@ func (p *politeiawww) processAdminUserInvoices(aui cms.AdminUserInvoices) (*cms.
 // processInvoices fetches all invoices that are currently stored in the
 // cmsdb for an administrator, based on request fields (month/year,
 // starttime/endtime, userid and/or status).
-func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserInvoicesReply, error) {
+func (p *LegacyPoliteiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserInvoicesReply, error) {
 	log.Tracef("processInvoices")
 
 	requestingUser, err := p.getCMSUserByIDRaw(u.ID.String())
@@ -1918,7 +1918,7 @@ func (p *politeiawww) processInvoices(ai cms.Invoices, u *user.User) (*cms.UserI
 
 // processNewCommentInvoice sends a new comment decred plugin command to politeaid
 // then fetches the new comment from the cache and returns it.
-func (p *politeiawww) processNewCommentInvoice(ctx context.Context, nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
+func (p *LegacyPoliteiawww) processNewCommentInvoice(ctx context.Context, nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
 	log.Tracef("processNewComment: %v %v", nc.Token, u.ID)
 
 	ir, err := p.getInvoice(nc.Token)
@@ -2045,7 +2045,7 @@ func (p *politeiawww) processNewCommentInvoice(ctx context.Context, nc www.NewCo
 // processCommentsGet returns all comments for a given proposal. If the user is
 // logged in the user's last access time for the given comments will also be
 // returned.
-func (p *politeiawww) processInvoiceComments(ctx context.Context, token string, u *user.User) (*www.GetCommentsReply, error) {
+func (p *LegacyPoliteiawww) processInvoiceComments(ctx context.Context, token string, u *user.User) (*www.GetCommentsReply, error) {
 	log.Tracef("ProcessCommentGet: %v", token)
 
 	ir, err := p.getInvoice(token)
@@ -2094,7 +2094,7 @@ func (p *politeiawww) processInvoiceComments(ctx context.Context, token string, 
 	}, nil
 }
 
-func (p *politeiawww) getInvoiceComments(ctx context.Context, token string) ([]www.Comment, error) {
+func (p *LegacyPoliteiawww) getInvoiceComments(ctx context.Context, token string) ([]www.Comment, error) {
 	log.Tracef("getInvoiceComments: %v", token)
 
 	dc, err := p.decredGetComments(ctx, token)
@@ -2123,7 +2123,7 @@ func (p *politeiawww) getInvoiceComments(ctx context.Context, token string) ([]w
 
 // processPayInvoices looks for all approved invoices and then goes about
 // changing their statuses' to paid.
-func (p *politeiawww) processPayInvoices(ctx context.Context, u *user.User) (*cms.PayInvoicesReply, error) {
+func (p *LegacyPoliteiawww) processPayInvoices(ctx context.Context, u *user.User) (*cms.PayInvoicesReply, error) {
 	log.Tracef("processPayInvoices")
 
 	dbInvs, err := p.cmsDB.InvoicesByStatus(int(cms.InvoiceStatusApproved))
@@ -2200,7 +2200,7 @@ func (p *politeiawww) processPayInvoices(ctx context.Context, u *user.User) (*cm
 }
 
 // processInvoicePayouts looks for all paid invoices within the given start and end dates.
-func (p *politeiawww) processInvoicePayouts(lip cms.InvoicePayouts) (*cms.InvoicePayoutsReply, error) {
+func (p *LegacyPoliteiawww) processInvoicePayouts(lip cms.InvoicePayouts) (*cms.InvoicePayoutsReply, error) {
 	reply := &cms.InvoicePayoutsReply{}
 
 	// check for valid dates
@@ -2229,7 +2229,7 @@ func (p *politeiawww) processInvoicePayouts(lip cms.InvoicePayouts) (*cms.Invoic
 
 // processProposalBilling ensures that the request user is either an admin or
 // listed as an owner of the requested proposal.
-func (p *politeiawww) processProposalBilling(pb cms.ProposalBilling, u *user.User) (*cms.ProposalBillingReply, error) {
+func (p *LegacyPoliteiawww) processProposalBilling(pb cms.ProposalBilling, u *user.User) (*cms.ProposalBillingReply, error) {
 	reply := &cms.ProposalBillingReply{}
 
 	cmsUser, err := p.getCMSUserByID(u.ID.String())
@@ -2378,7 +2378,7 @@ func parseInvoiceInput(files []www.File) (*cms.InvoiceInput, error) {
 	return &invInput, nil
 }
 
-func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSummary) (*cms.ProposalBillingSummaryReply, error) {
+func (p *LegacyPoliteiawww) processProposalBillingSummary(pbs cms.ProposalBillingSummary) (*cms.ProposalBillingSummaryReply, error) {
 	reply := &cms.ProposalBillingSummaryReply{}
 
 	data, err := p.makeProposalsRequest(http.MethodGet, www.RouteTokenInventory, nil)
@@ -2484,7 +2484,7 @@ func (p *politeiawww) processProposalBillingSummary(pbs cms.ProposalBillingSumma
 	return reply, nil
 }
 
-func (p *politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetails) (*cms.ProposalBillingDetailsReply, error) {
+func (p *LegacyPoliteiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetails) (*cms.ProposalBillingDetailsReply, error) {
 	reply := &cms.ProposalBillingDetailsReply{}
 
 	propInvoices, err := p.cmsDB.InvoicesByLineItemsProposalToken(pbd.Token)

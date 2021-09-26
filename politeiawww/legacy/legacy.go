@@ -11,6 +11,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	pdclient "github.com/decred/politeia/politeiad/client"
 	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/sessions"
@@ -28,6 +29,7 @@ type LegacyPoliteiawww struct {
 	db        user.Database
 	sessions  *sessions.Sessions
 	mail      mail.Mailer
+	events    *events.Manager
 	http      *http.Client // Deprecated politeiad client
 	politeiad *pdclient.Client
 

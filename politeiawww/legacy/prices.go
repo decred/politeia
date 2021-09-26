@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package main
+package legacy
 
 import (
 	"context"
@@ -231,7 +231,7 @@ func getPricesBinance(ctx context.Context, pairing string, startDate int64, endD
 // processInvoiceExchangeRate handles requests to return an exchange for a given
 // month and year. It first attempts to find the exchange rate from the database
 // and if none is found it requests the monthly average from the exchange API.
-func (p *politeiawww) processInvoiceExchangeRate(ctx context.Context, ier cms.InvoiceExchangeRate) (cms.InvoiceExchangeRateReply, error) {
+func (p *LegacyPoliteiawww) processInvoiceExchangeRate(ctx context.Context, ier cms.InvoiceExchangeRate) (cms.InvoiceExchangeRateReply, error) {
 	reply := cms.InvoiceExchangeRateReply{}
 
 	monthAvg, err := p.cmsDB.ExchangeRate(int(ier.Month), int(ier.Year))

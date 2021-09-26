@@ -1,8 +1,8 @@
-// Copyright (c) 2019-2020 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package main
+package legacy
 
 import (
 	"bytes"
@@ -17,6 +17,80 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
+
+// handleInviteNewUser handles the invitation of a new contractor by an
+// administrator for the Contractor Management System.
+func (p *LegacyPoliteiawww) handleInviteNewUser(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleInviteNewUser")
+
+	// Get the new user command.
+	var u cms.InviteNewUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&u); err != nil {
+		RespondWithError(w, r, 0, "handleInviteNewUser: unmarshal", www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	reply, err := p.processInviteNewUser(u)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleInviteNewUser: ProcessInviteNewUser %v", err)
+		return
+	}
+
+	// Reply with the verification token.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleRegisterUser handles the completion of registration by invited users of
+// the Contractor Management System.
+func (p *LegacyPoliteiawww) handleRegisterUser(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleRegisterUser")
+
+	// Get the new user command.
+	var u cms.RegisterUser
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&u); err != nil {
+		RespondWithError(w, r, 0, "handleRegisterUser: unmarshal", www.UserError{
+			ErrorCode: www.ErrorStatusInvalidInput,
+		})
+		return
+	}
+
+	reply, err := p.processRegisterUser(u)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleRegisterUser: ProcessRegisterUser %v", err)
+		return
+	}
+
+	// Reply with the verification token.
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleCMSUsers handles fetching a list of cms users.
+func (p *LegacyPoliteiawww) handleCMSUsers(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleCMSUsers")
+
+	var cu cms.CMSUsers
+	err := util.ParseGetParams(r, &cu)
+	if err != nil {
+		RespondWithError(w, r, 0, "handleCMSUsers: ParseGetParams",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	cur, err := p.processCMSUsers(&cu)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"handleCMSUsers: processCMSUsers %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, cur)
+}
 
 // handleNewInvoice handles the incoming new invoice command.
 func (p *LegacyPoliteiawww) handleNewInvoice(w http.ResponseWriter, r *http.Request) {
@@ -1058,139 +1132,4 @@ func (p *LegacyPoliteiawww) handleUserCodeStats(w http.ResponseWriter, r *http.R
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, uscr)
-}
-
-func (p *LegacyPoliteiawww) setCMSWWWRoutes() {
-	// Return a 404 when a route is not found
-	p.router.NotFoundHandler = http.HandlerFunc(p.handleNotFound)
-
-	// The version routes set the CSRF token and thus need to be part
-	// of the CSRF protected auth router.
-	p.auth.HandleFunc("/", p.handleVersion).Methods(http.MethodGet)
-	p.auth.StrictSlash(true).
-		HandleFunc(www.PoliteiaWWWAPIRoute+www.RouteVersion, p.handleVersion).
-		Methods(http.MethodGet)
-
-	// Public routes.
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		www.RoutePolicy, p.handleCMSPolicy,
-		permissionPublic)
-
-	// Routes that require being logged in.
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		www.RouteNewComment, p.handleNewCommentInvoice,
-		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteNewInvoice, p.handleNewInvoice,
-		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteEditInvoice, p.handleEditInvoice,
-		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteInvoiceDetails, p.handleInvoiceDetails,
-		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteUserInvoices, p.handleUserInvoices,
-		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteInvoices, p.handleInvoices,
-		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteInvoiceComments, p.handleInvoiceComments,
-		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteInvoiceExchangeRate, p.handleInvoiceExchangeRate,
-		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteNewDCC, p.handleNewDCC,
-		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteDCCDetails, p.handleDCCDetails,
-		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteGetDCCs, p.handleGetDCCs,
-		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteSupportOpposeDCC, p.handleSupportOpposeDCC,
-		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteNewCommentDCC, p.handleNewCommentDCC,
-		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteDCCComments, p.handleDCCComments,
-		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteUserSubContractors, p.handleUserSubContractors,
-		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteProposalOwner, p.handleProposalOwner,
-		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteProposalBilling, p.handleProposalBilling,
-		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteCastVoteDCC, p.handleCastVoteDCC,
-		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteVoteDetailsDCC, p.handleVoteDetailsDCC,
-		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteActiveVotesDCC, p.handleActiveVoteDCC,
-		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		www.RouteTokenInventory, p.handlePassThroughTokenInventory,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteBatchProposals, p.handlePassThroughBatchProposals,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteSetTOTP, p.handleSetTOTP,
-		permissionLogin)
-	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
-		www.RouteVerifyTOTP, p.handleVerifyTOTP,
-		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteUserCodeStats, p.handleUserCodeStats,
-		permissionLogin)
-
-	// Unauthenticated websocket
-	p.addRoute("", www.PoliteiaWWWAPIRoute,
-		www.RouteUnauthenticatedWebSocket, p.handleUnauthenticatedWebsocket,
-		permissionPublic)
-	// Authenticated websocket
-	p.addRoute("", www.PoliteiaWWWAPIRoute,
-		www.RouteAuthenticatedWebSocket, p.handleAuthenticatedWebsocket,
-		permissionLogin)
-
-	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteInviteNewUser, p.handleInviteNewUser,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteSetInvoiceStatus, p.handleSetInvoiceStatus,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteGeneratePayouts, p.handleGeneratePayouts,
-		permissionAdmin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RoutePayInvoices, p.handlePayInvoices,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteInvoicePayouts, p.handleInvoicePayouts,
-		permissionAdmin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteAdminUserInvoices, p.handleAdminUserInvoices,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteSetDCCStatus, p.handleSetDCCStatus,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteStartVoteDCC, p.handleStartVoteDCC,
-		permissionAdmin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteProposalBillingSummary, p.handleProposalBillingSummary,
-		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteProposalBillingDetails, p.handleProposalBillingDetails,
-		permissionAdmin)
 }

@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package main
+package legacy
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 
 // decredGetComments sends the decred plugin getcomments command to the cache
 // and returns all of the comments for the passed in proposal token.
-func (p *politeiawww) decredGetComments(ctx context.Context, token string) ([]decredplugin.Comment, error) {
+func (p *LegacyPoliteiawww) decredGetComments(ctx context.Context, token string) ([]decredplugin.Comment, error) {
 	// Setup plugin command
 	gc := decredplugin.GetComments{
 		Token: token,
@@ -40,7 +40,7 @@ func (p *politeiawww) decredGetComments(ctx context.Context, token string) ([]de
 	return gcr.Comments, nil
 }
 
-func (p *politeiawww) decredBestBlock(ctx context.Context) (uint32, error) {
+func (p *LegacyPoliteiawww) decredBestBlock(ctx context.Context) (uint32, error) {
 	// Setup plugin command
 	payload, err := decredplugin.EncodeBestBlock(decredplugin.BestBlock{})
 	if err != nil {
