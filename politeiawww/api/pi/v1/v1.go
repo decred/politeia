@@ -307,6 +307,6 @@ type SummariesReply struct {
 // reason to be given. Examples include when a proposal is censored/abandoned
 // or when the billing status of the proposal is set to closed.
 type Summary struct {
-	Status       string `json:"string"`
+	Status       string `json:"status"`
 	StatusReason string `json:"statusreason"`
 }
