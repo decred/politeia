@@ -16,7 +16,7 @@ import (
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	database "github.com/decred/politeia/politeiawww/cmsdatabase"
+	database "github.com/decred/politeia/politeiawww/legacy/cmsdatabase"
 )
 
 const binanceURL = "https://api.binance.com"

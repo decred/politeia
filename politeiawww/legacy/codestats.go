@@ -11,8 +11,8 @@ import (
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/codetracker"
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/legacy/codetracker"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 )
 
 var (

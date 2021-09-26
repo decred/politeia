@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/politeia/politeiawww/codetracker"
-	"github.com/decred/politeia/politeiawww/codetracker/github/api"
-	"github.com/decred/politeia/politeiawww/codetracker/github/database"
-	"github.com/decred/politeia/politeiawww/codetracker/github/database/cockroachdb"
+	"github.com/decred/politeia/politeiawww/legacy/codetracker"
+	"github.com/decred/politeia/politeiawww/legacy/codetracker/github/api"
+	"github.com/decred/politeia/politeiawww/legacy/codetracker/github/database"
+	"github.com/decred/politeia/politeiawww/legacy/codetracker/github/database/cockroachdb"
 )
 
 // github contains the client that communicates with the github api and an

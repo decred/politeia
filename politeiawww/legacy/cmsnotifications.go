@@ -8,7 +8,7 @@ import (
 	"time"
 
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 )
 
 const (

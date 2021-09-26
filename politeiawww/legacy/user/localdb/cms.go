@@ -7,7 +7,7 @@ package localdb
 import (
 	"strings"
 
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 

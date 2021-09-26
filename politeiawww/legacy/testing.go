@@ -24,10 +24,10 @@ import (
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/politeiawww/legacy/user"
+	"github.com/decred/politeia/politeiawww/legacy/user/localdb"
 	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/sessions"
-	"github.com/decred/politeia/politeiawww/user"
-	"github.com/decred/politeia/politeiawww/user/localdb"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -95,7 +95,7 @@ func newFilePNG(t *testing.T, addColor bool) *www.File {
 // newUser creates a new user using randomly generated user credentials and
 // inserts the user into the database.  The user details and the full user
 // identity are returned.
-func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User, *identity.FullIdentity) {
+func newUser(t *testing.T, p *LegacyPoliteiawww, isVerified, isAdmin bool) (*user.User, *identity.FullIdentity) {
 	t.Helper()
 
 	// Generate random bytes to be used as user credentials
@@ -160,7 +160,7 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 	p.setUserEmailsCache(usr.Email, usr.ID)
 
 	// Add paywall info to the user record
-	err = p.GenerateNewUserPaywall(usr)
+	err = p.generateNewUserPaywall(usr)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -179,7 +179,7 @@ func newUser(t *testing.T, p *politeiawww, isVerified, isAdmin bool) (*user.User
 // newCMSUser creates a new user using randomly generated user credentials and
 // inserts the user into the database.  The user details and the full user
 // identity are returned.
-func newCMSUser(t *testing.T, p *politeiawww, isAdmin bool, setGithubname bool, domain cms.DomainTypeT, contractorType cms.ContractorTypeT) *user.CMSUser {
+func newCMSUser(t *testing.T, p *LegacyPoliteiawww, isAdmin bool, setGithubname bool, domain cms.DomainTypeT, contractorType cms.ContractorTypeT) *user.CMSUser {
 	t.Helper()
 
 	// Generate random bytes to be used as user credentials
@@ -265,7 +265,7 @@ func newCMSUser(t *testing.T, p *politeiawww, isAdmin bool, setGithubname bool, 
 
 // newTestPoliteiawww returns a new politeiawww context that is setup for
 // testing and a closure that cleans up the test environment when invoked.
-func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
+func newTestPoliteiawww(t *testing.T) (*LegacyPoliteiawww, func()) {
 	t.Helper()
 
 	// Make a temp directory for test data. Temp directory
@@ -276,8 +276,8 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 	}
 
 	// Setup logging
-	initLogRotator(filepath.Join(dataDir, "politeiawww.test.log"))
-	setLogLevels("off")
+	// initLogRotator(filepath.Join(dataDir, "politeiawww.test.log"))
+	// setLogLevels("off")
 
 	// Setup config
 	xpub := "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFm" +
@@ -315,7 +315,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 	}
 
 	// Setup politeiawww context
-	p := politeiawww{
+	p := LegacyPoliteiawww{
 		cfg:             cfg,
 		params:          chaincfg.TestNet3Params(),
 		router:          mux.NewRouter(),
@@ -343,10 +343,12 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 			t.Fatalf("close db: %v", err)
 		}
 
-		err = logRotator.Close()
-		if err != nil {
-			t.Fatalf("close log rotator: %v", err)
-		}
+		/*
+			err = logRotator.Close()
+			if err != nil {
+				t.Fatalf("close log rotator: %v", err)
+			}
+		*/
 
 		err = os.RemoveAll(dataDir)
 		if err != nil {
@@ -357,7 +359,7 @@ func newTestPoliteiawww(t *testing.T) (*politeiawww, func()) {
 
 // newTestCMSwww returns a new cmswww context that is setup for
 // testing and a closure that cleans up the test environment when invoked.
-func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
+func newTestCMSwww(t *testing.T) (*LegacyPoliteiawww, func()) {
 	t.Helper()
 
 	// Make a temp directory for test data. Temp directory
@@ -368,8 +370,8 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 	}
 
 	// Setup logging
-	initLogRotator(filepath.Join(dataDir, "cmswww.test.log"))
-	setLogLevels("off")
+	// initLogRotator(filepath.Join(dataDir, "cmswww.test.log"))
+	// setLogLevels("off")
 
 	// Setup config
 	xpub := "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFm" +
@@ -412,11 +414,11 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 		t.Fatalf("create cookie key: %v", err)
 	}
 
-	initLogRotator(filepath.Join(dataDir, "cmswww.test.log"))
-	setLogLevels("off")
+	// initLogRotator(filepath.Join(dataDir, "cmswww.test.log"))
+	// setLogLevels("off")
 
 	// Create politeiawww context
-	p := politeiawww{
+	p := LegacyPoliteiawww{
 		cfg:             cfg,
 		db:              db,
 		params:          chaincfg.TestNet3Params(),
@@ -445,10 +447,12 @@ func newTestCMSwww(t *testing.T) (*politeiawww, func()) {
 			t.Fatalf("close db: %v", err)
 		}
 
-		err = logRotator.Close()
-		if err != nil {
-			t.Fatalf("close log rotator: %v", err)
-		}
+		/*
+			err = logRotator.Close()
+			if err != nil {
+				t.Fatalf("close log rotator: %v", err)
+			}
+		*/
 
 		err = os.RemoveAll(dataDir)
 		if err != nil {

@@ -6,7 +6,7 @@ package ticketvote
 
 import (
 	v1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 )
 
 const (

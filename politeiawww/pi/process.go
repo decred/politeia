@@ -10,7 +10,7 @@ import (
 
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	v1 "github.com/decred/politeia/politeiawww/api/pi/v1"
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/pkg/errors"
 )
 

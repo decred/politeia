@@ -13,7 +13,7 @@ import (
 	"time"
 
 	v1 "github.com/decred/politeia/politeiawww/api/cms/v1"
-	database "github.com/decred/politeia/politeiawww/cmsdatabase"
+	database "github.com/decred/politeia/politeiawww/legacy/cmsdatabase"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )

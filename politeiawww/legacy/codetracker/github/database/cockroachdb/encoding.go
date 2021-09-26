@@ -4,9 +4,7 @@
 
 package cockroachdb
 
-import (
-	"github.com/decred/politeia/politeiawww/codetracker/github/database"
-)
+import "github.com/decred/politeia/politeiawww/legacy/codetracker/github/database"
 
 // EncodePullRequestReview encodes a database.PullRequestReview into a
 // cockroachdb PullRequestReview.

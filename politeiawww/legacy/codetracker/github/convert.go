@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/decred/politeia/politeiawww/codetracker"
-	"github.com/decred/politeia/politeiawww/codetracker/github/api"
-	"github.com/decred/politeia/politeiawww/codetracker/github/database"
+	"github.com/decred/politeia/politeiawww/legacy/codetracker"
+	"github.com/decred/politeia/politeiawww/legacy/codetracker/github/api"
+	"github.com/decred/politeia/politeiawww/legacy/codetracker/github/database"
 )
 
 const githubPullURL = "https://github.com"

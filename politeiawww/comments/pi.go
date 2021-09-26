@@ -6,7 +6,7 @@ package comments
 
 import (
 	v1 "github.com/decred/politeia/politeiawww/api/comments/v1"
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 )
 
 // paywallIsEnabled returns whether the user paywall is enabled.

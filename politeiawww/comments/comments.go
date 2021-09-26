@@ -16,8 +16,8 @@ import (
 	v1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/decred/politeia/politeiawww/sessions"
-	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 )
 

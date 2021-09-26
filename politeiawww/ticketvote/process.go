@@ -10,7 +10,7 @@ import (
 
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	v1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 )
 
 func (t *TicketVote) processAuthorize(ctx context.Context, a v1.Authorize, u user.User) (*v1.AuthorizeReply, error) {
