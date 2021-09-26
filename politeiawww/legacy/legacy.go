@@ -10,9 +10,9 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/sessions"
-	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )

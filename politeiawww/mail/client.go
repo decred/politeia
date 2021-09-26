@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/dajohi/goemail"
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/google/uuid"
 )
 

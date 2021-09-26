@@ -11,7 +11,7 @@ import (
 	"time"
 
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 )
 
 // processUserRegistrationPayment verifies that the provided transaction
