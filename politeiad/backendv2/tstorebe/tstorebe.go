@@ -1030,8 +1030,10 @@ func (t *tstoreBackend) Fsck() error {
 	}
 
 	// Sort records into vetted and unvetted groups.
-	vetted := make([]*backend.Record, len(allTokens))
-	unvetted := make([]*backend.Record, len(allTokens))
+	var (
+		vetted   []*backend.Record
+		unvetted []*backend.Record
+	)
 	for _, token := range allTokens {
 		record := records[hex.EncodeToString(token)]
 		if record.RecordMetadata.State == backend.StateVetted {
