@@ -196,7 +196,7 @@ func (l *legacyImport) blobSaveCastVoteDetails(castVoteDetails tv.CastVoteDetail
 }
 
 func (l *legacyImport) blobSaveAuthDetails(authDetails tv.AuthDetails, newToken []byte) error {
-	// Update metadata with new token instead of legacy one.
+	// Set new tlog token to auth details.
 	authDetails.Token = hex.EncodeToString(newToken)
 
 	data, err := json.Marshal(authDetails)
@@ -222,6 +222,9 @@ func (l *legacyImport) blobSaveAuthDetails(authDetails tv.AuthDetails, newToken 
 }
 
 func (l *legacyImport) blobSaveVoteDetails(voteDetails tv.VoteDetails, newToken []byte) error {
+	// Set new tlog token to vote details params.
+	voteDetails.Params.Token = hex.EncodeToString(newToken)
+
 	data, err := json.Marshal(voteDetails)
 	if err != nil {
 		return err

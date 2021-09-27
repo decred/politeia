@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/dcrutil/v3"
 	v1 "github.com/decred/dcrtime/api/v1"
 	"github.com/decred/politeia/decredplugin"
 	pdv1 "github.com/decred/politeia/politeiad/api/v1"
@@ -28,7 +29,6 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	pusermd "github.com/decred/politeia/politeiad/plugins/usermd"
-	"github.com/decred/politeia/politeiad/sharedconfig"
 	"github.com/decred/politeia/util"
 )
 
@@ -38,11 +38,13 @@ const (
 	defaultDBType   = "mysql"
 	defaultDBHost   = "localhost:3306"
 	defaultDBPass   = "politeiadpass"
+
+	defaultDataDirname = "data"
 )
 
 var (
-	defaultHomeDir  = sharedconfig.DefaultHomeDir
-	defaultDataDir  = filepath.Join(defaultHomeDir, sharedconfig.DefaultDataDirname)
+	defaultHomeDir  = dcrutil.AppDataDir("politeiad", false)
+	defaultDataDir  = filepath.Join(defaultHomeDir, defaultDataDirname)
 	activeNetParams = &params{
 		Params:              chaincfg.TestNet3Params(),
 		WalletRPCServerPort: "9111",
