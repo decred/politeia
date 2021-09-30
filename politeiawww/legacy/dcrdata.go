@@ -7,11 +7,9 @@ package legacy
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -33,12 +31,6 @@ func (p *Politeiawww) dcrdataHostHTTP() string {
 
 func (p *Politeiawww) dcrdataHostWS() string {
 	return fmt.Sprintf("wss://%v/ps", p.cfg.DcrdataHost)
-}
-
-// FaucetResponse represents the expected JSON response from the testnet faucet.
-type FaucetResponse struct {
-	Txid  string
-	Error string
 }
 
 // BETransaction is an object representing a transaction; it's
@@ -190,76 +182,6 @@ func fetchTxWithBE(ctx context.Context, url string, address string, minimumAmoun
 	}
 
 	return "", 0, nil
-}
-
-// payWithTestnetFaucet makes a request to the testnet faucet.
-func payWithTestnetFaucet(ctx context.Context, faucetURL string, address string, amount uint64, overridetoken string) (string, error) {
-	_, err := dcrutil.DecodeAddress(address, chaincfg.TestNet3Params())
-	if err != nil {
-		return "", fmt.Errorf("address is invalid: %v", err)
-	}
-
-	dcramount := strconv.FormatFloat(dcrutil.Amount(amount).ToCoin(),
-		'f', -1, 32)
-
-	// build request
-	form := url.Values{}
-	form.Add("address", address)
-	form.Add("amount", dcramount)
-	form.Add("overridetoken", overridetoken)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, faucetURL, strings.NewReader(form.Encode()))
-	if err != nil {
-		return "", err
-	}
-	req.PostForm = form
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-
-	// limit the time we take
-	ctx, cancel := context.WithTimeout(ctx,
-		faucetTimeout)
-	// it is good practice to use the cancellation function even with a timeout
-	defer cancel()
-	req = req.WithContext(ctx)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return "", fmt.Errorf("testnet faucet error: %v %v %v",
-				resp.StatusCode, faucetURL, err)
-		}
-		return "", fmt.Errorf("testnet faucet error: %v %v %s",
-			resp.StatusCode, faucetURL, body)
-	}
-
-	if resp == nil {
-		return "", errors.New("unknown error")
-	}
-
-	jsonReply := resp.Header.Get("X-Json-Reply")
-	if jsonReply == "" {
-		return "", fmt.Errorf("bad reply from %v", faucetURL)
-	}
-
-	fr := &FaucetResponse{}
-	err = json.Unmarshal([]byte(jsonReply), fr)
-	if err != nil {
-		return "", fmt.Errorf("unable to process reply: '%v': %v", jsonReply,
-			err)
-	}
-
-	if fr.Error != "" {
-		return "", errors.New(fr.Error)
-	}
-
-	return fr.Txid, nil
 }
 
 // fetchTxWithBlockExplorers uses public block explorers to look for a
