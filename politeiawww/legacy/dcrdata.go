@@ -19,17 +19,12 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil/v3"
-	"github.com/decred/dcrd/hdkeychain/v3"
 )
 
 const (
 	dcrdataTimeout = 3 * time.Second // Dcrdata request timeout
 	faucetTimeout  = 5 * time.Second // Testnet faucet request timeout
-
-	// Must match dcrwallets udb.ExternalBranch
-	externalBranch uint32 = 0
 )
 
 func (p *Politeiawww) dcrdataHostHTTP() string {
@@ -195,35 +190,6 @@ func fetchTxWithBE(ctx context.Context, url string, address string, minimumAmoun
 	}
 
 	return "", 0, nil
-}
-
-// derivePaywallAddress derives a paywall address using the provided xpub and
-// index.
-func derivePaywallAddress(params *chaincfg.Params, xpub string, index uint32) (string, error) {
-	// Parse the extended public key.
-	acctKey, err := hdkeychain.NewKeyFromString(xpub, params)
-	if err != nil {
-		return "", err
-	}
-
-	// Derive the appropriate branch key.
-	branchKey, err := acctKey.Child(externalBranch)
-	if err != nil {
-		return "", err
-	}
-
-	key, err := branchKey.Child(index)
-	if err != nil {
-		return "", err
-	}
-
-	pkh := dcrutil.Hash160(key.SerializedPubKey())
-	addr, err := dcrutil.NewAddressPubKeyHash(pkh, params, dcrec.STEcdsaSecp256k1)
-	if err != nil {
-		return "", err
-	}
-
-	return addr.Address(), nil
 }
 
 // payWithTestnetFaucet makes a request to the testnet faucet.

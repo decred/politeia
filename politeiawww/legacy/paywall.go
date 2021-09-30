@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/politeiawww/legacy/user"
+	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 )
 
@@ -415,7 +416,7 @@ func (p *Politeiawww) updateUserAsPaid(u *user.User, tx string) error {
 
 // derivePaywallInfo derives a new paywall address for the user.
 func (p *Politeiawww) derivePaywallInfo(u *user.User) (string, uint64, int64, error) {
-	address, err := derivePaywallAddress(p.params,
+	address, err := util.DeriveChildAddress(p.params,
 		p.cfg.PaywallXpub, uint32(u.PaywallAddressIndex))
 	if err != nil {
 		err = fmt.Errorf("Unable to derive paywall address #%v "+
