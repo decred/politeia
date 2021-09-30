@@ -20,6 +20,7 @@ import (
 	pdclient "github.com/decred/politeia/politeiad/client"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
+	"github.com/decred/politeia/politeiawww/legacy"
 	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/util"
@@ -43,6 +44,7 @@ type politeiawww struct {
 	mail      mail.Mailer
 	sessions  *sessions.Sessions
 	events    *events.Manager
+	legacy    *legacy.Politeiawww // Legacy API
 
 	// Client websocket connections
 	ws    map[string]map[string]*wsContext // [uuid][]*context

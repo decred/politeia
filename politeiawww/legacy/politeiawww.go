@@ -81,17 +81,17 @@ type Politeiawww struct {
 }
 
 // NewPoliteiawww returns a new legacy Politeiawww.
-func NewPoliteiawww(cfg *config.Config, public, auth *mux.Router) *Politeiawww {
+func NewPoliteiawww(cfg *config.Config, router, auth *mux.Router, params *chaincfg.Params, pdclient *pdclient.Client) (*Politeiawww, error) {
 	// Setup http client for politeiad calls
 	httpClient, err := util.NewHTTPClient(false, cfg.RPCCert)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	/*
-		// Setup user database
-		log.Infof("User database: %v", cfg.UserDB)
+	// Setup user database
+	log.Infof("User database: %v", cfg.UserDB)
 
+	/*
 		var userDB user.Database
 		var mailerDB user.MailerDB
 		switch cfg.UserDB {
@@ -171,26 +171,33 @@ func NewPoliteiawww(cfg *config.Config, public, auth *mux.Router) *Politeiawww {
 		}
 	*/
 
-	return &Politeiawww{
-		cfg:             cfg,
-		params:          activeNetParams.Params,
-		router:          router,
-		auth:            auth,
-		politeiad:       pdc,
-		http:            httpClient,
-		db:              userDB,
-		mail:            mailer,
-		sessions:        sessions.New(userDB, cookieKey),
+	p := &Politeiawww{
+		cfg:       cfg,
+		params:    params,
+		router:    router,
+		auth:      auth,
+		politeiad: pdclient,
+		http:      httpClient,
+		// db:              userDB,
+		// mail:            mailer,
+		// sessions:        sessions.New(userDB, cookieKey),
 		events:          events.NewManager(),
 		userEmails:      make(map[string]uuid.UUID, 1024),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember, 1024),
 	}
+
+	err = p.setup()
+	if err != nil {
+		return nil, err
+	}
+
+	return p, nil
 }
 
 // Setup performs any required setup for Politeiawww.
-func (p *Politeiawww) Setup() {
+func (p *Politeiawww) setup() error {
 	// Setup email-userID cache
-	err = p.initUserEmailsCache()
+	err := p.initUserEmailsCache()
 	if err != nil {
 		return err
 	}
