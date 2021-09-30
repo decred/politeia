@@ -55,12 +55,14 @@ var (
 	logRotator *rotator.Rotator
 
 	log         = backendLog.Logger("PWWW")
-	userdbLog   = backendLog.Logger("USER")
-	sessionsLog = backendLog.Logger("SESS")
 	eventsLog   = backendLog.Logger("EVNT")
+	sessionsLog = backendLog.Logger("SESS")
 	apiLog      = backendLog.Logger("APIS")
 
-	// CMS loggers
+	// Legacy loggers
+	userdbLog = backendLog.Logger("USER")
+
+	// Legacy CMS loggers
 	cmsdbLog         = backendLog.Logger("CMDB")
 	wsdcrdataLog     = backendLog.Logger("WSDD")
 	githubTrackerLog = backendLog.Logger("GHTR")
@@ -73,7 +75,7 @@ func init() {
 	sessions.UseLogger(sessionsLog)
 	events.UseLogger(eventsLog)
 
-	// UserDB loggers
+	// Legacy UserDB loggers
 	localdb.UseLogger(userdbLog)
 	cockroachdb.UseLogger(userdbLog)
 	mysql.UseLogger(userdbLog)
@@ -96,8 +98,10 @@ var subsystemLoggers = map[string]slog.Logger{
 	"PWWW": log,
 	"SESS": sessionsLog,
 	"EVNT": eventsLog,
-	"USER": userdbLog,
 	"APIS": apiLog,
+
+	// Legacy loggers
+	"USER": userdbLog,
 	"CMDB": cmsdbLog,
 	"WSDD": wsdcrdataLog,
 	"GHTR": githubTrackerLog,

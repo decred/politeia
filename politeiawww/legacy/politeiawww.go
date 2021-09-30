@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"path/filepath"
 	"sync"
@@ -33,6 +34,9 @@ import (
 	"github.com/decred/politeia/politeiawww/legacy/codetracker"
 	ghtracker "github.com/decred/politeia/politeiawww/legacy/codetracker/github"
 	"github.com/decred/politeia/politeiawww/legacy/user"
+	"github.com/decred/politeia/politeiawww/legacy/user/cockroachdb"
+	"github.com/decred/politeia/politeiawww/legacy/user/localdb"
+	"github.com/decred/politeia/politeiawww/legacy/user/mysql"
 	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/pi"
 	"github.com/decred/politeia/politeiawww/records"
@@ -91,96 +95,95 @@ func NewPoliteiawww(cfg *config.Config, router, auth *mux.Router, params *chainc
 	// Setup user database
 	log.Infof("User database: %v", cfg.UserDB)
 
-	/*
-		var userDB user.Database
-		var mailerDB user.MailerDB
-		switch cfg.UserDB {
-		case userDBLevel:
-			db, err := localdb.New(cfg.DataDir)
-			if err != nil {
-				return err
-			}
-			userDB = db
-
-		case userDBMySQL, userDBCockroach:
-			// If old encryption key is set it means that we need
-			// to open a db connection using the old key and then
-			// rotate keys.
-			var encryptionKey string
-			if cfg.OldEncryptionKey != "" {
-				encryptionKey = cfg.OldEncryptionKey
-			} else {
-				encryptionKey = cfg.EncryptionKey
-			}
-
-			// Open db connection.
-			network := filepath.Base(cfg.DataDir)
-			switch cfg.UserDB {
-			case userDBMySQL:
-				mysql, err := mysql.New(cfg.DBHost,
-					cfg.DBPass, network, encryptionKey)
-				if err != nil {
-					return fmt.Errorf("new mysql db: %v", err)
-				}
-				userDB = mysql
-				mailerDB = mysql
-			case userDBCockroach:
-				cdb, err := cockroachdb.New(cfg.DBHost, network,
-					cfg.DBRootCert, cfg.DBCert, cfg.DBKey,
-					encryptionKey)
-				if err != nil {
-					return fmt.Errorf("new cdb db: %v", err)
-				}
-				userDB = cdb
-				mailerDB = cdb
-			}
-
-			// Rotate keys.
-			if cfg.OldEncryptionKey != "" {
-				err = userDB.RotateKeys(cfg.EncryptionKey)
-				if err != nil {
-					return fmt.Errorf("rotate userdb keys: %v", err)
-				}
-			}
-
-		default:
-			return fmt.Errorf("invalid userdb '%v'", cfg.UserDB)
-		}
-
-		// Setup sessions store
-		var cookieKey []byte
-		if cookieKey, err = ioutil.ReadFile(cfg.CookieKeyFile); err != nil {
-			log.Infof("Cookie key not found, generating one...")
-			cookieKey, err = util.Random(32)
-			if err != nil {
-				return err
-			}
-			err = ioutil.WriteFile(cfg.CookieKeyFile, cookieKey, 0400)
-			if err != nil {
-				return err
-			}
-			log.Infof("Cookie key generated")
-		}
-
-		// Setup mailer smtp client
-		mailer, err := mail.NewClient(cfg.MailHost, cfg.MailUser,
-			cfg.MailPass, cfg.MailAddress, cfg.MailCert,
-			cfg.MailSkipVerify, cfg.MailRateLimit, mailerDB)
+	var userDB user.Database
+	var mailerDB user.MailerDB
+	switch cfg.UserDB {
+	case config.LevelDB:
+		db, err := localdb.New(cfg.DataDir)
 		if err != nil {
-			return fmt.Errorf("new mail client: %v", err)
+			return nil, err
 		}
-	*/
+		userDB = db
 
+	case config.MySQL, config.CockroachDB:
+		// If old encryption key is set it means that we need
+		// to open a db connection using the old key and then
+		// rotate keys.
+		var encryptionKey string
+		if cfg.OldEncryptionKey != "" {
+			encryptionKey = cfg.OldEncryptionKey
+		} else {
+			encryptionKey = cfg.EncryptionKey
+		}
+
+		// Open db connection.
+		network := filepath.Base(cfg.DataDir)
+		switch cfg.UserDB {
+		case config.MySQL:
+			mysql, err := mysql.New(cfg.DBHost,
+				cfg.DBPass, network, encryptionKey)
+			if err != nil {
+				return nil, fmt.Errorf("new mysql db: %v", err)
+			}
+			userDB = mysql
+			mailerDB = mysql
+		case config.CockroachDB:
+			cdb, err := cockroachdb.New(cfg.DBHost, network,
+				cfg.DBRootCert, cfg.DBCert, cfg.DBKey,
+				encryptionKey)
+			if err != nil {
+				return nil, fmt.Errorf("new cdb db: %v", err)
+			}
+			userDB = cdb
+			mailerDB = cdb
+		}
+
+		// Rotate keys.
+		if cfg.OldEncryptionKey != "" {
+			err = userDB.RotateKeys(cfg.EncryptionKey)
+			if err != nil {
+				return nil, fmt.Errorf("rotate userdb keys: %v", err)
+			}
+		}
+
+	default:
+		return nil, fmt.Errorf("invalid userdb '%v'", cfg.UserDB)
+	}
+
+	// Setup sessions store
+	var cookieKey []byte
+	if cookieKey, err = ioutil.ReadFile(cfg.CookieKeyFile); err != nil {
+		log.Infof("Cookie key not found, generating one...")
+		cookieKey, err = util.Random(32)
+		if err != nil {
+			return nil, err
+		}
+		err = ioutil.WriteFile(cfg.CookieKeyFile, cookieKey, 0400)
+		if err != nil {
+			return nil, err
+		}
+		log.Infof("Cookie key generated")
+	}
+
+	// Setup mailer smtp client
+	mailer, err := mail.NewClient(cfg.MailHost, cfg.MailUser,
+		cfg.MailPass, cfg.MailAddress, cfg.MailCert,
+		cfg.MailSkipVerify, cfg.MailRateLimit, mailerDB)
+	if err != nil {
+		return nil, fmt.Errorf("new mail client: %v", err)
+	}
+
+	// Setup legacy politeiawww context
 	p := &Politeiawww{
-		cfg:       cfg,
-		params:    params,
-		router:    router,
-		auth:      auth,
-		politeiad: pdclient,
-		http:      httpClient,
-		// db:              userDB,
-		// mail:            mailer,
-		// sessions:        sessions.New(userDB, cookieKey),
+		cfg:             cfg,
+		params:          params,
+		router:          router,
+		auth:            auth,
+		politeiad:       pdclient,
+		http:            httpClient,
+		db:              userDB,
+		mail:            mailer,
+		sessions:        sessions.New(userDB, cookieKey),
 		events:          events.NewManager(),
 		userEmails:      make(map[string]uuid.UUID, 1024),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember, 1024),
@@ -192,33 +195,6 @@ func NewPoliteiawww(cfg *config.Config, router, auth *mux.Router, params *chainc
 	}
 
 	return p, nil
-}
-
-// Setup performs any required setup for Politeiawww.
-func (p *Politeiawww) setup() error {
-	// Setup email-userID cache
-	err := p.initUserEmailsCache()
-	if err != nil {
-		return err
-	}
-
-	// Perform application specific setup
-	switch p.cfg.Mode {
-	case config.PoliteiaWWWMode:
-		err = p.setupPi()
-		if err != nil {
-			return fmt.Errorf("setupPi: %v", err)
-		}
-	case config.CMSWWWMode:
-		err = p.setupCMS()
-		if err != nil {
-			return fmt.Errorf("setupCMS: %v", err)
-		}
-	default:
-		return fmt.Errorf("unknown mode: %v", p.cfg.Mode)
-	}
-
-	return nil
 }
 
 // Close performs any required shutdown and cleanup for Politeiawww.
@@ -233,6 +209,27 @@ func (p *Politeiawww) Close() {
 	case config.CMSWWWMode:
 		p.wsDcrdata.Close()
 	}
+}
+
+// Setup performs any required setup for Politeiawww.
+func (p *Politeiawww) setup() error {
+	// Setup email-userID cache
+	err := p.initUserEmailsCache()
+	if err != nil {
+		return err
+	}
+
+	// Perform application specific setup
+	switch p.cfg.Mode {
+	case config.PoliteiaWWWMode:
+		return p.setupPi()
+	case config.CMSWWWMode:
+		return p.setupCMS()
+	default:
+		return fmt.Errorf("unknown mode: %v", p.cfg.Mode)
+	}
+
+	return nil
 }
 
 func (p *Politeiawww) setupPi() error {

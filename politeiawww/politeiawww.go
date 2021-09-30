@@ -21,7 +21,6 @@ import (
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/legacy"
-	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -41,12 +40,12 @@ type politeiawww struct {
 	router    *mux.Router
 	auth      *mux.Router // CSRF protected subrouter
 	politeiad *pdclient.Client
-	mail      mail.Mailer
 	sessions  *sessions.Sessions
 	events    *events.Manager
 	legacy    *legacy.Politeiawww // Legacy API
 
-	// Client websocket connections
+	// Client websocket connections. These do not allow for horizontal scaling
+	// yet.
 	ws    map[string]map[string]*wsContext // [uuid][]*context
 	wsMtx sync.RWMutex
 }
@@ -169,6 +168,13 @@ func _main() error {
 		return err
 	}
 
+	// Setup the legacy politeiawww context
+	legacywww, err := legacy.NewPoliteiawww(cfg, router, auth,
+		activeNetParams.Params, pdc)
+	if err != nil {
+		return err
+	}
+
 	// Setup application context
 	p := &politeiawww{
 		cfg:       cfg,
@@ -176,11 +182,11 @@ func _main() error {
 		router:    router,
 		auth:      auth,
 		politeiad: pdc,
-		// NOTE: These need implementations that don't
-		// use the legacy user database.
-		// mail:       mailer,
+		// NOTE: This needs an implementation that
+		// doesn't use the legacy user database.
 		// sessions:   sessions.New(userDB, cookieKey),
 		events: events.NewManager(),
+		legacy: legacywww,
 		ws:     make(map[string]map[string]*wsContext),
 	}
 

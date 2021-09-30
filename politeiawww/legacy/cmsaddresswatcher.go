@@ -226,7 +226,7 @@ func (p *Politeiawww) checkHistoricalPayments(ctx context.Context, payment *data
 	for i, tx := range txs {
 		// Check to see if running mainnet, if so, only accept transactions
 		// that originate from the Treasury Subsidy.
-		if !p.cfg.TestNet && !p.cfg.SimNet {
+		if !p.cfg.TestNet {
 			found := false
 			for _, address := range tx.InputAddresses {
 				if address == mainnetSubsidyAddr {
@@ -302,7 +302,7 @@ func (p *Politeiawww) checkPayments(ctx context.Context, payment *database.Payme
 
 	// Check to see if running mainnet, if so, only accept transactions
 	// that originate from the Treasury Subsidy.
-	if !p.cfg.TestNet && !p.cfg.SimNet {
+	if !p.cfg.TestNet {
 		for _, address := range tx.InputAddresses {
 			if address != mainnetSubsidyAddr {
 				// All input addresses should be from the subsidy address
