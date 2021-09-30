@@ -17,7 +17,7 @@ import (
 
 // convertCommentsJournal walks through the legacy comments journal converting
 // them to the appropriate plugin payloads for the tstore backend.
-func (l *legacyImport) convertCommentsJournal(path string, newToken []byte) error {
+func (l *legacyImport) convertCommentsJournal(path, legacyToken string, newToken []byte) error {
 	fh, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0664)
 	if err != nil {
 		return err
@@ -30,7 +30,7 @@ func (l *legacyImport) convertCommentsJournal(path string, newToken []byte) erro
 	l.comments[hex.EncodeToString(newToken)] = make(map[string]decredplugin.Comment)
 	l.Unlock()
 
-	fmt.Printf("  comments: Parsing comments journal for %v ...\n", hex.EncodeToString(newToken))
+	fmt.Printf("  comments:   Parsing comments journal for %v...\n", legacyToken)
 
 	for i := 0; s.Scan(); i++ {
 		ss := bytes.NewReader([]byte(s.Text()))
@@ -78,7 +78,6 @@ func (l *legacyImport) convertCommentsJournal(path string, newToken []byte) erro
 			if err != nil {
 				return fmt.Errorf("comment journal addlike: %v", err)
 			}
-
 			err = l.blobSaveCommentLike(lc, newToken)
 			if err != nil {
 				return err
@@ -89,7 +88,7 @@ func (l *legacyImport) convertCommentsJournal(path string, newToken []byte) erro
 		}
 	}
 
-	fmt.Printf("  comments: Done for %v!\n", hex.EncodeToString(newToken))
+	fmt.Printf("  comments:   Done for %v!\n", legacyToken)
 
 	return nil
 }

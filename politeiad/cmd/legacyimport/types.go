@@ -4,30 +4,55 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
 // parsedData holds the data needed by tlog to insert the legacy
 // records on tstore.
 type parsedData struct {
-	files         []backend.File
-	metadata      []backend.MetadataStream
-	recordMd      *backend.RecordMetadata
-	authDetailsMd *ticketvote.AuthDetails
-	voteDetailsMd *ticketvote.VoteDetails
-	commentsPath  string
-	ballotPath    string
-	legacyToken   string
+	files          []backend.File
+	metadata       []backend.MetadataStream
+	recordMd       *backend.RecordMetadata
+	statusChangeMd *usermd.StatusChangeMetadata
+	authDetailsMd  *ticketvote.AuthDetails
+	voteDetailsMd  *ticketvote.VoteDetails
+	commentsPath   string
+	ballotPath     string
+	legacyToken    string
+	parentToken    string
+}
+
+type voteCollider struct {
+	Token  string `json:"token"`
+	Ticket string `json:"ticket"`
+}
+
+type startRunoffRecord struct {
+	Submissions      []string `json:"submissions"`
+	Mask             uint64   `json:"mask"`
+	Duration         uint32   `json:"duration"`
+	QuorumPercentage uint32   `json:"quorumpercentage"`
+	PassPercentage   uint32   `json:"passpercentage"`
+	StartBlockHeight uint32   `json:"startblockheight"`
+	StartBlockHash   string   `json:"startblockhash"`
+	EndBlockHeight   uint32   `json:"endblockheight"`
+	EligibleTickets  []string `json:"eligibletickets"`
+}
+
+type proposalMetadata struct {
+	Name   string
+	LinkTo string
+	LinkBy int64
 }
 
 // likeCommentV1 unmarshals the like action data from the gitbe's comments
 // journal.
 type likeCommentV1 struct {
-	Token     string `json:"token"`     // Censorship token
-	CommentID string `json:"commentid"` // Comment ID
-	Action    string `json:"action"`    // Up or downvote (1, -1)
-	Signature string `json:"signature"` // Client Signature of Token+CommentID+Action
-	PublicKey string `json:"publickey"` // Pubkey used for Signature
-
+	Token     string `json:"token"`               // Censorship token
+	CommentID string `json:"commentid"`           // Comment ID
+	Action    string `json:"action"`              // Up or downvote (1, -1)
+	Signature string `json:"signature"`           // Client Signature of Token+CommentID+Action
+	PublicKey string `json:"publickey"`           // Pubkey used for Signature
 	Receipt   string `json:"receipt,omitempty"`   // Signature of Signature
 	Timestamp int64  `json:"timestamp,omitempty"` // Received UNIX timestamp
 }
@@ -66,17 +91,17 @@ type authorizeVoteV1 struct {
 }
 
 type voteV1 struct {
-	Token            string       `json:"token"`            // Token that identifies vote
-	ProposalVersion  uint32       `json:"proposalversion"`  // Proposal version being voted on
-	Type             int          `json:"type"`             // Type of vote
-	Mask             uint64       `json:"mask"`             // Valid votebits
-	Duration         uint32       `json:"duration"`         // Duration in blocks
-	QuorumPercentage uint32       `json:"quorumpercentage"` // Percent of eligible votes required for quorum
-	PassPercentage   uint32       `json:"passpercentage"`   // Percent of total votes required to pass
-	Options          []voteOption `json:"options"`          // Vote option
+	Token            string         `json:"token"`            // Token that identifies vote
+	ProposalVersion  uint32         `json:"proposalversion"`  // Proposal version being voted on
+	Type             int            `json:"type"`             // Type of vote
+	Mask             uint64         `json:"mask"`             // Valid votebits
+	Duration         uint32         `json:"duration"`         // Duration in blocks
+	QuorumPercentage uint32         `json:"quorumpercentage"` // Percent of eligible votes required for quorum
+	PassPercentage   uint32         `json:"passpercentage"`   // Percent of total votes required to pass
+	Options          []voteOptionV1 `json:"options"`          // Vote option
 }
 
-type voteOption struct {
+type voteOptionV1 struct {
 	Id          string `json:"id"`          // Single unique word identifying vote (e.g. yes)
 	Description string `json:"description"` // Longer description of the vote
 	Bits        uint64 `json:"bits"`        // Bits used for this option

@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -21,24 +20,15 @@ import (
 	"github.com/subosito/gozaru"
 )
 
-func (l *legacyImport) recordSave(files []backend.File, metadata []backend.MetadataStream, recordmd backend.RecordMetadata) ([]byte, error) {
-	// Create a new tlog tree for the legacy record.
-	newToken, err := l.tstore.RecordNew()
-	if err != nil {
-		return nil, err
-	}
-
-	// Insert new token on record metadata.
-	recordmd.Token = hex.EncodeToString(newToken)
-
+func (l *legacyImport) recordSave(newToken []byte, files []backend.File, metadata []backend.MetadataStream, recordmd backend.RecordMetadata) error {
 	// Verify data
-	err = metadataStreamsVerify(metadata)
+	err := metadataStreamsVerify(metadata)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = filesVerify(files, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Check if record status is public. If so, we need to first save it as
@@ -53,7 +43,7 @@ func (l *legacyImport) recordSave(files []backend.File, metadata []backend.Metad
 	// Save record.
 	err = l.tstore.RecordSave(newToken, recordmd, metadata, files)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// If it's public, we need another save to ensure the public status
@@ -63,11 +53,11 @@ func (l *legacyImport) recordSave(files []backend.File, metadata []backend.Metad
 		recordmd.Iteration = 2
 		err = l.tstore.RecordSave(newToken, recordmd, metadata, files)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	return newToken, nil
+	return nil
 }
 
 func (l *legacyImport) fetchUserByPubKey(pubkey string) (*user, error) {
@@ -146,8 +136,10 @@ func convertStatusChangeMetadata(path string) (*usermd.StatusChangeMetadata, err
 	if err != nil {
 		return nil, err
 	}
-	var rsc mdstream.RecordStatusChangeV2
-	var streams []mdstream.RecordStatusChangeV2
+	var (
+		rsc     mdstream.RecordStatusChangeV2
+		streams []mdstream.RecordStatusChangeV2
+	)
 	err = json.Unmarshal(b, &rsc)
 	if err != nil {
 		// Record has 02.metadata.txt containing nested status changes.
@@ -156,7 +148,6 @@ func convertStatusChangeMetadata(path string) (*usermd.StatusChangeMetadata, err
 			if v == "" {
 				continue
 			}
-			var rsc mdstream.RecordStatusChangeV2
 			err = json.Unmarshal([]byte(v+"}"), &rsc)
 			if err != nil {
 				return nil, err
@@ -170,6 +161,7 @@ func convertStatusChangeMetadata(path string) (*usermd.StatusChangeMetadata, err
 	// Return most recent status change md.
 	latest := streams[len(streams)-1]
 	return &pusermd.StatusChangeMetadata{
+		// Token:
 		Version:   uint32(latest.Version),
 		Status:    uint32(latest.NewStatus),
 		Reason:    latest.StatusChangeMessage,
@@ -179,9 +171,9 @@ func convertStatusChangeMetadata(path string) (*usermd.StatusChangeMetadata, err
 	}, nil
 }
 
-// convertProposalGeneral converts the ProposalGeneralV1 metadata structure
-// previously used on legacy git records.
-func (l *legacyImport) convertProposalGeneral(path string) (*usermd.UserMetadata, string, error) {
+// convertUserMetadata converts the 00.metadata.txt file which contains the
+// ProposalGeneralV1 metadata structure previously used on legacy git records.
+func (l *legacyImport) convertUserMetadata(path string) (*usermd.UserMetadata, string, error) {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, "", err
@@ -193,7 +185,7 @@ func (l *legacyImport) convertProposalGeneral(path string) (*usermd.UserMetadata
 		return nil, "", err
 	}
 
-	usr, err := l.fetchUserByPubKey(pgv1.PublicKey)
+	_, err = l.fetchUserByPubKey(pgv1.PublicKey)
 	if err != nil {
 		return nil, "", err
 	}
@@ -202,8 +194,10 @@ func (l *legacyImport) convertProposalGeneral(path string) (*usermd.UserMetadata
 	// userdb this tool is using, then recordSave will error out.
 	// TODO: add to readme that this needs to be set. add flag maybe
 	return &pusermd.UserMetadata{
-		UserID:    usr.ID,
-		PublicKey: pgv1.PublicKey,
+		// UserID:    usr.ID,
+		// PublicKey: pgv1.PublicKey,
+		UserID:    "810aefda-1e13-4ebc-a9e8-4162435eca7b",
+		PublicKey: "1e2edbee94c9b2d6af1062cf9e10336910de3ebd68a38150ae76bc01b1e7da41",
 		Signature: pgv1.Signature,
 	}, pgv1.Name, nil
 }
