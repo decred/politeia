@@ -18,7 +18,7 @@ import (
 )
 
 // handleSecret is a mock handler to test privileged routes.
-func (p *LegacyPoliteiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleSecret(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleSecret")
 
 	fmt.Fprintf(w, "secret sauce")
@@ -28,7 +28,7 @@ func (p *LegacyPoliteiawww) handleSecret(w http.ResponseWriter, r *http.Request)
 // new user doesn't already exist, and then creates a new user in the db and
 // generates a random code used for verification. The code is intended to be
 // sent to the specified email.
-func (p *LegacyPoliteiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewUser")
 
 	// Get the new user command.
@@ -55,7 +55,7 @@ func (p *LegacyPoliteiawww) handleNewUser(w http.ResponseWriter, r *http.Request
 // verifies that the user with the provided email has a verification token that
 // matches the provided token and that the verification token has not yet
 // expired.
-func (p *LegacyPoliteiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVerifyNewUser")
 
 	// Get the new user verify command.
@@ -81,7 +81,7 @@ func (p *LegacyPoliteiawww) handleVerifyNewUser(w http.ResponseWriter, r *http.R
 
 // handleResendVerification sends another verification email for new user
 // signup, if there is an existing verification token and it is expired.
-func (p *LegacyPoliteiawww) handleResendVerification(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleResendVerification(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleResendVerification")
 
 	// Get the resend verification command.
@@ -122,7 +122,7 @@ func (p *LegacyPoliteiawww) handleResendVerification(w http.ResponseWriter, r *h
 // handleLogin handles the incoming login command.  It verifies that the user
 // exists and the accompanying password.  On success a cookie is added to the
 // gorilla sessions that must be returned on subsequent calls.
-func (p *LegacyPoliteiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleLogin(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleLogin")
 
 	// Get the login command.
@@ -159,7 +159,7 @@ func (p *LegacyPoliteiawww) handleLogin(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleLogout logs the user out.
-func (p *LegacyPoliteiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleLogout(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleLogout")
 
 	_, err := p.sessions.GetSessionUser(w, r)
@@ -183,7 +183,7 @@ func (p *LegacyPoliteiawww) handleLogout(w http.ResponseWriter, r *http.Request)
 }
 
 // handleMe returns logged in user information.
-func (p *LegacyPoliteiawww) handleMe(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleMe")
 
 	user, err := p.sessions.GetSessionUser(w, r)
@@ -207,7 +207,7 @@ func (p *LegacyPoliteiawww) handleMe(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleResetPassword handles the reset password command.
-func (p *LegacyPoliteiawww) handleResetPassword(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	log.Trace("handleResetPassword")
 
 	// Get the reset password command.
@@ -233,7 +233,7 @@ func (p *LegacyPoliteiawww) handleResetPassword(w http.ResponseWriter, r *http.R
 }
 
 // handleVerifyResetPassword handles the verify reset password command.
-func (p *LegacyPoliteiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleVerifyResetPassword(w http.ResponseWriter, r *http.Request) {
 	log.Trace("handleVerifyResetPassword")
 
 	var vrp www.VerifyResetPassword
@@ -273,7 +273,7 @@ func (p *LegacyPoliteiawww) handleVerifyResetPassword(w http.ResponseWriter, r *
 }
 
 // handleUserDetails handles fetching user details by user id.
-func (p *LegacyPoliteiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleUserDetails(w http.ResponseWriter, r *http.Request) {
 	// Add the path param to the struct.
 	log.Tracef("handleUserDetails")
 	pathParams := mux.Vars(r)
@@ -313,7 +313,7 @@ func (p *LegacyPoliteiawww) handleUserDetails(w http.ResponseWriter, r *http.Req
 }
 
 // handleEditUser handles editing a user's preferences.
-func (p *LegacyPoliteiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleEditUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleEditUser")
 
 	var eu www.EditUser
@@ -346,7 +346,7 @@ func (p *LegacyPoliteiawww) handleEditUser(w http.ResponseWriter, r *http.Reques
 // handleUpdateUserKey handles the incoming update user key command. It
 // generates a random code used for verification. The code is intended to be
 // sent to the email of the logged in user.
-func (p *LegacyPoliteiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUpdateUserKey")
 
 	// Get the update user key command.
@@ -380,7 +380,7 @@ func (p *LegacyPoliteiawww) handleUpdateUserKey(w http.ResponseWriter, r *http.R
 // command. It verifies that the user with the provided email has a
 // verification token that matches the provided token and that the verification
 // token has not yet expired.
-func (p *LegacyPoliteiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVerifyUpdateUserKey")
 
 	// Get the new user verify command.
@@ -412,7 +412,7 @@ func (p *LegacyPoliteiawww) handleVerifyUpdateUserKey(w http.ResponseWriter, r *
 }
 
 // handleChangeUsername handles the change user name command.
-func (p *LegacyPoliteiawww) handleChangeUsername(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleChangeUsername(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleChangeUsername")
 
 	// Get the change username command.
@@ -445,7 +445,7 @@ func (p *LegacyPoliteiawww) handleChangeUsername(w http.ResponseWriter, r *http.
 }
 
 // handleChangePassword handles the change password command.
-func (p *LegacyPoliteiawww) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleChangePassword")
 
 	// Get the change password command.
@@ -493,7 +493,7 @@ func (p *LegacyPoliteiawww) handleChangePassword(w http.ResponseWriter, r *http.
 }
 
 // handleUsers handles fetching a list of users.
-func (p *LegacyPoliteiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleUsers(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUsers")
 
 	var u www.Users
@@ -527,7 +527,7 @@ func (p *LegacyPoliteiawww) handleUsers(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleManageUser handles editing a user's details.
-func (p *LegacyPoliteiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleManageUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleManageUser")
 
 	var mu www.ManageUser
@@ -558,7 +558,7 @@ func (p *LegacyPoliteiawww) handleManageUser(w http.ResponseWriter, r *http.Requ
 }
 
 // handleSetTOTP handles the setting of TOTP Key
-func (p *LegacyPoliteiawww) handleSetTOTP(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleSetTOTP(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleSetTOTP")
 
 	var st www.SetTOTP
@@ -589,7 +589,7 @@ func (p *LegacyPoliteiawww) handleSetTOTP(w http.ResponseWriter, r *http.Request
 }
 
 // handleVerifyTOTP handles the request to verify a set TOTP Key.
-func (p *LegacyPoliteiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleVerifyTOTP(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVerifyTOTP")
 
 	var vt www.VerifyTOTP

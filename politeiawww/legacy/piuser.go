@@ -17,7 +17,7 @@ import (
 // processUserRegistrationPayment verifies that the provided transaction
 // meets the minimum requirements to mark the user as paid, and then does
 // that in the user database.
-func (p *LegacyPoliteiawww) processUserRegistrationPayment(ctx context.Context, u *user.User) (*www.UserRegistrationPaymentReply, error) {
+func (p *Politeiawww) processUserRegistrationPayment(ctx context.Context, u *user.User) (*www.UserRegistrationPaymentReply, error) {
 	var reply www.UserRegistrationPaymentReply
 	if p.userHasPaid(*u) {
 		reply.HasPaid = true
@@ -61,7 +61,7 @@ func (p *LegacyPoliteiawww) processUserRegistrationPayment(ctx context.Context, 
 // the user to purchase proposal credits. The user can only have one paywall
 // active at a time.  If no paywall currently exists, a new one is created and
 // the user is added to the paywall pool.
-func (p *LegacyPoliteiawww) processUserProposalPaywall(u *user.User) (*www.UserProposalPaywallReply, error) {
+func (p *Politeiawww) processUserProposalPaywall(u *user.User) (*www.UserProposalPaywallReply, error) {
 	log.Tracef("processUserProposalPaywall")
 
 	// Ensure paywall is enabled
@@ -99,7 +99,7 @@ func (p *LegacyPoliteiawww) processUserProposalPaywall(u *user.User) (*www.UserP
 
 // processUserProposalPaywallTx checks if the user has a pending paywall
 // payment and returns the payment details if one is found.
-func (p *LegacyPoliteiawww) processUserProposalPaywallTx(u *user.User) (*www.UserProposalPaywallTxReply, error) {
+func (p *Politeiawww) processUserProposalPaywallTx(u *user.User) (*www.UserProposalPaywallTxReply, error) {
 	log.Tracef("processUserProposalPaywallTx")
 
 	var (
@@ -127,7 +127,7 @@ func (p *LegacyPoliteiawww) processUserProposalPaywallTx(u *user.User) (*www.Use
 
 // processUserProposalCredits returns a list of the user's unspent proposal
 // credits and a list of the user's spent proposal credits.
-func (p *LegacyPoliteiawww) processUserProposalCredits(u *user.User) (*www.UserProposalCreditsReply, error) {
+func (p *Politeiawww) processUserProposalCredits(u *user.User) (*www.UserProposalCreditsReply, error) {
 	// Convert from database proposal credits to www proposal credits.
 	upc := make([]www.ProposalCredit, len(u.UnspentProposalCredits))
 	for i, credit := range u.UnspentProposalCredits {
@@ -146,7 +146,7 @@ func (p *LegacyPoliteiawww) processUserProposalCredits(u *user.User) (*www.UserP
 
 // processUserPaymentsRescan allows an admin to rescan a user's paywall address
 // to check for any payments that may have been missed by paywall polling.
-func (p *LegacyPoliteiawww) processUserPaymentsRescan(ctx context.Context, upr www.UserPaymentsRescan) (*www.UserPaymentsRescanReply, error) {
+func (p *Politeiawww) processUserPaymentsRescan(ctx context.Context, upr www.UserPaymentsRescan) (*www.UserPaymentsRescanReply, error) {
 	// Ensure paywall is enabled
 	if !p.paywallIsEnabled() {
 		return &www.UserPaymentsRescanReply{}, nil

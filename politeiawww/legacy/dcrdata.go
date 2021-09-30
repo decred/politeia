@@ -32,11 +32,11 @@ const (
 	externalBranch uint32 = 0
 )
 
-func (p *LegacyPoliteiawww) dcrdataHostHTTP() string {
+func (p *Politeiawww) dcrdataHostHTTP() string {
 	return fmt.Sprintf("https://%v/api", p.cfg.DcrdataHost)
 }
 
-func (p *LegacyPoliteiawww) dcrdataHostWS() string {
+func (p *Politeiawww) dcrdataHostWS() string {
 	return fmt.Sprintf("wss://%v/ps", p.cfg.DcrdataHost)
 }
 

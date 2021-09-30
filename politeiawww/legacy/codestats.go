@@ -21,7 +21,7 @@ var (
 
 // processUserCodeStats tries to compile code statistics based on user
 // and month/year provided.
-func (p *LegacyPoliteiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) (*cms.UserCodeStatsReply, error) {
+func (p *Politeiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.User) (*cms.UserCodeStatsReply, error) {
 	log.Tracef("processUserCodeStats")
 
 	// Require start time to be entered
@@ -135,7 +135,7 @@ func (p *LegacyPoliteiawww) processUserCodeStats(ucs cms.UserCodeStats, u *user.
 	}, nil
 }
 
-func (p *LegacyPoliteiawww) updateCodeStats(skipStartupSync bool, repos []string, start, end int64) error {
+func (p *Politeiawww) updateCodeStats(skipStartupSync bool, repos []string, start, end int64) error {
 
 	// make sure tracker was created, if not alert for them to check github api
 	// token config
@@ -273,7 +273,7 @@ func (p *LegacyPoliteiawww) updateCodeStats(skipStartupSync bool, repos []string
 	return nil
 }
 
-func (p *LegacyPoliteiawww) checkUpdateCodeStats(existing, new []user.CodeStats) error {
+func (p *Politeiawww) checkUpdateCodeStats(existing, new []user.CodeStats) error {
 	// Check to see if current codestats match existing stats.
 	updated := false
 	// If the length of existing and new, differ that means it's been updated.
@@ -341,7 +341,7 @@ func (p *LegacyPoliteiawww) checkUpdateCodeStats(existing, new []user.CodeStats)
 // Seconds Minutes Hours Days Months DayOfWeek
 const codeStatsSchedule = "0 0 1 * *" // Check at 12:00 AM on 1st day every month
 
-func (p *LegacyPoliteiawww) startCodeStatsCron() {
+func (p *Politeiawww) startCodeStatsCron() {
 	log.Infof("Starting cron for code stats update")
 	// Launch invoice notification cron job
 	err := p.cron.AddFunc(codeStatsSchedule, func() {

@@ -20,7 +20,7 @@ import (
 
 // handleInviteNewUser handles the invitation of a new contractor by an
 // administrator for the Contractor Management System.
-func (p *LegacyPoliteiawww) handleInviteNewUser(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleInviteNewUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleInviteNewUser")
 
 	// Get the new user command.
@@ -45,7 +45,7 @@ func (p *LegacyPoliteiawww) handleInviteNewUser(w http.ResponseWriter, r *http.R
 
 // handleRegisterUser handles the completion of registration by invited users of
 // the Contractor Management System.
-func (p *LegacyPoliteiawww) handleRegisterUser(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleRegisterUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleRegisterUser")
 
 	// Get the new user command.
@@ -69,7 +69,7 @@ func (p *LegacyPoliteiawww) handleRegisterUser(w http.ResponseWriter, r *http.Re
 }
 
 // handleCMSUsers handles fetching a list of cms users.
-func (p *LegacyPoliteiawww) handleCMSUsers(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleCMSUsers(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleCMSUsers")
 
 	var cu cms.CMSUsers
@@ -93,7 +93,7 @@ func (p *LegacyPoliteiawww) handleCMSUsers(w http.ResponseWriter, r *http.Reques
 }
 
 // handleNewInvoice handles the incoming new invoice command.
-func (p *LegacyPoliteiawww) handleNewInvoice(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleNewInvoice(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewInvoice")
 
 	// Get the new invoice command.
@@ -126,7 +126,7 @@ func (p *LegacyPoliteiawww) handleNewInvoice(w http.ResponseWriter, r *http.Requ
 
 // handleInvoiceDetails handles the incoming invoice details command. It fetches
 // the complete details for an existing invoice.
-func (p *LegacyPoliteiawww) handleInvoiceDetails(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleInvoiceDetails(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleInvoiceDetails")
 
 	// Get the invoice details command
@@ -166,7 +166,7 @@ func (p *LegacyPoliteiawww) handleInvoiceDetails(w http.ResponseWriter, r *http.
 
 // handleUserInvoices handles the request to get all of the invoices from the
 // currently logged in user.
-func (p *LegacyPoliteiawww) handleUserInvoices(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleUserInvoices(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserInvoices")
 
 	user, err := p.sessions.GetSessionUser(w, r)
@@ -188,7 +188,7 @@ func (p *LegacyPoliteiawww) handleUserInvoices(w http.ResponseWriter, r *http.Re
 
 // handleAdminUserInvoices handles the request to get all of the invoices of a
 // user by an administrator for the Contractor Management System.
-func (p *LegacyPoliteiawww) handleAdminUserInvoices(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleAdminUserInvoices(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleAdminUserInvoices")
 
 	var aui cms.AdminUserInvoices
@@ -221,7 +221,7 @@ func (p *LegacyPoliteiawww) handleAdminUserInvoices(w http.ResponseWriter, r *ht
 }
 
 // handleSetInvoiceStatus handles the incoming set invoice status command.
-func (p *LegacyPoliteiawww) handleSetInvoiceStatus(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleSetInvoiceStatus(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleSetInvoiceStatus")
 
 	// Get set invoice command
@@ -254,7 +254,7 @@ func (p *LegacyPoliteiawww) handleSetInvoiceStatus(w http.ResponseWriter, r *htt
 
 // handleInvoices handles the request to get all of the  of a new contractor by an
 // administrator for the Contractor Management System.
-func (p *LegacyPoliteiawww) handleInvoices(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleInvoices(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleInvoices")
 	var ai cms.Invoices
 	decoder := json.NewDecoder(r.Body)
@@ -283,7 +283,7 @@ func (p *LegacyPoliteiawww) handleInvoices(w http.ResponseWriter, r *http.Reques
 }
 
 // handleEditInvoice attempts to edit an invoice
-func (p *LegacyPoliteiawww) handleEditInvoice(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleEditInvoice(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleEditInvoice")
 
 	// Get edit invoice command
@@ -318,7 +318,7 @@ func (p *LegacyPoliteiawww) handleEditInvoice(w http.ResponseWriter, r *http.Req
 
 // handleGeneratePayouts handles the request to generate all of the payouts for any
 // currently approved invoice.
-func (p *LegacyPoliteiawww) handleGeneratePayouts(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleGeneratePayouts(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleGeneratePayouts")
 
 	// Get generate payouts command
@@ -350,7 +350,7 @@ func (p *LegacyPoliteiawww) handleGeneratePayouts(w http.ResponseWriter, r *http
 }
 
 // handleNewCommentInvoice handles incomming comments for invoices.
-func (p *LegacyPoliteiawww) handleNewCommentInvoice(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleNewCommentInvoice(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewCommentInvoice")
 
 	var sc www.NewComment
@@ -381,7 +381,7 @@ func (p *LegacyPoliteiawww) handleNewCommentInvoice(w http.ResponseWriter, r *ht
 }
 
 // handleInvoiceComments handles batched invoice comments get.
-func (p *LegacyPoliteiawww) handleInvoiceComments(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleInvoiceComments(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleInvoiceComments")
 
 	pathParams := mux.Vars(r)
@@ -405,7 +405,7 @@ func (p *LegacyPoliteiawww) handleInvoiceComments(w http.ResponseWriter, r *http
 }
 
 // handleInvoiceExchangeRate handles incoming requests for monthly exchange rate
-func (p *LegacyPoliteiawww) handleInvoiceExchangeRate(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleInvoiceExchangeRate(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleInvoiceExchangeRate")
 
 	var ier cms.InvoiceExchangeRate
@@ -428,7 +428,7 @@ func (p *LegacyPoliteiawww) handleInvoiceExchangeRate(w http.ResponseWriter, r *
 	util.RespondWithJSON(w, http.StatusOK, ierr)
 }
 
-func (p *LegacyPoliteiawww) handleCMSPolicy(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleCMSPolicy(w http.ResponseWriter, r *http.Request) {
 	// Get the policy command.
 	log.Tracef("handlePolicy")
 	reply := &cms.PolicyReply{
@@ -462,7 +462,7 @@ func (p *LegacyPoliteiawww) handleCMSPolicy(w http.ResponseWriter, r *http.Reque
 
 // handlePayInvoices handles the request to generate all of the payouts for any
 // currently approved invoice.
-func (p *LegacyPoliteiawww) handlePayInvoices(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handlePayInvoices(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePayInvoices")
 
 	user, err := p.sessions.GetSessionUser(w, r)
@@ -484,7 +484,7 @@ func (p *LegacyPoliteiawww) handlePayInvoices(w http.ResponseWriter, r *http.Req
 
 // handleEditCMSUser handles the request to edit a given user's
 // additional user information.
-func (p *LegacyPoliteiawww) handleEditCMSUser(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleEditCMSUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleEditCMSUser")
 
 	var eu cms.EditUser
@@ -516,7 +516,7 @@ func (p *LegacyPoliteiawww) handleEditCMSUser(w http.ResponseWriter, r *http.Req
 
 // handleManageCMSUser handles the request to edit a given user's
 // additional user information.
-func (p *LegacyPoliteiawww) handleManageCMSUser(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleManageCMSUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleManageCMSUser")
 
 	var mu cms.CMSManageUser
@@ -539,7 +539,7 @@ func (p *LegacyPoliteiawww) handleManageCMSUser(w http.ResponseWriter, r *http.R
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *LegacyPoliteiawww) handleCMSUserDetails(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleCMSUserDetails(w http.ResponseWriter, r *http.Request) {
 	// Add the path param to the struct.
 	log.Tracef("handleCMSUserDetails")
 	pathParams := mux.Vars(r)
@@ -577,7 +577,7 @@ func (p *LegacyPoliteiawww) handleCMSUserDetails(w http.ResponseWriter, r *http.
 }
 
 // handleInvoicePayouts handles incoming requests for invoice payout information
-func (p *LegacyPoliteiawww) handleInvoicePayouts(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleInvoicePayouts(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleInvoicePayouts")
 
 	var lip cms.InvoicePayouts
@@ -600,7 +600,7 @@ func (p *LegacyPoliteiawww) handleInvoicePayouts(w http.ResponseWriter, r *http.
 	util.RespondWithJSON(w, http.StatusOK, lipr)
 }
 
-func (p *LegacyPoliteiawww) handleNewDCC(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleNewDCC(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewDCC")
 
 	var nd cms.NewDCC
@@ -629,7 +629,7 @@ func (p *LegacyPoliteiawww) handleNewDCC(w http.ResponseWriter, r *http.Request)
 	util.RespondWithJSON(w, http.StatusOK, ndr)
 }
 
-func (p *LegacyPoliteiawww) handleDCCDetails(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleDCCDetails(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleDCCDetails")
 
 	var gd cms.DCCDetails
@@ -656,7 +656,7 @@ func (p *LegacyPoliteiawww) handleDCCDetails(w http.ResponseWriter, r *http.Requ
 	util.RespondWithJSON(w, http.StatusOK, gdr)
 }
 
-func (p *LegacyPoliteiawww) handleGetDCCs(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleGetDCCs(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleGetDCCs")
 
 	var gds cms.GetDCCs
@@ -685,7 +685,7 @@ func (p *LegacyPoliteiawww) handleGetDCCs(w http.ResponseWriter, r *http.Request
 	util.RespondWithJSON(w, http.StatusOK, gdsr)
 }
 
-func (p *LegacyPoliteiawww) handleSupportOpposeDCC(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleSupportOpposeDCC(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleSupportOpposeDCC")
 
 	var sd cms.SupportOpposeDCC
@@ -715,7 +715,7 @@ func (p *LegacyPoliteiawww) handleSupportOpposeDCC(w http.ResponseWriter, r *htt
 }
 
 // handleNewCommentDCC handles incomming comments for DCC.
-func (p *LegacyPoliteiawww) handleNewCommentDCC(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleNewCommentDCC(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewCommentDCC")
 
 	var sc www.NewComment
@@ -746,7 +746,7 @@ func (p *LegacyPoliteiawww) handleNewCommentDCC(w http.ResponseWriter, r *http.R
 }
 
 // handleDCCComments handles batched comments get.
-func (p *LegacyPoliteiawww) handleDCCComments(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleDCCComments(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleDCCComments")
 
 	pathParams := mux.Vars(r)
@@ -769,7 +769,7 @@ func (p *LegacyPoliteiawww) handleDCCComments(w http.ResponseWriter, r *http.Req
 	util.RespondWithJSON(w, http.StatusOK, gcr)
 }
 
-func (p *LegacyPoliteiawww) handleSetDCCStatus(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleSetDCCStatus(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleSetDCCStatus")
 
 	var ad cms.SetDCCStatus
@@ -798,7 +798,7 @@ func (p *LegacyPoliteiawww) handleSetDCCStatus(w http.ResponseWriter, r *http.Re
 	util.RespondWithJSON(w, http.StatusOK, adr)
 }
 
-func (p *LegacyPoliteiawww) handleUserSubContractors(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleUserSubContractors(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserSubContractors")
 
 	u, err := p.sessions.GetSessionUser(w, r)
@@ -818,7 +818,7 @@ func (p *LegacyPoliteiawww) handleUserSubContractors(w http.ResponseWriter, r *h
 	util.RespondWithJSON(w, http.StatusOK, uscr)
 }
 
-func (p *LegacyPoliteiawww) handleProposalOwner(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleProposalOwner(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleProposalOwner")
 
 	var po cms.ProposalOwner
@@ -840,7 +840,7 @@ func (p *LegacyPoliteiawww) handleProposalOwner(w http.ResponseWriter, r *http.R
 	util.RespondWithJSON(w, http.StatusOK, por)
 }
 
-func (p *LegacyPoliteiawww) handleProposalBilling(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleProposalBilling(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleProposalBilling")
 
 	var pb cms.ProposalBilling
@@ -870,7 +870,7 @@ func (p *LegacyPoliteiawww) handleProposalBilling(w http.ResponseWriter, r *http
 	util.RespondWithJSON(w, http.StatusOK, pbr)
 }
 
-func (p *LegacyPoliteiawww) handleCastVoteDCC(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleCastVoteDCC(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleCastVoteDCC")
 
 	var cv cms.CastVote
@@ -899,7 +899,7 @@ func (p *LegacyPoliteiawww) handleCastVoteDCC(w http.ResponseWriter, r *http.Req
 	util.RespondWithJSON(w, http.StatusOK, cvr)
 }
 
-func (p *LegacyPoliteiawww) handleVoteDetailsDCC(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleVoteDetailsDCC(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVoteDetailsDCC")
 
 	var vd cms.VoteDetails
@@ -922,7 +922,7 @@ func (p *LegacyPoliteiawww) handleVoteDetailsDCC(w http.ResponseWriter, r *http.
 }
 
 // handleActiveVoteDCC returns all active dccs that have an active vote.
-func (p *LegacyPoliteiawww) handleActiveVoteDCC(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleActiveVoteDCC(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleActiveVoteDCC")
 
 	avr, err := p.processActiveVoteDCC(r.Context())
@@ -936,7 +936,7 @@ func (p *LegacyPoliteiawww) handleActiveVoteDCC(w http.ResponseWriter, r *http.R
 }
 
 // handleStartVoteDCC handles the dcc StartVote route.
-func (p *LegacyPoliteiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleStartVoteDCC")
 
 	var sv cms.StartVote
@@ -972,7 +972,7 @@ func (p *LegacyPoliteiawww) handleStartVoteDCC(w http.ResponseWriter, r *http.Re
 	util.RespondWithJSON(w, http.StatusOK, svr)
 }
 
-func (p *LegacyPoliteiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handlePassThroughTokenInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePassThroughTokenInventory")
 
 	data, err := p.makeProposalsRequest(http.MethodGet, www.RouteTokenInventory, nil)
@@ -984,7 +984,7 @@ func (p *LegacyPoliteiawww) handlePassThroughTokenInventory(w http.ResponseWrite
 	util.RespondRaw(w, http.StatusOK, data)
 }
 
-func (p *LegacyPoliteiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePassThroughBatchProposals")
 
 	var bp www.BatchProposals
@@ -1006,7 +1006,7 @@ func (p *LegacyPoliteiawww) handlePassThroughBatchProposals(w http.ResponseWrite
 	util.RespondRaw(w, http.StatusOK, data)
 }
 
-func (p *LegacyPoliteiawww) handleProposalBillingSummary(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleProposalBillingSummary(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleProposalBillingSummary")
 
 	var pbs cms.ProposalBillingSummary
@@ -1030,7 +1030,7 @@ func (p *LegacyPoliteiawww) handleProposalBillingSummary(w http.ResponseWriter, 
 	util.RespondWithJSON(w, http.StatusOK, pbsr)
 }
 
-func (p *LegacyPoliteiawww) handleProposalBillingDetails(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleProposalBillingDetails(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleProposalBillingDetails")
 
 	var pbd cms.ProposalBillingDetails
@@ -1057,7 +1057,7 @@ func (p *LegacyPoliteiawww) handleProposalBillingDetails(w http.ResponseWriter, 
 // (testnet or mainnet).  It takes a http method type, proposals route and a
 // request interface as arguments.  It returns the response body as byte array
 // (which can then be decoded as though a response directly from proposals).
-func (p *LegacyPoliteiawww) makeProposalsRequest(method string, route string, v interface{}) ([]byte, error) {
+func (p *Politeiawww) makeProposalsRequest(method string, route string, v interface{}) ([]byte, error) {
 	var (
 		requestBody  []byte
 		responseBody []byte
@@ -1104,7 +1104,7 @@ func (p *LegacyPoliteiawww) makeProposalsRequest(method string, route string, v 
 	return responseBody, nil
 }
 
-func (p *LegacyPoliteiawww) handleUserCodeStats(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleUserCodeStats(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserCodeStats")
 
 	var ucs cms.UserCodeStats

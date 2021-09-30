@@ -26,7 +26,7 @@ import (
 //
 // Note that this function always returns a InviteNewUserReply. The caller
 // shall verify error and determine how to return this information upstream.
-func (p *LegacyPoliteiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewUserReply, error) {
+func (p *Politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewUserReply, error) {
 	log.Tracef("processInviteNewUser: %v", u.Email)
 
 	// Validate email
@@ -129,7 +129,7 @@ func (p *LegacyPoliteiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.Invi
 // processRegisterUser allows a CMS user that has received an invite to
 // register their account. The username and password for the account are
 // updated and the user's email address and identity are marked as verified.
-func (p *LegacyPoliteiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUserReply, error) {
+func (p *Politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUserReply, error) {
 	log.Tracef("processRegisterUser: %v", u.Email)
 	var reply cms.RegisterUserReply
 
@@ -277,7 +277,7 @@ func (p *LegacyPoliteiawww) processRegisterUser(u cms.RegisterUser) (*cms.Regist
 // processCMSUsers returns a list of cms users given a set of filters. If
 // either domain or contractor is non-zero then they are used as matching
 // criteria, otherwise the full list will be returned.
-func (p *LegacyPoliteiawww) processCMSUsers(users *cms.CMSUsers) (*cms.CMSUsersReply, error) {
+func (p *Politeiawww) processCMSUsers(users *cms.CMSUsers) (*cms.CMSUsersReply, error) {
 	log.Tracef("processCMSUsers")
 
 	domain := int(users.Domain)
@@ -413,7 +413,7 @@ func (p *LegacyPoliteiawww) processCMSUsers(users *cms.CMSUsers) (*cms.CMSUsersR
 	}, nil
 }
 
-func (p *LegacyPoliteiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.EditUserReply, error) {
+func (p *Politeiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (*cms.EditUserReply, error) {
 	log.Tracef("processEditCMSUser: %v", u.Email)
 
 	reply := cms.EditUserReply{}
@@ -458,7 +458,7 @@ func (p *LegacyPoliteiawww) processEditCMSUser(ecu cms.EditUser, u *user.User) (
 	return &reply, nil
 }
 
-func (p *LegacyPoliteiawww) processManageCMSUser(mu cms.CMSManageUser) (*cms.CMSManageUserReply, error) {
+func (p *Politeiawww) processManageCMSUser(mu cms.CMSManageUser) (*cms.CMSManageUserReply, error) {
 	log.Tracef("processManageCMSUser: %v", mu.UserID)
 
 	editUser, err := p.userByIDStr(mu.UserID)
@@ -528,7 +528,7 @@ func (p *LegacyPoliteiawww) processManageCMSUser(mu cms.CMSManageUser) (*cms.CMS
 	return &cms.CMSManageUserReply{}, nil
 }
 
-func (p *LegacyPoliteiawww) processCMSUserDetails(ud *cms.UserDetails, isCurrentUser bool, isAdmin bool) (*cms.UserDetailsReply, error) {
+func (p *Politeiawww) processCMSUserDetails(ud *cms.UserDetails, isCurrentUser bool, isAdmin bool) (*cms.UserDetailsReply, error) {
 	reply := cms.UserDetailsReply{}
 	u, err := p.getCMSUserByID(ud.UserID)
 	if err != nil {
@@ -546,7 +546,7 @@ func (p *LegacyPoliteiawww) processCMSUserDetails(ud *cms.UserDetails, isCurrent
 }
 
 // cmsUsersByDomain returns all cms user within the provided contractor domain.
-func (p *LegacyPoliteiawww) cmsUsersByDomain(d cms.DomainTypeT) ([]user.CMSUser, error) {
+func (p *Politeiawww) cmsUsersByDomain(d cms.DomainTypeT) ([]user.CMSUser, error) {
 	// Setup plugin command
 	cu := user.CMSUsersByDomain{
 		Domain: int(d),
@@ -642,7 +642,7 @@ func validateUserInformation(userInfo cms.EditUser) error {
 	}
 	return nil
 }
-func (p *LegacyPoliteiawww) getCMSUserByID(id string) (*cms.User, error) {
+func (p *Politeiawww) getCMSUserByID(id string) (*cms.User, error) {
 	ubi := user.CMSUserByID{
 		ID: id,
 	}
@@ -667,7 +667,7 @@ func (p *LegacyPoliteiawww) getCMSUserByID(id string) (*cms.User, error) {
 	return &u, nil
 }
 
-func (p *LegacyPoliteiawww) getCMSUserByIDRaw(id string) (*user.CMSUser, error) {
+func (p *Politeiawww) getCMSUserByIDRaw(id string) (*user.CMSUser, error) {
 	ubi := user.CMSUserByID{
 		ID: id,
 	}
@@ -691,7 +691,7 @@ func (p *LegacyPoliteiawww) getCMSUserByIDRaw(id string) (*user.CMSUser, error) 
 	return ubir.User, nil
 }
 
-func (p *LegacyPoliteiawww) getCMSUserWeights() (map[string]int64, error) {
+func (p *Politeiawww) getCMSUserWeights() (map[string]int64, error) {
 	userWeights := make(map[string]int64, 1080)
 
 	/*
@@ -820,7 +820,7 @@ func convertCMSUserFromDatabaseUser(user *user.CMSUser) cms.User {
 
 // issuanceDCCUser does the processing to move a nominated user to a fully
 // approved and invite them onto CMS.
-func (p *LegacyPoliteiawww) issuanceDCCUser(userid, sponsorUserID string, domain, contractorType int) error {
+func (p *Politeiawww) issuanceDCCUser(userid, sponsorUserID string, domain, contractorType int) error {
 	nominatedUser, err := p.userByIDStr(userid)
 	if err != nil {
 		return err
@@ -880,7 +880,7 @@ func (p *LegacyPoliteiawww) issuanceDCCUser(userid, sponsorUserID string, domain
 	return nil
 }
 
-func (p *LegacyPoliteiawww) revokeDCCUser(userid string) error {
+func (p *Politeiawww) revokeDCCUser(userid string) error {
 	// Do full userdb update and reject user creds
 	nomineeUserID, err := uuid.Parse(userid)
 	if err != nil {
@@ -906,7 +906,7 @@ func (p *LegacyPoliteiawww) revokeDCCUser(userid string) error {
 	return nil
 }
 
-func (p *LegacyPoliteiawww) processUserSubContractors(u *user.User) (*cms.UserSubContractorsReply, error) {
+func (p *Politeiawww) processUserSubContractors(u *user.User) (*cms.UserSubContractorsReply, error) {
 	usc := user.CMSUserSubContractors{
 		ID: u.ID.String(),
 	}
@@ -941,7 +941,7 @@ func (p *LegacyPoliteiawww) processUserSubContractors(u *user.User) (*cms.UserSu
 // processProposalOwner returns a list of cms users given a proposal token.
 // If the user is set to have ownership of this proposal then they will be
 // added to the list.
-func (p *LegacyPoliteiawww) processProposalOwner(po cms.ProposalOwner) (*cms.ProposalOwnerReply, error) {
+func (p *Politeiawww) processProposalOwner(po cms.ProposalOwner) (*cms.ProposalOwnerReply, error) {
 	log.Tracef("processProposalOwner")
 
 	// Setup plugin command

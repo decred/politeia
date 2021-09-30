@@ -30,7 +30,7 @@ const (
 )
 
 // setUserWWWRoutes setsup the user routes.
-func (p *LegacyPoliteiawww) setUserWWWRoutes() {
+func (p *Politeiawww) setUserWWWRoutes() {
 	// Public routes
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteNewUser, p.handleNewUser,
@@ -112,7 +112,7 @@ func (p *LegacyPoliteiawww) setUserWWWRoutes() {
 }
 
 // setCMSUserWWWRoutes setsup the user routes for cms mode
-func (p *LegacyPoliteiawww) setCMSUserWWWRoutes() {
+func (p *Politeiawww) setCMSUserWWWRoutes() {
 	// Public routes
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteLogout, p.handleLogout,
@@ -181,7 +181,7 @@ func (p *LegacyPoliteiawww) setCMSUserWWWRoutes() {
 		permissionAdmin)
 }
 
-func (p *LegacyPoliteiawww) setCMSWWWRoutes() {
+func (p *Politeiawww) setCMSWWWRoutes() {
 	// The version routes set the CSRF token and thus need to be part
 	// of the CSRF protected auth router.
 	p.auth.HandleFunc("/", p.handleVersion).Methods(http.MethodGet)
@@ -316,7 +316,7 @@ func (p *LegacyPoliteiawww) setCMSWWWRoutes() {
 }
 
 // setupPiRoutes sets up the API routes for piwww mode.
-func (p *LegacyPoliteiawww) setPiRoutes(r *records.Records, c *comments.Comments, t *ticketvote.TicketVote, pic *pi.Pi) {
+func (p *Politeiawww) setPiRoutes(r *records.Records, c *comments.Comments, t *ticketvote.TicketVote, pic *pi.Pi) {
 	// The version routes set the CSRF token and thus need to be part
 	// of the CSRF protected auth router.
 	p.auth.HandleFunc("/", p.handleVersion).Methods(http.MethodGet)
@@ -464,7 +464,7 @@ func (p *LegacyPoliteiawww) setPiRoutes(r *records.Records, c *comments.Comments
 
 // addRoute sets up a handler for a specific method+route. If method is not
 // specified it adds a websocket.
-func (p *LegacyPoliteiawww) addRoute(method string, routeVersion string, route string, handler http.HandlerFunc, perm permission) {
+func (p *Politeiawww) addRoute(method string, routeVersion string, route string, handler http.HandlerFunc, perm permission) {
 	// Sanity check. The login route is special. It must be registered
 	// using the addLoginRoute() function.
 	if strings.Contains(route, "login") {
@@ -499,7 +499,7 @@ func (p *LegacyPoliteiawww) addRoute(method string, routeVersion string, route s
 // addLoginRoute sets up a handler for the login route. The login route is
 // special. It is the only public route that requires CSRF protection, so we
 // use a separate function to register it.
-func (p *LegacyPoliteiawww) addLoginRoute(method string, routeVersion string, route string, handler http.HandlerFunc) {
+func (p *Politeiawww) addLoginRoute(method string, routeVersion string, route string, handler http.HandlerFunc) {
 	// Sanity check
 	if !strings.Contains(route, "login") {
 		panic("you cannot use this function to register non login routes")
@@ -512,7 +512,7 @@ func (p *LegacyPoliteiawww) addLoginRoute(method string, routeVersion string, ro
 
 // isLoggedIn ensures that a user is logged in before calling the next
 // function.
-func (p *LegacyPoliteiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
+func (p *Politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Tracef("%v isLoggedIn: %v %v %v",
 			util.RemoteAddr(r), r.Method, r.URL, r.Proto)
@@ -538,7 +538,7 @@ func (p *LegacyPoliteiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
 }
 
 // isAdmin returns true if the current session has admin privileges.
-func (p *LegacyPoliteiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, error) {
+func (p *Politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, error) {
 	user, err := p.sessions.GetSessionUser(w, r)
 	if err != nil {
 		return false, err
@@ -549,7 +549,7 @@ func (p *LegacyPoliteiawww) isAdmin(w http.ResponseWriter, r *http.Request) (boo
 
 // isLoggedInAsAdmin ensures that a user is logged in as an admin user
 // before calling the next function.
-func (p *LegacyPoliteiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
+func (p *Politeiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Tracef("%v isLoggedInAsAdmin: %v %v %v",
 			util.RemoteAddr(r), r.Method, r.URL, r.Proto)

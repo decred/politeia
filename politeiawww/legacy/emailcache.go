@@ -13,7 +13,7 @@ import (
 // all the users in the database and adding a email-userID mapping for them.
 //
 // This function must be called WITHOUT the lock held.
-func (p *LegacyPoliteiawww) initUserEmailsCache() error {
+func (p *Politeiawww) initUserEmailsCache() error {
 	p.Lock()
 	defer p.Unlock()
 
@@ -25,7 +25,7 @@ func (p *LegacyPoliteiawww) initUserEmailsCache() error {
 // setUserEmailsCache sets a email-userID mapping in the user emails cache.
 //
 // This function must be called WITHOUT the lock held.
-func (p *LegacyPoliteiawww) setUserEmailsCache(email string, id uuid.UUID) {
+func (p *Politeiawww) setUserEmailsCache(email string, id uuid.UUID) {
 	p.Lock()
 	defer p.Unlock()
 	p.userEmails[email] = id
@@ -34,7 +34,7 @@ func (p *LegacyPoliteiawww) setUserEmailsCache(email string, id uuid.UUID) {
 // userIDByEmail returns a userID given their email address.
 //
 // This function must be called WITHOUT the lock held.
-func (p *LegacyPoliteiawww) userIDByEmail(email string) (uuid.UUID, bool) {
+func (p *Politeiawww) userIDByEmail(email string) (uuid.UUID, bool) {
 	p.RLock()
 	defer p.RUnlock()
 	id, ok := p.userEmails[email]
@@ -44,7 +44,7 @@ func (p *LegacyPoliteiawww) userIDByEmail(email string) (uuid.UUID, bool) {
 // userByEmail returns a User object given their email address.
 //
 // This function must be called WITHOUT the lock held.
-func (p *LegacyPoliteiawww) userByEmail(email string) (*user.User, error) {
+func (p *Politeiawww) userByEmail(email string) (*user.User, error) {
 	id, ok := p.userIDByEmail(email)
 	if !ok {
 		log.Debugf("userByEmail: email lookup failed for '%v'", email)

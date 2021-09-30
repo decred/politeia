@@ -15,7 +15,7 @@ import (
 // handleUserRegistrationPayment checks whether the provided transaction
 // is on the blockchain and meets the requirements to consider the user
 // registration fee as paid.
-func (p *LegacyPoliteiawww) handleUserRegistrationPayment(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleUserRegistrationPayment(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserRegistrationPayment")
 
 	user, err := p.sessions.GetSessionUser(w, r)
@@ -38,7 +38,7 @@ func (p *LegacyPoliteiawww) handleUserRegistrationPayment(w http.ResponseWriter,
 
 // handleUserProposalPaywall returns paywall details that allows the user to
 // purchase proposal credits.
-func (p *LegacyPoliteiawww) handleUserProposalPaywall(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleUserProposalPaywall(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserProposalPaywall")
 
 	user, err := p.sessions.GetSessionUser(w, r)
@@ -60,7 +60,7 @@ func (p *LegacyPoliteiawww) handleUserProposalPaywall(w http.ResponseWriter, r *
 
 // handleUserProposalPaywallTx returns the payment details for a pending
 // proposal paywall payment.
-func (p *LegacyPoliteiawww) handleUserProposalPaywallTx(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleUserProposalPaywallTx(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserProposalPaywallTx")
 
 	user, err := p.sessions.GetSessionUser(w, r)
@@ -83,7 +83,7 @@ func (p *LegacyPoliteiawww) handleUserProposalPaywallTx(w http.ResponseWriter, r
 
 // handleUserProposalCredits returns the spent and unspent proposal credits for
 // the logged in user.
-func (p *LegacyPoliteiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleUserProposalCredits(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserProposalCredits")
 
 	user, err := p.sessions.GetSessionUser(w, r)
@@ -105,7 +105,7 @@ func (p *LegacyPoliteiawww) handleUserProposalCredits(w http.ResponseWriter, r *
 
 // handleUserPaymentsRescan allows an admin to rescan a user's paywall address
 // to check for any payments that may have been missed by paywall polling.
-func (p *LegacyPoliteiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleUserPaymentsRescan(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleUserPaymentsRescan")
 
 	var upr www.UserPaymentsRescan

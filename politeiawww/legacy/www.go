@@ -18,7 +18,7 @@ import (
 
 // version is an HTTP GET to determine the lowest API route version that this
 // backend supports.  Additionally it is used to obtain a CSRF token.
-func (p *LegacyPoliteiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
 	versionReply := v1.VersionReply{
@@ -54,7 +54,7 @@ func (p *LegacyPoliteiawww) handleVersion(w http.ResponseWriter, r *http.Request
 	w.Write(vr)
 }
 
-func (p *LegacyPoliteiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	// Get the policy command.
 	log.Tracef("handlePolicy")
 

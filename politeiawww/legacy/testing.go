@@ -95,7 +95,7 @@ func newFilePNG(t *testing.T, addColor bool) *www.File {
 // newUser creates a new user using randomly generated user credentials and
 // inserts the user into the database.  The user details and the full user
 // identity are returned.
-func newUser(t *testing.T, p *LegacyPoliteiawww, isVerified, isAdmin bool) (*user.User, *identity.FullIdentity) {
+func newUser(t *testing.T, p *Politeiawww, isVerified, isAdmin bool) (*user.User, *identity.FullIdentity) {
 	t.Helper()
 
 	// Generate random bytes to be used as user credentials
@@ -179,7 +179,7 @@ func newUser(t *testing.T, p *LegacyPoliteiawww, isVerified, isAdmin bool) (*use
 // newCMSUser creates a new user using randomly generated user credentials and
 // inserts the user into the database.  The user details and the full user
 // identity are returned.
-func newCMSUser(t *testing.T, p *LegacyPoliteiawww, isAdmin bool, setGithubname bool, domain cms.DomainTypeT, contractorType cms.ContractorTypeT) *user.CMSUser {
+func newCMSUser(t *testing.T, p *Politeiawww, isAdmin bool, setGithubname bool, domain cms.DomainTypeT, contractorType cms.ContractorTypeT) *user.CMSUser {
 	t.Helper()
 
 	// Generate random bytes to be used as user credentials
@@ -265,7 +265,7 @@ func newCMSUser(t *testing.T, p *LegacyPoliteiawww, isAdmin bool, setGithubname 
 
 // newTestPoliteiawww returns a new politeiawww context that is setup for
 // testing and a closure that cleans up the test environment when invoked.
-func newTestPoliteiawww(t *testing.T) (*LegacyPoliteiawww, func()) {
+func newTestPoliteiawww(t *testing.T) (*Politeiawww, func()) {
 	t.Helper()
 
 	// Make a temp directory for test data. Temp directory
@@ -315,7 +315,7 @@ func newTestPoliteiawww(t *testing.T) (*LegacyPoliteiawww, func()) {
 	}
 
 	// Setup politeiawww context
-	p := LegacyPoliteiawww{
+	p := Politeiawww{
 		cfg:             cfg,
 		params:          chaincfg.TestNet3Params(),
 		router:          mux.NewRouter(),
@@ -359,7 +359,7 @@ func newTestPoliteiawww(t *testing.T) (*LegacyPoliteiawww, func()) {
 
 // newTestCMSwww returns a new cmswww context that is setup for
 // testing and a closure that cleans up the test environment when invoked.
-func newTestCMSwww(t *testing.T) (*LegacyPoliteiawww, func()) {
+func newTestCMSwww(t *testing.T) (*Politeiawww, func()) {
 	t.Helper()
 
 	// Make a temp directory for test data. Temp directory
@@ -418,7 +418,7 @@ func newTestCMSwww(t *testing.T) (*LegacyPoliteiawww, func()) {
 	// setLogLevels("off")
 
 	// Create politeiawww context
-	p := LegacyPoliteiawww{
+	p := Politeiawww{
 		cfg:             cfg,
 		db:              db,
 		params:          chaincfg.TestNet3Params(),

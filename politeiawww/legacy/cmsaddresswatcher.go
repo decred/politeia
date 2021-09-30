@@ -33,7 +33,7 @@ const (
 	mainnetSubsidyAddr = "Dcur2mcGjmENx4DhNqDctW5wJCVyT3Qeqkx"
 )
 
-func (p *LegacyPoliteiawww) addWatchAddress(address string) {
+func (p *Politeiawww) addWatchAddress(address string) {
 	err := p.wsDcrdata.AddressSubscribe(address)
 	if err != nil {
 		log.Errorf("addWatchAddress: subscribe '%v': %v",
@@ -43,7 +43,7 @@ func (p *LegacyPoliteiawww) addWatchAddress(address string) {
 	log.Infof("Subscribed to listen: %v", address)
 }
 
-func (p *LegacyPoliteiawww) removeWatchAddress(address string) {
+func (p *Politeiawww) removeWatchAddress(address string) {
 	err := p.wsDcrdata.AddressUnsubscribe(address)
 	if err != nil {
 		log.Errorf("removeWatchAddress: unsubscribe '%v': %v",
@@ -53,7 +53,7 @@ func (p *LegacyPoliteiawww) removeWatchAddress(address string) {
 	log.Infof("Unsubscribed: %v", address)
 }
 
-func (p *LegacyPoliteiawww) monitorCMSAddressWatcher(ctx context.Context) {
+func (p *Politeiawww) monitorCMSAddressWatcher(ctx context.Context) {
 	defer func() {
 		log.Infof("Dcrdata websocket closed")
 	}()
@@ -120,7 +120,7 @@ func (p *LegacyPoliteiawww) monitorCMSAddressWatcher(ctx context.Context) {
 	}
 }
 
-func (p *LegacyPoliteiawww) setupCMSAddressWatcher() {
+func (p *Politeiawww) setupCMSAddressWatcher() {
 	ctx := context.Background()
 
 	// Ensure connection is open. If connection is closed, establish a
@@ -139,7 +139,7 @@ func (p *LegacyPoliteiawww) setupCMSAddressWatcher() {
 	go p.monitorCMSAddressWatcher(ctx)
 
 }
-func (p *LegacyPoliteiawww) restartCMSAddressesWatching(ctx context.Context) error {
+func (p *Politeiawww) restartCMSAddressesWatching(ctx context.Context) error {
 	approvedInvoices, err := p.cmsDB.InvoicesByStatus(int(cms.InvoiceStatusApproved))
 	if err != nil {
 		return err
@@ -209,7 +209,7 @@ func (p *LegacyPoliteiawww) restartCMSAddressesWatching(ctx context.Context) err
 // It will return TRUE if paid, otherwise false.  It utilizes the util
 // FetchTxsForAddressNotBefore which looks for transaction at a given address
 // after a certain time (in Unix seconds).
-func (p *LegacyPoliteiawww) checkHistoricalPayments(ctx context.Context, payment *database.Payments) bool {
+func (p *Politeiawww) checkHistoricalPayments(ctx context.Context, payment *database.Payments) bool {
 	// Get all txs since start time of watcher
 	txs, err := fetchTxsForAddressNotBefore(ctx, p.params, strings.TrimSpace(payment.Address),
 		payment.TimeStarted, p.dcrdataHostHTTP())
@@ -286,7 +286,7 @@ func (p *LegacyPoliteiawww) checkHistoricalPayments(ctx context.Context, payment
 // checkPayments checks to see if a given payment has been successfully paid.
 // It will return TRUE if paid, otherwise false.  It utilizes the util
 // FetchTx which looks for transaction at a given address.
-func (p *LegacyPoliteiawww) checkPayments(ctx context.Context, payment *database.Payments, notifiedTx string) bool {
+func (p *Politeiawww) checkPayments(ctx context.Context, payment *database.Payments, notifiedTx string) bool {
 	tx, err := fetchTx(ctx, p.params, payment.Address, notifiedTx, p.dcrdataHostHTTP())
 	if err != nil {
 		log.Errorf("error FetchTxs for address %s: %v", payment.Address, err)
@@ -347,7 +347,7 @@ func (p *LegacyPoliteiawww) checkPayments(ctx context.Context, payment *database
 	return false
 }
 
-func (p *LegacyPoliteiawww) updateInvoicePayment(ctx context.Context, payment *database.Payments) error {
+func (p *Politeiawww) updateInvoicePayment(ctx context.Context, payment *database.Payments) error {
 	// Create new backend invoice payment metadata
 	c := mdstream.InvoicePayment{
 		Version:        mdstream.VersionInvoicePayment,
@@ -402,7 +402,7 @@ func (p *LegacyPoliteiawww) updateInvoicePayment(ctx context.Context, payment *d
 	}
 	return nil
 }
-func (p *LegacyPoliteiawww) invoiceStatusPaid(ctx context.Context, token, key string) error {
+func (p *Politeiawww) invoiceStatusPaid(ctx context.Context, token, key string) error {
 	dbInvoice, err := p.cmsDB.InvoiceByKey(key)
 	if err != nil {
 		if errors.Is(err, database.ErrInvoiceNotFound) {

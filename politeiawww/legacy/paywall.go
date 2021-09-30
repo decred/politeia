@@ -49,12 +49,12 @@ func paywallHasExpired(pollExpiry int64) bool {
 
 // paywallIsEnabled returns true if paywall is enabled for the server, false
 // otherwise.
-func (p *LegacyPoliteiawww) paywallIsEnabled() bool {
+func (p *Politeiawww) paywallIsEnabled() bool {
 	return p.cfg.PaywallAmount != 0 && p.cfg.PaywallXpub != ""
 }
 
 // initPaywallCheck is intended to be called
-func (p *LegacyPoliteiawww) initPaywallChecker() error {
+func (p *Politeiawww) initPaywallChecker() error {
 	if p.cfg.PaywallAmount == 0 {
 		// Paywall not configured.
 		return nil
@@ -74,7 +74,7 @@ func (p *LegacyPoliteiawww) initPaywallChecker() error {
 // paywall pool have received a payment.  If so, proposal credits are created
 // for the user, the user database is updated, and the user is removed from
 // the paywall pool.
-func (p *LegacyPoliteiawww) checkForProposalPayments(ctx context.Context, pool map[uuid.UUID]paywallPoolMember) (bool, []uuid.UUID) {
+func (p *Politeiawww) checkForProposalPayments(ctx context.Context, pool map[uuid.UUID]paywallPoolMember) (bool, []uuid.UUID) {
 	var userIDsToRemove []uuid.UUID
 
 	// In theory poolMember could be raced during this call. In practice
@@ -148,7 +148,7 @@ func (p *LegacyPoliteiawww) checkForProposalPayments(ctx context.Context, pool m
 	return true, userIDsToRemove
 }
 
-func (p *LegacyPoliteiawww) checkForPayments() {
+func (p *Politeiawww) checkForPayments() {
 	ctx := context.Background()
 	for {
 		// Removing pool members from the pool while in the middle of
@@ -175,7 +175,7 @@ func (p *LegacyPoliteiawww) checkForPayments() {
 
 // generateNewUserPaywall generates new paywall info, if necessary, and saves
 // it in the database.
-func (p *LegacyPoliteiawww) generateNewUserPaywall(u *user.User) error {
+func (p *Politeiawww) generateNewUserPaywall(u *user.User) error {
 	// Check that the paywall is enabled.
 	if !p.paywallIsEnabled() {
 		return nil
@@ -214,7 +214,7 @@ func (p *LegacyPoliteiawww) generateNewUserPaywall(u *user.User) error {
 // not guarantee that it is still valid.  Depending on the circumstances, the
 // paywall could have already been paid, could have already expired, or could
 // still be valid.
-func (p *LegacyPoliteiawww) mostRecentProposalPaywall(user *user.User) *user.ProposalPaywall {
+func (p *Politeiawww) mostRecentProposalPaywall(user *user.User) *user.ProposalPaywall {
 	if len(user.ProposalPaywalls) > 0 {
 		return &user.ProposalPaywalls[len(user.ProposalPaywalls)-1]
 	}
@@ -225,7 +225,7 @@ func (p *LegacyPoliteiawww) mostRecentProposalPaywall(user *user.User) *user.Pro
 // that has not been paid yet and that has not expired yet.  Only one paywall
 // per user can be valid at a time, so if a valid paywall exists for the user,
 // it will be the most recent paywall.
-func (p *LegacyPoliteiawww) userHasValidProposalPaywall(user *user.User) bool {
+func (p *Politeiawww) userHasValidProposalPaywall(user *user.User) bool {
 	pp := p.mostRecentProposalPaywall(user)
 	return pp != nil && pp.TxID == "" && !paywallHasExpired(pp.PollExpiry)
 }
@@ -233,7 +233,7 @@ func (p *LegacyPoliteiawww) userHasValidProposalPaywall(user *user.User) bool {
 // generateProposalPaywall creates a new proposal paywall for the user that
 // enables them to purchase proposal credits.  Once the paywall is created, the
 // user database is updated and the user is added to the paywall pool.
-func (p *LegacyPoliteiawww) generateProposalPaywall(u *user.User) (*user.ProposalPaywall, error) {
+func (p *Politeiawww) generateProposalPaywall(u *user.User) (*user.ProposalPaywall, error) {
 	address, amount, txNotBefore, err := p.derivePaywallInfo(u)
 	if err != nil {
 		return nil, err
@@ -259,7 +259,7 @@ func (p *LegacyPoliteiawww) generateProposalPaywall(u *user.User) (*user.Proposa
 // verifyPropoposalPayment checks whether a payment has been sent to the
 // user's proposal paywall address. Proposal credits are created and added to
 // the user's account if the payment meets the minimum requirements.
-func (p *LegacyPoliteiawww) verifyProposalPayment(ctx context.Context, u *user.User) (*TxDetails, error) {
+func (p *Politeiawww) verifyProposalPayment(ctx context.Context, u *user.User) (*TxDetails, error) {
 	paywall := p.mostRecentProposalPaywall(u)
 
 	// If a TxID exists, the payment has already been verified.
@@ -332,7 +332,7 @@ func (p *LegacyPoliteiawww) verifyProposalPayment(ctx context.Context, u *user.U
 // when removing a pool member.
 //
 // This function must be called WITHOUT the mutex held.
-func (p *LegacyPoliteiawww) removeUsersFromPool(userIDsToRemove []uuid.UUID, paywallType string) {
+func (p *Politeiawww) removeUsersFromPool(userIDsToRemove []uuid.UUID, paywallType string) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -346,7 +346,7 @@ func (p *LegacyPoliteiawww) removeUsersFromPool(userIDsToRemove []uuid.UUID, pay
 // addUserToPaywallPool adds a database user to the paywall pool.
 //
 // This function must be called WITH the mutex held.
-func (p *LegacyPoliteiawww) addUserToPaywallPool(u *user.User, paywallType string) {
+func (p *Politeiawww) addUserToPaywallPool(u *user.User, paywallType string) {
 	p.userPaywallPool[u.ID] = paywallPoolMember{
 		paywallType: paywallType,
 		address:     u.NewUserPaywallAddress,
@@ -359,7 +359,7 @@ func (p *LegacyPoliteiawww) addUserToPaywallPool(u *user.User, paywallType strin
 // addUserToPaywallPoolLock adds a user and its paywall info to the in-memory pool.
 //
 // This function must be called WITHOUT the mutex held.
-func (p *LegacyPoliteiawww) addUserToPaywallPoolLock(u *user.User, paywallType string) {
+func (p *Politeiawww) addUserToPaywallPoolLock(u *user.User, paywallType string) {
 	if !p.paywallIsEnabled() {
 		return
 	}
@@ -373,7 +373,7 @@ func (p *LegacyPoliteiawww) addUserToPaywallPoolLock(u *user.User, paywallType s
 // addUsersToPaywallPool adds a user and its paywall info to the in-memory pool.
 //
 // This function must be called WITHOUT the mutex held.
-func (p *LegacyPoliteiawww) addUsersToPaywallPool() error {
+func (p *Politeiawww) addUsersToPaywallPool() error {
 	p.Lock()
 	defer p.Unlock()
 
@@ -407,14 +407,14 @@ func (p *LegacyPoliteiawww) addUsersToPaywallPool() error {
 }
 
 // updateUserAsPaid records in the database that the user has paid.
-func (p *LegacyPoliteiawww) updateUserAsPaid(u *user.User, tx string) error {
+func (p *Politeiawww) updateUserAsPaid(u *user.User, tx string) error {
 	u.NewUserPaywallTx = tx
 	u.NewUserPaywallPollExpiry = 0
 	return p.db.UserUpdate(*u)
 }
 
 // derivePaywallInfo derives a new paywall address for the user.
-func (p *LegacyPoliteiawww) derivePaywallInfo(u *user.User) (string, uint64, int64, error) {
+func (p *Politeiawww) derivePaywallInfo(u *user.User) (string, uint64, int64, error) {
 	address, err := derivePaywallAddress(p.params,
 		p.cfg.PaywallXpub, uint32(u.PaywallAddressIndex))
 	if err != nil {
@@ -428,7 +428,7 @@ func (p *LegacyPoliteiawww) derivePaywallInfo(u *user.User) (string, uint64, int
 // createUserPaywallPoolCopy returns a map of the poll pool.
 //
 // This function must be called WITHOUT the mutex held.
-func (p *LegacyPoliteiawww) createUserPaywallPoolCopy() map[uuid.UUID]paywallPoolMember {
+func (p *Politeiawww) createUserPaywallPoolCopy() map[uuid.UUID]paywallPoolMember {
 	p.RLock()
 	defer p.RUnlock()
 
@@ -443,7 +443,7 @@ func (p *LegacyPoliteiawww) createUserPaywallPoolCopy() map[uuid.UUID]paywallPoo
 
 // checkForUserPayments is called periodically to see if payments have come
 // through.
-func (p *LegacyPoliteiawww) checkForUserPayments(ctx context.Context, pool map[uuid.UUID]paywallPoolMember) (bool, []uuid.UUID) {
+func (p *Politeiawww) checkForUserPayments(ctx context.Context, pool map[uuid.UUID]paywallPoolMember) (bool, []uuid.UUID) {
 	var userIDsToRemove []uuid.UUID
 
 	for userID, poolMember := range pool {
@@ -517,7 +517,7 @@ func (p *LegacyPoliteiawww) checkForUserPayments(ctx context.Context, pool map[u
 }
 
 // userHasPaid returns whether the user has paid the user registration paywall.
-func (p *LegacyPoliteiawww) userHasPaid(u user.User) bool {
+func (p *Politeiawww) userHasPaid(u user.User) bool {
 	if !p.paywallIsEnabled() {
 		return true
 	}

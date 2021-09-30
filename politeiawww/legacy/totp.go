@@ -30,7 +30,7 @@ var (
 	}
 )
 
-func (p *LegacyPoliteiawww) totpGenerateOpts(issuer, accountName string) totp.GenerateOpts {
+func (p *Politeiawww) totpGenerateOpts(issuer, accountName string) totp.GenerateOpts {
 	if p.test {
 		// Set the period a totp code is valid for to 1 second when
 		// testing so the unit tests don't take forever.
@@ -46,7 +46,7 @@ func (p *LegacyPoliteiawww) totpGenerateOpts(issuer, accountName string) totp.Ge
 	}
 }
 
-func (p *LegacyPoliteiawww) totpGenerateCode(secret string, t time.Time) (string, error) {
+func (p *Politeiawww) totpGenerateCode(secret string, t time.Time) (string, error) {
 	if p.test {
 		// Set the period a totp code is valid for to 1 second when
 		// testing so the unit tests don't take forever.
@@ -60,7 +60,7 @@ func (p *LegacyPoliteiawww) totpGenerateCode(secret string, t time.Time) (string
 	return totp.GenerateCode(secret, t)
 }
 
-func (p *LegacyPoliteiawww) totpValidate(code, secret string, t time.Time) (bool, error) {
+func (p *Politeiawww) totpValidate(code, secret string, t time.Time) (bool, error) {
 	if p.test {
 		// Set the period a totp code is valid for to 1 second when
 		// testing so the unit tests don't take forever.
@@ -74,7 +74,7 @@ func (p *LegacyPoliteiawww) totpValidate(code, secret string, t time.Time) (bool
 	return totp.Validate(code, secret), nil
 }
 
-func (p *LegacyPoliteiawww) totpCheck(code string, u *user.User) error {
+func (p *Politeiawww) totpCheck(code string, u *user.User) error {
 	// Return error to alert that a code is required.
 	if code == "" {
 		log.Debugf("login: totp code required %v", u.Email)

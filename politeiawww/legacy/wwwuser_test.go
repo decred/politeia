@@ -1049,7 +1049,7 @@ func newPostReq(t *testing.T, route string, body interface{}) *http.Request {
 // addSessionToReq initializes a user session and adds a session cookie to the
 // given http request. The user session is saved to the politeiawww session
 // store during intialization.
-func addSessionToReq(t *testing.T, p *LegacyPoliteiawww, req *http.Request, userID string) {
+func addSessionToReq(t *testing.T, p *Politeiawww, req *http.Request, userID string) {
 	t.Helper()
 
 	// Init session adds a session cookie onto the http response.

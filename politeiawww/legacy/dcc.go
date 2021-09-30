@@ -401,7 +401,7 @@ func convertStartVoteToCMS(sv cms.StartVote) cmsplugin.StartVote {
 
 }
 
-func (p *LegacyPoliteiawww) processNewDCC(ctx context.Context, nd cms.NewDCC, u *user.User) (*cms.NewDCCReply, error) {
+func (p *Politeiawww) processNewDCC(ctx context.Context, nd cms.NewDCC, u *user.User) (*cms.NewDCCReply, error) {
 	reply := &cms.NewDCCReply{}
 
 	err := p.validateDCC(nd, u)
@@ -573,7 +573,7 @@ func (p *LegacyPoliteiawww) processNewDCC(ctx context.Context, nd cms.NewDCC, u 
 	return reply, nil
 }
 
-func (p *LegacyPoliteiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
+func (p *Politeiawww) validateDCC(nd cms.NewDCC, u *user.User) error {
 	// Obtain signature
 	sig, err := util.ConvertSignature(nd.Signature)
 	if err != nil {
@@ -743,7 +743,7 @@ func validateSponsorStatement(statement string) bool {
 
 // getDCC gets the most recent verions of the given DCC from the cmsDB
 // then fills in any missing user fields before returning the DCC record.
-func (p *LegacyPoliteiawww) getDCC(token string) (*cms.DCCRecord, error) {
+func (p *Politeiawww) getDCC(token string) (*cms.DCCRecord, error) {
 	// Get dcc from cmsdb
 	r, err := p.cmsDB.DCCByToken(token)
 	if err != nil {
@@ -813,7 +813,7 @@ func (p *LegacyPoliteiawww) getDCC(token string) (*cms.DCCRecord, error) {
 	return &i, nil
 }
 
-func (p *LegacyPoliteiawww) processDCCDetails(ctx context.Context, gd cms.DCCDetails) (*cms.DCCDetailsReply, error) {
+func (p *Politeiawww) processDCCDetails(ctx context.Context, gd cms.DCCDetails) (*cms.DCCDetailsReply, error) {
 	log.Tracef("processDCCDetails: %v", gd.Token)
 	vdr, err := p.cmsVoteDetails(ctx, gd.Token)
 	if err != nil {
@@ -851,7 +851,7 @@ func (p *LegacyPoliteiawww) processDCCDetails(ctx context.Context, gd cms.DCCDet
 	return reply, nil
 }
 
-func (p *LegacyPoliteiawww) processGetDCCs(gds cms.GetDCCs) (*cms.GetDCCsReply, error) {
+func (p *Politeiawww) processGetDCCs(gds cms.GetDCCs) (*cms.GetDCCsReply, error) {
 	log.Tracef("processGetDCCs: %v", gds.Status)
 
 	var dbDCCs []*cmsdatabase.DCC
@@ -886,7 +886,7 @@ func (p *LegacyPoliteiawww) processGetDCCs(gds cms.GetDCCs) (*cms.GetDCCsReply, 
 	}, nil
 }
 
-func (p *LegacyPoliteiawww) processSupportOpposeDCC(ctx context.Context, sd cms.SupportOpposeDCC, u *user.User) (*cms.SupportOpposeDCCReply, error) {
+func (p *Politeiawww) processSupportOpposeDCC(ctx context.Context, sd cms.SupportOpposeDCC, u *user.User) (*cms.SupportOpposeDCCReply, error) {
 	log.Tracef("processSupportOpposeDCC: %v %v", sd.Token, u.ID)
 
 	// The submitted Vote in the request must either be "aye" or "nay"
@@ -1049,7 +1049,7 @@ func validateNewComment(c www.NewComment) error {
 
 // processNewCommentDCC sends a new comment decred plugin command to politeaid
 // then fetches the new comment from the cache and returns it.
-func (p *LegacyPoliteiawww) processNewCommentDCC(ctx context.Context, nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
+func (p *Politeiawww) processNewCommentDCC(ctx context.Context, nc www.NewComment, u *user.User) (*www.NewCommentReply, error) {
 	log.Tracef("processNewCommentDCC: %v %v", nc.Token, u.ID)
 
 	// Validate comment
@@ -1168,7 +1168,7 @@ func (p *LegacyPoliteiawww) processNewCommentDCC(ctx context.Context, nc www.New
 // processDCCComments returns all comments for a given dcc. If the user is
 // logged in the user's last access time for the given comments will also be
 // returned.
-func (p *LegacyPoliteiawww) processDCCComments(ctx context.Context, token string, u *user.User) (*www.GetCommentsReply, error) {
+func (p *Politeiawww) processDCCComments(ctx context.Context, token string, u *user.User) (*www.GetCommentsReply, error) {
 	log.Tracef("processDCCComment: %v", token)
 
 	// Fetch dcc comments from cache
@@ -1198,7 +1198,7 @@ func (p *LegacyPoliteiawww) processDCCComments(ctx context.Context, token string
 	}, nil
 }
 
-func (p *LegacyPoliteiawww) getDCCComments(ctx context.Context, token string) ([]www.Comment, error) {
+func (p *Politeiawww) getDCCComments(ctx context.Context, token string) ([]www.Comment, error) {
 	log.Tracef("getDCCComments: %v", token)
 
 	dc, err := p.decredGetComments(ctx, token)
@@ -1225,7 +1225,7 @@ func (p *LegacyPoliteiawww) getDCCComments(ctx context.Context, token string) ([
 	return comments, nil
 }
 
-func (p *LegacyPoliteiawww) processSetDCCStatus(ctx context.Context, sds cms.SetDCCStatus, u *user.User) (*cms.SetDCCStatusReply, error) {
+func (p *Politeiawww) processSetDCCStatus(ctx context.Context, sds cms.SetDCCStatus, u *user.User) (*cms.SetDCCStatusReply, error) {
 	log.Tracef("processSetDCCStatus: %v", u.PublicKey())
 
 	// Ensure the provided public key is the user's active key.
@@ -1401,7 +1401,7 @@ func dccStatusInSlice(arr []cms.DCCStatusT, status cms.DCCStatusT) bool {
 	return false
 }
 
-func (p *LegacyPoliteiawww) processCastVoteDCC(ctx context.Context, cv cms.CastVote, u *user.User) (*cms.CastVoteReply, error) {
+func (p *Politeiawww) processCastVoteDCC(ctx context.Context, cv cms.CastVote, u *user.User) (*cms.CastVoteReply, error) {
 	log.Tracef("processCastVoteDCC: %v", u.PublicKey())
 
 	vdr, err := p.cmsVoteDetails(ctx, cv.Token)
@@ -1485,7 +1485,7 @@ func (p *LegacyPoliteiawww) processCastVoteDCC(ctx context.Context, cv cms.CastV
 	return convertCastVoteReplyToCMS(pluginCastVoteReply), nil
 }
 
-func (p *LegacyPoliteiawww) processVoteDetailsDCC(ctx context.Context, token string) (*cms.VoteDetailsReply, error) {
+func (p *Politeiawww) processVoteDetailsDCC(ctx context.Context, token string) (*cms.VoteDetailsReply, error) {
 	log.Tracef("processVoteDetailsDCC: %v", token)
 
 	// Validate vote status
@@ -1515,7 +1515,7 @@ func (p *LegacyPoliteiawww) processVoteDetailsDCC(ctx context.Context, token str
 
 // cmsVoteDetails sends the cms plugin votedetails command to the gitbe
 // and returns the vote details for the passed in proposal.
-func (p *LegacyPoliteiawww) cmsVoteDetails(ctx context.Context, token string) (*cmsplugin.VoteDetailsReply, error) {
+func (p *Politeiawww) cmsVoteDetails(ctx context.Context, token string) (*cmsplugin.VoteDetailsReply, error) {
 	// Setup plugin command
 	vd := cmsplugin.VoteDetails{
 		Token: token,
@@ -1561,7 +1561,7 @@ func (p *LegacyPoliteiawww) cmsVoteDetails(ctx context.Context, token string) (*
 
 // cmsVoteSummary provides the current tally of a given DCC proposal based on
 // the provided token.
-func (p *LegacyPoliteiawww) cmsVoteSummary(ctx context.Context, token string) (*cmsplugin.VoteSummaryReply, error) {
+func (p *Politeiawww) cmsVoteSummary(ctx context.Context, token string) (*cmsplugin.VoteSummaryReply, error) {
 	// Setup plugin command
 	vs := cmsplugin.VoteSummary{
 		Token: token,
@@ -1605,7 +1605,7 @@ func (p *LegacyPoliteiawww) cmsVoteSummary(ctx context.Context, token string) (*
 	return vsr, nil
 }
 
-func (p *LegacyPoliteiawww) processActiveVoteDCC(ctx context.Context) (*cms.ActiveVoteReply, error) {
+func (p *Politeiawww) processActiveVoteDCC(ctx context.Context) (*cms.ActiveVoteReply, error) {
 	log.Tracef("processActiveVoteDCC")
 
 	// Request full record inventory from backend
@@ -1695,7 +1695,7 @@ func (p *LegacyPoliteiawww) processActiveVoteDCC(ctx context.Context) (*cms.Acti
 // entry for the corresponding censorship token. It is the responsibility of
 // the caller to ensure that results are returned for all of the provided
 // censorship tokens.
-func (p *LegacyPoliteiawww) getDCCs(tokens []string) (map[string]cms.DCCRecord, error) {
+func (p *Politeiawww) getDCCs(tokens []string) (map[string]cms.DCCRecord, error) {
 	log.Tracef("getDCCs: %v", tokens)
 
 	// Use pointers for now so the props can be easily updated
@@ -1757,7 +1757,7 @@ func (p *LegacyPoliteiawww) getDCCs(tokens []string) (map[string]cms.DCCRecord, 
 
 // processStartVoteV2 starts the voting period on a proposal using the provided
 // v2 StartVote.
-func (p *LegacyPoliteiawww) processStartVoteDCC(ctx context.Context, sv cms.StartVote, u *user.User) (*cms.StartVoteReply, error) {
+func (p *Politeiawww) processStartVoteDCC(ctx context.Context, sv cms.StartVote, u *user.User) (*cms.StartVoteReply, error) {
 	log.Tracef("processStartVoteDCC %v", sv.Vote.Token)
 
 	// Sanity check

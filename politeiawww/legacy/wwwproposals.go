@@ -15,7 +15,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func (p *LegacyPoliteiawww) handleTokenInventory(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleTokenInventory(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleTokenInventory")
 
 	// Get session user. This is a public route so one might not exist.
@@ -36,7 +36,7 @@ func (p *LegacyPoliteiawww) handleTokenInventory(w http.ResponseWriter, r *http.
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *LegacyPoliteiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleAllVetted(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleAllVetted")
 
 	var v www.GetAllVetted
@@ -59,7 +59,7 @@ func (p *LegacyPoliteiawww) handleAllVetted(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
-func (p *LegacyPoliteiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleProposalDetails(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleProposalDetails")
 
 	// Get version from query string parameters
@@ -96,7 +96,7 @@ func (p *LegacyPoliteiawww) handleProposalDetails(w http.ResponseWriter, r *http
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *LegacyPoliteiawww) handleBatchProposals(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleBatchProposals(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleBatchProposals")
 
 	var bp www.BatchProposals
@@ -127,7 +127,7 @@ func (p *LegacyPoliteiawww) handleBatchProposals(w http.ResponseWriter, r *http.
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *LegacyPoliteiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleBatchVoteSummary(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleBatchVoteSummary")
 
 	var bvs www.BatchVoteSummary
@@ -150,7 +150,7 @@ func (p *LegacyPoliteiawww) handleBatchVoteSummary(w http.ResponseWriter, r *htt
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *LegacyPoliteiawww) handleVoteStatus(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleVoteStatus(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVoteStatus")
 
 	pathParams := mux.Vars(r)
@@ -166,7 +166,7 @@ func (p *LegacyPoliteiawww) handleVoteStatus(w http.ResponseWriter, r *http.Requ
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *LegacyPoliteiawww) handleAllVoteStatus(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleAllVoteStatus(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleAllVoteStatus")
 
 	reply, err := p.processAllVoteStatus(r.Context())
@@ -179,7 +179,7 @@ func (p *LegacyPoliteiawww) handleAllVoteStatus(w http.ResponseWriter, r *http.R
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-func (p *LegacyPoliteiawww) handleActiveVote(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleActiveVote(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleActiveVote")
 
 	avr, err := p.processActiveVote(r.Context())
@@ -192,7 +192,7 @@ func (p *LegacyPoliteiawww) handleActiveVote(w http.ResponseWriter, r *http.Requ
 	util.RespondWithJSON(w, http.StatusOK, avr)
 }
 
-func (p *LegacyPoliteiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleCastVotes(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleCastVotes")
 
 	var cv www.Ballot
@@ -214,7 +214,7 @@ func (p *LegacyPoliteiawww) handleCastVotes(w http.ResponseWriter, r *http.Reque
 	util.RespondWithJSON(w, http.StatusOK, avr)
 }
 
-func (p *LegacyPoliteiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) {
+func (p *Politeiawww) handleVoteResults(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVoteResults")
 
 	pathParams := mux.Vars(r)

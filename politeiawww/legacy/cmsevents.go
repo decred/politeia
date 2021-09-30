@@ -16,7 +16,7 @@ const (
 	eventDCCSupportOppose    = "eventDCCSupportOppose"
 )
 
-func (p *LegacyPoliteiawww) setupEventListenersCMS() {
+func (p *Politeiawww) setupEventListenersCMS() {
 	// Setup invoice comment event
 	ch := make(chan interface{})
 	p.events.Register(eventInvoiceComment, ch)
@@ -43,7 +43,7 @@ type dataInvoiceComment struct {
 	email string // User email
 }
 
-func (p *LegacyPoliteiawww) handleEventInvoiceComment(ch chan interface{}) {
+func (p *Politeiawww) handleEventInvoiceComment(ch chan interface{}) {
 	for msg := range ch {
 		d, ok := msg.(dataInvoiceComment)
 		if !ok {
@@ -65,7 +65,7 @@ type dataInvoiceStatusUpdate struct {
 	email string // User email
 }
 
-func (p *LegacyPoliteiawww) handleEventInvoiceStatusUpdate(ch chan interface{}) {
+func (p *Politeiawww) handleEventInvoiceStatusUpdate(ch chan interface{}) {
 	for msg := range ch {
 		d, ok := msg.(dataInvoiceStatusUpdate)
 		if !ok {
@@ -86,7 +86,7 @@ type dataDCCNew struct {
 	token string // DCC token
 }
 
-func (p *LegacyPoliteiawww) handleEventDCCNew(ch chan interface{}) {
+func (p *Politeiawww) handleEventDCCNew(ch chan interface{}) {
 	for msg := range ch {
 		d, ok := msg.(dataDCCNew)
 		if !ok {
@@ -125,7 +125,7 @@ type dataDCCSupportOppose struct {
 	token string // DCC token
 }
 
-func (p *LegacyPoliteiawww) handleEventDCCSupportOppose(ch chan interface{}) {
+func (p *Politeiawww) handleEventDCCSupportOppose(ch chan interface{}) {
 	for msg := range ch {
 		d, ok := msg.(dataDCCSupportOppose)
 		if !ok {

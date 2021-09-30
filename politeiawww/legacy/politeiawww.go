@@ -45,13 +45,13 @@ import (
 	"github.com/robfig/cron"
 )
 
-// LegacyPoliteiawww represents the legacy politeiawww server.
-type LegacyPoliteiawww struct {
+// Politeiawww represents the legacy politeiawww server.
+type Politeiawww struct {
 	sync.RWMutex
 	cfg       *config.Config
 	params    *chaincfg.Params
-	router    *mux.Router
-	auth      *mux.Router // CSRF protected subrouter
+	router    *mux.Router // Public router
+	auth      *mux.Router // CSRF protected router
 	db        user.Database
 	sessions  *sessions.Sessions
 	mail      mail.Mailer
@@ -80,15 +80,155 @@ type LegacyPoliteiawww struct {
 	test bool
 }
 
-// NewLegacyPoliteiawww returns a new LegacyPoliteiawww.
-func NewLegacyPoliteiawww(cfg *config.Config) *LegacyPoliteiawww {
-	return &LegacyPoliteiawww{
+// NewPoliteiawww returns a new legacy Politeiawww.
+func NewPoliteiawww(cfg *config.Config, public, auth *mux.Router) *Politeiawww {
+	// Setup http client for politeiad calls
+	httpClient, err := util.NewHTTPClient(false, cfg.RPCCert)
+	if err != nil {
+		return err
+	}
+
+	/*
+		// Setup user database
+		log.Infof("User database: %v", cfg.UserDB)
+
+		var userDB user.Database
+		var mailerDB user.MailerDB
+		switch cfg.UserDB {
+		case userDBLevel:
+			db, err := localdb.New(cfg.DataDir)
+			if err != nil {
+				return err
+			}
+			userDB = db
+
+		case userDBMySQL, userDBCockroach:
+			// If old encryption key is set it means that we need
+			// to open a db connection using the old key and then
+			// rotate keys.
+			var encryptionKey string
+			if cfg.OldEncryptionKey != "" {
+				encryptionKey = cfg.OldEncryptionKey
+			} else {
+				encryptionKey = cfg.EncryptionKey
+			}
+
+			// Open db connection.
+			network := filepath.Base(cfg.DataDir)
+			switch cfg.UserDB {
+			case userDBMySQL:
+				mysql, err := mysql.New(cfg.DBHost,
+					cfg.DBPass, network, encryptionKey)
+				if err != nil {
+					return fmt.Errorf("new mysql db: %v", err)
+				}
+				userDB = mysql
+				mailerDB = mysql
+			case userDBCockroach:
+				cdb, err := cockroachdb.New(cfg.DBHost, network,
+					cfg.DBRootCert, cfg.DBCert, cfg.DBKey,
+					encryptionKey)
+				if err != nil {
+					return fmt.Errorf("new cdb db: %v", err)
+				}
+				userDB = cdb
+				mailerDB = cdb
+			}
+
+			// Rotate keys.
+			if cfg.OldEncryptionKey != "" {
+				err = userDB.RotateKeys(cfg.EncryptionKey)
+				if err != nil {
+					return fmt.Errorf("rotate userdb keys: %v", err)
+				}
+			}
+
+		default:
+			return fmt.Errorf("invalid userdb '%v'", cfg.UserDB)
+		}
+
+		// Setup sessions store
+		var cookieKey []byte
+		if cookieKey, err = ioutil.ReadFile(cfg.CookieKeyFile); err != nil {
+			log.Infof("Cookie key not found, generating one...")
+			cookieKey, err = util.Random(32)
+			if err != nil {
+				return err
+			}
+			err = ioutil.WriteFile(cfg.CookieKeyFile, cookieKey, 0400)
+			if err != nil {
+				return err
+			}
+			log.Infof("Cookie key generated")
+		}
+
+		// Setup mailer smtp client
+		mailer, err := mail.NewClient(cfg.MailHost, cfg.MailUser,
+			cfg.MailPass, cfg.MailAddress, cfg.MailCert,
+			cfg.MailSkipVerify, cfg.MailRateLimit, mailerDB)
+		if err != nil {
+			return fmt.Errorf("new mail client: %v", err)
+		}
+	*/
+
+	return &Politeiawww{
+		cfg:             cfg,
+		params:          activeNetParams.Params,
+		router:          router,
+		auth:            auth,
+		politeiad:       pdc,
+		http:            httpClient,
+		db:              userDB,
+		mail:            mailer,
+		sessions:        sessions.New(userDB, cookieKey),
+		events:          events.NewManager(),
 		userEmails:      make(map[string]uuid.UUID, 1024),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember, 1024),
 	}
 }
 
-func (p *LegacyPoliteiawww) setupPi() error {
+// Setup performs any required setup for Politeiawww.
+func (p *Politeiawww) Setup() {
+	// Setup email-userID cache
+	err = p.initUserEmailsCache()
+	if err != nil {
+		return err
+	}
+
+	// Perform application specific setup
+	switch p.cfg.Mode {
+	case config.PoliteiaWWWMode:
+		err = p.setupPi()
+		if err != nil {
+			return fmt.Errorf("setupPi: %v", err)
+		}
+	case config.CMSWWWMode:
+		err = p.setupCMS()
+		if err != nil {
+			return fmt.Errorf("setupCMS: %v", err)
+		}
+	default:
+		return fmt.Errorf("unknown mode: %v", p.cfg.Mode)
+	}
+
+	return nil
+}
+
+// Close performs any required shutdown and cleanup for Politeiawww.
+func (p *Politeiawww) Close() {
+	// Close user db connection
+	p.db.Close()
+
+	// Perform application specific shutdown
+	switch p.cfg.Mode {
+	case config.PoliteiaWWWMode:
+		// Nothing to do
+	case config.CMSWWWMode:
+		p.wsDcrdata.Close()
+	}
+}
+
+func (p *Politeiawww) setupPi() error {
 	// Get politeiad plugins
 	plugins, err := p.getPluginInventory()
 	if err != nil {
@@ -169,7 +309,7 @@ func (p *LegacyPoliteiawww) setupPi() error {
 	return nil
 }
 
-func (p *LegacyPoliteiawww) setupCMS() error {
+func (p *Politeiawww) setupCMS() error {
 	// Setup routes
 	p.setCMSWWWRoutes()
 	p.setCMSUserWWWRoutes()
@@ -332,7 +472,7 @@ func (p *LegacyPoliteiawww) setupCMS() error {
 // getPluginInventory returns the politeiad plugin inventory. If a politeiad
 // connection cannot be made, the call will be retried every 5 seconds for up
 // to 1000 tries.
-func (p *LegacyPoliteiawww) getPluginInventory() ([]pdv2.Plugin, error) {
+func (p *Politeiawww) getPluginInventory() ([]pdv2.Plugin, error) {
 	// Attempt to fetch the plugin inventory from politeiad until
 	// either it is successful or the maxRetries has been exceeded.
 	var (

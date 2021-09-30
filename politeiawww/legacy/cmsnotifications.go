@@ -22,7 +22,7 @@ const (
 	thirdEmailCheck  = 3
 )
 
-func (p *LegacyPoliteiawww) checkInvoiceNotifications() {
+func (p *Politeiawww) checkInvoiceNotifications() {
 	log.Infof("Starting cron for invoice email checking")
 	// Launch invoice notification cron job
 	err := p.cron.AddFunc(firstEmailSchedule, func() {
@@ -48,7 +48,7 @@ func (p *LegacyPoliteiawww) checkInvoiceNotifications() {
 	}
 }
 
-func (p *LegacyPoliteiawww) invoiceNotification(emailCheckVersion int) {
+func (p *Politeiawww) invoiceNotification(emailCheckVersion int) {
 	currentMonth := time.Now().Month()
 	currentYear := time.Now().Year()
 	// Check all CMS users

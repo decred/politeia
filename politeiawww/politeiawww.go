@@ -8,7 +8,6 @@ import (
 	"crypto/elliptic"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
@@ -23,15 +22,14 @@ import (
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/sessions"
-	"github.com/decred/politeia/politeiawww/user"
-	"github.com/decred/politeia/politeiawww/user/cockroachdb"
-	"github.com/decred/politeia/politeiawww/user/localdb"
-	"github.com/decred/politeia/politeiawww/user/mysql"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
-	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
+)
+
+const (
+	csrfKeyLength = 32
 )
 
 // politeiawww represents the politeiawww server.
@@ -54,7 +52,7 @@ type politeiawww struct {
 func _main() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
-	loadedCfg, _, err := loadConfig()
+	cfg, _, err := loadConfig()
 	if err != nil {
 		return fmt.Errorf("Could not load configuration file: %v", err)
 	}
@@ -65,30 +63,29 @@ func _main() error {
 	}()
 
 	log.Infof("Version : %v", version.String())
-	log.Infof("Build Version: %v", version.BuildMainVersion())
 	log.Infof("Network : %v", activeNetParams.Params.Name)
-	log.Infof("Home dir: %v", loadedCfg.HomeDir)
+	log.Infof("Home dir: %v", cfg.HomeDir)
 
 	// Create the data directory in case it does not exist.
-	err = os.MkdirAll(loadedCfg.DataDir, 0700)
+	err = os.MkdirAll(cfg.DataDir, 0700)
 	if err != nil {
 		return err
 	}
 
 	// Check if this command is being run to fetch the politeiad
 	// identity.
-	if loadedCfg.FetchIdentity {
-		return getIdentity(loadedCfg.RPCHost, loadedCfg.RPCCert,
-			loadedCfg.RPCIdentityFile, loadedCfg.Interactive)
+	if cfg.FetchIdentity {
+		return getIdentity(cfg.RPCHost, cfg.RPCCert,
+			cfg.RPCIdentityFile, cfg.Interactive)
 	}
 
 	// Generate the TLS cert and key file if both don't already exist.
-	if !fileExists(loadedCfg.HTTPSKey) &&
-		!fileExists(loadedCfg.HTTPSCert) {
+	if !fileExists(cfg.HTTPSKey) &&
+		!fileExists(cfg.HTTPSCert) {
 		log.Infof("Generating HTTPS keypair...")
 
 		err := util.GenCertPair(elliptic.P256(), "politeiadwww",
-			loadedCfg.HTTPSCert, loadedCfg.HTTPSKey)
+			cfg.HTTPSCert, cfg.HTTPSKey)
 		if err != nil {
 			return fmt.Errorf("unable to create https keypair: %v",
 				err)
@@ -99,7 +96,7 @@ func _main() error {
 
 	// Load or create new CSRF key
 	log.Infof("Load CSRF key")
-	csrfKeyFilename := filepath.Join(loadedCfg.DataDir, "csrf.key")
+	csrfKeyFilename := filepath.Join(cfg.DataDir, "csrf.key")
 	fCSRF, err := os.Open(csrfKeyFilename)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -146,7 +143,7 @@ func _main() error {
 	// the same order that they are registered in.
 	router := mux.NewRouter()
 	m := middleware{
-		reqBodySizeLimit: loadedCfg.ReqBodySizeLimit,
+		reqBodySizeLimit: cfg.ReqBodySizeLimit,
 	}
 	router.Use(closeBodyMiddleware) // MUST be registered first
 	router.Use(m.reqBodySizeLimitMiddleware)
@@ -164,143 +161,33 @@ func _main() error {
 	auth.Use(csrfMiddleware)
 
 	// Setup the politeiad client
-	pdc, err := pdclient.New(loadedCfg.RPCHost, loadedCfg.RPCCert,
-		loadedCfg.RPCUser, loadedCfg.RPCPass, loadedCfg.Identity)
+	pdc, err := pdclient.New(cfg.RPCHost, cfg.RPCCert,
+		cfg.RPCUser, cfg.RPCPass, cfg.Identity)
 	if err != nil {
 		return err
-	}
-
-	// Setup user database
-	log.Infof("User database: %v", loadedCfg.UserDB)
-
-	var userDB user.Database
-	var mailerDB user.MailerDB
-	switch loadedCfg.UserDB {
-	case userDBLevel:
-		db, err := localdb.New(loadedCfg.DataDir)
-		if err != nil {
-			return err
-		}
-		userDB = db
-
-	case userDBMySQL, userDBCockroach:
-		// If old encryption key is set it means that we need
-		// to open a db connection using the old key and then
-		// rotate keys.
-		var encryptionKey string
-		if loadedCfg.OldEncryptionKey != "" {
-			encryptionKey = loadedCfg.OldEncryptionKey
-		} else {
-			encryptionKey = loadedCfg.EncryptionKey
-		}
-
-		// Open db connection.
-		network := filepath.Base(loadedCfg.DataDir)
-		switch loadedCfg.UserDB {
-		case userDBMySQL:
-			mysql, err := mysql.New(loadedCfg.DBHost,
-				loadedCfg.DBPass, network, encryptionKey)
-			if err != nil {
-				return fmt.Errorf("new mysql db: %v", err)
-			}
-			userDB = mysql
-			mailerDB = mysql
-		case userDBCockroach:
-			cdb, err := cockroachdb.New(loadedCfg.DBHost, network,
-				loadedCfg.DBRootCert, loadedCfg.DBCert, loadedCfg.DBKey,
-				encryptionKey)
-			if err != nil {
-				return fmt.Errorf("new cdb db: %v", err)
-			}
-			userDB = cdb
-			mailerDB = cdb
-		}
-
-		// Rotate keys.
-		if loadedCfg.OldEncryptionKey != "" {
-			err = userDB.RotateKeys(loadedCfg.EncryptionKey)
-			if err != nil {
-				return fmt.Errorf("rotate userdb keys: %v", err)
-			}
-		}
-
-	default:
-		return fmt.Errorf("invalid userdb '%v'", loadedCfg.UserDB)
-	}
-
-	// Setup sessions store
-	var cookieKey []byte
-	if cookieKey, err = ioutil.ReadFile(loadedCfg.CookieKeyFile); err != nil {
-		log.Infof("Cookie key not found, generating one...")
-		cookieKey, err = util.Random(32)
-		if err != nil {
-			return err
-		}
-		err = ioutil.WriteFile(loadedCfg.CookieKeyFile, cookieKey, 0400)
-		if err != nil {
-			return err
-		}
-		log.Infof("Cookie key generated")
-	}
-
-	// Setup politeiad client
-	httpClient, err := util.NewHTTPClient(false, loadedCfg.RPCCert)
-	if err != nil {
-		return err
-	}
-
-	// Setup mailer smtp client
-	mailer, err := mail.NewClient(loadedCfg.MailHost, loadedCfg.MailUser,
-		loadedCfg.MailPass, loadedCfg.MailAddress, loadedCfg.MailCert,
-		loadedCfg.MailSkipVerify, loadedCfg.MailRateLimit, mailerDB)
-	if err != nil {
-		return fmt.Errorf("new mail client: %v", err)
 	}
 
 	// Setup application context
 	p := &politeiawww{
-		cfg:        loadedCfg,
-		params:     activeNetParams.Params,
-		router:     router,
-		auth:       auth,
-		politeiad:  pdc,
-		http:       httpClient,
-		db:         userDB,
-		mail:       mailer,
-		sessions:   sessions.New(userDB, cookieKey),
-		events:     events.NewManager(),
-		ws:         make(map[string]map[string]*wsContext),
-		userEmails: make(map[string]uuid.UUID),
-	}
-
-	// Setup email-userID cache
-	err = p.initUserEmailsCache()
-	if err != nil {
-		return err
-	}
-
-	// Perform application specific setup
-	switch p.cfg.Mode {
-	case config.PoliteiaWWWMode:
-		err = p.setupPi()
-		if err != nil {
-			return fmt.Errorf("setupPi: %v", err)
-		}
-	case config.CMSWWWMode:
-		err = p.setupCMS()
-		if err != nil {
-			return fmt.Errorf("setupCMS: %v", err)
-		}
-	default:
-		return fmt.Errorf("unknown mode: %v", p.cfg.Mode)
+		cfg:       cfg,
+		params:    activeNetParams.Params,
+		router:    router,
+		auth:      auth,
+		politeiad: pdc,
+		// NOTE: These need implementations that don't
+		// use the legacy user database.
+		// mail:       mailer,
+		// sessions:   sessions.New(userDB, cookieKey),
+		events: events.NewManager(),
+		ws:     make(map[string]map[string]*wsContext),
 	}
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)
-	for _, listener := range loadedCfg.Listeners {
+	for _, listener := range cfg.Listeners {
 		listen := listener
 		go func() {
-			cfg := &tls.Config{
+			tlsConfig := &tls.Config{
 				MinVersion: tls.VersionTLS12,
 				CurvePreferences: []tls.CurveID{
 					tls.CurveP256, // BLAME CHROME, NOT ME!
@@ -317,16 +204,16 @@ func _main() error {
 			srv := &http.Server{
 				Handler:      p.router,
 				Addr:         listen,
-				ReadTimeout:  time.Duration(loadedCfg.ReadTimeout) * time.Second,
-				WriteTimeout: time.Duration(loadedCfg.WriteTimeout) * time.Second,
-				TLSConfig:    cfg,
+				ReadTimeout:  time.Duration(cfg.ReadTimeout) * time.Second,
+				WriteTimeout: time.Duration(cfg.WriteTimeout) * time.Second,
+				TLSConfig:    tlsConfig,
 				TLSNextProto: make(map[string]func(*http.Server,
 					*tls.Conn, http.Handler)),
 			}
 
 			log.Infof("Listen: %v", listen)
-			listenC <- srv.ListenAndServeTLS(loadedCfg.HTTPSCert,
-				loadedCfg.HTTPSKey)
+			listenC <- srv.ListenAndServeTLS(cfg.HTTPSCert,
+				cfg.HTTPSKey)
 		}()
 	}
 
@@ -347,20 +234,9 @@ func _main() error {
 			goto done
 		}
 	}
+
 done:
-
 	log.Infof("Exiting")
-
-	// Close user db connection
-	p.db.Close()
-
-	// Perform application specific shutdown
-	switch p.cfg.Mode {
-	case config.PoliteiaWWWMode:
-		// Nothing to do
-	case config.CMSWWWMode:
-		p.wsDcrdata.Close()
-	}
 
 	return nil
 }

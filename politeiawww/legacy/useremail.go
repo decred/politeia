@@ -24,7 +24,7 @@ const (
 // the user is only created/updated when this function is successfully executed
 // and an email with the verification token is sent to the user. This email is
 // also already limited by the verification token expiry hours policy.
-func (p *LegacyPoliteiawww) emailUserEmailVerify(email, token, username string) error {
+func (p *Politeiawww) emailUserEmailVerify(email, token, username string) error {
 	link, err := p.createEmailLink(www.RouteVerifyNewUser, email,
 		token, username)
 	if err != nil {
@@ -47,7 +47,7 @@ func (p *LegacyPoliteiawww) emailUserEmailVerify(email, token, username string) 
 
 // emailUserKeyUpdate emails the link with the verification token used for
 // setting a new key pair if the email server is set up.
-func (p *LegacyPoliteiawww) emailUserKeyUpdate(username, publicKey, token string, recipient map[uuid.UUID]string) error {
+func (p *Politeiawww) emailUserKeyUpdate(username, publicKey, token string, recipient map[uuid.UUID]string) error {
 	link, err := p.createEmailLink(www.RouteVerifyUpdateUserKey, "", token, "")
 	if err != nil {
 		return err
@@ -70,7 +70,7 @@ func (p *LegacyPoliteiawww) emailUserKeyUpdate(username, publicKey, token string
 
 // emailUserPasswordReset emails the link with the reset password verification
 // token to the provided email address.
-func (p *LegacyPoliteiawww) emailUserPasswordReset(username, token string, recipient map[uuid.UUID]string) error {
+func (p *Politeiawww) emailUserPasswordReset(username, token string, recipient map[uuid.UUID]string) error {
 	// Setup URL
 	u, err := url.Parse(p.cfg.WebServerAddress + www.RouteResetPassword)
 	if err != nil {
@@ -98,7 +98,7 @@ func (p *LegacyPoliteiawww) emailUserPasswordReset(username, token string, recip
 // emailUserAccountLocked notifies the user its account has been locked and
 // emails the link with the reset password verification token if the email
 // server is set up.
-func (p *LegacyPoliteiawww) emailUserAccountLocked(username string, recipient map[uuid.UUID]string) error {
+func (p *Politeiawww) emailUserAccountLocked(username string, recipient map[uuid.UUID]string) error {
 	var email string
 	for _, e := range recipient {
 		email = e
@@ -125,7 +125,7 @@ func (p *LegacyPoliteiawww) emailUserAccountLocked(username string, recipient ma
 
 // emailUserPasswordChanged notifies the user that his password was changed,
 // and verifies if he was the author of this action, for security purposes.
-func (p *LegacyPoliteiawww) emailUserPasswordChanged(username string, recipient map[uuid.UUID]string) error {
+func (p *Politeiawww) emailUserPasswordChanged(username string, recipient map[uuid.UUID]string) error {
 	tplData := userPasswordChanged{
 		Username: username,
 	}
@@ -139,7 +139,7 @@ func (p *LegacyPoliteiawww) emailUserPasswordChanged(username string, recipient 
 	return p.mail.SendToUsers(subject, body, recipient)
 }
 
-func (p *LegacyPoliteiawww) createEmailLink(path, email, token, username string) (string, error) {
+func (p *Politeiawww) createEmailLink(path, email, token, username string) (string, error) {
 	l, err := url.Parse(p.cfg.WebServerAddress + path)
 	if err != nil {
 		return "", err

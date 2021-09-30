@@ -28,7 +28,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (p *LegacyPoliteiawww) proposals(ctx context.Context, reqs []pdv2.RecordRequest) (map[string]www.ProposalRecord, error) {
+func (p *Politeiawww) proposals(ctx context.Context, reqs []pdv2.RecordRequest) (map[string]www.ProposalRecord, error) {
 	// Break the requests up so that they do not exceed the politeiad
 	// records page size.
 	var startIdx int
@@ -103,7 +103,7 @@ func (p *LegacyPoliteiawww) proposals(ctx context.Context, reqs []pdv2.RecordReq
 	return proposals, nil
 }
 
-func (p *LegacyPoliteiawww) processTokenInventory(ctx context.Context, isAdmin bool) (*www.TokenInventoryReply, error) {
+func (p *Politeiawww) processTokenInventory(ctx context.Context, isAdmin bool) (*www.TokenInventoryReply, error) {
 	log.Tracef("processTokenInventory")
 
 	// Get record inventory
@@ -186,7 +186,7 @@ func (p *LegacyPoliteiawww) processTokenInventory(ctx context.Context, isAdmin b
 	}, nil
 }
 
-func (p *LegacyPoliteiawww) processAllVetted(ctx context.Context, gav www.GetAllVetted) (*www.GetAllVettedReply, error) {
+func (p *Politeiawww) processAllVetted(ctx context.Context, gav www.GetAllVetted) (*www.GetAllVettedReply, error) {
 	log.Tracef("processAllVetted: %v %v", gav.Before, gav.After)
 
 	// NOTE: this route is not scalable and needs to be removed ASAP.
@@ -232,7 +232,7 @@ func (p *LegacyPoliteiawww) processAllVetted(ctx context.Context, gav www.GetAll
 	}, nil
 }
 
-func (p *LegacyPoliteiawww) processProposalDetails(ctx context.Context, pd www.ProposalsDetails, u *user.User) (*www.ProposalDetailsReply, error) {
+func (p *Politeiawww) processProposalDetails(ctx context.Context, pd www.ProposalsDetails, u *user.User) (*www.ProposalDetailsReply, error) {
 	log.Tracef("processProposalDetails: %v", pd.Token)
 
 	// Parse version
@@ -270,7 +270,7 @@ func (p *LegacyPoliteiawww) processProposalDetails(ctx context.Context, pd www.P
 	}, nil
 }
 
-func (p *LegacyPoliteiawww) processBatchProposals(ctx context.Context, bp www.BatchProposals, u *user.User) (*www.BatchProposalsReply, error) {
+func (p *Politeiawww) processBatchProposals(ctx context.Context, bp www.BatchProposals, u *user.User) (*www.BatchProposalsReply, error) {
 	log.Tracef("processBatchProposals: %v", bp.Tokens)
 
 	if len(bp.Tokens) > www.ProposalListPageSize {
@@ -310,7 +310,7 @@ func (p *LegacyPoliteiawww) processBatchProposals(ctx context.Context, bp www.Ba
 	}, nil
 }
 
-func (p *LegacyPoliteiawww) processBatchVoteSummary(ctx context.Context, bvs www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
+func (p *Politeiawww) processBatchVoteSummary(ctx context.Context, bvs www.BatchVoteSummary) (*www.BatchVoteSummaryReply, error) {
 	log.Tracef("processBatchVoteSummary: %v", bvs.Tokens)
 
 	if len(bvs.Tokens) > www.ProposalListPageSize {
@@ -360,7 +360,7 @@ func (p *LegacyPoliteiawww) processBatchVoteSummary(ctx context.Context, bvs www
 	}, nil
 }
 
-func (p *LegacyPoliteiawww) processVoteStatus(ctx context.Context, token string) (*www.VoteStatusReply, error) {
+func (p *Politeiawww) processVoteStatus(ctx context.Context, token string) (*www.VoteStatusReply, error) {
 	log.Tracef("processVoteStatus")
 
 	// Get vote summaries
@@ -379,7 +379,7 @@ func (p *LegacyPoliteiawww) processVoteStatus(ctx context.Context, token string)
 	return &vsr, nil
 }
 
-func (p *LegacyPoliteiawww) processAllVoteStatus(ctx context.Context) (*www.GetAllVoteStatusReply, error) {
+func (p *Politeiawww) processAllVoteStatus(ctx context.Context) (*www.GetAllVoteStatusReply, error) {
 	log.Tracef("processAllVoteStatus")
 
 	// NOTE: This route is suppose to return the vote status of all
@@ -442,7 +442,7 @@ func convertVoteDetails(vd tkplugin.VoteDetails) (www.StartVote, www.StartVoteRe
 	return sv, svr
 }
 
-func (p *LegacyPoliteiawww) processActiveVote(ctx context.Context) (*www.ActiveVoteReply, error) {
+func (p *Politeiawww) processActiveVote(ctx context.Context) (*www.ActiveVoteReply, error) {
 	log.Tracef("processActiveVotes")
 
 	// Get a page of ongoing votes. This route is deprecated and should
@@ -521,7 +521,7 @@ func (p *LegacyPoliteiawww) processActiveVote(ctx context.Context) (*www.ActiveV
 	}, nil
 }
 
-func (p *LegacyPoliteiawww) processCastVotes(ctx context.Context, ballot *www.Ballot) (*www.BallotReply, error) {
+func (p *Politeiawww) processCastVotes(ctx context.Context, ballot *www.Ballot) (*www.BallotReply, error) {
 	log.Tracef("processCastVotes")
 
 	// Verify there is work to do
@@ -569,7 +569,7 @@ func (p *LegacyPoliteiawww) processCastVotes(ctx context.Context, ballot *www.Ba
 	}, nil
 }
 
-func (p *LegacyPoliteiawww) processVoteResults(ctx context.Context, token string) (*www.VoteResultsReply, error) {
+func (p *Politeiawww) processVoteResults(ctx context.Context, token string) (*www.VoteResultsReply, error) {
 	log.Tracef("processVoteResults: %v", token)
 
 	// Get vote details

@@ -67,7 +67,7 @@ var (
 //
 // Note that this function always returns a NewUserReply. The caller shall
 // verify error and determine how to return this information upstream.
-func (p *LegacyPoliteiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, error) {
+func (p *Politeiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, error) {
 	log.Tracef("processNewUser: %v", nu.Username)
 
 	// Format and validate user credentials
@@ -304,7 +304,7 @@ func (p *LegacyPoliteiawww) processNewUser(nu www.NewUser) (*www.NewUserReply, e
 // processVerifyNewUser verifies the token generated for a recently created
 // user.  It ensures that the token matches with the input and that the token
 // hasn't expired.  On success it returns database user record.
-func (p *LegacyPoliteiawww) processVerifyNewUser(usr www.VerifyNewUser) (*user.User, error) {
+func (p *Politeiawww) processVerifyNewUser(usr www.VerifyNewUser) (*user.User, error) {
 	// Check that the user already exists.
 	u, err := p.userByEmail(usr.Email)
 	if err != nil {
@@ -397,7 +397,7 @@ func (p *LegacyPoliteiawww) processVerifyNewUser(usr www.VerifyNewUser) (*user.U
 
 // processResendVerification resends a new user verification email if the
 // user exists and his verification token is expired.
-func (p *LegacyPoliteiawww) processResendVerification(rv *www.ResendVerification) (*www.ResendVerificationReply, error) {
+func (p *Politeiawww) processResendVerification(rv *www.ResendVerification) (*www.ResendVerificationReply, error) {
 	rvr := www.ResendVerificationReply{}
 
 	// Get user from db.
@@ -501,7 +501,7 @@ func (p *LegacyPoliteiawww) processResendVerification(rv *www.ResendVerification
 
 // processLogin logs the provided user into politeia. This is done using go
 // routines in order to prevent timing attacks.
-func (p *LegacyPoliteiawww) processLogin(l www.Login) (*www.LoginReply, error) {
+func (p *Politeiawww) processLogin(l www.Login) (*www.LoginReply, error) {
 	log.Tracef("processLogin: %v", l.Email)
 
 	var (
@@ -531,7 +531,7 @@ func (p *LegacyPoliteiawww) processLogin(l www.Login) (*www.LoginReply, error) {
 // processResetPassword is used to perform a password change when the user is
 // not logged in. The provided email address must match the email address
 // or the user record that corresponds to the provided username.
-func (p *LegacyPoliteiawww) processResetPassword(rp www.ResetPassword) (*www.ResetPasswordReply, error) {
+func (p *Politeiawww) processResetPassword(rp www.ResetPassword) (*www.ResetPasswordReply, error) {
 	log.Tracef("processResetPassword: %v", rp.Username)
 	var (
 		wg sync.WaitGroup
@@ -561,7 +561,7 @@ func (p *LegacyPoliteiawww) processResetPassword(rp www.ResetPassword) (*www.Res
 // during the reset password command. If everything checks out, the user's
 // password is updated with the provided new password and the user's account
 // is unlocked if it had previously been locked.
-func (p *LegacyPoliteiawww) processVerifyResetPassword(vrp www.VerifyResetPassword) (*www.VerifyResetPasswordReply, error) {
+func (p *Politeiawww) processVerifyResetPassword(vrp www.VerifyResetPassword) (*www.VerifyResetPasswordReply, error) {
 	log.Tracef("processVerifyResetPassword: %v %v",
 		vrp.Username, vrp.VerificationToken)
 
@@ -632,7 +632,7 @@ func (p *LegacyPoliteiawww) processVerifyResetPassword(vrp www.VerifyResetPasswo
 
 // processUserDetails return the requested user's details. Some fields can be
 // omitted or blank depending on the requester's access level.
-func (p *LegacyPoliteiawww) processUserDetails(ud *www.UserDetails, isCurrentUser bool, isAdmin bool) (*www.UserDetailsReply, error) {
+func (p *Politeiawww) processUserDetails(ud *www.UserDetails, isCurrentUser bool, isAdmin bool) (*www.UserDetailsReply, error) {
 	// Fetch the database user.
 	user, err := p.userByIDStr(ud.UserID)
 	if err != nil {
@@ -654,7 +654,7 @@ func (p *LegacyPoliteiawww) processUserDetails(ud *www.UserDetails, isCurrentUse
 }
 
 // processEditUser edits a user's preferences.
-func (p *LegacyPoliteiawww) processEditUser(eu *www.EditUser, user *user.User) (*www.EditUserReply, error) {
+func (p *Politeiawww) processEditUser(eu *www.EditUser, user *user.User) (*www.EditUserReply, error) {
 	if eu.EmailNotifications != nil {
 		user.EmailNotifications = *eu.EmailNotifications
 	}
@@ -671,7 +671,7 @@ func (p *LegacyPoliteiawww) processEditUser(eu *www.EditUser, user *user.User) (
 // processUpdateUserKey sets a verification token and expiry to allow the user
 // to update his key pair; the token must be verified before it expires. If the
 // token is already set and is expired, it generates a new one.
-func (p *LegacyPoliteiawww) processUpdateUserKey(usr *user.User, uuk www.UpdateUserKey) (*www.UpdateUserKeyReply, error) {
+func (p *Politeiawww) processUpdateUserKey(usr *user.User, uuk www.UpdateUserKey) (*www.UpdateUserKeyReply, error) {
 	// Ensure we got a proper pubkey that is unique.
 	err := validatePubKey(uuk.PublicKey)
 	if err != nil {
@@ -753,7 +753,7 @@ func (p *LegacyPoliteiawww) processUpdateUserKey(usr *user.User, uuk www.UpdateU
 // processVerifyUpdateUserKey verifies the token generated for the recently
 // generated key pair. It ensures that the token matches with the input and
 // that the token hasn't expired.
-func (p *LegacyPoliteiawww) processVerifyUpdateUserKey(u *user.User, vu www.VerifyUpdateUserKey) (*user.User, error) {
+func (p *Politeiawww) processVerifyUpdateUserKey(u *user.User, vu www.VerifyUpdateUserKey) (*user.User, error) {
 	// Decode the verification token.
 	token, err := hex.DecodeString(vu.VerificationToken)
 	if err != nil {
@@ -828,7 +828,7 @@ func (p *LegacyPoliteiawww) processVerifyUpdateUserKey(u *user.User, vu www.Veri
 // in the database, then checks that the username is valid and not
 // already taken, then changes the user record in the database to
 // the new username.
-func (p *LegacyPoliteiawww) processChangeUsername(email string, cu www.ChangeUsername) (*www.ChangeUsernameReply, error) {
+func (p *Politeiawww) processChangeUsername(email string, cu www.ChangeUsername) (*www.ChangeUsernameReply, error) {
 	var reply www.ChangeUsernameReply
 
 	// Get user from db.
@@ -880,7 +880,7 @@ func (p *LegacyPoliteiawww) processChangeUsername(email string, cu www.ChangeUse
 
 // processChangePassword checks that the current password matches the one
 // in the database, then changes it to the new password.
-func (p *LegacyPoliteiawww) processChangePassword(email string, cp www.ChangePassword) (*www.ChangePasswordReply, error) {
+func (p *Politeiawww) processChangePassword(email string, cp www.ChangePassword) (*www.ChangePasswordReply, error) {
 	var reply www.ChangePasswordReply
 
 	// Get user from db.
@@ -941,7 +941,7 @@ func (p *LegacyPoliteiawww) processChangePassword(email string, cp www.ChangePas
 // return partial matches. Pubkey searches must be an exact match. Non admins
 // can search by pubkey or username. Non admin searches will only return exact
 // matches.
-func (p *LegacyPoliteiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersReply, error) {
+func (p *Politeiawww) processUsers(users *www.Users, isAdmin bool) (*www.UsersReply, error) {
 	log.Tracef("processUsers: %v", isAdmin)
 
 	emailQuery := strings.ToLower(users.Email)
@@ -1069,7 +1069,7 @@ func (p *LegacyPoliteiawww) processUsers(users *www.Users, isAdmin bool) (*www.U
 }
 
 // processManageUser processes the admin ManageUser command.
-func (p *LegacyPoliteiawww) processManageUser(mu *www.ManageUser, adminUser *user.User) (*www.ManageUserReply, error) {
+func (p *Politeiawww) processManageUser(mu *www.ManageUser, adminUser *user.User) (*www.ManageUserReply, error) {
 	// Fetch the database user.
 	user, err := p.userByIDStr(mu.UserID)
 	if err != nil {
@@ -1129,7 +1129,7 @@ func (p *LegacyPoliteiawww) processManageUser(mu *www.ManageUser, adminUser *use
 }
 
 // processSetTOTP attempts to set a new TOTP key based on the given TOTP type.
-func (p *LegacyPoliteiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTPReply, error) {
+func (p *Politeiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.SetTOTPReply, error) {
 	log.Tracef("processSetTOTP: %v", u.ID.String())
 	// if the user already has a TOTP secret set, check the code that was given
 	// as well to see if it matches to update.
@@ -1190,7 +1190,7 @@ func (p *LegacyPoliteiawww) processSetTOTP(st www.SetTOTP, u *user.User) (*www.S
 
 // processVerifyTOTP attempts to confirm a newly set TOTP key based on the
 // given TOTP type.
-func (p *LegacyPoliteiawww) processVerifyTOTP(vt www.VerifyTOTP, u *user.User) (*www.VerifyTOTPReply, error) {
+func (p *Politeiawww) processVerifyTOTP(vt www.VerifyTOTP, u *user.User) (*www.VerifyTOTPReply, error) {
 	valid, err := p.totpValidate(vt.Code, u.TOTPSecret, time.Now())
 	if err != nil {
 		log.Debugf("Error valdiating totp code %v", err)
@@ -1222,7 +1222,7 @@ type loginResult struct {
 	err   error
 }
 
-func (p *LegacyPoliteiawww) login(l www.Login) loginResult {
+func (p *Politeiawww) login(l www.Login) loginResult {
 	// Get user record
 	u, err := p.userByEmail(l.Email)
 	if err != nil {
@@ -1337,7 +1337,7 @@ func (p *LegacyPoliteiawww) login(l www.Login) loginResult {
 }
 
 // createLoginReply creates a login reply.
-func (p *LegacyPoliteiawww) createLoginReply(u *user.User, lastLoginTime int64) (*www.LoginReply, error) {
+func (p *Politeiawww) createLoginReply(u *user.User, lastLoginTime int64) (*www.LoginReply, error) {
 	reply := www.LoginReply{
 		IsAdmin:            u.Admin,
 		UserID:             u.ID.String(),
@@ -1374,7 +1374,7 @@ type resetPasswordResult struct {
 	err   error
 }
 
-func (p *LegacyPoliteiawww) resetPassword(rp www.ResetPassword) resetPasswordResult {
+func (p *Politeiawww) resetPassword(rp www.ResetPassword) resetPasswordResult {
 	// Lookup user
 	u, err := p.db.UserGetByUsername(rp.Username)
 	if err != nil {
@@ -1453,7 +1453,7 @@ func (p *LegacyPoliteiawww) resetPassword(rp www.ResetPassword) resetPasswordRes
 
 // userByIDStr converts the provided userIDStr to a uuid and returns the
 // corresponding user, if one it exists.
-func (p *LegacyPoliteiawww) userByIDStr(userIDStr string) (*user.User, error) {
+func (p *Politeiawww) userByIDStr(userIDStr string) (*user.User, error) {
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		return nil, www.UserError{
@@ -1476,7 +1476,7 @@ func (p *LegacyPoliteiawww) userByIDStr(userIDStr string) (*user.User, error) {
 
 // hashPassword hashes the given password string with the default bcrypt cost
 // or the minimum cost if the test flag is set to speed up running tests.
-func (p *LegacyPoliteiawww) hashPassword(password string) ([]byte, error) {
+func (p *Politeiawww) hashPassword(password string) ([]byte, error) {
 	if p.test {
 		return bcrypt.GenerateFromPassword([]byte(password),
 			bcrypt.MinCost)

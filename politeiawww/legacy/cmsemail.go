@@ -19,7 +19,7 @@ const (
 
 // emailUserCMSInvite emails the invitation link for the Contractor Management
 // System to the provided user email address.
-func (p *LegacyPoliteiawww) emailUserCMSInvite(email, token string) error {
+func (p *Politeiawww) emailUserCMSInvite(email, token string) error {
 	link, err := p.createEmailLink(guiRouteRegisterNewUser, "", token, "")
 	if err != nil {
 		return err
@@ -42,7 +42,7 @@ func (p *LegacyPoliteiawww) emailUserCMSInvite(email, token string) error {
 
 // emailUserDCCApproved emails the link to invite a user that has been approved
 // by the other contractors from a DCC proposal.
-func (p *LegacyPoliteiawww) emailUserDCCApproved(email string) error {
+func (p *Politeiawww) emailUserDCCApproved(email string) error {
 	tplData := userDCCApproved{
 		Email: email,
 	}
@@ -59,7 +59,7 @@ func (p *LegacyPoliteiawww) emailUserDCCApproved(email string) error {
 
 // emailDCCSubmitted sends email regarding the DCC New event. Sends email
 // to the provided email addresses.
-func (p *LegacyPoliteiawww) emailDCCSubmitted(token string, emails []string) error {
+func (p *Politeiawww) emailDCCSubmitted(token string, emails []string) error {
 	route := strings.Replace(guiRouteDCCDetails, "{token}", token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -81,7 +81,7 @@ func (p *LegacyPoliteiawww) emailDCCSubmitted(token string, emails []string) err
 
 // emailDCCSupportOppose sends emails regarding dcc support/oppose event.
 // Sends emails to the provided email addresses.
-func (p *LegacyPoliteiawww) emailDCCSupportOppose(token string, emails []string) error {
+func (p *Politeiawww) emailDCCSupportOppose(token string, emails []string) error {
 	route := strings.Replace(guiRouteDCCDetails, "{token}", token, 1)
 	l, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -103,7 +103,7 @@ func (p *LegacyPoliteiawww) emailDCCSupportOppose(token string, emails []string)
 
 // emailInvoiceStatusUpdate sends email for the invoice status update event.
 // Send email for the provided user email address.
-func (p *LegacyPoliteiawww) emailInvoiceStatusUpdate(invoiceToken, userEmail string) error {
+func (p *Politeiawww) emailInvoiceStatusUpdate(invoiceToken, userEmail string) error {
 	tplData := invoiceStatusUpdate{
 		Token: invoiceToken,
 	}
@@ -120,7 +120,7 @@ func (p *LegacyPoliteiawww) emailInvoiceStatusUpdate(invoiceToken, userEmail str
 
 // emailInvoiceNotifications emails users that have not yet submitted an
 // invoice for the given month/year
-func (p *LegacyPoliteiawww) emailInvoiceNotifications(email, username, subject string, tmpl *template.Template) error {
+func (p *Politeiawww) emailInvoiceNotifications(email, username, subject string, tmpl *template.Template) error {
 	// Set the date to the first day of the previous month.
 	newDate := time.Date(time.Now().Year(), time.Now().Month()-1, 1, 0, 0, 0, 0, time.UTC)
 	tplData := invoiceNotification{
@@ -139,7 +139,7 @@ func (p *LegacyPoliteiawww) emailInvoiceNotifications(email, username, subject s
 
 // emailInvoiceNewComment sends email for the invoice new comment event. Send
 // email to the provided user email address.
-func (p *LegacyPoliteiawww) emailInvoiceNewComment(userEmail string) error {
+func (p *Politeiawww) emailInvoiceNewComment(userEmail string) error {
 	var tplData interface{}
 	subject := "New Invoice Comment"
 
