@@ -1030,8 +1030,10 @@ func (t *tstoreBackend) Fsck() error {
 	}
 
 	// Sort records into vetted and unvetted groups.
-	vetted := make([]*backend.Record, 0, len(allTokens))
-	unvetted := make([]*backend.Record, 0, len(allTokens))
+	var (
+		vetted   = make([]*backend.Record, 0, len(allTokens))
+		unvetted = make([]*backend.Record, 0, len(allTokens))
+	)
 	for _, token := range allTokens {
 		record := records[hex.EncodeToString(token)]
 		if record.RecordMetadata.State == backend.StateVetted {
@@ -1091,6 +1093,8 @@ func (t *tstoreBackend) Fsck() error {
 		t.inventoryAdd(record.RecordMetadata.State, bToken,
 			record.RecordMetadata.Status)
 	}
+
+	log.Infof("%v records added to the inventory", len(allTokens))
 
 	// Update all plugin caches
 	return t.tstore.Fsck(allTokens)
