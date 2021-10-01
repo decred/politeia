@@ -129,7 +129,7 @@ func fetchTxWithBE(ctx context.Context, url string, address string, minimumAmoun
 		}
 
 		for _, vout := range v.Vout {
-			amount, err := util.DcrStringToAmount(vout.Amount.String())
+			amount, err := util.DcrStringToAtoms(vout.Amount.String())
 			if err != nil {
 				return "", 0, err
 			}
@@ -193,7 +193,7 @@ func fetchTxsWithBE(ctx context.Context, url string) ([]BETransaction, error) {
 func convertBETransactionToTxDetails(address string, tx BETransaction) (*TxDetails, error) {
 	var amount uint64
 	for _, vout := range tx.Vout {
-		amt, err := util.DcrStringToAmount(vout.Amount.String())
+		amt, err := util.DcrStringToAtoms(vout.Amount.String())
 		if err != nil {
 			return nil, err
 		}

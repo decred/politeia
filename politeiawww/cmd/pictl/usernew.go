@@ -7,6 +7,7 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
+	"strconv"
 
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
@@ -140,9 +141,10 @@ func (cmd *userNewCmd) Execute(args []string) error {
 
 	// Pays paywall fee using faucet
 	if pr.PaywallEnabled && cmd.Paywall {
+		dcrAmount := float64(lr.PaywallAmount) / 1e8
 		faucet := cmdSendFaucetTx{}
 		faucet.Args.Address = lr.PaywallAddress
-		faucet.Args.Amount = lr.PaywallAmount
+		faucet.Args.Amount = strconv.FormatFloat(dcrAmount, 'f', -1, 64)
 		err = faucet.Execute(nil)
 		if err != nil {
 			return err

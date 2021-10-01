@@ -46,9 +46,9 @@ func DeriveChildAddress(params *chaincfg.Params, xpub string, index uint32) (str
 	return addr.Address(), nil
 }
 
-// dcrStringToAmount converts a DCR amount as a string into a uint64
-// representing atoms. Supported input variations: "1", ".1", "0.1"
-func DcrStringToAmount(dcrstr string) (uint64, error) {
+// DcrStringToAtoms converts a DCR amount as a string into a uint64
+// representing atoms. Supported input variations: "1", ".1", "0.1".
+func DcrStringToAtoms(dcrstr string) (uint64, error) {
 	match, err := regexp.MatchString("(\\d*\\.)*\\d+", dcrstr)
 	if err != nil {
 		return 0, err

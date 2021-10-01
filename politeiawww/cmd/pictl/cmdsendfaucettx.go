@@ -12,7 +12,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -25,7 +24,7 @@ import (
 type cmdSendFaucetTx struct {
 	Args struct {
 		Address       string `positional-arg-name:"address" required:"true"`
-		Amount        uint64 `positional-arg-name:"amount" required:"true"`
+		Amount        string `positional-arg-name:"amount" required:"true"`
 		OverrideToken string `positional-arg-name:"overridetoken"`
 	} `positional-args:"true"`
 }
@@ -57,7 +56,7 @@ type faucetReply struct {
 
 // sendFaucetTx sends a request to the DCR testnet faucet that asks it to send
 // DCR from the faucet to the provided address.
-func sendFaucetTx(faucetURL string, address string, amountInDCR uint64, overridetoken string) (string, error) {
+func sendFaucetTx(faucetURL string, address, amountInDCR, overridetoken string) (string, error) {
 	// Verify address is valid
 	_, err := dcrutil.DecodeAddress(address, chaincfg.TestNet3Params())
 	if err != nil {
@@ -67,7 +66,7 @@ func sendFaucetTx(faucetURL string, address string, amountInDCR uint64, override
 	// Setup request
 	form := url.Values{}
 	form.Add("address", address)
-	form.Add("amount", strconv.FormatUint(amountInDCR, 10))
+	form.Add("amount", amountInDCR)
 	form.Add("overridetoken", overridetoken)
 
 	req, err := http.NewRequestWithContext(context.Background(),
@@ -119,12 +118,13 @@ func sendFaucetTx(faucetURL string, address string, amountInDCR uint64, override
 }
 
 // sendFaucetTxHelpMsg is the printed to stdout by the help command.
-const sendFaucetTxHelpMsg = `sendfaucettx "address" "amount" "overridetoken"
+const sendFaucetTxHelpMsg = `sendfaucettx "address" amount "overridetoken"
 
 Use the Decred testnet faucet to send DCR to an address.
 
 Arguments:
-1. address          (string, required)   Receiving address
-2. amount           (uint64, required)   Amount to send (in DCR)
-3. overridetoken    (string, optional)   Override token for testnet faucet
+1. address        (string, required)  Receiving address
+2. amount         (string, required)  Amount to send in DCR. Supported input
+                                      variations: "1", ".1", "0.1".
+3. overridetoken  (string, optional)  Override token for testnet faucet
 `

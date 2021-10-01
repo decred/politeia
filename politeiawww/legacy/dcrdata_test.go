@@ -56,7 +56,7 @@ func TestDcrStringToAmount(t *testing.T) {
 
 	// test
 	for _, testCase := range testCases {
-		result, err := util.DcrStringToAmount(testCase.input)
+		result, err := util.DcrStringToAtoms(testCase.input)
 		if !errors.Is(err, testCase.expectedError) {
 			t.Errorf("Expected %v for input %s, got %v.",
 				testCase.expectedError, testCase.input, err)
