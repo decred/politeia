@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/politeia/util"
 )
 
 const (
@@ -108,41 +108,6 @@ func makeRequest(ctx context.Context, url string, timeout time.Duration) ([]byte
 	return ioutil.ReadAll(response.Body)
 }
 
-// dcrStringToAmount converts a DCR amount as a string into a uint64
-// representing atoms. Supported input variations: "1", ".1", "0.1"
-func dcrStringToAmount(dcrstr string) (uint64, error) {
-	match, err := regexp.MatchString("(\\d*\\.)*\\d+", dcrstr)
-	if err != nil {
-		return 0, err
-	}
-	if !match {
-		return 0, fmt.Errorf("invalid DCR amount: %v", dcrstr)
-	}
-
-	var dcrsplit []string
-	if strings.Contains(dcrstr, ".") {
-		dcrsplit = strings.Split(dcrstr, ".")
-		if len(dcrsplit[0]) == 0 {
-			dcrsplit[0] = "0"
-		}
-	} else {
-		dcrsplit = []string{dcrstr, "0"}
-	}
-
-	whole, err := strconv.ParseUint(dcrsplit[0], 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	dcrsplit[1] += "00000000"
-	fraction, err := strconv.ParseUint(dcrsplit[1][0:8], 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	return ((whole * 1e8) + fraction), nil
-}
-
 func fetchTxWithBE(ctx context.Context, url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, uint64, error) {
 	responseBody, err := makeRequest(ctx, url, dcrdataTimeout)
 	if err != nil {
@@ -164,7 +129,7 @@ func fetchTxWithBE(ctx context.Context, url string, address string, minimumAmoun
 		}
 
 		for _, vout := range v.Vout {
-			amount, err := dcrStringToAmount(vout.Amount.String())
+			amount, err := util.DcrStringToAmount(vout.Amount.String())
 			if err != nil {
 				return "", 0, err
 			}
@@ -228,7 +193,7 @@ func fetchTxsWithBE(ctx context.Context, url string) ([]BETransaction, error) {
 func convertBETransactionToTxDetails(address string, tx BETransaction) (*TxDetails, error) {
 	var amount uint64
 	for _, vout := range tx.Vout {
-		amt, err := dcrStringToAmount(vout.Amount.String())
+		amt, err := util.DcrStringToAmount(vout.Amount.String())
 		if err != nil {
 			return nil, err
 		}

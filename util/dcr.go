@@ -5,6 +5,11 @@
 package util
 
 import (
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+
 	"decred.org/dcrwallet/wallet/udb"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrec"
@@ -39,4 +44,39 @@ func DeriveChildAddress(params *chaincfg.Params, xpub string, index uint32) (str
 	}
 
 	return addr.Address(), nil
+}
+
+// dcrStringToAmount converts a DCR amount as a string into a uint64
+// representing atoms. Supported input variations: "1", ".1", "0.1"
+func DcrStringToAmount(dcrstr string) (uint64, error) {
+	match, err := regexp.MatchString("(\\d*\\.)*\\d+", dcrstr)
+	if err != nil {
+		return 0, err
+	}
+	if !match {
+		return 0, fmt.Errorf("invalid DCR amount: %v", dcrstr)
+	}
+
+	var dcrsplit []string
+	if strings.Contains(dcrstr, ".") {
+		dcrsplit = strings.Split(dcrstr, ".")
+		if len(dcrsplit[0]) == 0 {
+			dcrsplit[0] = "0"
+		}
+	} else {
+		dcrsplit = []string{dcrstr, "0"}
+	}
+
+	whole, err := strconv.ParseUint(dcrsplit[0], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	dcrsplit[1] += "00000000"
+	fraction, err := strconv.ParseUint(dcrsplit[1][0:8], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return ((whole * 1e8) + fraction), nil
 }

@@ -17,7 +17,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"

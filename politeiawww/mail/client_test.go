@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 )

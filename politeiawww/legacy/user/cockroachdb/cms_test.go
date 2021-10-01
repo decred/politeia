@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 

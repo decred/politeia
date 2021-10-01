@@ -228,8 +228,6 @@ func (p *Politeiawww) setup() error {
 	default:
 		return fmt.Errorf("unknown mode: %v", p.cfg.Mode)
 	}
-
-	return nil
 }
 
 func (p *Politeiawww) setupPi() error {
