@@ -332,27 +332,38 @@ func validateDBHost(host string) error {
 func loadConfig() (*config.Config, []string, error) {
 	// Default config.
 	cfg := config.Config{
-		HomeDir:                  config.DefaultHomeDir,
-		ConfigFile:               config.DefaultConfigFile,
-		DebugLevel:               defaultLogLevel,
-		DataDir:                  config.DefaultDataDir,
-		LogDir:                   defaultLogDir,
-		HTTPSKey:                 defaultHTTPSKeyFile,
-		HTTPSCert:                config.DefaultHTTPSCertFile,
-		RPCCert:                  defaultRPCCertFile,
-		CookieKeyFile:            defaultCookieKeyFile,
-		Version:                  version.String(),
-		ReadTimeout:              defaultReadTimeout,
-		WriteTimeout:             defaultWriteTimeout,
-		ReqBodySizeLimit:         defaultReqBodySizeLimit,
-		WebsocketReadLimit:       defaultWebsocketReadLimit,
+		// General application settings
+		HomeDir:    config.DefaultHomeDir,
+		ConfigFile: config.DefaultConfigFile,
+		DataDir:    config.DefaultDataDir,
+		LogDir:     defaultLogDir,
+		DebugLevel: defaultLogLevel,
+
+		// HTTP server settings
+		HTTPSCert:          config.DefaultHTTPSCertFile,
+		HTTPSKey:           defaultHTTPSKeyFile,
+		CookieKeyFile:      defaultCookieKeyFile,
+		ReadTimeout:        defaultReadTimeout,
+		WriteTimeout:       defaultWriteTimeout,
+		ReqBodySizeLimit:   defaultReqBodySizeLimit,
+		WebsocketReadLimit: defaultWebsocketReadLimit,
+
+		// politeiad RPC settings
+		RPCCert: defaultRPCCertFile,
+
+		// User database settings
+		UserDB: defaultUserDB,
+
+		// Legacy settings
 		Mode:                     defaultWWWMode,
-		UserDB:                   defaultUserDB,
 		PaywallAmount:            defaultPaywallAmount,
 		MinConfirmationsRequired: defaultPaywallMinConfirmations,
 		VoteDurationMin:          defaultVoteDurationMin,
 		VoteDurationMax:          defaultVoteDurationMax,
 		MailRateLimit:            defaultMailRateLimit,
+
+		// Other
+		Version: version.String(),
 	}
 
 	// Service options which are only added on Windows.

@@ -11,6 +11,7 @@ import (
 
 	"github.com/decred/politeia/politeiawww/comments"
 	"github.com/decred/politeia/politeiawww/events"
+	"github.com/decred/politeia/politeiawww/legacy"
 	cmsdb "github.com/decred/politeia/politeiawww/legacy/cmsdatabase/cockroachdb"
 	"github.com/decred/politeia/politeiawww/legacy/codetracker/github"
 	ghdb "github.com/decred/politeia/politeiawww/legacy/codetracker/github/database/cockroachdb"
@@ -74,6 +75,9 @@ func init() {
 	mail.UseLogger(log)
 	sessions.UseLogger(sessionsLog)
 	events.UseLogger(eventsLog)
+
+	// Legacy server logger
+	legacy.UseLogger(log)
 
 	// Legacy UserDB loggers
 	localdb.UseLogger(userdbLog)

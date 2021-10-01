@@ -246,6 +246,8 @@ func _main() error {
 done:
 	log.Infof("Exiting")
 
+	p.legacy.Close()
+
 	return nil
 }
 
