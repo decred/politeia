@@ -141,7 +141,10 @@ func (cmd *userNewCmd) Execute(args []string) error {
 
 	// Pays paywall fee using faucet
 	if pr.PaywallEnabled && cmd.Paywall {
-		dcrAmount := float64(lr.PaywallAmount) / 1e8
+		// The faucet has a floating point precision bug as of
+		// Oct 2021. Add an extra DCR to the amount to ensure
+		// the paywall gets fully paid.
+		dcrAmount := float64(lr.PaywallAmount)/1e8 + 1
 		faucet := cmdSendFaucetTx{}
 		faucet.Args.Address = lr.PaywallAddress
 		faucet.Args.Amount = strconv.FormatFloat(dcrAmount, 'f', -1, 64)
