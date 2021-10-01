@@ -271,16 +271,14 @@ func (p *Politeiawww) setCMSWWWRoutes() {
 		cms.RouteUserCodeStats, p.handleUserCodeStats,
 		permissionLogin)
 
-	/*
-		// Unauthenticated websocket
-		p.addRoute("", www.PoliteiaWWWAPIRoute,
-			www.RouteUnauthenticatedWebSocket, p.handleUnauthenticatedWebsocket,
-			permissionPublic)
-		// Authenticated websocket
-		p.addRoute("", www.PoliteiaWWWAPIRoute,
-			www.RouteAuthenticatedWebSocket, p.handleAuthenticatedWebsocket,
-			permissionLogin)
-	*/
+	// Unauthenticated websocket
+	p.addRoute("", www.PoliteiaWWWAPIRoute,
+		www.RouteUnauthenticatedWebSocket, p.handleUnauthenticatedWebsocket,
+		permissionPublic)
+	// Authenticated websocket
+	p.addRoute("", www.PoliteiaWWWAPIRoute,
+		www.RouteAuthenticatedWebSocket, p.handleAuthenticatedWebsocket,
+		permissionLogin)
 
 	// Routes that require being logged in as an admin user.
 	p.addRoute(http.MethodPost, cms.APIRoute,

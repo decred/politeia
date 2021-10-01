@@ -15,7 +15,7 @@ import (
 
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
-	utilwww "github.com/decred/politeia/politeiawww/util"
+	"github.com/decred/politeia/politeiawww/websockets"
 	"github.com/gorilla/websocket"
 	"golang.org/x/net/publicsuffix"
 )
@@ -83,7 +83,7 @@ func (cmd *subscribeCmd) Execute(args []string) error {
 	}
 
 	// Send subscribe command
-	err = utilwww.WSWrite(ws, v1.WSCSubscribe, "1", v1.WSSubscribe{
+	err = websockets.Write(ws, v1.WSCSubscribe, "1", v1.WSSubscribe{
 		RPCS: subscribe,
 	})
 	if err != nil {
