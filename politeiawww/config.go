@@ -452,18 +452,16 @@ func loadConfig() (*config.Config, []string, error) {
 	// Load additional config from file.
 	var configFileError error
 	parser := newConfigParser(&cfg, &serviceOpts, flags.Default)
-	if cfg.ConfigFile != config.DefaultConfigFile {
-		err := flags.NewIniParser(parser).ParseFile(cfg.ConfigFile)
-		if err != nil {
-			var e *os.PathError
-			if !errors.As(err, &e) {
-				fmt.Fprintf(os.Stderr, "Error parsing config "+
-					"file: %v\n", err)
-				fmt.Fprintln(os.Stderr, usageMessage)
-				return nil, nil, err
-			}
-			configFileError = err
+	err = flags.NewIniParser(parser).ParseFile(cfg.ConfigFile)
+	if err != nil {
+		var e *os.PathError
+		if !errors.As(err, &e) {
+			fmt.Fprintf(os.Stderr, "Error parsing config "+
+				"file: %v\n", err)
+			fmt.Fprintln(os.Stderr, usageMessage)
+			return nil, nil, err
 		}
+		configFileError = err
 	}
 
 	// Parse command line options again to ensure they take precedence.
