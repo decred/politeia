@@ -4,7 +4,10 @@
 
 package github
 
-import "github.com/decred/slog"
+import (
+	"github.com/decred/politeia/politeiawww/logger"
+	"github.com/decred/slog"
+)
 
 var log = slog.Disabled
 
@@ -12,4 +15,9 @@ var log = slog.Disabled
 // made before a server is created and used (it is not concurrent safe).
 func UseLogger(logger slog.Logger) {
 	log = logger
+}
+
+// Initialize the package logger.
+func init() {
+	UseLogger(logger.NewSubsystem("GHTR"))
 }

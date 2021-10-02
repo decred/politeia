@@ -26,6 +26,7 @@ import (
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/decred/politeia/politeiawww/legacy/user/localdb"
+	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/util"
@@ -369,9 +370,9 @@ func newTestCMSwww(t *testing.T) (*Politeiawww, func()) {
 		t.Fatalf("open tmp dir: %v", err)
 	}
 
-	// Setup logging
-	// initLogRotator(filepath.Join(dataDir, "cmswww.test.log"))
-	// setLogLevels("off")
+	// Turn logging off
+	logger.InitLogRotator(filepath.Join(dataDir, "cmswww.test.log"))
+	logger.SetLogLevels("off")
 
 	// Setup config
 	xpub := "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFm" +
@@ -413,9 +414,6 @@ func newTestCMSwww(t *testing.T) (*Politeiawww, func()) {
 	if err != nil {
 		t.Fatalf("create cookie key: %v", err)
 	}
-
-	// initLogRotator(filepath.Join(dataDir, "cmswww.test.log"))
-	// setLogLevels("off")
 
 	// Create politeiawww context
 	p := Politeiawww{

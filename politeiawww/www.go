@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 
+	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/util"
 )
 
@@ -19,7 +20,7 @@ func handleNotFound(w http.ResponseWriter, r *http.Request) {
 		util.RemoteAddr(r), r.Method, r.URL, r.Proto)
 
 	// Trace incoming request
-	log.Tracef("%v", newLogClosure(func() string {
+	log.Tracef("%v", logger.NewLogClosure(func() string {
 		trace, err := httputil.DumpRequest(r, true)
 		if err != nil {
 			trace = []byte(fmt.Sprintf("handleNotFound: DumpRequest %v", err))

@@ -18,13 +18,13 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/decred/dcrd/hdkeychain/v3"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/util/version"
 
 	v1 "github.com/decred/politeia/politeiad/api/v1"
@@ -138,20 +138,6 @@ func validLogLevel(logLevel string) bool {
 	return false
 }
 
-// supportedSubsystems returns a sorted slice of the supported subsystems for
-// logging purposes.
-func supportedSubsystems() []string {
-	// Convert the subsystemLoggers map keys to a slice.
-	subsystems := make([]string, 0, len(subsystemLoggers))
-	for subsysID := range subsystemLoggers {
-		subsystems = append(subsystems, subsysID)
-	}
-
-	// Sort the subsytems for stable display.
-	sort.Strings(subsystems)
-	return subsystems
-}
-
 // parseAndSetDebugLevels attempts to parse the specified debug level and set
 // the levels accordingly.  An appropriate error is returned if anything is
 // invalid.
@@ -166,7 +152,7 @@ func parseAndSetDebugLevels(debugLevel string) error {
 		}
 
 		// Change the logging level for all subsystems.
-		setLogLevels(debugLevel)
+		logger.SetLogLevels(debugLevel)
 
 		return nil
 	}
@@ -185,10 +171,14 @@ func parseAndSetDebugLevels(debugLevel string) error {
 		subsysID, logLevel := fields[0], fields[1]
 
 		// Validate subsystem.
-		if _, exists := subsystemLoggers[subsysID]; !exists {
+		subsystems := make(map[string]struct{})
+		for _, v := range logger.SupportedSubsystems() {
+			subsystems[v] = struct{}{}
+		}
+		if _, exists := subsystems[subsysID]; !exists {
 			str := "The specified subsystem [%v] is invalid -- " +
 				"supported subsytems %v"
-			return fmt.Errorf(str, subsysID, supportedSubsystems())
+			return fmt.Errorf(str, subsysID, logger.SupportedSubsystems())
 		}
 
 		// Validate log level.
@@ -197,7 +187,7 @@ func parseAndSetDebugLevels(debugLevel string) error {
 			return fmt.Errorf(str, logLevel)
 		}
 
-		setLogLevel(subsysID, logLevel)
+		logger.SetLogLevel(subsysID, logLevel)
 	}
 
 	return nil
@@ -580,13 +570,13 @@ func loadConfig() (*config.Config, []string, error) {
 
 	// Special show command to list supported subsystems and exit.
 	if cfg.DebugLevel == "show" {
-		fmt.Println("Supported subsystems", supportedSubsystems())
+		fmt.Println("Supported subsystems", logger.SupportedSubsystems())
 		os.Exit(0)
 	}
 
 	// Initialize log rotation.  After log rotation has been initialized,
 	// the logger variables may be used.
-	initLogRotator(filepath.Join(cfg.LogDir, defaultLogFilename))
+	logger.InitLogRotator(filepath.Join(cfg.LogDir, defaultLogFilename))
 
 	// Parse, validate, and set debug log level(s).
 	if err := parseAndSetDebugLevels(cfg.DebugLevel); err != nil {
