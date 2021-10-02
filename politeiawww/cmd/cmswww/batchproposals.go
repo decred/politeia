@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrtime/merkle"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
@@ -176,7 +177,7 @@ func verifyProposal(p v1.ProposalRecord, serverPubKey string) error {
 	}
 
 	// Verify proposal signature
-	pid, err := util.IdentityFromString(p.PublicKey)
+	pid, err := identity.PublicIdentityFromString(p.PublicKey)
 	if err != nil {
 		return err
 	}
@@ -189,7 +190,7 @@ func verifyProposal(p v1.ProposalRecord, serverPubKey string) error {
 	}
 
 	// Verify censorship record signature
-	id, err := util.IdentityFromString(serverPubKey)
+	id, err := identity.PublicIdentityFromString(serverPubKey)
 	if err != nil {
 		return err
 	}

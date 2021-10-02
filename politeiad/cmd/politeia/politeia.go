@@ -523,7 +523,7 @@ func recordVerify() error {
 	merkle := hex.EncodeToString(mr[:])
 
 	// Load identity
-	pid, err := util.IdentityFromString(serverKey)
+	pid, err := identity.PublicIdentityFromString(serverKey)
 	if err != nil {
 		return err
 	}

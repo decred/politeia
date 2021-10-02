@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
@@ -63,7 +64,7 @@ func (cmd *CensorCommentCmd) Execute(args []string) error {
 	}
 
 	// Validate censor comment receipt
-	serverID, err := util.IdentityFromString(vr.PubKey)
+	serverID, err := identity.PublicIdentityFromString(vr.PubKey)
 	if err != nil {
 		return err
 	}

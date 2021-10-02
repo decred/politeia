@@ -415,7 +415,7 @@ func firstContact(shutdownCtx context.Context, cfg *config) (*ctx, error) {
 	log.Debugf("Route  : %v", version.Route)
 	log.Debugf("Pubkey : %v", version.PubKey)
 
-	c.id, err = util.IdentityFromString(version.PubKey)
+	c.id, err = identity.PublicIdentityFromString(version.PubKey)
 	if err != nil {
 		return nil, err
 	}

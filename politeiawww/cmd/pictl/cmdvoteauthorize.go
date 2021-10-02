@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
@@ -99,7 +100,7 @@ func (c *cmdVoteAuthorize) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	serverID, err := util.IdentityFromString(vr.PubKey)
+	serverID, err := identity.PublicIdentityFromString(vr.PubKey)
 	if err != nil {
 		return err
 	}

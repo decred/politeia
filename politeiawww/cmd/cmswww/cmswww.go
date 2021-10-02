@@ -147,7 +147,7 @@ func verifyInvoice(p cms.InvoiceRecord, serverPubKey string) error {
 	}
 
 	// Verify invoice signature
-	pid, err := util.IdentityFromString(p.PublicKey)
+	pid, err := identity.PublicIdentityFromString(p.PublicKey)
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func verifyInvoice(p cms.InvoiceRecord, serverPubKey string) error {
 	}
 
 	// Verify censorship record signature
-	id, err := util.IdentityFromString(serverPubKey)
+	id, err := identity.PublicIdentityFromString(serverPubKey)
 	if err != nil {
 		return err
 	}
@@ -310,7 +310,7 @@ func verifyDCC(p cms.DCCRecord, serverPubKey string) error {
 	}
 
 	// Verify dcc signature
-	pid, err := util.IdentityFromString(p.PublicKey)
+	pid, err := identity.PublicIdentityFromString(p.PublicKey)
 	if err != nil {
 		return err
 	}
@@ -323,7 +323,7 @@ func verifyDCC(p cms.DCCRecord, serverPubKey string) error {
 	}
 
 	// Verify censorship record signature
-	id, err := util.IdentityFromString(serverPubKey)
+	id, err := identity.PublicIdentityFromString(serverPubKey)
 	if err != nil {
 		return err
 	}
