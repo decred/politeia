@@ -120,11 +120,8 @@ func printProposal(r rcv1.Record) error {
 
 // printProposalSummary prints a proposal summary.
 func printProposalSummary(token string, s piv1.Summary) {
-	printf("Token       : %v\n", token)
-	printf("Status      : %v\n", s.Status)
-	if s.StatusReason != "" {
-		printf("StatusReason: %v\n", s.StatusReason)
-	}
+	printf("Token : %v\n", token)
+	printf("Status: %v\n", s.Status)
 }
 
 // indexFileRandom returns a proposal index file filled with random data.

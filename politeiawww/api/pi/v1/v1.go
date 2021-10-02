@@ -13,12 +13,15 @@ const (
 	// RoutePolicy returns the policy for the pi API.
 	RoutePolicy = "/policy"
 
-	// RouteSetBillingStatus sets the record's billing status.
+	// RouteSetBillingStatus sets the proposal's billing status.
 	RouteSetBillingStatus = "/setbillingstatus"
 
 	// RouteSummaries returns the proposal summary for a page of
 	// records.
 	RouteSummaries = "/summaries"
+
+	// RouteBillingStatusChanges returns the proposal's billing status changes.
+	RouteBillingStatusChanges = "/billingstatuschanges"
 )
 
 // ErrorCodeT represents a user error code.
@@ -283,16 +286,16 @@ const (
 	SummariesPageSize uint32 = 5
 )
 
-// Summaries requests the proposal summaries for the provided record tokens.
+// Summaries requests the proposal summaries for the provided proposal tokens.
 type Summaries struct {
 	Tokens []string `json:"tokens"`
 }
 
 // SummariesReply is the reply to the Summaries command.
 //
-// Summaries field contains a vote summary for each of the provided tokens.
+// Summaries field contains a proposal summary for each of the provided tokens.
 // The map will not contain an entry for any tokens that did not correspond
-// to an actual record. It is the callers responsibility to ensure that a
+// to an actual proposal. It is the callers responsibility to ensure that a
 // summary is returned for all provided tokens.
 type SummariesReply struct {
 	Summaries map[string]Summary `json:"summaries"` // [token]Summary
@@ -302,11 +305,17 @@ type SummariesReply struct {
 //
 // Status field is the string value of the PropStatusT type which is defined
 // along with all of it's possible values in the pi plugin API.
-//
-// StatusReason field will be populated if the status change required a
-// reason to be given. Examples include when a proposal is censored/abandoned
-// or when the billing status of the proposal is set to closed.
 type Summary struct {
-	Status       string `json:"status"`
-	StatusReason string `json:"statusreason"`
+	Status string `json:"status"`
+}
+
+// BillingStatusChanges requests the billing status changes for the provided
+// proposal token.
+type BillingStatusChanges struct {
+	Token string `json:"token"`
+}
+
+// BillingStatusChangesReply is the reply to the BillingStatusChanges command.
+type BillingStatusChangesReply struct {
+	BillingStatusChanges []BillingStatusChange `json:"billingstatuschanges"`
 }

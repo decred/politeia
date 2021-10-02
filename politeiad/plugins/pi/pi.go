@@ -15,6 +15,10 @@ const (
 
 	// CmdSummary command returns a summary for a proposal.
 	CmdSummary = "summary"
+
+	// CmdBillingStatusChanges command returns the billing status changes
+	// of a proposal.
+	CmdBillingStatusChanges = "billingstatuschanges"
 )
 
 // Plugin setting keys can be used to specify custom plugin settings. Default
@@ -359,13 +363,8 @@ type SummaryReply struct {
 }
 
 // ProposalSummary summarizes proposal information.
-//
-// StatusReason field will be populated if the status change required a
-// reason to be given. Examples include when a proposal is censored/abandoned
-// or when the billing status of the proposal is set to closed.
 type ProposalSummary struct {
-	Status       PropStatusT `json:"status"`
-	StatusReason string      `json:"statusreason"`
+	Status PropStatusT `json:"status"`
 }
 
 // PropStatusT represents the status of a proposal. It combines record and
@@ -472,4 +471,15 @@ const (
 // from the proposal author.
 type ProposalUpdateMetadata struct {
 	Title string `json:"title"`
+}
+
+// BillingStatusChanges requests the billing status changes for the provided
+// proposal token.
+type BillingStatusChanges struct {
+	Token string `json:"token"`
+}
+
+// BillingStatusChangesReply is the reply to the BillingStatusChanges command.
+type BillingStatusChangesReply struct {
+	BillingStatusChanges []BillingStatusChange `json:"billingstatuschanges"`
 }
