@@ -1,22 +1,18 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package main
+package config
 
 import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/wire"
 )
 
-// activeNetParams is a pointer to the parameters specific to the
-// currently active decred network.
-var activeNetParams = &mainNetParams
-
-// params is used to group parameters for various networks such as the main
-// network and test networks.
-type params struct {
+// ChainParams is used to group parameters for various networks such as the
+// main network and test networks.
+type ChainParams struct {
 	*chaincfg.Params
 	WalletRPCServerPort string
 }
@@ -27,7 +23,7 @@ type params struct {
 // separate wallet process listens on the well-known port and forwards requests
 // it does not handle on to dcrd.  This approach allows the wallet process
 // to emulate the full reference implementation RPC API.
-var mainNetParams = params{
+var mainNetParams = ChainParams{
 	Params:              chaincfg.MainNetParams(),
 	WalletRPCServerPort: "9111",
 }
@@ -36,14 +32,14 @@ var mainNetParams = params{
 // (wire.TestNet).  NOTE: The RPC port is intentionally different than the
 // reference implementation - see the mainNetParams comment for details.
 
-var testNet3Params = params{
+var testNet3Params = ChainParams{
 	Params:              chaincfg.TestNet3Params(),
 	WalletRPCServerPort: "19111",
 }
 
 // simNetParams contains parameters specific to the simulation test network
 // (wire.SimNet).
-var simNetParams = params{
+var simNetParams = ChainParams{
 	Params:              chaincfg.SimNetParams(),
 	WalletRPCServerPort: "19558",
 }
@@ -57,7 +53,7 @@ var simNetParams = params{
 // A proper upgrade to move the data and log directories for this network to
 // "testnet" is planned for the future, at which point this function can be
 // removed and the network parameter's name used instead.
-func netName(chainParams *params) string {
+func netName(chainParams *ChainParams) string {
 	switch chainParams.Net {
 	case wire.TestNet3:
 		return "testnet3"

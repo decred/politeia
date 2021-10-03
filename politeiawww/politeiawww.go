@@ -16,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg/v3"
 	pdclient "github.com/decred/politeia/politeiad/client"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
@@ -37,7 +36,6 @@ const (
 type politeiawww struct {
 	sync.RWMutex
 	cfg       *config.Config
-	params    *chaincfg.Params
 	router    *mux.Router
 	auth      *mux.Router // CSRF protected subrouter
 	politeiad *pdclient.Client
@@ -49,7 +47,7 @@ type politeiawww struct {
 func _main() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
-	cfg, _, err := loadConfig()
+	cfg, _, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("Could not load configuration file: %v", err)
 	}
@@ -58,7 +56,7 @@ func _main() error {
 	}()
 
 	log.Infof("Version : %v", version.String())
-	log.Infof("Network : %v", activeNetParams.Params.Name)
+	log.Infof("Network : %v", cfg.ActiveNet.Name)
 	log.Infof("Home dir: %v", cfg.HomeDir)
 
 	// Create the data directory in case it does not exist.
@@ -75,8 +73,8 @@ func _main() error {
 	}
 
 	// Generate the TLS cert and key file if both don't already exist.
-	if !fileExists(cfg.HTTPSKey) &&
-		!fileExists(cfg.HTTPSCert) {
+	if !util.FileExists(cfg.HTTPSKey) &&
+		!util.FileExists(cfg.HTTPSCert) {
 		log.Infof("Generating HTTPS keypair...")
 
 		err := util.GenCertPair(elliptic.P256(), "politeiadwww",
@@ -164,7 +162,7 @@ func _main() error {
 
 	// Setup the legacy politeiawww context
 	legacywww, err := legacy.NewPoliteiawww(cfg, router, auth,
-		activeNetParams.Params, pdc)
+		cfg.ActiveNet.Params, pdc)
 	if err != nil {
 		return err
 	}
@@ -172,7 +170,6 @@ func _main() error {
 	// Setup application context
 	p := &politeiawww{
 		cfg:       cfg,
-		params:    activeNetParams.Params,
 		router:    router,
 		auth:      auth,
 		politeiad: pdc,
