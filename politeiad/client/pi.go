@@ -89,7 +89,7 @@ func (c *Client) PiSummaries(ctx context.Context, tokens []string) (map[string]p
 func (c *Client) PiBillingStatusChanges(ctx context.Context, token string) (*pi.BillingStatusChangesReply, error) {
 	// Setup request
 	cmds := []pdv2.PluginCmd{
-		pdv2.PluginCmd{
+		{
 			Token:   token,
 			ID:      pi.PluginID,
 			Command: pi.CmdBillingStatusChanges,
