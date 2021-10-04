@@ -14,10 +14,10 @@ import (
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/comments"
-	"github.com/decred/politeia/politeiawww/pi"
+	"github.com/decred/politeia/politeiawww/legacy/comments"
+	"github.com/decred/politeia/politeiawww/legacy/pi"
+	"github.com/decred/politeia/politeiawww/legacy/ticketvote"
 	"github.com/decred/politeia/politeiawww/records"
-	"github.com/decred/politeia/politeiawww/ticketvote"
 	"github.com/decred/politeia/util"
 )
 
