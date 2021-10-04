@@ -587,12 +587,13 @@ func (p *piPlugin) writesAllowedOnApprovedProposal(token []byte, cmd, payload st
 	// Get billing status to determine whether to allow author updates
 	// or not.
 	var bsc *pi.BillingStatusChange
-	bsc, err := p.billingStatusChange(token)
+	bscs, err := p.billingStatusChanges(token)
 	if err != nil {
 		return err
 	}
-	// We assume here that admins can set a billing status only once
-	if bsc != nil {
+	if len(bscs) > 0 {
+		// Get latest billing status change
+		bsc = &bscs[len(bscs)-1]
 		if bsc.Status == pi.BillingStatusClosed ||
 			bsc.Status == pi.BillingStatusCompleted {
 			// If billing status is set to closed or completed, comment writes

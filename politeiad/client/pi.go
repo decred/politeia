@@ -7,10 +7,42 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 )
+
+// PiSetBillingStatus sends the pi plugin SetBillingStatus command to the
+// politeiad v2 API.
+func (c *Client) PiSetBillingStatus(ctx context.Context, sbs pi.SetBillingStatus) (*pi.SetBillingStatusReply, error) {
+	// Setup request
+	b, err := json.Marshal(sbs)
+	if err != nil {
+		return nil, err
+	}
+	cmd := pdv2.PluginCmd{
+		Token:   sbs.Token,
+		ID:      pi.PluginID,
+		Command: pi.CmdSetBillingStatus,
+		Payload: string(b),
+	}
+
+	// Send request
+	reply, err := c.PluginWrite(ctx, cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode reply
+	var sbsr pi.SetBillingStatusReply
+	err = json.Unmarshal([]byte(reply), &sbsr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &sbsr, nil
+}
 
 // PiSummaries sends a page of pi plugin Summary commands to the politeiad
 // v2 API.
@@ -52,33 +84,40 @@ func (c *Client) PiSummaries(ctx context.Context, tokens []string) (map[string]p
 	return ssr, nil
 }
 
-// PiSetBillingStatus sends the pi plugin BillingStatus command to the
-// politeiad v2 API.
-func (c *Client) PiSetBillingStatus(ctx context.Context, sbs pi.SetBillingStatus) (*pi.SetBillingStatusReply, error) {
+// PiBillingStatusChanges sends the pi plugin BillingStatusChanges command
+// to the politeiad v2 API.
+func (c *Client) PiBillingStatusChanges(ctx context.Context, token string) (*pi.BillingStatusChangesReply, error) {
 	// Setup request
-	b, err := json.Marshal(sbs)
-	if err != nil {
-		return nil, err
-	}
-	cmd := pdv2.PluginCmd{
-		Token:   sbs.Token,
-		ID:      pi.PluginID,
-		Command: pi.CmdSetBillingStatus,
-		Payload: string(b),
+	cmds := []pdv2.PluginCmd{
+		{
+			Token:   token,
+			ID:      pi.PluginID,
+			Command: pi.CmdBillingStatusChanges,
+			Payload: "",
+		},
 	}
 
 	// Send request
-	reply, err := c.PluginWrite(ctx, cmd)
+	replies, err := c.PluginReads(ctx, cmds)
+	if err != nil {
+		return nil, err
+	}
+	if len(replies) == 0 {
+		return nil, fmt.Errorf("no replies found")
+	}
+	pcr := replies[0]
+	err = extractPluginCmdError(pcr)
 	if err != nil {
 		return nil, err
 	}
 
 	// Decode reply
-	var sbsr pi.SetBillingStatusReply
-	err = json.Unmarshal([]byte(reply), &sbsr)
+	var bscsr pi.BillingStatusChangesReply
+	err = json.Unmarshal([]byte(pcr.Payload), &bscsr)
 	if err != nil {
 		return nil, err
 	}
 
-	return &sbsr, nil
+	return &bscsr, nil
+
 }

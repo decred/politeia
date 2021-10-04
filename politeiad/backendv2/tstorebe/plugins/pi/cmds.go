@@ -89,11 +89,11 @@ func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, er
 	}
 
 	// Ensure no billing status already exists
-	sc, err := p.billingStatusChange(token)
+	bscs, err := p.billingStatusChanges(token)
 	if err != nil {
 		return "", err
 	}
-	if sc != nil {
+	if len(bscs) > 0 {
 		return "", backend.PluginError{
 			PluginID:     pi.PluginID,
 			ErrorCode:    uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
@@ -196,7 +196,11 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 			voteStatus = vs.Status
 			// If vote status is approved fetch billing status change.
 			if voteStatus == ticketvote.VoteStatusApproved {
-				bsc, err = p.billingStatusChange(token)
+				bscs, err := p.billingStatusChanges(token)
+				if len(bscs) > 0 {
+					// Get newest billing status change.
+					bsc = &bscs[len(bscs)-1]
+				}
 				if err != nil {
 					return "", err
 				}
@@ -209,27 +213,33 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		return "", err
 	}
 
-	// Get status reason if status should have a reason.
-	var reason string
-	switch proposalStatus {
-	case pi.PropStatusUnvettedAbandoned, pi.PropStatusAbandoned,
-		pi.PropStatusUnvettedCensored, pi.PropStatusCensored:
-		reason, err = p.lastStatusChangeReason(r.Metadata)
-		if err != nil {
-			return "", err
-		}
-	case pi.PropStatusClosed:
-		reason = bsc.Reason
-	}
-
 	// Prepare reply
 	sr := pi.SummaryReply{
 		Summary: pi.ProposalSummary{
-			Status:       proposalStatus,
-			StatusReason: reason,
+			Status: proposalStatus,
 		},
 	}
 	reply, err := json.Marshal(sr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
+// cmdBillingStatusChanges returns the billing status changes of a proposal.
+func (p *piPlugin) cmdBillingStatusChanges(token []byte) (string, error) {
+	// Get billing status changes
+	bscs, err := p.billingStatusChanges(token)
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare reply
+	bscsr := pi.BillingStatusChangesReply{
+		BillingStatusChanges: bscs,
+	}
+	reply, err := json.Marshal(bscsr)
 	if err != nil {
 		return "", err
 	}
@@ -390,10 +400,8 @@ func (p *piPlugin) billingStatusSave(token []byte, bsc pi.BillingStatusChange) e
 	return p.tstore.BlobSave(token, *be)
 }
 
-// billingStatus returns a pointer to a BillingStatusChange for a record if
-// it's billing status was set and nil otherwise. It assumes that a billing
-// status can be set only once.
-func (p *piPlugin) billingStatusChange(token []byte) (*pi.BillingStatusChange, error) {
+// billingStatusChanges returns the billing status changes of a proposal.
+func (p *piPlugin) billingStatusChanges(token []byte) ([]pi.BillingStatusChange, error) {
 	// Retrieve blobs
 	blobs, err := p.tstore.BlobsByDataDesc(token,
 		[]string{dataDescriptorBillingStatus})
@@ -402,25 +410,22 @@ func (p *piPlugin) billingStatusChange(token []byte) (*pi.BillingStatusChange, e
 	}
 
 	// Decode blobs
-	statuses := make([]pi.BillingStatusChange, 0, len(blobs))
+	statusChanges := make([]pi.BillingStatusChange, 0, len(blobs))
 	for _, v := range blobs {
 		a, err := billingStatusDecode(v)
 		if err != nil {
 			return nil, err
 		}
-		statuses = append(statuses, *a)
+		statusChanges = append(statusChanges, *a)
 	}
 
 	// Sanity check. They should already be sorted from oldest to
 	// newest.
-	sort.SliceStable(statuses, func(i, j int) bool {
-		return statuses[i].Timestamp < statuses[j].Timestamp
+	sort.SliceStable(statusChanges, func(i, j int) bool {
+		return statusChanges[i].Timestamp < statusChanges[j].Timestamp
 	})
 
-	if len(statuses) > 0 {
-		return &statuses[0], nil
-	}
-	return nil, nil
+	return statusChanges, nil
 }
 
 // billingStatusEncode encodes a BillingStatusChange into a BlobEntry.

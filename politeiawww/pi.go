@@ -172,6 +172,9 @@ func (p *politeiawww) setupPiRoutes(r *records.Records, c *comments.Comments, t 
 	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RouteSummaries, pic.HandleSummaries,
 		permissionPublic)
+	p.addRoute(http.MethodPost, piv1.APIRoute,
+		piv1.RouteBillingStatusChanges, pic.HandleBillingStatusChanges,
+		permissionPublic)
 }
 
 func (p *politeiawww) setupPi() error {

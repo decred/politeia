@@ -79,6 +79,8 @@ func (c *cmdHelp) Execute(args []string) error {
 		fmt.Printf("%s\n", proposalSetStatusHelpMsg)
 	case "proposalsetbillingstatus":
 		fmt.Printf("%s\n", proposalSetBillingStatusHelpMsg)
+	case "proposalbillingstatuschanges":
+		fmt.Printf("%s\n", proposalBillingStatusChangesHelpMsg)
 	case "proposaldetails":
 		fmt.Printf("%s\n", proposalDetailsHelpMsg)
 	case "proposaltimestamps":

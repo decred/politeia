@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// processSetBillingStatus processes a pi v1 setbillingstatus request.
 func (p *Pi) processSetBillingStatus(ctx context.Context, sbs v1.SetBillingStatus, u user.User) (*v1.SetBillingStatusReply, error) {
 	log.Tracef("processSetBillingStatus: %v", sbs.Token)
 
@@ -65,14 +66,59 @@ func (p *Pi) processSummaries(ctx context.Context, s v1.Summaries) (*v1.Summarie
 	ss := make(map[string]v1.Summary, len(psr))
 	for token, s := range psr {
 		ss[token] = v1.Summary{
-			Status:       string(s.Summary.Status),
-			StatusReason: s.Summary.StatusReason,
+			Status: string(s.Summary.Status),
 		}
 	}
 
 	return &v1.SummariesReply{
 		Summaries: ss,
 	}, nil
+}
+
+// processBillingStatusChanges processes a pi v1 billingstatuschanges request.
+func (p *Pi) processBillingStatusChanges(ctx context.Context, bscs v1.BillingStatusChanges) (*v1.BillingStatusChangesReply, error) {
+	log.Tracef("processBillingStatusChanges: %v", bscs.Token)
+
+	pbscsr, err := p.politeiad.PiBillingStatusChanges(ctx, bscs.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert reply to API.
+	billingStatusChanges := make([]v1.BillingStatusChange, 0,
+		len(pbscsr.BillingStatusChanges))
+	for _, bsc := range pbscsr.BillingStatusChanges {
+		billingStatusChanges = append(billingStatusChanges,
+			convertBillingStatusChangeToAPI(bsc))
+	}
+
+	return &v1.BillingStatusChangesReply{
+		BillingStatusChanges: billingStatusChanges,
+	}, nil
+}
+
+func convertBillingStatusChangeToAPI(bsc pi.BillingStatusChange) v1.BillingStatusChange {
+	return v1.BillingStatusChange{
+		Token:     bsc.Token,
+		Status:    convertBillingStatusToAPI(bsc.Status),
+		Reason:    bsc.Reason,
+		PublicKey: bsc.PublicKey,
+		Signature: bsc.Signature,
+		Receipt:   bsc.Receipt,
+		Timestamp: bsc.Timestamp,
+	}
+}
+
+func convertBillingStatusToAPI(bs pi.BillingStatusT) v1.BillingStatusT {
+	switch bs {
+	case pi.BillingStatusActive:
+		return v1.BillingStatusActive
+	case pi.BillingStatusClosed:
+		return v1.BillingStatusClosed
+	case pi.BillingStatusCompleted:
+		return v1.BillingStatusCompleted
+	}
+	return v1.BillingStatusInvalid
 }
 
 func convertSetBillingStatusToPlugin(sbs v1.SetBillingStatus) pi.SetBillingStatus {

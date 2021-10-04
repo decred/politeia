@@ -96,6 +96,32 @@ func (p *Pi) HandleSummaries(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, bsr)
 }
 
+// HandleBillingStatusChanges is the request handler for the pi v1
+// BillingStatusChanges route.
+func (p *Pi) HandleBillingStatusChanges(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleBillingStatusChanges")
+
+	var bscs v1.BillingStatusChanges
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&bscs); err != nil {
+		respondWithError(w, r, "HandleBillingStatusChanges: unmarshal",
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	bsr, err := p.processBillingStatusChanges(r.Context(), bscs)
+	if err != nil {
+		respondWithError(w, r,
+			"HandleBillingStatusChanges: processBillingStatusChanges: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, bsr)
+
+}
+
 // New returns a new Pi context.
 func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mailer, s *sessions.Sessions, e *events.Manager, plugins []pdv2.Plugin) (*Pi, error) {
 	// Parse plugin settings
