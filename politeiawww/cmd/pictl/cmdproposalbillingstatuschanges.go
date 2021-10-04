@@ -55,8 +55,7 @@ func (c *cmdProposalBillingStatusChanges) Execute(args []string) error {
 }
 
 // proposalBillingStatusChangesHelpMsg is printed to stdout by the help command.
-const proposalBillingStatusChangesHelpMsg = `proposalbillingstatuschanges
-"token"
+const proposalBillingStatusChangesHelpMsg = `proposalbillingstatuschanges "token"
 
 Return the billing status changes of a proposal.
 
