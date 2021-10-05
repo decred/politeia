@@ -9,19 +9,20 @@ import (
 	"os"
 	"path/filepath"
 
-	cmsdb "github.com/decred/politeia/politeiawww/cmsdatabase/cockroachdb"
-	"github.com/decred/politeia/politeiawww/codetracker/github"
-	ghdb "github.com/decred/politeia/politeiawww/codetracker/github/database/cockroachdb"
-	"github.com/decred/politeia/politeiawww/comments"
 	"github.com/decred/politeia/politeiawww/events"
+	"github.com/decred/politeia/politeiawww/legacy"
+	cmsdb "github.com/decred/politeia/politeiawww/legacy/cmsdatabase/cockroachdb"
+	"github.com/decred/politeia/politeiawww/legacy/codetracker/github"
+	ghdb "github.com/decred/politeia/politeiawww/legacy/codetracker/github/database/cockroachdb"
+	"github.com/decred/politeia/politeiawww/legacy/comments"
+	"github.com/decred/politeia/politeiawww/legacy/pi"
+	"github.com/decred/politeia/politeiawww/legacy/ticketvote"
+	"github.com/decred/politeia/politeiawww/legacy/user/cockroachdb"
+	"github.com/decred/politeia/politeiawww/legacy/user/localdb"
+	"github.com/decred/politeia/politeiawww/legacy/user/mysql"
 	"github.com/decred/politeia/politeiawww/mail"
-	"github.com/decred/politeia/politeiawww/pi"
 	"github.com/decred/politeia/politeiawww/records"
 	"github.com/decred/politeia/politeiawww/sessions"
-	"github.com/decred/politeia/politeiawww/ticketvote"
-	"github.com/decred/politeia/politeiawww/user/cockroachdb"
-	"github.com/decred/politeia/politeiawww/user/localdb"
-	"github.com/decred/politeia/politeiawww/user/mysql"
 	"github.com/decred/politeia/wsdcrdata"
 	"github.com/decred/slog"
 	"github.com/jrick/logrotate/rotator"
@@ -55,12 +56,14 @@ var (
 	logRotator *rotator.Rotator
 
 	log         = backendLog.Logger("PWWW")
-	userdbLog   = backendLog.Logger("USER")
-	sessionsLog = backendLog.Logger("SESS")
 	eventsLog   = backendLog.Logger("EVNT")
+	sessionsLog = backendLog.Logger("SESS")
 	apiLog      = backendLog.Logger("APIS")
 
-	// CMS loggers
+	// Legacy loggers
+	userdbLog = backendLog.Logger("USER")
+
+	// Legacy CMS loggers
 	cmsdbLog         = backendLog.Logger("CMDB")
 	wsdcrdataLog     = backendLog.Logger("WSDD")
 	githubTrackerLog = backendLog.Logger("GHTR")
@@ -73,7 +76,10 @@ func init() {
 	sessions.UseLogger(sessionsLog)
 	events.UseLogger(eventsLog)
 
-	// UserDB loggers
+	// Legacy server logger
+	legacy.UseLogger(log)
+
+	// Legacy UserDB loggers
 	localdb.UseLogger(userdbLog)
 	cockroachdb.UseLogger(userdbLog)
 	mysql.UseLogger(userdbLog)
@@ -96,8 +102,10 @@ var subsystemLoggers = map[string]slog.Logger{
 	"PWWW": log,
 	"SESS": sessionsLog,
 	"EVNT": eventsLog,
-	"USER": userdbLog,
 	"APIS": apiLog,
+
+	// Legacy loggers
+	"USER": userdbLog,
 	"CMDB": cmsdbLog,
 	"WSDD": wsdcrdataLog,
 	"GHTR": githubTrackerLog,

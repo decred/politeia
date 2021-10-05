@@ -25,6 +25,11 @@ const (
 	// used.
 	PoliteiaWWWMode = "piwww"
 	CMSWWWMode      = "cmswww"
+
+	// Database options
+	LevelDB     = "leveldb"
+	CockroachDB = "cockroachdb"
+	MySQL       = "mysql"
 )
 
 var (
@@ -46,46 +51,47 @@ var (
 
 // Config defines the configuration options for politeiawww.
 type Config struct {
-	HomeDir         string   `short:"A" long:"appdata" description:"Path to application home directory"`
-	ShowVersion     bool     `short:"V" long:"version" description:"Display version information and exit"`
-	ConfigFile      string   `short:"C" long:"configfile" description:"Path to configuration file"`
-	DataDir         string   `short:"b" long:"datadir" description:"Directory to store data"`
-	LogDir          string   `long:"logdir" description:"Directory to log output."`
-	TestNet         bool     `long:"testnet" description:"Use the test network"`
-	SimNet          bool     `long:"simnet" description:"Use the simulation test network"`
-	Profile         string   `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
-	CookieKeyFile   string   `long:"cookiekey" description:"File containing the secret cookies key"`
-	DebugLevel      string   `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	Listeners       []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 4443)"`
-	HTTPSCert       string   `long:"httpscert" description:"File containing the https certificate file"`
-	HTTPSKey        string   `long:"httpskey" description:"File containing the https certificate key"`
-	RPCHost         string   `long:"rpchost" description:"Host for politeiad in this format"`
-	RPCCert         string   `long:"rpccert" description:"File containing the https certificate file"`
-	RPCIdentityFile string   `long:"rpcidentityfile" description:"Path to file containing the politeiad identity"`
-	RPCUser         string   `long:"rpcuser" description:"RPC user name for privileged politeaid commands"`
-	RPCPass         string   `long:"rpcpass" description:"RPC password for privileged politeiad commands"`
-	FetchIdentity   bool     `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
-	Interactive     string   `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
-	AdminLogFile    string   `long:"adminlogfile" description:"admin log filename (Default: admin.log)"`
-	Mode            string   `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
+	// General application settings
+	ShowVersion bool   `short:"V" long:"version" description:"Display version information and exit"`
+	HomeDir     string `short:"A" long:"appdata" description:"Path to application home directory"`
+	ConfigFile  string `short:"C" long:"configfile" description:"Path to configuration file"`
+	DataDir     string `short:"b" long:"datadir" description:"Directory to store data"`
+	LogDir      string `long:"logdir" description:"Directory to log output."`
+	TestNet     bool   `long:"testnet" description:"Use the test network"`
+	DebugLevel  string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
 
-	// Web server settings
-	ReadTimeout        int64 `long:"readtimeout" description:"Maximum duration in seconds that is spent reading the request headers and body"`
-	WriteTimeout       int64 `long:"writetimeout" description:"Maximum duration in seconds that a request connection is kept open"`
-	ReqBodySizeLimit   int64 `long:"reqbodysizelimit" description:"Maximum number of bytes allowed for a request body from a http client"`
-	WebsocketReadLimit int64 `long:"websocketreadlimit" description:"Maximum number of bytes allowed for a message read from a websocket client"`
+	// HTTP server settings
+	Listeners          []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 4443)"`
+	HTTPSCert          string   `long:"httpscert" description:"File containing the https certificate file"`
+	HTTPSKey           string   `long:"httpskey" description:"File containing the https certificate key"`
+	CookieKeyFile      string   `long:"cookiekey" description:"File containing the secret cookies key"`
+	ReadTimeout        int64    `long:"readtimeout" description:"Maximum duration in seconds that is spent reading the request headers and body"`
+	WriteTimeout       int64    `long:"writetimeout" description:"Maximum duration in seconds that a request connection is kept open"`
+	ReqBodySizeLimit   int64    `long:"reqbodysizelimit" description:"Maximum number of bytes allowed for a request body from a http client"`
+	WebsocketReadLimit int64    `long:"websocketreadlimit" description:"Maximum number of bytes allowed for a message read from a websocket client"`
+
+	// politeiad RPC settings
+	RPCHost         string `long:"rpchost" description:"Host for politeiad in this format"`
+	RPCCert         string `long:"rpccert" description:"File containing the https certificate file"`
+	RPCIdentityFile string `long:"rpcidentityfile" description:"Path to file containing the politeiad identity"`
+	RPCUser         string `long:"rpcuser" description:"RPC user name for privileged politeaid commands"`
+	RPCPass         string `long:"rpcpass" description:"RPC password for privileged politeiad commands"`
+	FetchIdentity   bool   `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
+	Interactive     string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
 
 	// User database settings
-	UserDB           string `long:"userdb" description:"Database choice for the user database"`
-	DBHost           string `long:"dbhost" description:"Database ip:port"`
+	UserDB string `long:"userdb" description:"Database choice for the user database"`
+	DBHost string `long:"dbhost" description:"Database ip:port"`
+	DBPass string // Provided in env variable "DBPASS"
+
+	// Legacy user database settings. These need to be removed.
 	DBRootCert       string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
 	DBCert           string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
 	DBKey            string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
-	DBPass           string // Provided in env variable "DBPASS"
 	EncryptionKey    string `long:"encryptionkey" description:"File containing encryption key used for encrypting user data at rest"`
 	OldEncryptionKey string `long:"oldencryptionkey" description:"File containing old encryption key (only set when rotating keys)"`
 
-	// SMTP settings
+	// SMTP settings. These needs to be converted to plugin settings.
 	MailHost         string `long:"mailhost" description:"Email server address in this format: <host>:<port>"`
 	MailUser         string `long:"mailuser" description:"Email server username"`
 	MailPass         string `long:"mailpass" description:"Email server password"`
@@ -95,7 +101,9 @@ type Config struct {
 	MailRateLimit    int    `long:"mailratelimit" description:"Limits the amount of emails a user can receive in 24h"`
 	WebServerAddress string `long:"webserveraddress" description:"Web server address used to create email links (format: <scheme>://<host>[:<port>])"`
 
-	// XXX These should all be plugin settings
+	// Legacy API settings. These need to be removed and converted to plugin
+	// settings.
+	Mode                     string   `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
 	DcrdataHost              string   `long:"dcrdatahost" description:"Dcrdata ip:port"`
 	PaywallAmount            uint64   `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register or submit a proposal."`
 	PaywallXpub              string   `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
