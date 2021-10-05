@@ -4,7 +4,10 @@
 
 package comments
 
-import "github.com/decred/slog"
+import (
+	"github.com/decred/politeia/politeiawww/logger"
+	"github.com/decred/slog"
+)
 
 // log is a logger that is initialized with no output filters.  This
 // means the package will not perform any logging by default until the caller
@@ -22,4 +25,9 @@ func DisableLog() {
 // using slog.
 func UseLogger(logger slog.Logger) {
 	log = logger
+}
+
+// Initialize the package logger.
+func init() {
+	UseLogger(logger.NewSubsystem("PWWW"))
 }

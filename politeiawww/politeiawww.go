@@ -21,6 +21,7 @@ import (
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/legacy"
+	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -58,9 +59,7 @@ func _main() error {
 		return fmt.Errorf("Could not load configuration file: %v", err)
 	}
 	defer func() {
-		if logRotator != nil {
-			logRotator.Close()
-		}
+		logger.CloseLogRotator()
 	}()
 
 	log.Infof("Version : %v", version.String())

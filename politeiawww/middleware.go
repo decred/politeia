@@ -12,6 +12,7 @@ import (
 	"time"
 
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/util"
 )
 
@@ -30,7 +31,7 @@ func closeBodyMiddleware(next http.Handler) http.Handler {
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Trace incoming request
-		log.Tracef("%v", newLogClosure(func() string {
+		log.Tracef("%v", logger.NewLogClosure(func() string {
 			trace, err := httputil.DumpRequest(r, true)
 			if err != nil {
 				trace = []byte(fmt.Sprintf("logging: "+
