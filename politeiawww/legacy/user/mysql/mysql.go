@@ -424,7 +424,7 @@ func (m *mysql) UserUpdate(u user.User) error {
 		"UPDATE users SET username = ?, u_blob = ?, updated_at = ? WHERE id = ? ",
 		ur.Username, ur.Blob, ur.UpdatedAt, ur.ID)
 	if err != nil {
-		return fmt.Errorf("create user: %v", err)
+		return fmt.Errorf("update user: %v", err)
 	}
 
 	// Upsert user identities
@@ -436,6 +436,20 @@ func (m *mysql) UserUpdate(u user.User) error {
 			deactivated: uIdentity.Deactivated,
 			userID:      ur.ID,
 		})
+	}
+	if len(ids) < 1 {
+		// no identities to update, as is the case in generating new
+		// verification for invited cms users that don't have an identities
+		// saved yet
+		if err := tx.Commit(); err != nil {
+			if err2 := tx.Rollback(); err2 != nil {
+				// We're in trouble!
+				panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+					err, err2))
+			}
+			return fmt.Errorf("commit tx: %v", err)
+		}
+		return nil
 	}
 	err = upsertIdentities(ctx, tx, ids)
 	if err != nil {
@@ -1056,6 +1070,7 @@ func (m *mysql) RegisterPlugin(p user.Plugin) error {
 	var err error
 	switch p.ID {
 	case user.CMSPluginID:
+		err = m.cmsPluginSetup()
 	default:
 		return user.ErrInvalidPlugin
 	}
@@ -1086,6 +1101,7 @@ func (m *mysql) PluginExec(pc user.PluginCommand) (*user.PluginCommandReply, err
 	var err error
 	switch pc.ID {
 	case user.CMSPluginID:
+		payload, err = m.cmsPluginExec(pc.Command, pc.Payload)
 	default:
 		return nil, user.ErrInvalidPlugin
 	}
@@ -1365,7 +1381,8 @@ func New(host, password, network, encryptionKey string) (*mysql, error) {
 	}
 
 	return &mysql{
-		userDB:        db,
-		encryptionKey: key,
+		userDB:         db,
+		encryptionKey:  key,
+		pluginSettings: make(map[string][]user.PluginSetting),
 	}, nil
 }

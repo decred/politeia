@@ -72,7 +72,6 @@ func (p *Politeiawww) processInviteNewUser(u cms.InviteNewUser) (*cms.InviteNewU
 		if err != nil {
 			return nil, err
 		}
-
 		return &cms.InviteNewUserReply{
 			VerificationToken: hex.EncodeToString(token),
 		}, nil
@@ -145,7 +144,7 @@ func (p *Politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 		}
 		return nil, err
 	}
-
+	fmt.Println("adasd")
 	// Validate public key and ensure its unique.
 	err = validatePubKey(u.PublicKey)
 	if err != nil {
@@ -211,7 +210,7 @@ func (p *Politeiawww) processRegisterUser(u cms.RegisterUser) (*cms.RegisterUser
 	// Check that the verification token matches.
 	if !bytes.Equal(token, existingUser.NewUserVerificationToken) {
 		log.Debugf("Register failure for %v: verification token doesn't "+
-			"match, expected %v", u.Email, existingUser.NewUserVerificationToken)
+			"match, expected %x, got %x", u.Email, existingUser.NewUserVerificationToken, token)
 		return nil, www.UserError{
 			ErrorCode: www.ErrorStatusVerificationTokenInvalid,
 		}

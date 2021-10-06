@@ -418,11 +418,18 @@ func (p *Politeiawww) handleInvoiceExchangeRate(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	ierr, err := p.processInvoiceExchangeRate(r.Context(), ier)
-	if err != nil {
-		RespondWithError(w, r, 0,
-			"handleInvoiceExchangeRate: processNewCommentInvoice: %v", err)
-		return
+	/*
+		XXX return some random invoice exchange rate for now
+
+		ierr, err := p.processInvoiceExchangeRate(r.Context(), ier)
+		if err != nil {
+			RespondWithError(w, r, 0,
+				"handleInvoiceExchangeRate: processNewCommentInvoice: %v", err)
+			return
+		}
+	*/
+	ierr := cms.InvoiceExchangeRateReply{
+		ExchangeRate: 10000,
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, ierr)
