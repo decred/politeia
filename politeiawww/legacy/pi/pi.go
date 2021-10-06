@@ -126,18 +126,18 @@ func (p *Pi) HandleBillingStatusChanges(w http.ResponseWriter, r *http.Request) 
 func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mailer, s *sessions.Sessions, e *events.Manager, plugins []pdv2.Plugin) (*Pi, error) {
 	// Parse plugin settings
 	var (
-		textFileSizeMax              uint32
-		imageFileCountMax            uint32
-		imageFileSizeMax             uint32
-		titleLengthMin               uint32
-		titleLengthMax               uint32
-		titleSupportedChars          []string
-		amountMin                    uint64
-		amountMax                    uint64
-		startDateMin                 int64
-		endDateMax                   int64
-		domains                      []string
-		allowBillingStatusCorrection bool
+		textFileSizeMax                uint32
+		imageFileCountMax              uint32
+		imageFileSizeMax               uint32
+		titleLengthMin                 uint32
+		titleLengthMax                 uint32
+		titleSupportedChars            []string
+		amountMin                      uint64
+		amountMax                      uint64
+		startDateMin                   int64
+		endDateMax                     int64
+		domains                        []string
+		allowedBillingStatusChangesMax uint32
 	)
 	for _, p := range plugins {
 		if p.ID != pi.PluginID {
@@ -217,12 +217,12 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 							"string")
 					}
 				}
-			case pi.SettingKeyAllowBillingStatusCorrection:
-				b, err := strconv.ParseBool(v.Value)
+			case pi.SettingKeyAllowedBillingStatusChangesMax:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
-				allowBillingStatusCorrection = b
+				allowedBillingStatusChangesMax = uint32(u)
 
 			default:
 				// Skip unknown settings
@@ -263,6 +263,9 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 	case len(domains) == 0:
 		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalDomains)
+	case allowedBillingStatusChangesMax == 0:
+		return nil, errors.Errorf("plugin setting not found: %v",
+			pi.SettingKeyAllowedBillingStatusChangesMax)
 	}
 
 	// Setup pi context
@@ -274,19 +277,19 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 		events:    e,
 		mail:      m,
 		policy: &v1.PolicyReply{
-			TextFileSizeMax:              textFileSizeMax,
-			ImageFileCountMax:            imageFileCountMax,
-			ImageFileSizeMax:             imageFileSizeMax,
-			NameLengthMin:                titleLengthMin,
-			NameLengthMax:                titleLengthMax,
-			NameSupportedChars:           titleSupportedChars,
-			AmountMin:                    amountMin,
-			AmountMax:                    amountMax,
-			StartDateMin:                 startDateMin,
-			EndDateMax:                   endDateMax,
-			Domains:                      domains,
-			SummariesPageSize:            v1.SummariesPageSize,
-			AllowBillingStatusCorrection: allowBillingStatusCorrection,
+			TextFileSizeMax:                textFileSizeMax,
+			ImageFileCountMax:              imageFileCountMax,
+			ImageFileSizeMax:               imageFileSizeMax,
+			NameLengthMin:                  titleLengthMin,
+			NameLengthMax:                  titleLengthMax,
+			NameSupportedChars:             titleSupportedChars,
+			AmountMin:                      amountMin,
+			AmountMax:                      amountMax,
+			StartDateMin:                   startDateMin,
+			EndDateMax:                     endDateMax,
+			Domains:                        domains,
+			SummariesPageSize:              v1.SummariesPageSize,
+			AllowedBillingStatusChangesMax: allowedBillingStatusChangesMax,
 		},
 	}
 
