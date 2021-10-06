@@ -50,8 +50,7 @@ func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, er
 
 	// Verify billing status
 	switch sbs.Status {
-	case pi.BillingStatusActive, pi.BillingStatusClosed,
-		pi.BillingStatusCompleted:
+	case pi.BillingStatusActive, pi.BillingStatusClosed, pi.BillingStatusCompleted:
 		// These are allowed; continue
 
 	default:
@@ -80,44 +79,30 @@ func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, er
 		}
 	}
 
+	// Ensure no billing status already exists
 	bscs, err := p.billingStatusChanges(token)
 	if err != nil {
 		return "", err
 	}
-	if len(bscs) == 0 {
-		// If no billing status was set yet, verify the following:
-		// 1. The new billing status is not `active`.
-		// 2. Proposal's vote ended and it was approved.
-		if sbs.Status == pi.BillingStatusActive {
-			return "", backend.PluginError{
-				PluginID:  pi.PluginID,
-				ErrorCode: uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
-				ErrorContext: "can not set the billing status of an active " +
-					"proposal to 'active'",
-			}
+	if len(bscs) > 0 {
+		return "", backend.PluginError{
+			PluginID:     pi.PluginID,
+			ErrorCode:    uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
+			ErrorContext: "can not set billing status more than once",
 		}
-		vsr, err := p.voteSummary(token)
-		if err != nil {
-			return "", err
-		}
-		if vsr.Status != ticketvote.VoteStatusApproved {
-			return "", backend.PluginError{
-				PluginID:  pi.PluginID,
-				ErrorCode: uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
-				ErrorContext: "setting billing status is allowed only if " +
-					"proposal vote was approved",
-			}
-		}
-	} else {
-		// If a billing status was already set, a new billing status change is
-		// allowed only if plugin setting `allowbillingstatuscoorection` is set
-		// to true.
-		if !p.allowBillingStatusCorrection {
-			return "", backend.PluginError{
-				PluginID:     pi.PluginID,
-				ErrorCode:    uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
-				ErrorContext: "billing status corrections are not allowed",
-			}
+	}
+
+	// Ensure record's vote ended and it was approved
+	vsr, err := p.voteSummary(token)
+	if err != nil {
+		return "", err
+	}
+	if vsr.Status != ticketvote.VoteStatusApproved {
+		return "", backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
+			ErrorContext: "setting billing status is allowed only if " +
+				"proposal vote was approved",
 		}
 	}
 
