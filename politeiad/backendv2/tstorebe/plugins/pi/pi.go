@@ -6,7 +6,6 @@ package pi
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,6 +16,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -43,20 +43,21 @@ type piPlugin struct {
 	identity *identity.FullIdentity
 
 	// Plugin settings
-	textFileCountMax       uint32
-	textFileSizeMax        uint32 // In bytes
-	imageFileCountMax      uint32
-	imageFileSizeMax       uint32 // In bytes
-	titleSupportedChars    string // JSON encoded []string
-	titleLengthMin         uint32 // In characters
-	titleLengthMax         uint32 // In characters
-	titleRegexp            *regexp.Regexp
-	proposalAmountMin      uint64 // In cents
-	proposalAmountMax      uint64 // In cents
-	proposalStartDateMin   int64  // Seconds from current time
-	proposalEndDateMax     int64  // Seconds from current time
-	proposalDomainsEncoded string // JSON encoded []string
-	proposalDomains        map[string]struct{}
+	textFileCountMax             uint32
+	textFileSizeMax              uint32 // In bytes
+	imageFileCountMax            uint32
+	imageFileSizeMax             uint32 // In bytes
+	titleSupportedChars          string // JSON encoded []string
+	titleLengthMin               uint32 // In characters
+	titleLengthMax               uint32 // In characters
+	titleRegexp                  *regexp.Regexp
+	proposalAmountMin            uint64 // In cents
+	proposalAmountMax            uint64 // In cents
+	proposalStartDateMin         int64  // Seconds from current time
+	proposalEndDateMax           int64  // Seconds from current time
+	proposalDomainsEncoded       string // JSON encoded []string
+	proposalDomains              map[string]struct{}
+	allowBillingStatusCorrection bool
 }
 
 // Setup performs any plugin setup that is required.
@@ -169,6 +170,10 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 			Key:   pi.SettingKeyProposalDomains,
 			Value: p.proposalDomainsEncoded,
 		},
+		{
+			Key:   pi.SettingKeyAllowBillingStatusCorrection,
+			Value: strconv.FormatBool(p.allowBillingStatusCorrection),
+		},
 	}
 }
 
@@ -183,17 +188,18 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 
 	// Setup plugin setting default values
 	var (
-		textFileSizeMax     = pi.SettingTextFileSizeMax
-		imageFileCountMax   = pi.SettingImageFileCountMax
-		imageFileSizeMax    = pi.SettingImageFileSizeMax
-		titleLengthMin      = pi.SettingTitleLengthMin
-		titleLengthMax      = pi.SettingTitleLengthMax
-		titleSupportedChars = pi.SettingTitleSupportedChars
-		amountMin           = pi.SettingProposalAmountMin
-		amountMax           = pi.SettingProposalAmountMax
-		startDateMin        = pi.SettingProposalStartDateMin
-		endDateMax          = pi.SettingProposalEndDateMax
-		domains             = pi.SettingProposalDomains
+		textFileSizeMax              = pi.SettingTextFileSizeMax
+		imageFileCountMax            = pi.SettingImageFileCountMax
+		imageFileSizeMax             = pi.SettingImageFileSizeMax
+		titleLengthMin               = pi.SettingTitleLengthMin
+		titleLengthMax               = pi.SettingTitleLengthMax
+		titleSupportedChars          = pi.SettingTitleSupportedChars
+		amountMin                    = pi.SettingProposalAmountMin
+		amountMax                    = pi.SettingProposalAmountMax
+		startDateMin                 = pi.SettingProposalStartDateMin
+		endDateMax                   = pi.SettingProposalEndDateMax
+		domains                      = pi.SettingProposalDomains
+		allowBillingStatusCorrection = pi.SettingAllowBillingStatusCorrection
 	)
 
 	// Override defaults with any passed in settings
@@ -202,79 +208,86 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		case pi.SettingKeyTextFileSizeMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
 			textFileSizeMax = uint32(u)
 		case pi.SettingKeyImageFileCountMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
 			imageFileCountMax = uint32(u)
 		case pi.SettingKeyImageFileSizeMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
 			imageFileSizeMax = uint32(u)
 		case pi.SettingKeyTitleLengthMin:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
 			titleLengthMin = uint32(u)
 		case pi.SettingKeyTitleLengthMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
 			titleLengthMax = uint32(u)
 		case pi.SettingKeyTitleSupportedChars:
 			err := json.Unmarshal([]byte(v.Value), &titleSupportedChars)
 			if err != nil {
-				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
 		case pi.SettingKeyProposalAmountMin:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
 			amountMin = u
 		case pi.SettingKeyProposalAmountMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
 			amountMax = u
 		case pi.SettingKeyProposalEndDateMax:
 			u, err := strconv.ParseInt(v.Value, 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
 			// Ensure provided max end date is not in the past
 			if u < 0 {
-				return nil, fmt.Errorf("invalid plugin setting %v '%v': "+
+				return nil, errors.Errorf("invalid plugin setting %v '%v': "+
 					"must be in the future", v.Key, v.Value)
 			}
 			endDateMax = u
 		case pi.SettingKeyProposalDomains:
 			err := json.Unmarshal([]byte(v.Value), &domains)
 			if err != nil {
-				return nil, fmt.Errorf("invalid plugin setting %v '%v': %v",
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
+		case pi.SettingKeyAllowBillingStatusCorrection:
+			b, err := strconv.ParseBool(v.Value)
+			if err != nil {
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			allowBillingStatusCorrection = b
 
 		default:
-			return nil, fmt.Errorf("invalid plugin setting: %v", v.Key)
+			return nil, errors.Errorf("invalid plugin setting: %v", v.Key)
 		}
 	}
 
@@ -282,7 +295,7 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 	rexp, err := util.Regexp(titleSupportedChars, uint64(titleLengthMin),
 		uint64(titleLengthMax))
 	if err != nil {
-		return nil, fmt.Errorf("proposal name regexp: %v", err)
+		return nil, errors.Errorf("proposal name regexp: %v", err)
 	}
 
 	// Encode the title supported chars so that they
@@ -308,22 +321,23 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 	}
 
 	return &piPlugin{
-		dataDir:                dataDir,
-		identity:               id,
-		backend:                backend,
-		textFileSizeMax:        textFileSizeMax,
-		tstore:                 tstore,
-		imageFileCountMax:      imageFileCountMax,
-		imageFileSizeMax:       imageFileSizeMax,
-		titleLengthMin:         titleLengthMin,
-		titleLengthMax:         titleLengthMax,
-		titleSupportedChars:    titleSupportedCharsString,
-		titleRegexp:            rexp,
-		proposalAmountMin:      amountMin,
-		proposalAmountMax:      amountMax,
-		proposalStartDateMin:   startDateMin,
-		proposalEndDateMax:     endDateMax,
-		proposalDomainsEncoded: domainsString,
-		proposalDomains:        domainsMap,
+		dataDir:                      dataDir,
+		identity:                     id,
+		backend:                      backend,
+		textFileSizeMax:              textFileSizeMax,
+		tstore:                       tstore,
+		imageFileCountMax:            imageFileCountMax,
+		imageFileSizeMax:             imageFileSizeMax,
+		titleLengthMin:               titleLengthMin,
+		titleLengthMax:               titleLengthMax,
+		titleSupportedChars:          titleSupportedCharsString,
+		titleRegexp:                  rexp,
+		proposalAmountMin:            amountMin,
+		proposalAmountMax:            amountMax,
+		proposalStartDateMin:         startDateMin,
+		proposalEndDateMax:           endDateMax,
+		proposalDomainsEncoded:       domainsString,
+		proposalDomains:              domainsMap,
+		allowBillingStatusCorrection: allowBillingStatusCorrection,
 	}, nil
 }

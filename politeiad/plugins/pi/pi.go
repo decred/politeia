@@ -68,6 +68,10 @@ const (
 	// SettingKeyProposalDomains is the plugin setting key for the
 	// SettingProposalDomains plugin setting.
 	SettingKeyProposalDomains = "proposaldomains"
+
+	// SettingKeyAllowBillingStatusCorrection is the plugin setting
+	// key for the SettingAllowBillingStatusCorrection plugin setting.
+	SettingKeyAllowBillingStatusCorrection = "allowbillingstatuscorrection"
 )
 
 // Plugin setting default values. These can be overridden by providing a plugin
@@ -108,6 +112,10 @@ const (
 	// SettingProposalStartDateMin is the default minimum possible proposal
 	// start date - seconds from current time.
 	SettingProposalStartDateMin int64 = 604800 // One week in seconds.
+
+	// SettingAllowBillingStatusCorrection is the default value of the bool
+	// flag which determines whether billing status corrections are allowed.
+	SettingAllowBillingStatusCorrection = false
 )
 
 var (
