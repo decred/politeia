@@ -119,6 +119,15 @@ func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, er
 				ErrorContext: "billing status corrections are not allowed",
 			}
 		}
+		// Ensure new billing status is different than the existing.
+		bsc := bscs[len(bscs)-1]
+		if bsc.Status == sbs.Status {
+			return "", backend.PluginError{
+				PluginID:     pi.PluginID,
+				ErrorCode:    uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
+				ErrorContext: "new billing status must be different than existing",
+			}
+		}
 	}
 
 	// Save billing status change
