@@ -86,18 +86,6 @@ func TestCmdBillingStatus(t *testing.T) {
 			pluginError(pi.ErrorCodeTokenInvalid),
 		},
 		{
-			"set billing status to active",
-			tokenb,
-			pi.SetBillingStatus{
-				Token:     token,
-				Status:    pi.BillingStatusActive,
-				Reason:    "",
-				PublicKey: publicKey,
-				Signature: signature,
-			},
-			pluginError(pi.ErrorCodeBillingStatusChangeNotAllowed),
-		},
-		{
 			"invalid billing status",
 			tokenb,
 			pi.SetBillingStatus{
