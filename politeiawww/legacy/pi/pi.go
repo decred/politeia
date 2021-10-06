@@ -126,17 +126,18 @@ func (p *Pi) HandleBillingStatusChanges(w http.ResponseWriter, r *http.Request) 
 func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mailer, s *sessions.Sessions, e *events.Manager, plugins []pdv2.Plugin) (*Pi, error) {
 	// Parse plugin settings
 	var (
-		textFileSizeMax     uint32
-		imageFileCountMax   uint32
-		imageFileSizeMax    uint32
-		titleLengthMin      uint32
-		titleLengthMax      uint32
-		titleSupportedChars []string
-		amountMin           uint64
-		amountMax           uint64
-		startDateMin        int64
-		endDateMax          int64
-		domains             []string
+		textFileSizeMax              uint32
+		imageFileCountMax            uint32
+		imageFileSizeMax             uint32
+		titleLengthMin               uint32
+		titleLengthMax               uint32
+		titleSupportedChars          []string
+		amountMin                    uint64
+		amountMax                    uint64
+		startDateMin                 int64
+		endDateMax                   int64
+		domains                      []string
+		allowBillingStatusCorrection bool
 	)
 	for _, p := range plugins {
 		if p.ID != pi.PluginID {
@@ -216,6 +217,13 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 							"string")
 					}
 				}
+			case pi.SettingKeyAllowBillingStatusCorrection:
+				b, err := strconv.ParseBool(v.Value)
+				if err != nil {
+					return nil, err
+				}
+				allowBillingStatusCorrection = b
+
 			default:
 				// Skip unknown settings
 				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)
@@ -266,18 +274,19 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 		events:    e,
 		mail:      m,
 		policy: &v1.PolicyReply{
-			TextFileSizeMax:    textFileSizeMax,
-			ImageFileCountMax:  imageFileCountMax,
-			ImageFileSizeMax:   imageFileSizeMax,
-			NameLengthMin:      titleLengthMin,
-			NameLengthMax:      titleLengthMax,
-			NameSupportedChars: titleSupportedChars,
-			AmountMin:          amountMin,
-			AmountMax:          amountMax,
-			StartDateMin:       startDateMin,
-			EndDateMax:         endDateMax,
-			Domains:            domains,
-			SummariesPageSize:  v1.SummariesPageSize,
+			TextFileSizeMax:              textFileSizeMax,
+			ImageFileCountMax:            imageFileCountMax,
+			ImageFileSizeMax:             imageFileSizeMax,
+			NameLengthMin:                titleLengthMin,
+			NameLengthMax:                titleLengthMax,
+			NameSupportedChars:           titleSupportedChars,
+			AmountMin:                    amountMin,
+			AmountMax:                    amountMax,
+			StartDateMin:                 startDateMin,
+			EndDateMax:                   endDateMax,
+			Domains:                      domains,
+			SummariesPageSize:            v1.SummariesPageSize,
+			AllowBillingStatusCorrection: allowBillingStatusCorrection,
 		},
 	}
 
