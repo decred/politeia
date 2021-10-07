@@ -103,7 +103,7 @@ func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, er
 		}
 	}
 
-	// Ensure record's vote ended and it was approved
+	// Ensure proposal's vote ended and it was approved
 	vsr, err := p.voteSummary(token)
 	if err != nil {
 		return "", err
