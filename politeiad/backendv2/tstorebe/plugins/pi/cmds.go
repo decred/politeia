@@ -33,6 +33,29 @@ const (
 	dataDescriptorBillingStatus = pluginID + "-billingstatus-v1"
 )
 
+var (
+	// billingStatusChanges contains the allowed billing status transitions. If
+	// billingStatusChanges[currentStatus][newStatus] exists then the the billing
+	// status transition is allowed.
+	billingStatusChanges = map[pi.BillingStatusT]map[pi.BillingStatusT]struct{}{
+		// Active to...
+		pi.BillingStatusActive: {
+			pi.BillingStatusClosed:    {},
+			pi.BillingStatusCompleted: {},
+		},
+		// Closed to...
+		pi.BillingStatusClosed: {
+			pi.BillingStatusActive:    {},
+			pi.BillingStatusCompleted: {},
+		},
+		// Completed to...
+		pi.BillingStatusCompleted: {
+			pi.BillingStatusActive: {},
+			pi.BillingStatusClosed: {},
+		},
+	}
+)
+
 // cmdSetBillingStatus sets proposal's billing status.
 func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, error) {
 	// Decode payload
@@ -80,54 +103,55 @@ func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, er
 		}
 	}
 
+	// Ensure record's vote ended and it was approved
+	vsr, err := p.voteSummary(token)
+	if err != nil {
+		return "", err
+	}
+	if vsr.Status != ticketvote.VoteStatusApproved {
+		return "", backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
+			ErrorContext: "setting billing status is allowed only if " +
+				"proposal vote was approved",
+		}
+	}
+
 	bscs, err := p.billingStatusChanges(token)
 	if err != nil {
 		return "", err
 	}
+
+	// Ensure number of billing status changes does not exceed the maximum
+	if uint32(len(bscs)+1) > p.billingStatusChangesMax {
+		return "", backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
+			ErrorContext: "number of billing status changes exceeds the " +
+				"maximum allowed number of billing status changes",
+		}
+	}
+
+	var currStatus pi.BillingStatusT
 	if len(bscs) == 0 {
-		// If no billing status was set yet, verify the following:
-		// 1. The new billing status is not `active`.
-		// 2. Proposal's vote ended and it was approved.
-		if sbs.Status == pi.BillingStatusActive {
-			return "", backend.PluginError{
-				PluginID:  pi.PluginID,
-				ErrorCode: uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
-				ErrorContext: "can not set the billing status of an active " +
-					"proposal to 'active'",
-			}
-		}
-		vsr, err := p.voteSummary(token)
-		if err != nil {
-			return "", err
-		}
-		if vsr.Status != ticketvote.VoteStatusApproved {
-			return "", backend.PluginError{
-				PluginID:  pi.PluginID,
-				ErrorCode: uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
-				ErrorContext: "setting billing status is allowed only if " +
-					"proposal vote was approved",
-			}
-		}
+		// Proposals that have been approved, but have not had
+		// their billing status set yet are considered to be
+		// active.
+		currStatus = pi.BillingStatusActive
 	} else {
-		// If a billing status was already set, a new billing status change is
-		// allowed only if the number of all billing status changes does not exceed
-		// the 'allowedbillingstatuschangesmax' plugin setting.
-		if uint32(len(bscs))+1 > p.billingStatusChangesMax {
-			return "", backend.PluginError{
-				PluginID:  pi.PluginID,
-				ErrorCode: uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
-				ErrorContext: "number of billing status changes exceeds the " +
-					"maximum allowed number of billing status changes",
-			}
-		}
-		// Ensure new billing status is different than the existing.
-		bsc := bscs[len(bscs)-1]
-		if bsc.Status == sbs.Status {
-			return "", backend.PluginError{
-				PluginID:     pi.PluginID,
-				ErrorCode:    uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
-				ErrorContext: "new billing status must be different than existing",
-			}
+		// Use the status from the most recent billing status
+		// change.
+		currStatus = bscs[len(bscs)-1].Status
+	}
+
+	// Ensure billing status change transition is valid
+	_, ok := billingStatusChanges[currStatus][sbs.Status]
+	if !ok {
+		return "", backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
+			ErrorContext: fmt.Sprintf("invalid billing status transition, "+
+				"current: %v, new: %v", currStatus, sbs.Status),
 		}
 	}
 
