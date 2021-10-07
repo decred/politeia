@@ -6,7 +6,6 @@
 package config
 
 import (
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -19,11 +18,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/decred/dcrd/dcrutil/v3"
-	"github.com/decred/dcrd/hdkeychain/v3"
-	v1 "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/util"
@@ -32,84 +28,39 @@ import (
 )
 
 const (
-	// DefaultConfigFilename is the default configuration file name.
-	DefaultConfigFilename = "politeiawww.conf"
+	// General application settings
+	appName               = "politeiawww"
+	defaultDataDirname    = "data"
+	defaultLogLevel       = "info"
+	defaultLogDirname     = "logs"
+	defaultConfigFilename = "politeiawww.conf"
+	defaultLogFilename    = "politeiawww.log"
 
-	// DefaultDataDirname is the default data directory name. The data
-	// directory is located in the application home directory.
-	DefaultDataDirname = "data"
+	// HTTP server settings
+	defaultMainnetPort       = "4443"
+	defaultTestnetPort       = "4443"
+	defaultHTTPSCertFilename = "https.cert"
+	defaultHTTPSKeyFilename  = "https.key"
+	defaultCookieKeyFilename = "cookie.key"
 
-	// Currently available modes to run politeia, by default piwww, is
-	// used.
-	PoliteiaWWWMode = "piwww"
-	CMSWWWMode      = "cmswww"
+	// politeiad RPC settings
+	defaultRPCHost          = "localhost"
+	defaultRPCMainnetPort   = "49374"
+	defaultRPCTestnetPort   = "59374"
+	defaultRPCCertFilename  = "rpc.cert"
+	defaultIdentityFilename = "identity.json"
+	allowInteractive        = "i-know-this-is-a-bad-idea"
 
-	// Database options
+	// Database settings
 	LevelDB     = "leveldb"
 	CockroachDB = "cockroachdb"
 	MySQL       = "mysql"
 
-	defaultLogLevel         = "info"
-	defaultLogDirname       = "logs"
-	defaultLogFilename      = "politeiawww.log"
-	defaultIdentityFilename = "identity.json"
+	defaultMySQLDBHost     = "localhost:3306"
+	defaultCockroachDBHost = "localhost:26257"
 
-	defaultMainnetPort = "4443"
-	defaultTestnetPort = "4443"
-
-	defaultPaywallMinConfirmations = uint64(2)
-	defaultPaywallAmount           = uint64(0)
-
-	defaultVoteDurationMin = uint32(2016)
-	defaultVoteDurationMax = uint32(4032)
-
-	defaultMailAddressPi  = "Politeia <noreply@example.org>"
-	defaultMailAddressCMS = "Contractor Management System <noreply@example.org>"
-
-	defaultDcrdataMainnet = "dcrdata.decred.org:443"
-	defaultDcrdataTestnet = "testnet.decred.org:443"
-
-	// dust value can be found increasing the amount value until we get false
-	// from IsDustAmount function. Amounts can not be lower than dust
-	// func IsDustAmount(amount int64, relayFeePerKb int64) bool {
-	//     totalSize := 8 + 2 + 1 + 25 + 165
-	// 	   return int64(amount)*1000/(3*int64(totalSize)) < int64(relayFeePerKb)
-	// }
-	dust = 60300
-
-	defaultWWWMode = PoliteiaWWWMode
-
-	defaultUserDB          = LevelDB
-	defaultMySQLDBHost     = "localhost:3306"  // MySQL default host
-	defaultCockroachDBHost = "localhost:26257" // CockroachDB default host
-
-	defaultMailRateLimit = 100 // Email limit per user
-
-	// Environment variables.
+	// Environmental variable config settings
 	envDBPass = "DBPASS"
-)
-
-var (
-	// DefaultHomeDir points to politeiawww's default home directory.
-	DefaultHomeDir = dcrutil.AppDataDir("politeiawww", false)
-
-	// DefaultConfigFile points to politeiawww's default config file
-	// path.
-	DefaultConfigFile = filepath.Join(DefaultHomeDir, DefaultConfigFilename)
-
-	// DefaultDataDir points to politeiawww's default data directory
-	// path.
-	DefaultDataDir = filepath.Join(DefaultHomeDir, DefaultDataDirname)
-
-	// DefaultHTTPSCertFile contains the file path to the politeiawww
-	// https certificate.
-	DefaultHTTPSCertFile = filepath.Join(DefaultHomeDir, "https.cert")
-
-	defaultEncryptionKey = filepath.Join(DefaultHomeDir, "sbox.key")
-	defaultHTTPSKeyFile  = filepath.Join(DefaultHomeDir, "https.key")
-	defaultRPCCertFile   = filepath.Join(DefaultHomeDir, "rpc.cert")
-	defaultCookieKeyFile = filepath.Join(DefaultHomeDir, "cookie.key")
-	defaultLogDir        = filepath.Join(DefaultHomeDir, defaultLogDirname)
 
 	// defaultReadTimeout is the maximum duration in seconds that is spent
 	// reading the request headers and body.
@@ -126,15 +77,14 @@ var (
 	// defaultWebsocketReadLimit is the maximum number of bytes allowed for a
 	// message read from a websocket client.
 	defaultWebsocketReadLimit int64 = 4 * 1024 * 1024 // 4 KiB
+)
 
-	// Default start date to start pulling code statistics if none specified.
-	defaultCodeStatStart = time.Now().Add(-1 * time.Minute * 60 * 24 * 7 * 26) // 6 months in minutes 60min * 24h * 7days * 26 weeks
-
-	// Default end date to stop pull code statistics if none specified.
-	defaultCodeStatEnd = time.Now() // Use today as the default end code stat date
-
-	// Check to make sure code stat start time is sane 2 years from today.
-	codeStatCheck = time.Now().Add(-1 * time.Minute * 60 * 24 * 7 * 52 * 2) // 2 years in minutes 60min * 24h * 7days * 52weeks * 2years
+var (
+	// General application settings
+	defaultHomeDir    = dcrutil.AppDataDir(appName, false)
+	defaultConfigFile = filepath.Join(defaultHomeDir, defaultConfigFilename)
+	defaultDataDir    = filepath.Join(defaultHomeDir, defaultDataDirname)
+	defaultLogDir     = filepath.Join(defaultHomeDir, defaultLogDirname)
 )
 
 // Config defines the configuration options for politeiawww.
@@ -159,55 +109,29 @@ type Config struct {
 	WebsocketReadLimit int64    `long:"websocketreadlimit" description:"Maximum number of bytes allowed for a message read from a websocket client"`
 
 	// politeiad RPC settings
-	RPCHost         string `long:"rpchost" description:"Host for politeiad in this format"`
-	RPCCert         string `long:"rpccert" description:"File containing the https certificate file"`
+	RPCHost         string `long:"rpchost" description:"politeiad host <host>:<port>"`
+	RPCCert         string `long:"rpccert" description:"File containing the politeiad https certificate file"`
 	RPCIdentityFile string `long:"rpcidentityfile" description:"Path to file containing the politeiad identity"`
-	RPCUser         string `long:"rpcuser" description:"RPC user name for privileged politeaid commands"`
+	RPCUser         string `long:"rpcuser" description:"RPC username for privileged politeaid commands"`
 	RPCPass         string `long:"rpcpass" description:"RPC password for privileged politeiad commands"`
-	FetchIdentity   bool   `long:"fetchidentity" description:"Whether or not politeiawww fetches the identity from politeiad."`
-	Interactive     string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity."`
+	FetchIdentity   bool   `long:"fetchidentity" description:"Fetch the identity from politeiad"`
+	Interactive     string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity"`
 
 	// User database settings
 	UserDB string `long:"userdb" description:"Database choice for the user database"`
 	DBHost string `long:"dbhost" description:"Database ip:port"`
 	DBPass string // Provided in env variable "DBPASS"
 
-	// Legacy user database settings. These need to be removed.
-	DBRootCert       string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
-	DBCert           string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
-	DBKey            string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
-	EncryptionKey    string `long:"encryptionkey" description:"File containing encryption key used for encrypting user data at rest"`
-	OldEncryptionKey string `long:"oldencryptionkey" description:"File containing old encryption key (only set when rotating keys)"`
-
 	// SMTP settings
-	MailHost string `long:"mailhost" description:"Email server address in
-	this format: <host>:<port>"`
+	MailHost       string `long:"mailhost" description:"Email server address <host>:<port>"`
+	MailCert       string `long:"mailcert" description:"Email server certificate file"`
+	MailSkipVerify bool   `long:"mailskipverify" description:"Skip email server TLS verification"`
 	MailUser       string `long:"mailuser" description:"Email server username"`
 	MailPass       string `long:"mailpass" description:"Email server password"`
 	MailAddress    string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
-	MailCert       string `long:"mailcert" description:"Email server certificate file"`
-	MailSkipVerify bool   `long:"mailskipverify" description:"Skip TLS verification when connecting to the mail server"`
 
-	// SMTP settings the need to be turned into plugin settings.
-	MailRateLimit    int    `long:"mailratelimit" description:"Limits the amount of emails a user can receive in 24h"`
-	WebServerAddress string `long:"webserveraddress" description:"Web server address used to create email links (format: <scheme>://<host>[:<port>])"`
-
-	// Legacy API settings. These need to be removed and converted into plugin
-	// settings.
-	Mode                     string   `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
-	DcrdataHost              string   `long:"dcrdatahost" description:"Dcrdata ip:port"`
-	PaywallAmount            uint64   `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register or submit a proposal."`
-	PaywallXpub              string   `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
-	MinConfirmationsRequired uint64   `long:"minconfirmations" description:"Minimum blocks confirmation for accepting paywall as paid. Only works in TestNet."`
-	BuildCMSDB               bool     `long:"buildcmsdb" description:"Build the cmsdb from scratch"`
-	GithubAPIToken           string   `long:"githubapitoken" description:"API Token used to communicate with github API.  When populated in cmswww mode, github-tracker is enabled."`
-	CodeStatRepos            []string `long:"codestatrepos" description:"Org/Repositories to crawl for code statistics"`
-	CodeStatOrganization     string   `long:"codestatorg" description:"Organization to crawl for code statistics"`
-	CodeStatStart            int64    `long:"codestatstart" description:"Date in which to look back to for code stat crawl (default 6 months back)"`
-	CodeStatEnd              int64    `long:"codestatend" description:"Date in which to end look back to for code stat crawl (default today)"`
-	CodeStatSkipSync         bool     `long:"codestatskipsync" description:"Skip pull request crawl on startup"`
-	VoteDurationMin          uint32   `long:"votedurationmin" description:"Minimum duration of a dcc vote in blocks"`
-	VoteDurationMax          uint32   `long:"votedurationmax" description:"Maximum duration of a dcc vote in blocks"`
+	// Embedded legacy config
+	legacyConfig
 
 	Version     string
 	ActiveNet   *ChainParams             // Active DCR network
@@ -228,40 +152,33 @@ type Config struct {
 // while still allowing the user to override settings with config files and
 // command line options.  Command line options always take precedence.
 func Load() (*Config, []string, error) {
-	// Default config.
-	cfg := Config{
+	// Setup the default config. Most of settings that contain file
+	// paths are not set to default values and handled later on, once
+	// the CLI args and config file have been fully parsed so that we
+	// don't need to worry about updating the default paths with any
+	// changes to the home dir.
+	cfg := &Config{
 		// General application settings
-		HomeDir:    DefaultHomeDir,
-		ConfigFile: DefaultConfigFile,
-		DataDir:    DefaultDataDir,
-		LogDir:     defaultLogDir,
-		DebugLevel: defaultLogLevel,
+		ShowVersion: false,
+		HomeDir:     defaultHomeDir,
+		ConfigFile:  defaultConfigFile,
+		DataDir:     defaultDataDir,
+		LogDir:      defaultLogDir,
+		TestNet:     false,
+		DebugLevel:  defaultLogLevel,
 
 		// HTTP server settings
-		HTTPSCert:          DefaultHTTPSCertFile,
-		HTTPSKey:           defaultHTTPSKeyFile,
-		CookieKeyFile:      defaultCookieKeyFile,
+		Listeners:          []string{},
+		HTTPSCert:          "",
+		HTTPSKey:           "",
+		CookieKeyFile:      "",
 		ReadTimeout:        defaultReadTimeout,
 		WriteTimeout:       defaultWriteTimeout,
 		ReqBodySizeLimit:   defaultReqBodySizeLimit,
 		WebsocketReadLimit: defaultWebsocketReadLimit,
 
-		// politeiad RPC settings
-		RPCCert: defaultRPCCertFile,
-
 		// User database settings
-		UserDB: defaultUserDB,
-
-		// Legacy settings
-		Mode:                     defaultWWWMode,
-		PaywallAmount:            defaultPaywallAmount,
-		MinConfirmationsRequired: defaultPaywallMinConfirmations,
-		VoteDurationMin:          defaultVoteDurationMin,
-		VoteDurationMax:          defaultVoteDurationMax,
-		MailRateLimit:            defaultMailRateLimit,
-
-		// Other
-		Version: version.String(),
+		UserDB: LevelDB,
 	}
 
 	// Service options which are only added on Windows.
@@ -272,7 +189,7 @@ func Load() (*Config, []string, error) {
 	// help message error can be ignored here since they will be caught by
 	// the final parse below.
 	preCfg := cfg
-	preParser := newConfigParser(&preCfg, &serviceOpts, flags.HelpFlag)
+	preParser := newConfigParser(preCfg, &serviceOpts, flags.HelpFlag)
 	_, err := preParser.Parse()
 	if err != nil {
 		var e *flags.Error
@@ -304,52 +221,34 @@ func Load() (*Config, []string, error) {
 		os.Exit(0)
 	}
 
-	// Update the home directory for stakepoold if specified. Since the
-	// home directory is updated, other variables need to be updated to
-	// reflect the new changes.
+	// Update the home directory if specified. Since the home directory is
+	// updated, other variables need to be updated to reflect the new changes.
 	if preCfg.HomeDir != "" {
 		cfg.HomeDir, _ = filepath.Abs(preCfg.HomeDir)
 
-		if preCfg.ConfigFile == DefaultConfigFile {
-			cfg.ConfigFile = filepath.Join(cfg.HomeDir, DefaultConfigFilename)
+		if preCfg.ConfigFile == defaultConfigFile {
+			cfg.ConfigFile = filepath.Join(cfg.HomeDir, defaultConfigFilename)
 		} else {
 			cfg.ConfigFile = preCfg.ConfigFile
 		}
-		if preCfg.DataDir == DefaultDataDir {
-			cfg.DataDir = filepath.Join(cfg.HomeDir, DefaultDataDirname)
+		if preCfg.DataDir == defaultDataDir {
+			cfg.DataDir = filepath.Join(cfg.HomeDir, defaultDataDirname)
 		} else {
 			cfg.DataDir = preCfg.DataDir
-		}
-		if preCfg.HTTPSKey == defaultHTTPSKeyFile {
-			cfg.HTTPSKey = filepath.Join(cfg.HomeDir, "https.key")
-		} else {
-			cfg.HTTPSKey = preCfg.HTTPSKey
-		}
-		if preCfg.HTTPSCert == DefaultHTTPSCertFile {
-			cfg.HTTPSCert = filepath.Join(cfg.HomeDir, "https.cert")
-		} else {
-			cfg.HTTPSCert = preCfg.HTTPSCert
-		}
-		if preCfg.RPCCert == defaultRPCCertFile {
-			cfg.RPCCert = filepath.Join(cfg.HomeDir, "rpc.cert")
-		} else {
-			cfg.RPCCert = preCfg.RPCCert
 		}
 		if preCfg.LogDir == defaultLogDir {
 			cfg.LogDir = filepath.Join(cfg.HomeDir, defaultLogDirname)
 		} else {
 			cfg.LogDir = preCfg.LogDir
 		}
-		if preCfg.CookieKeyFile == defaultCookieKeyFile {
-			cfg.CookieKeyFile = filepath.Join(cfg.HomeDir, "cookie.key")
-		} else {
-			cfg.CookieKeyFile = preCfg.CookieKeyFile
-		}
 	}
+
+	// Clean and exand the config file path.
+	cfg.ConfigFile = util.CleanAndExpandPath(cfg.ConfigFile)
 
 	// Load additional config from file.
 	var configFileError error
-	parser := newConfigParser(&cfg, &serviceOpts, flags.Default)
+	parser := newConfigParser(cfg, &serviceOpts, flags.Default)
 	err = flags.NewIniParser(parser).ParseFile(cfg.ConfigFile)
 	if err != nil {
 		var e *os.PathError
@@ -372,36 +271,25 @@ func Load() (*Config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Verify mode and set mode specific defaults
-	switch cfg.Mode {
-	case CMSWWWMode:
-		if cfg.MailAddress == "" {
-			cfg.MailAddress = defaultMailAddressCMS
-		}
-	case PoliteiaWWWMode:
-		if cfg.MailAddress == "" {
-			cfg.MailAddress = defaultMailAddressPi
-		}
-	default:
-		err := fmt.Errorf("invalid mode: %v", cfg.Mode)
-		fmt.Fprintln(os.Stderr, err)
-		return nil, nil, err
+	// Special show command to list supported subsystems and exit.
+	if cfg.DebugLevel == "show" {
+		fmt.Println("Supported subsystems", logger.SupportedSubsystems())
+		os.Exit(0)
 	}
 
-	// Verify mail address
-	if _, err := mail.ParseAddress(cfg.MailAddress); err != nil {
-		err := fmt.Errorf("invalid mailaddress: %v", err)
-		fmt.Fprintln(os.Stderr, err)
-		return nil, nil, err
-	}
+	// Clean and expand all file paths
+	cfg.HomeDir = util.CleanAndExpandPath(cfg.HomeDir)
+	cfg.ConfigFile = util.CleanAndExpandPath(cfg.ConfigFile)
+	cfg.DataDir = util.CleanAndExpandPath(cfg.DataDir)
+	cfg.LogDir = util.CleanAndExpandPath(cfg.LogDir)
 
 	// Create the home directory if it doesn't already exist.
 	funcName := "loadConfig"
-	err = os.MkdirAll(DefaultHomeDir, 0700)
+	err = os.MkdirAll(cfg.HomeDir, 0700)
 	if err != nil {
-		// Show a nicer error message if it's because a symlink is
-		// linked to a directory that does not exist (probably because
-		// it's not mounted).
+		// Show a nicer error message if it's because a symlink
+		// is linked to a directory that does not exist (probably
+		// because it's not mounted).
 		var e *os.PathError
 		if errors.As(err, &e) && os.IsExist(err) {
 			if link, lerr := os.Readlink(e.Path); lerr == nil {
@@ -416,62 +304,16 @@ func Load() (*Config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Assign active network params.
-	port := defaultMainnetPort
+	// Setup the active network
 	cfg.ActiveNet = &mainNetParams
 	if cfg.TestNet {
 		cfg.ActiveNet = &testNet3Params
-		port = defaultTestnetPort
 	}
 
-	// Append the network type to the data directory so it is "namespaced"
-	// per network.  In addition to the block database, there are other
-	// pieces of data that are saved to disk such as address manager state.
-	// All data is specific to a network, so namespacing the data directory
-	// means each individual piece of serialized data does not have to
-	// worry about changing names per network and such.
-	cfg.DataDir = util.CleanAndExpandPath(cfg.DataDir)
+	// Append the network type to the data and log directories
+	// so that they are "namespaced" per network.
 	cfg.DataDir = filepath.Join(cfg.DataDir, netName(cfg.ActiveNet))
-
-	// Append the network type to the log directory so it is "namespaced"
-	// per network in the same fashion as the data directory.
-	cfg.LogDir = util.CleanAndExpandPath(cfg.LogDir)
 	cfg.LogDir = filepath.Join(cfg.LogDir, netName(cfg.ActiveNet))
-
-	cfg.HTTPSKey = util.CleanAndExpandPath(cfg.HTTPSKey)
-	cfg.HTTPSCert = util.CleanAndExpandPath(cfg.HTTPSCert)
-	cfg.RPCCert = util.CleanAndExpandPath(cfg.RPCCert)
-
-	if cfg.CodeStatStart > 0 &&
-		(time.Unix(cfg.CodeStatStart, 0).Before(codeStatCheck) ||
-			time.Unix(cfg.CodeStatStart, 0).After(time.Now())) {
-		return nil, nil, fmt.Errorf("you have entered an invalid code stat " +
-			"start date")
-	}
-
-	if cfg.CodeStatEnd > 0 &&
-		time.Unix(cfg.CodeStatEnd, 0).Before(time.Unix(cfg.CodeStatStart, 0)) {
-		return nil, nil, fmt.Errorf("you have entered an invalid code stat " +
-			"end date")
-	}
-
-	if cfg.CodeStatStart <= 0 {
-		cfg.CodeStatStart = defaultCodeStatStart.Unix()
-	}
-
-	if cfg.CodeStatEnd <= 0 {
-		cfg.CodeStatEnd = defaultCodeStatEnd.Unix()
-	}
-
-	// Special show command to list supported subsystems and exit.
-	if cfg.DebugLevel == "show" {
-		fmt.Println("Supported subsystems", logger.SupportedSubsystems())
-		os.Exit(0)
-	}
-
-	// Initialize log rotation.  After log rotation has been initialized,
-	// the logger variables may be used.
-	logger.InitLogRotator(filepath.Join(cfg.LogDir, defaultLogFilename))
 
 	// Parse, validate, and set debug log level(s).
 	if err := parseAndSetDebugLevels(cfg.DebugLevel); err != nil {
@@ -481,48 +323,150 @@ func Load() (*Config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Add the default listener if none were specified. The default
-	// listener is all addresses on the listen port for the network
-	// we are to connect to.
+	// Initialize log rotation. After the log rotation has
+	// been initialized, the logger variables may be used.
+	logger.InitLogRotator(cfg.LogDir)
+
+	// Setup the HTTP server settings
+	err = setupHTTPServerSettings(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Setup the politeiad RPC settings
+	err = setupRPCSettings(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Setup the SMTP mail server settings
+	err = setupMailSettings(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Load the legacy config
+	err = loadLegacyConfig(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Warn about missing config file only after all other
+	// configuration is done. This prevents the warning on
+	// help messages and invalid options. Note this should
+	// go directly before the return.
+	if configFileError != nil {
+		log.Warnf("%v", configFileError)
+	}
+
+	return cfg, remainingArgs, nil
+}
+
+// setupHTTPServerSettings sets up the politeiawww http server config settings.
+func setupHTTPServerSettings(cfg *Config) error {
+	// Setup default values if none were provided. Only the file path
+	// defaults need to be checked. All other defaults should be set
+	// on the original config initialization.
+	if cfg.HTTPSCert == "" {
+		cfg.HTTPSCert = filepath.Join(cfg.HomeDir, defaultHTTPSCertFilename)
+	}
+	if cfg.HTTPSKey == "" {
+		cfg.HTTPSKey = filepath.Join(cfg.HomeDir, defaultHTTPSKeyFilename)
+	}
+	if cfg.CookieKeyFile == "" {
+		cfg.CookieKeyFile = filepath.Join(cfg.HomeDir, defaultCookieKeyFilename)
+	}
+
+	// Clean the file paths
+	cfg.HTTPSCert = util.CleanAndExpandPath(cfg.HTTPSCert)
+	cfg.HTTPSKey = util.CleanAndExpandPath(cfg.HTTPSKey)
+	cfg.CookieKeyFile = util.CleanAndExpandPath(cfg.CookieKeyFile)
+
+	// Add the default listener if none were specified. The
+	// default listener is all addresses on the listen port
+	// for the network we are to connect to.
+	port := defaultMainnetPort
+	if cfg.TestNet {
+		port = defaultTestnetPort
+	}
 	if len(cfg.Listeners) == 0 {
 		cfg.Listeners = []string{
 			net.JoinHostPort("", port),
 		}
 	}
 
-	// Add default port to all listener addresses if needed and remove
-	// duplicate addresses.
+	// Add default port to all listener addresses if needed
+	// and remove duplicate addresses.
 	cfg.Listeners = normalizeAddresses(cfg.Listeners, port)
 
-	// Set up the politeiad rpc address.
-	if cfg.TestNet {
-		port = v1.DefaultTestnetPort
-		if cfg.RPCHost == "" {
-			cfg.RPCHost = v1.DefaultTestnetHost
-		}
-	} else {
-		port = v1.DefaultMainnetPort
-		if cfg.RPCHost == "" {
-			cfg.RPCHost = v1.DefaultMainnetHost
-		}
+	return nil
+}
+
+// setupRPCSettings sets up the politeiad RPC config settings.
+func setupRPCSettings(cfg *Config) error {
+	// Setup default values if none were provided
+	if cfg.RPCCert == "" {
+		cfg.RPCCert = filepath.Join(cfg.HomeDir, defaultRPCCertFilename)
+	}
+	if cfg.RPCIdentityFile == "" {
+		cfg.RPCIdentityFile = filepath.Join(cfg.HomeDir, defaultIdentityFilename)
 	}
 
-	// Verify politeiad RPC settings
-	cfg.RPCHost = util.NormalizeAddress(cfg.RPCHost, port)
+	// Clean the file paths
+	cfg.RPCCert = util.CleanAndExpandPath(cfg.RPCCert)
+	cfg.RPCIdentityFile = util.CleanAndExpandPath(cfg.RPCIdentityFile)
+
+	// Setup the RPC host
+	if cfg.RPCHost == "" {
+		port := defaultRPCMainnetPort
+		if cfg.TestNet {
+			port = defaultRPCTestnetPort
+		}
+		cfg.RPCHost = util.NormalizeAddress(defaultRPCHost, port)
+	}
 	u, err := url.Parse("https://" + cfg.RPCHost)
 	if err != nil {
-		return nil, nil, err
+		return fmt.Errorf("parse politeiad RPC host: %v", err)
 	}
 	cfg.RPCHost = u.String()
 
+	// Verify remaining RPC settings
 	if cfg.RPCUser == "" {
-		return nil, nil, fmt.Errorf("politeiad rpc user must be provided " +
-			"with --rpcuser")
+		return fmt.Errorf("politeiad rpc user " +
+			"must be provided with --rpcuser")
 	}
 	if cfg.RPCPass == "" {
-		return nil, nil, fmt.Errorf("politeiad rpc pass must be provided " +
-			"with --rpcpass")
+		return fmt.Errorf("politeiad rpc pass " +
+			"must be provided with --rpcpass")
 	}
+	if cfg.Interactive != "" && cfg.Interactive != allowInteractive {
+		return fmt.Errorf("--interactive flag used incorrectly")
+	}
+
+	// Load the identity politeaid identity from disk
+	if cfg.FetchIdentity {
+		// Don't try to load the identity from the existing
+		// file if the caller is trying to fetch a new one.
+		return nil
+	}
+	if !util.FileExists(cfg.RPCIdentityFile) {
+		return fmt.Errorf("identity file not found; you must load the " +
+			"identity from politeiad first using the --fetchidentity flag")
+	}
+	cfg.Identity, err = identity.LoadPublicIdentity(cfg.RPCIdentityFile)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Identity loaded from: %v", cfg.RPCIdentityFile)
+
+	return nil
+}
+
+// TODO pickup here
+// setupMailSettings sets up the SMTP mail server config settings.
+func setupMailSettings(cfg *Config) error {
+	cfg.MailCert = util.CleanAndExpandPath(cfg.MailCert)
 
 	// Verify mail settings
 	switch {
@@ -533,28 +477,28 @@ func Load() (*Config, []string, error) {
 		cfg.MailPass != "" && cfg.WebServerAddress != "":
 		// All mail settings have been set; this is ok
 	default:
-		return nil, nil, fmt.Errorf("either all or none of the " +
+		return fmt.Errorf("either all or none of the " +
 			"following config options should be supplied: " +
 			"mailhost, mailuser, mailpass, webserveraddress")
 	}
 
-	u, err = url.Parse(cfg.MailHost)
+	u, err := url.Parse(cfg.MailHost)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to parse mail host: %v", err)
+		return fmt.Errorf("unable to parse mail host: %v", err)
 	}
 	cfg.MailHost = u.String()
 
 	a, err := mail.ParseAddress(cfg.MailAddress)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to parse mail address: %v", err)
+		return fmt.Errorf("unable to parse mail address: %v", err)
 	}
 	cfg.MailAddress = a.String()
 
-	u, err = url.Parse(cfg.WebServerAddress)
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to parse web server address: %v", err)
+	if _, err := mail.ParseAddress(cfg.MailAddress); err != nil {
+		err := fmt.Errorf("invalid mailaddress: %v", err)
+		fmt.Fprintln(os.Stderr, err)
+		return err
 	}
-	cfg.WebServerAddress = u.String()
 
 	// Validate smtp root cert.
 	if cfg.MailCert != "" {
@@ -562,192 +506,27 @@ func Load() (*Config, []string, error) {
 
 		b, err := ioutil.ReadFile(cfg.MailCert)
 		if err != nil {
-			return nil, nil, fmt.Errorf("read mailcert: %v", err)
+			return fmt.Errorf("read mailcert: %v", err)
 		}
 		block, _ := pem.Decode(b)
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, nil, fmt.Errorf("parse mailcert: %v", err)
+			return fmt.Errorf("parse mailcert: %v", err)
 		}
 		systemCerts, err := x509.SystemCertPool()
 		if err != nil {
-			return nil, nil, fmt.Errorf("getting systemcertpool: %v", err)
+			return fmt.Errorf("getting systemcertpool: %v", err)
 		}
 		systemCerts.AddCert(cert)
 		cfg.SystemCerts = systemCerts
 
 		if cfg.MailSkipVerify && cfg.MailCert != "" {
-			return nil, nil, fmt.Errorf("cannot set MailSkipVerify and provide " +
+			return fmt.Errorf("cannot set MailSkipVerify and provide " +
 				"a MailCert at the same time")
 		}
 	}
 
-	// Validate user database selection.
-	switch cfg.UserDB {
-	case LevelDB:
-		// Leveldb implementation does not require any database settings
-		// and does support encrypting data at rest. Return an error if
-		// the user has the encryption settings set to prevent them from
-		// thinking their data is being encrypted.
-		switch {
-		case cfg.DBHost != "":
-			log.Warnf("leveldb does not use --dbhost")
-		case cfg.DBRootCert != "":
-			log.Warnf("leveldb does not use --dbrootcert")
-		case cfg.DBCert != "":
-			log.Warnf("leveldb does not use --dbcert")
-		case cfg.DBKey != "":
-			log.Warnf("leveldb does not use --dbkey")
-		case cfg.EncryptionKey != "":
-			return nil, nil, fmt.Errorf("leveldb --encryptionkey not supported")
-		case cfg.OldEncryptionKey != "":
-			return nil, nil, fmt.Errorf("leveldb --oldencryptionkey not supported")
-		}
-
-	case CockroachDB:
-		// Cockroachdb requires these settings.
-		switch {
-		case cfg.DBRootCert == "":
-			return nil, nil, fmt.Errorf("dbrootcert param is required")
-		case cfg.DBCert == "":
-			return nil, nil, fmt.Errorf("dbcert param is required")
-		case cfg.DBKey == "":
-			return nil, nil, fmt.Errorf("dbkey param is required")
-		}
-
-		// Set default DBHost if not set.
-		if cfg.DBHost == "" {
-			cfg.DBHost = defaultCockroachDBHost
-		}
-
-		// Validate DB host.
-		err = validateDBHost(cfg.DBHost)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// Set default encryption key path if not set.
-		if cfg.EncryptionKey == "" {
-			cfg.EncryptionKey = defaultEncryptionKey
-		}
-
-		// Clean user database settings
-		cfg.DBRootCert = util.CleanAndExpandPath(cfg.DBRootCert)
-		cfg.DBCert = util.CleanAndExpandPath(cfg.DBCert)
-		cfg.DBKey = util.CleanAndExpandPath(cfg.DBKey)
-		cfg.EncryptionKey = util.CleanAndExpandPath(cfg.EncryptionKey)
-		cfg.OldEncryptionKey = util.CleanAndExpandPath(cfg.OldEncryptionKey)
-
-		// Validate user database encryption keys.
-		err = validateEncryptionKeys(cfg.EncryptionKey, cfg.OldEncryptionKey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("validate encryption keys: %v", err)
-		}
-
-		// Validate user database root cert
-		b, err := ioutil.ReadFile(cfg.DBRootCert)
-		if err != nil {
-			return nil, nil, fmt.Errorf("read dbrootcert: %v", err)
-		}
-		block, _ := pem.Decode(b)
-		_, err = x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return nil, nil, fmt.Errorf("parse dbrootcert: %v", err)
-		}
-
-		// Validate user database key pair
-		_, err = tls.LoadX509KeyPair(cfg.DBCert, cfg.DBKey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("load key pair dbcert "+
-				"and dbkey: %v", err)
-		}
-
-	case MySQL:
-		// The database password is provided in an env variable.
-		cfg.DBPass = os.Getenv(envDBPass)
-		if cfg.DBPass == "" {
-			return nil, nil, fmt.Errorf("dbpass not found; you must provide " +
-				"the database password for the politeiawww user in the env " +
-				"variable DBPASS")
-		}
-
-		// Set default DBHost if not set.
-		if cfg.DBHost == "" {
-			cfg.DBHost = defaultMySQLDBHost
-		}
-
-		// Validate DB host.
-		err = validateDBHost(cfg.DBHost)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// Set default encryption key path if not set.
-		if cfg.EncryptionKey == "" {
-			cfg.EncryptionKey = defaultEncryptionKey
-		}
-
-		// Clean encryption keys paths.
-		cfg.EncryptionKey = util.CleanAndExpandPath(cfg.EncryptionKey)
-		cfg.OldEncryptionKey = util.CleanAndExpandPath(cfg.OldEncryptionKey)
-
-		// Validate user database encryption keys.
-		err = validateEncryptionKeys(cfg.EncryptionKey, cfg.OldEncryptionKey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("validate encryption keys: %v", err)
-		}
-
-	default:
-		return nil, nil, fmt.Errorf("invalid userdb '%v'; must "+
-			"be leveldb, cockroachdb or mysql", cfg.UserDB)
-	}
-
-	// Verify paywall settings
-	paywallIsEnabled := cfg.PaywallAmount != 0 || cfg.PaywallXpub != ""
-	if paywallIsEnabled {
-		// Parse extended public key
-		_, err := hdkeychain.NewKeyFromString(cfg.PaywallXpub,
-			cfg.ActiveNet.Params)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error processing extended "+
-				"public key: %v", err)
-		}
-
-		// Verify paywall amount
-		if cfg.PaywallAmount < dust {
-			return nil, nil, fmt.Errorf("paywall amount needs to be "+
-				"higher than %v", dust)
-		}
-
-		// Verify required paywall confirmations
-		if !cfg.TestNet &&
-			cfg.MinConfirmationsRequired != defaultPaywallMinConfirmations {
-			return nil, nil, fmt.Errorf("cannot set --minconfirmations on mainnet")
-		}
-	}
-
-	// Setup dcrdata addresses
-	if cfg.DcrdataHost == "" {
-		if cfg.TestNet {
-			cfg.DcrdataHost = defaultDcrdataTestnet
-		} else {
-			cfg.DcrdataHost = defaultDcrdataMainnet
-		}
-	}
-
-	// Load identity
-	if err := loadIdentity(&cfg); err != nil {
-		return nil, nil, err
-	}
-
-	// Warn about missing config file only after all other configuration is
-	// done.  This prevents the warning on help messages and invalid
-	// options.  Note this should go directly before the return.
-	if configFileError != nil {
-		log.Warnf("%v", configFileError)
-	}
-
-	return &cfg, remainingArgs, nil
+	return nil
 }
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -758,6 +537,15 @@ var runServiceCommand func(string) error
 // on Windows.
 type serviceOptions struct {
 	ServiceCommand string `short:"s" long:"service" description:"Service command {install, remove, start, stop}"`
+}
+
+// newConfigParser returns a new command line flags parser.
+func newConfigParser(cfg *Config, so *serviceOptions, options flags.Options) *flags.Parser {
+	parser := flags.NewParser(cfg, options)
+	if runtime.GOOS == "windows" {
+		parser.AddGroup("Service Options", "Service Options", so)
+	}
+	return parser
 }
 
 // validLogLevel returns whether or not logLevel is a valid debug log level.
@@ -834,6 +622,16 @@ func parseAndSetDebugLevels(debugLevel string) error {
 	return nil
 }
 
+// normalizeAddresses returns a new slice with all the passed peer addresses
+// normalized with the given default port, and all duplicates removed.
+func normalizeAddresses(addrs []string, defaultPort string) []string {
+	for i, addr := range addrs {
+		addrs[i] = util.NormalizeAddress(addr, defaultPort)
+	}
+
+	return removeDuplicateAddresses(addrs)
+}
+
 // removeDuplicateAddresses returns a new slice with all duplicate entries in
 // addrs removed.
 func removeDuplicateAddresses(addrs []string) []string {
@@ -846,96 +644,4 @@ func removeDuplicateAddresses(addrs []string) []string {
 		}
 	}
 	return result
-}
-
-// normalizeAddresses returns a new slice with all the passed peer addresses
-// normalized with the given default port, and all duplicates removed.
-func normalizeAddresses(addrs []string, defaultPort string) []string {
-	for i, addr := range addrs {
-		addrs[i] = util.NormalizeAddress(addr, defaultPort)
-	}
-
-	return removeDuplicateAddresses(addrs)
-}
-
-// newConfigParser returns a new command line flags parser.
-func newConfigParser(cfg *Config, so *serviceOptions, options flags.Options) *flags.Parser {
-	parser := flags.NewParser(cfg, options)
-	if runtime.GOOS == "windows" {
-		parser.AddGroup("Service Options", "Service Options", so)
-	}
-	return parser
-}
-
-// loadIdentity loads the politeiad identity from disk. An error is returned if
-// an identity is not found, instructing the user to fetch the politeiad
-// identity with the --fetchidentity flag.
-func loadIdentity(cfg *Config) error {
-	// Set up the path to the politeiad identity file.
-	if cfg.RPCIdentityFile == "" {
-		cfg.RPCIdentityFile = filepath.Join(cfg.HomeDir,
-			defaultIdentityFilename)
-	} else {
-		cfg.RPCIdentityFile = util.CleanAndExpandPath(cfg.RPCIdentityFile)
-	}
-
-	if cfg.FetchIdentity {
-		// Don't try to load the identity from the existing file if the
-		// caller is trying to fetch a new one.
-		return nil
-	}
-
-	// Check if the identity already exists.
-	if _, err := os.Stat(cfg.RPCIdentityFile); os.IsNotExist(err) {
-		return fmt.Errorf("you must load the identity from politeiad " +
-			"first using the --fetchidentity flag")
-	}
-
-	var err error
-	cfg.Identity, err = identity.LoadPublicIdentity(cfg.RPCIdentityFile)
-	if err != nil {
-		return err
-	}
-
-	log.Infof("Identity loaded from: %v", cfg.RPCIdentityFile)
-	return nil
-}
-
-// validateEncryptionKeys validates the encryption keys config and returns
-// the keys' cleaned paths.
-func validateEncryptionKeys(encKey, oldEncKey string) error {
-	if encKey != "" && !util.FileExists(encKey) {
-		return fmt.Errorf("file not found %v", encKey)
-	}
-
-	if oldEncKey != "" {
-		switch {
-		case encKey == "":
-			return fmt.Errorf("old encryption key param " +
-				"cannot be used without encryption key param")
-
-		case encKey == oldEncKey:
-			return fmt.Errorf("old encryption key param " +
-				"and encryption key param must be different")
-
-		case !util.FileExists(oldEncKey):
-			return fmt.Errorf("file not found %v", oldEncKey)
-		}
-	}
-
-	return nil
-}
-
-// validateDBHost validates user database host.
-func validateDBHost(host string) error {
-	if host == "" {
-		return fmt.Errorf("dbhost param is required")
-	}
-
-	_, err := url.Parse(host)
-	if err != nil {
-		return fmt.Errorf("parse dbhost: %v", err)
-	}
-
-	return nil
 }

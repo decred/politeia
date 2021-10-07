@@ -26,10 +26,10 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
-	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/decred/politeia/politeiawww/legacy/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/legacy/user/localdb"
@@ -62,8 +62,8 @@ const (
 )
 
 var (
-	defaultHomeDir       = config.DefaultHomeDir
-	defaultDataDir       = config.DefaultDataDir
+	defaultHomeDir       = dcrutil.AppDataDir("politeiawww", false)
+	defaultDataDir       = filepath.Join(defaultHomeDir, "data")
 	defaultEncryptionKey = filepath.Join(defaultHomeDir, "sbox.key")
 
 	// Database options
