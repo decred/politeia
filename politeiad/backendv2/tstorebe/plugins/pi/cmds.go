@@ -330,7 +330,7 @@ func proposalStatusApproved(bscs []pi.BillingStatusChange) (pi.PropStatusT, erro
 				"billingStatus: %v", bs)
 }
 
-// proposalBillingStatus accepts proposal's vote status & billing status
+// proposalBillingStatus accepts proposal's vote status with the billing status
 // changes and returns the proposal's billing status.
 func proposalBillingStatus(vs ticketvote.VoteStatusT, bscs []pi.BillingStatusChange) pi.BillingStatusT {
 	// If proposal vote wasn't approved,
