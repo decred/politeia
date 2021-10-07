@@ -28,8 +28,9 @@ import (
 )
 
 const (
+	appName = "politeiawww"
+
 	// General application settings
-	appName               = "politeiawww"
 	defaultDataDirname    = "data"
 	defaultLogLevel       = "info"
 	defaultLogDirname     = "logs"
@@ -130,7 +131,7 @@ type Config struct {
 	MailPass       string `long:"mailpass" description:"Email server password"`
 	MailAddress    string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
 
-	// Embedded legacy config
+	// Embedded legacy config. This will be deleted soon.
 	legacyConfig
 
 	Version     string
@@ -327,6 +328,12 @@ func Load() (*Config, []string, error) {
 	// been initialized, the logger variables may be used.
 	logger.InitLogRotator(cfg.LogDir)
 
+	// Load the system cert pool
+	cfg.SystemCerts, err = x509.SystemCertPool()
+	if err != nil {
+		return nil, nil, err
+	}
+
 	// Setup the HTTP server settings
 	err = setupHTTPServerSettings(cfg)
 	if err != nil {
@@ -377,7 +384,7 @@ func setupHTTPServerSettings(cfg *Config) error {
 		cfg.CookieKeyFile = filepath.Join(cfg.HomeDir, defaultCookieKeyFilename)
 	}
 
-	// Clean the file paths
+	// Clean file paths
 	cfg.HTTPSCert = util.CleanAndExpandPath(cfg.HTTPSCert)
 	cfg.HTTPSKey = util.CleanAndExpandPath(cfg.HTTPSKey)
 	cfg.CookieKeyFile = util.CleanAndExpandPath(cfg.CookieKeyFile)
@@ -412,7 +419,7 @@ func setupRPCSettings(cfg *Config) error {
 		cfg.RPCIdentityFile = filepath.Join(cfg.HomeDir, defaultIdentityFilename)
 	}
 
-	// Clean the file paths
+	// Clean file paths
 	cfg.RPCCert = util.CleanAndExpandPath(cfg.RPCCert)
 	cfg.RPCIdentityFile = util.CleanAndExpandPath(cfg.RPCIdentityFile)
 
@@ -463,68 +470,47 @@ func setupRPCSettings(cfg *Config) error {
 	return nil
 }
 
-// TODO pickup here
 // setupMailSettings sets up the SMTP mail server config settings.
 func setupMailSettings(cfg *Config) error {
+	// Clean file paths
 	cfg.MailCert = util.CleanAndExpandPath(cfg.MailCert)
 
-	// Verify mail settings
-	switch {
-	case cfg.MailHost == "" && cfg.MailUser == "" &&
-		cfg.MailPass == "" && cfg.WebServerAddress == "":
-		// Email is disabled; this is ok
-	case cfg.MailHost != "" && cfg.MailUser != "" &&
-		cfg.MailPass != "" && cfg.WebServerAddress != "":
-		// All mail settings have been set; this is ok
-	default:
-		return fmt.Errorf("either all or none of the " +
-			"following config options should be supplied: " +
-			"mailhost, mailuser, mailpass, webserveraddress")
-	}
-
+	// Verify the host
 	u, err := url.Parse(cfg.MailHost)
 	if err != nil {
 		return fmt.Errorf("unable to parse mail host: %v", err)
 	}
 	cfg.MailHost = u.String()
 
-	a, err := mail.ParseAddress(cfg.MailAddress)
-	if err != nil {
-		return fmt.Errorf("unable to parse mail address: %v", err)
-	}
-	cfg.MailAddress = a.String()
-
-	if _, err := mail.ParseAddress(cfg.MailAddress); err != nil {
-		err := fmt.Errorf("invalid mailaddress: %v", err)
-		fmt.Fprintln(os.Stderr, err)
-		return err
-	}
-
-	// Validate smtp root cert.
+	// Verify the certificate
 	if cfg.MailCert != "" {
-		cfg.MailCert = util.CleanAndExpandPath(cfg.MailCert)
-
+		if cfg.MailSkipVerify {
+			return fmt.Errorf("cannot set mailskipverify " +
+				"and provide a mailcert at the same time")
+		}
+		if !util.FileExists(cfg.MailCert) {
+			return fmt.Errorf("mail cert file '%v' not found",
+				cfg.MailCert)
+		}
 		b, err := ioutil.ReadFile(cfg.MailCert)
 		if err != nil {
-			return fmt.Errorf("read mailcert: %v", err)
+			return fmt.Errorf("read mail cert: %v", err)
 		}
 		block, _ := pem.Decode(b)
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return fmt.Errorf("parse mailcert: %v", err)
+			return fmt.Errorf("parse mail cert: %v", err)
 		}
-		systemCerts, err := x509.SystemCertPool()
-		if err != nil {
-			return fmt.Errorf("getting systemcertpool: %v", err)
-		}
-		systemCerts.AddCert(cert)
-		cfg.SystemCerts = systemCerts
-
-		if cfg.MailSkipVerify && cfg.MailCert != "" {
-			return fmt.Errorf("cannot set MailSkipVerify and provide " +
-				"a MailCert at the same time")
-		}
+		cfg.SystemCerts.AddCert(cert)
 	}
+
+	// Verify the provided email address
+	a, err := mail.ParseAddress(cfg.MailAddress)
+	if err != nil {
+		return fmt.Errorf("cannot parse mail address '%v': %v",
+			cfg.MailAddress, err)
+	}
+	cfg.MailAddress = a.String()
 
 	return nil
 }

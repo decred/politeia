@@ -263,6 +263,20 @@ func loadLegacyConfig(cfg *Config) error {
 		}
 	}
 
+	// Verify mail settings
+	switch {
+	case cfg.MailHost == "" && cfg.MailUser == "" &&
+		cfg.MailPass == "" && cfg.WebServerAddress == "":
+		// Email is disabled; this is ok
+	case cfg.MailHost != "" && cfg.MailUser != "" &&
+		cfg.MailPass != "" && cfg.WebServerAddress != "":
+		// All mail settings have been set; this is ok
+	default:
+		return fmt.Errorf("either all or none of the " +
+			"following config options should be supplied: " +
+			"mailhost, mailuser, mailpass, webserveraddress")
+	}
+
 	u, err := url.Parse(cfg.WebServerAddress)
 	if err != nil {
 		return fmt.Errorf("unable to parse web server address: %v", err)
