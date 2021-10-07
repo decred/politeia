@@ -69,9 +69,9 @@ const (
 	// SettingProposalDomains plugin setting.
 	SettingKeyProposalDomains = "proposaldomains"
 
-	// SettingKeyAllowedBillingStatusChangesMax is the plugin setting
-	// key for the SettingAllowedBillingStatusChangesMax plugin setting.
-	SettingKeyAllowedBillingStatusChangesMax = "allowedbillingstatuschangesmax"
+	// SettingKeyBillingStatusChangesMax is the plugin setting
+	// key for the SettingBillingStatusChangesMax plugin setting.
+	SettingKeyBillingStatusChangesMax = "billingstatuschangesmax"
 )
 
 // Plugin setting default values. These can be overridden by providing a plugin
@@ -113,9 +113,9 @@ const (
 	// start date - seconds from current time.
 	SettingProposalStartDateMin int64 = 604800 // One week in seconds.
 
-	// SettingAllowedBillingStatusChangesMax is the default maximum allowed
+	// SettingBillingStatusChangesMax is the default maximum allowed
 	// billing status changes.
-	SettingAllowedBillingStatusChangesMax uint32 = 1
+	SettingBillingStatusChangesMax uint32 = 1
 )
 
 var (

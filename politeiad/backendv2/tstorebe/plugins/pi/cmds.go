@@ -112,7 +112,7 @@ func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, er
 		// If a billing status was already set, a new billing status change is
 		// allowed only if the number of all billing status changes does not exceed
 		// the 'allowedbillingstatuschangesmax' plugin setting.
-		if uint32(len(bscs))+1 > p.allowedBillingStatusChangesMax {
+		if uint32(len(bscs))+1 > p.billingStatusChangesMax {
 			return "", backend.PluginError{
 				PluginID:  pi.PluginID,
 				ErrorCode: uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),

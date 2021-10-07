@@ -59,21 +59,21 @@ func newTestPiPlugin(t *testing.T) (*piPlugin, func()) {
 
 	// Setup plugin context
 	p := piPlugin{
-		dataDir:                        dataDir,
-		textFileSizeMax:                pi.SettingTextFileSizeMax,
-		imageFileCountMax:              pi.SettingImageFileCountMax,
-		imageFileSizeMax:               pi.SettingImageFileSizeMax,
-		titleLengthMin:                 titleLengthMin,
-		titleLengthMax:                 titleLengthMax,
-		titleSupportedChars:            titleSupportedCharsString,
-		titleRegexp:                    rexp,
-		proposalAmountMin:              pi.SettingProposalAmountMin,
-		proposalAmountMax:              pi.SettingProposalAmountMax,
-		proposalStartDateMin:           pi.SettingProposalStartDateMin,
-		proposalEndDateMax:             pi.SettingProposalEndDateMax,
-		proposalDomainsEncoded:         domainsString,
-		proposalDomains:                domainsMap,
-		allowedBillingStatusChangesMax: pi.SettingAllowedBillingStatusChangesMax,
+		dataDir:                 dataDir,
+		textFileSizeMax:         pi.SettingTextFileSizeMax,
+		imageFileCountMax:       pi.SettingImageFileCountMax,
+		imageFileSizeMax:        pi.SettingImageFileSizeMax,
+		titleLengthMin:          titleLengthMin,
+		titleLengthMax:          titleLengthMax,
+		titleSupportedChars:     titleSupportedCharsString,
+		titleRegexp:             rexp,
+		proposalAmountMin:       pi.SettingProposalAmountMin,
+		proposalAmountMax:       pi.SettingProposalAmountMax,
+		proposalStartDateMin:    pi.SettingProposalStartDateMin,
+		proposalEndDateMax:      pi.SettingProposalEndDateMax,
+		proposalDomainsEncoded:  domainsString,
+		proposalDomains:         domainsMap,
+		billingStatusChangesMax: pi.SettingBillingStatusChangesMax,
 	}
 
 	return &p, func() {
