@@ -132,19 +132,8 @@ func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, er
 		}
 	}
 
-	var currStatus pi.BillingStatusT
-	if len(bscs) == 0 {
-		// Proposals that have been approved, but have not had
-		// their billing status set yet are considered to be
-		// active.
-		currStatus = pi.BillingStatusActive
-	} else {
-		// Use the status from the most recent billing status
-		// change.
-		currStatus = bscs[len(bscs)-1].Status
-	}
-
 	// Ensure billing status change transition is valid
+	currStatus := proposalBillingStatus(vsr.Status, bscs)
 	_, ok := billingStatusChanges[currStatus][sbs.Status]
 	if !ok {
 		return "", backend.PluginError{
@@ -221,7 +210,7 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		mdStatus   = r.RecordMetadata.Status
 		voteStatus = ticketvote.VoteStatusInvalid
 
-		bsc *pi.BillingStatusChange
+		bscs []pi.BillingStatusChange
 	)
 
 	// Fetch vote status & billing status change if they are needed in order
@@ -236,11 +225,7 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 			voteStatus = vs.Status
 			// If vote status is approved fetch billing status change.
 			if voteStatus == ticketvote.VoteStatusApproved {
-				bscs, err := p.billingStatusChanges(token)
-				if len(bscs) > 0 {
-					// Get newest billing status change.
-					bsc = &bscs[len(bscs)-1]
-				}
+				bscs, err = p.billingStatusChanges(token)
 				if err != nil {
 					return "", err
 				}
@@ -248,7 +233,7 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		}
 	}
 
-	proposalStatus, err := proposalStatus(mdState, mdStatus, voteStatus, bsc)
+	proposalStatus, err := proposalStatus(mdState, mdStatus, voteStatus, bscs)
 	if err != nil {
 		return "", err
 	}
@@ -327,29 +312,52 @@ func statusChangesDecode(metadata []backend.MetadataStream) ([]usermd.StatusChan
 }
 
 // proposalStatusApproved returns the proposal status of an approved proposal.
-func proposalStatusApproved(bsc *pi.BillingStatusChange) (pi.PropStatusT, error) {
-	// If a billing status of an approved proposal not set then the
-	// proposal is considered as active.
-	if bsc == nil {
-		return pi.PropStatusActive, nil
-	}
-	switch bsc.Status {
+func proposalStatusApproved(bscs []pi.BillingStatusChange) (pi.PropStatusT, error) {
+	bs := proposalBillingStatus(ticketvote.VoteStatusApproved, bscs)
+	switch bs {
 	case pi.BillingStatusClosed:
 		return pi.PropStatusClosed, nil
 	case pi.BillingStatusCompleted:
 		return pi.PropStatusCompleted, nil
+	case pi.BillingStatusActive:
+		return pi.PropStatusActive, nil
 	}
+
 	// Shouldn't happen return an error
 	return pi.PropStatusInvalid,
 		errors.Errorf(
 			"couldn't determine proposal status of an approved propsoal: "+
-				"billingStatus: %v", bsc.Status)
+				"billingStatus: %v", bs)
+}
+
+// proposalBillingStatus accepts proposal's vote status & billing status
+// changes and returns the proposal's billing status.
+func proposalBillingStatus(vs ticketvote.VoteStatusT, bscs []pi.BillingStatusChange) pi.BillingStatusT {
+	// If proposal vote wasn't approved,
+	// return invalid billing status.
+	if vs != ticketvote.VoteStatusApproved {
+		return pi.BillingStatusInvalid
+	}
+
+	var bs pi.BillingStatusT
+	if len(bscs) == 0 {
+		// Proposals that have been approved, but have not had
+		// their billing status set yet are considered to be
+		// active.
+		bs = pi.BillingStatusActive
+	} else {
+		// Use the status from the most recent billing status
+		// change.
+		bs = bscs[len(bscs)-1].Status
+	}
+
+	return bs
 }
 
 // proposalStatus combines record metadata and plugin metadata in order to
 // create a unified map of the various paths a proposal can take throughout
 // the proposal process.
-func proposalStatus(state backend.StateT, status backend.StatusT, voteStatus ticketvote.VoteStatusT, bsc *pi.BillingStatusChange) (pi.PropStatusT, error) {
+func proposalStatus(state backend.StateT, status backend.StatusT, voteStatus ticketvote.VoteStatusT, bscs []pi.BillingStatusChange) (pi.PropStatusT, error) {
 	switch state {
 	case backend.StateUnvetted:
 		switch status {
@@ -377,7 +385,7 @@ func proposalStatus(state backend.StateT, status backend.StatusT, voteStatus tic
 			case ticketvote.VoteStatusRejected:
 				return pi.PropStatusRejected, nil
 			case ticketvote.VoteStatusApproved:
-				return proposalStatusApproved(bsc)
+				return proposalStatusApproved(bscs)
 			}
 		}
 	}
