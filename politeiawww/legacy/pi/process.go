@@ -44,6 +44,28 @@ func (p *Pi) processSetBillingStatus(ctx context.Context, sbs v1.SetBillingStatu
 	}, nil
 }
 
+// processBillingStatusChanges processes a pi v1 billingstatuschanges request.
+func (p *Pi) processBillingStatusChanges(ctx context.Context, bscs v1.BillingStatusChanges) (*v1.BillingStatusChangesReply, error) {
+	log.Tracef("processBillingStatusChanges: %v", bscs.Token)
+
+	pbscsr, err := p.politeiad.PiBillingStatusChanges(ctx, bscs.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert reply to API.
+	billingStatusChanges := make([]v1.BillingStatusChange, 0,
+		len(pbscsr.BillingStatusChanges))
+	for _, bsc := range pbscsr.BillingStatusChanges {
+		billingStatusChanges = append(billingStatusChanges,
+			convertBillingStatusChangeToAPI(bsc))
+	}
+
+	return &v1.BillingStatusChangesReply{
+		BillingStatusChanges: billingStatusChanges,
+	}, nil
+}
+
 // processSummaries processes a pi v1 summaries request.
 func (p *Pi) processSummaries(ctx context.Context, s v1.Summaries) (*v1.SummariesReply, error) {
 	log.Tracef("processSummaries: %v", s.Tokens)
@@ -72,28 +94,6 @@ func (p *Pi) processSummaries(ctx context.Context, s v1.Summaries) (*v1.Summarie
 
 	return &v1.SummariesReply{
 		Summaries: ss,
-	}, nil
-}
-
-// processBillingStatusChanges processes a pi v1 billingstatuschanges request.
-func (p *Pi) processBillingStatusChanges(ctx context.Context, bscs v1.BillingStatusChanges) (*v1.BillingStatusChangesReply, error) {
-	log.Tracef("processBillingStatusChanges: %v", bscs.Token)
-
-	pbscsr, err := p.politeiad.PiBillingStatusChanges(ctx, bscs.Token)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert reply to API.
-	billingStatusChanges := make([]v1.BillingStatusChange, 0,
-		len(pbscsr.BillingStatusChanges))
-	for _, bsc := range pbscsr.BillingStatusChanges {
-		billingStatusChanges = append(billingStatusChanges,
-			convertBillingStatusChangeToAPI(bsc))
-	}
-
-	return &v1.BillingStatusChangesReply{
-		BillingStatusChanges: billingStatusChanges,
 	}, nil
 }
 

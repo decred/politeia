@@ -128,7 +128,9 @@ func printProposalSummary(token string, s piv1.Summary) {
 func printBillingStatusChange(bsc piv1.BillingStatusChange) {
 	printf("Token    : %v\n", bsc.Token)
 	printf("Status   : %v\n", piv1.BillingStatuses[bsc.Status])
-	printf("Reason   : %v\n", bsc.Reason)
+	if bsc.Reason != "" {
+		printf("Reason   : %v\n", bsc.Reason)
+	}
 	printf("PublicKey: %v\n", bsc.PublicKey)
 	printf("Signature: %v\n", bsc.Signature)
 	printf("Receipt  : %v\n", bsc.Receipt)

@@ -72,30 +72,6 @@ func (p *Pi) HandleSetBillingStatus(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, bsr)
 }
 
-// HandleSummaries is the request handler for the pi v1 Summaries route.
-func (p *Pi) HandleSummaries(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("HandleSummaries")
-
-	var s v1.Summaries
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&s); err != nil {
-		respondWithError(w, r, "HandleSummaries: unmarshal",
-			v1.UserErrorReply{
-				ErrorCode: v1.ErrorCodeInputInvalid,
-			})
-		return
-	}
-
-	bsr, err := p.processSummaries(r.Context(), s)
-	if err != nil {
-		respondWithError(w, r,
-			"HandleSummaries: processSummaries: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, bsr)
-}
-
 // HandleBillingStatusChanges is the request handler for the pi v1
 // BillingStatusChanges route.
 func (p *Pi) HandleBillingStatusChanges(w http.ResponseWriter, r *http.Request) {
@@ -122,21 +98,46 @@ func (p *Pi) HandleBillingStatusChanges(w http.ResponseWriter, r *http.Request) 
 
 }
 
+// HandleSummaries is the request handler for the pi v1 Summaries route.
+func (p *Pi) HandleSummaries(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleSummaries")
+
+	var s v1.Summaries
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&s); err != nil {
+		respondWithError(w, r, "HandleSummaries: unmarshal",
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	bsr, err := p.processSummaries(r.Context(), s)
+	if err != nil {
+		respondWithError(w, r,
+			"HandleSummaries: processSummaries: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, bsr)
+}
+
 // New returns a new Pi context.
 func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mailer, s *sessions.Sessions, e *events.Manager, plugins []pdv2.Plugin) (*Pi, error) {
 	// Parse plugin settings
 	var (
-		textFileSizeMax     uint32
-		imageFileCountMax   uint32
-		imageFileSizeMax    uint32
-		titleLengthMin      uint32
-		titleLengthMax      uint32
-		titleSupportedChars []string
-		amountMin           uint64
-		amountMax           uint64
-		startDateMin        int64
-		endDateMax          int64
-		domains             []string
+		textFileSizeMax         uint32
+		imageFileCountMax       uint32
+		imageFileSizeMax        uint32
+		titleLengthMin          uint32
+		titleLengthMax          uint32
+		titleSupportedChars     []string
+		amountMin               uint64
+		amountMax               uint64
+		startDateMin            int64
+		endDateMax              int64
+		domains                 []string
+		billingStatusChangesMax uint32
 	)
 	for _, p := range plugins {
 		if p.ID != pi.PluginID {
@@ -216,6 +217,13 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 							"string")
 					}
 				}
+			case pi.SettingKeyBillingStatusChangesMax:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				billingStatusChangesMax = uint32(u)
+
 			default:
 				// Skip unknown settings
 				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)
@@ -255,6 +263,9 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 	case len(domains) == 0:
 		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalDomains)
+	case billingStatusChangesMax == 0:
+		return nil, errors.Errorf("plugin setting not found: %v",
+			pi.SettingKeyBillingStatusChangesMax)
 	}
 
 	// Setup pi context
@@ -266,18 +277,19 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 		events:    e,
 		mail:      m,
 		policy: &v1.PolicyReply{
-			TextFileSizeMax:    textFileSizeMax,
-			ImageFileCountMax:  imageFileCountMax,
-			ImageFileSizeMax:   imageFileSizeMax,
-			NameLengthMin:      titleLengthMin,
-			NameLengthMax:      titleLengthMax,
-			NameSupportedChars: titleSupportedChars,
-			AmountMin:          amountMin,
-			AmountMax:          amountMax,
-			StartDateMin:       startDateMin,
-			EndDateMax:         endDateMax,
-			Domains:            domains,
-			SummariesPageSize:  v1.SummariesPageSize,
+			TextFileSizeMax:         textFileSizeMax,
+			ImageFileCountMax:       imageFileCountMax,
+			ImageFileSizeMax:        imageFileSizeMax,
+			NameLengthMin:           titleLengthMin,
+			NameLengthMax:           titleLengthMax,
+			NameSupportedChars:      titleSupportedChars,
+			AmountMin:               amountMin,
+			AmountMax:               amountMax,
+			StartDateMin:            startDateMin,
+			EndDateMax:              endDateMax,
+			Domains:                 domains,
+			SummariesPageSize:       v1.SummariesPageSize,
+			BillingStatusChangesMax: billingStatusChangesMax,
 		},
 	}
 

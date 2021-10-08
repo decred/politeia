@@ -13,12 +13,12 @@ const (
 	// CmdSetBillingStatus command sets the billing status.
 	CmdSetBillingStatus = "setbillingstatus"
 
-	// CmdSummary command returns a summary for a proposal.
-	CmdSummary = "summary"
-
 	// CmdBillingStatusChanges command returns the billing status changes
 	// of a proposal.
 	CmdBillingStatusChanges = "billingstatuschanges"
+
+	// CmdSummary command returns a summary for a proposal.
+	CmdSummary = "summary"
 )
 
 // Plugin setting keys can be used to specify custom plugin settings. Default
@@ -68,6 +68,10 @@ const (
 	// SettingKeyProposalDomains is the plugin setting key for the
 	// SettingProposalDomains plugin setting.
 	SettingKeyProposalDomains = "proposaldomains"
+
+	// SettingKeyBillingStatusChangesMax is the plugin setting
+	// key for the SettingBillingStatusChangesMax plugin setting.
+	SettingKeyBillingStatusChangesMax = "billingstatuschangesmax"
 )
 
 // Plugin setting default values. These can be overridden by providing a plugin
@@ -108,6 +112,10 @@ const (
 	// SettingProposalStartDateMin is the default minimum possible proposal
 	// start date - seconds from current time.
 	SettingProposalStartDateMin int64 = 604800 // One week in seconds.
+
+	// SettingBillingStatusChangesMax is the default maximum allowed
+	// billing status changes.
+	SettingBillingStatusChangesMax uint32 = 1
 )
 
 var (
