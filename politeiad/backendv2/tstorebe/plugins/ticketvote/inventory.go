@@ -44,6 +44,11 @@ func (p *ticketVotePlugin) invPath() string {
 	return filepath.Join(p.dataDir, filenameInventory)
 }
 
+// invRemove removes the ticketvote inventory from its respective path.
+func (p *ticketVotePlugin) invRemove() error {
+	return os.RemoveAll(p.invPath())
+}
+
 // invGetLocked retrieves the inventory from disk. A new inventory is returned
 // if one does not exist yet.
 //
@@ -305,6 +310,7 @@ type invByStatus struct {
 }
 
 // invByStatusAll returns a page of token for all vote statuses.
+// TODO: REMINDER SEEEE THIS
 func (p *ticketVotePlugin) invByStatusAll(bestBlock, pageSize uint32) (*invByStatus, error) {
 	// Get inventory
 	i, err := p.Inventory(bestBlock)
