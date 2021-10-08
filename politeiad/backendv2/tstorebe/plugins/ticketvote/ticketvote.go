@@ -224,7 +224,10 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 		timestamp int64
 	}
 
-	// Group inventory entries by their vote statuses.
+	// Group inventory entries by their vote statuses and build RFP submissions
+	// list for every RFP parent record. While traversing the tokens list, for
+	// each record token, verify the coherency of the summaries cache and audit
+	// all cast votes against its eligible tickets.
 	var (
 		unauthorized = make([]*invEntry, 0, len(tokens))
 		authorized   = make([]*invEntry, 0, len(tokens))
@@ -234,6 +237,7 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 		rejected     = make([]*invEntry, 0, len(tokens))
 		ineligible   = make([]*invEntry, 0, len(tokens))
 
+		// rfps holds the submissions of all RFP parents.
 		rfps = make(map[string][]string, len(tokens)) // [parentToken][]childTokens
 	)
 
@@ -251,7 +255,7 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 		}
 		if vmd != nil && vmd.LinkTo != "" {
 			// Save RFP submissions to further check the coherency of the
-			// submissions cache for every RFP parent.
+			// submissions cache of RFP parents.
 			rfps[vmd.LinkTo] = append(rfps[vmd.LinkTo],
 				hex.EncodeToString(t))
 		}
@@ -301,7 +305,79 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 			return fmt.Errorf("invalid vote status for record %v",
 				ie.data.Token)
 		}
+
+		// Audit finished votes. This verifies that all cast votes use eligible
+		// tickets, and that no duplicate votes exist.
+
+		// Get vote details for eligible tickets.
+		vd, err := p.voteDetails(t)
+		if err != nil {
+			return err
+		}
+
+		// Get vote results for all cast vote details.
+		vr, err := p.voteResults(t)
+		if err != nil {
+			return err
+		}
+
+		// Create map access for the eligible tickets.
+		eligibles := make(map[string]struct{}, len(vd.EligibleTickets))
+		for _, t := range vd.EligibleTickets {
+			eligibles[t] = struct{}{}
+		}
+
+		// Range through all cast votes and make sure it was cast by a eligible
+		// ticket.
+		for _, vote := range vr {
+			_, ok := eligibles[vote.Ticket]
+			if !ok {
+				return fmt.Errorf("vote was cast by a not eligible ticket %v"+
+					"on record %v", vote.Ticket, vote.Token)
+			}
+		}
 	}
+
+	log.Infof("%v records summaries cache verified", len(tokens))
+	log.Infof("%v records audited for eligible cast votes", len(tokens))
+
+	// Verify the coherency of the submissions cache.
+	for parentToken, submissions := range rfps {
+		bToken, err := hex.DecodeString(parentToken)
+		if err != nil {
+			return err
+		}
+		cache, err := p.submissionsCache(bToken)
+		if err != nil {
+			return err
+		}
+		// Check if every submission is contained in the cache.
+		bad := false
+		for _, s := range submissions {
+			_, ok := cache.Tokens[s]
+			if ok {
+				continue
+			}
+			bad = true
+		}
+		// Check if cache is bad and needs a rebuild.
+		if bad {
+			err := p.submissionsCacheRemove(bToken)
+			if err != nil {
+				return err
+			}
+			for _, s := range submissions {
+				err = p.submissionsCacheAdd(parentToken, s)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	log.Infof("%v RFP parents submissions cache verified", len(rfps))
+
+	// Rebuild the ticketvote inventory cache.
 
 	// Sort each vote status group from oldest to newest.
 	sort.Slice(unauthorized, func(i, j int) bool {
@@ -351,65 +427,7 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 		p.inventoryAdd(entry.data.Token, entry.data.Status)
 	}
 
-	// Verify the coherency of the submissions cache.
-	for parentToken, submissions := range rfps {
-		bToken, err := hex.DecodeString(parentToken)
-		if err != nil {
-			return err
-		}
-		cache, err := p.submissionsCache(bToken)
-		if err != nil {
-			return err
-		}
-		// Check if every submission is contained in the cache.
-		bad := false
-		for _, s := range submissions {
-			_, ok := cache.Tokens[s]
-			if ok {
-				continue
-			}
-			bad = true
-		}
-		// Check if cache is bad and needs a rebuild.
-		if bad {
-			err := p.submissionsCacheRemove(bToken)
-			if err != nil {
-				return err
-			}
-			for _, s := range submissions {
-				err = p.submissionsCacheAdd(parentToken, s)
-				if err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	// Verify the coherency of the summaries cache. This can be
-	// accomplished by simply calling the summary() method on each
-	// record.
-
-	// Verify the coherency of the submissions cache. All records
-	// that have the vote metadata LinkTo field set must be included
-	// in the parent record submissions list.
-
-	// Verify the coherency of the cached inventory. This is done in
-	// multi steps.
-	//
-	// 1. For each record, store the token, vote status, and timestamp
-	//    of the most recent vote status change.
-	//
-	// 2. Sort the stored records into vote status groups where each
-	//    vote status group is ordered from oldest to newest using the
-	//    timestamp of their most recent vote status change.
-	//
-	// 3. Add all tokens to the inventory. The tokens MUST be added
-	//    by vote status from oldest to newest. Ongoing votes MUST
-	//    be added to the inventory then updated using the inventory
-	//    method that updates an entry to the started vote status.
-
-	// Audit all finished votes. This verifies that all cast votes
-	// use eligible tickets and that there are no duplicate votes.
+	log.Infof("%v records added to the ticketvote inventory", len(entries))
 
 	return nil
 }
