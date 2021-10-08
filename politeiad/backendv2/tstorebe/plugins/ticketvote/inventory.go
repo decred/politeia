@@ -310,7 +310,6 @@ type invByStatus struct {
 }
 
 // invByStatusAll returns a page of token for all vote statuses.
-// TODO: REMINDER SEEEE THIS
 func (p *ticketVotePlugin) invByStatusAll(bestBlock, pageSize uint32) (*invByStatus, error) {
 	// Get inventory
 	i, err := p.Inventory(bestBlock)
