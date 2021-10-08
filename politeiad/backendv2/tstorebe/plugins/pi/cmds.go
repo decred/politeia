@@ -198,6 +198,26 @@ func tokenMatches(cmdToken []byte, payloadToken string) error {
 	return nil
 }
 
+// cmdBillingStatusChanges returns the billing status changes of a proposal.
+func (p *piPlugin) cmdBillingStatusChanges(token []byte) (string, error) {
+	// Get billing status changes
+	bscs, err := p.billingStatusChanges(token)
+	if err != nil {
+		return "", err
+	}
+
+	// Prepare reply
+	bscsr := pi.BillingStatusChangesReply{
+		BillingStatusChanges: bscs,
+	}
+	reply, err := json.Marshal(bscsr)
+	if err != nil {
+		return "", err
+	}
+
+	return string(reply), nil
+}
+
 // cmdSummary returns the pi summary of a proposal.
 func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 	// Get record metadata
@@ -245,26 +265,6 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		},
 	}
 	reply, err := json.Marshal(sr)
-	if err != nil {
-		return "", err
-	}
-
-	return string(reply), nil
-}
-
-// cmdBillingStatusChanges returns the billing status changes of a proposal.
-func (p *piPlugin) cmdBillingStatusChanges(token []byte) (string, error) {
-	// Get billing status changes
-	bscs, err := p.billingStatusChanges(token)
-	if err != nil {
-		return "", err
-	}
-
-	// Prepare reply
-	bscsr := pi.BillingStatusChangesReply{
-		BillingStatusChanges: bscs,
-	}
-	reply, err := json.Marshal(bscsr)
 	if err != nil {
 		return "", err
 	}

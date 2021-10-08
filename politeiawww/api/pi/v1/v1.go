@@ -16,12 +16,12 @@ const (
 	// RouteSetBillingStatus sets the proposal's billing status.
 	RouteSetBillingStatus = "/setbillingstatus"
 
+	// RouteBillingStatusChanges returns the proposal's billing status changes.
+	RouteBillingStatusChanges = "/billingstatuschanges"
+
 	// RouteSummaries returns the proposal summary for a page of
 	// records.
 	RouteSummaries = "/summaries"
-
-	// RouteBillingStatusChanges returns the proposal's billing status changes.
-	RouteBillingStatusChanges = "/billingstatuschanges"
 )
 
 // ErrorCodeT represents a user error code.

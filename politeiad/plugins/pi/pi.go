@@ -13,12 +13,12 @@ const (
 	// CmdSetBillingStatus command sets the billing status.
 	CmdSetBillingStatus = "setbillingstatus"
 
-	// CmdSummary command returns a summary for a proposal.
-	CmdSummary = "summary"
-
 	// CmdBillingStatusChanges command returns the billing status changes
 	// of a proposal.
 	CmdBillingStatusChanges = "billingstatuschanges"
+
+	// CmdSummary command returns a summary for a proposal.
+	CmdSummary = "summary"
 )
 
 // Plugin setting keys can be used to specify custom plugin settings. Default

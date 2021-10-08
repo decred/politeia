@@ -72,30 +72,6 @@ func (p *Pi) HandleSetBillingStatus(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, bsr)
 }
 
-// HandleSummaries is the request handler for the pi v1 Summaries route.
-func (p *Pi) HandleSummaries(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("HandleSummaries")
-
-	var s v1.Summaries
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&s); err != nil {
-		respondWithError(w, r, "HandleSummaries: unmarshal",
-			v1.UserErrorReply{
-				ErrorCode: v1.ErrorCodeInputInvalid,
-			})
-		return
-	}
-
-	bsr, err := p.processSummaries(r.Context(), s)
-	if err != nil {
-		respondWithError(w, r,
-			"HandleSummaries: processSummaries: %v", err)
-		return
-	}
-
-	util.RespondWithJSON(w, http.StatusOK, bsr)
-}
-
 // HandleBillingStatusChanges is the request handler for the pi v1
 // BillingStatusChanges route.
 func (p *Pi) HandleBillingStatusChanges(w http.ResponseWriter, r *http.Request) {
@@ -120,6 +96,30 @@ func (p *Pi) HandleBillingStatusChanges(w http.ResponseWriter, r *http.Request) 
 
 	util.RespondWithJSON(w, http.StatusOK, bsr)
 
+}
+
+// HandleSummaries is the request handler for the pi v1 Summaries route.
+func (p *Pi) HandleSummaries(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleSummaries")
+
+	var s v1.Summaries
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&s); err != nil {
+		respondWithError(w, r, "HandleSummaries: unmarshal",
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	bsr, err := p.processSummaries(r.Context(), s)
+	if err != nil {
+		respondWithError(w, r,
+			"HandleSummaries: processSummaries: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, bsr)
 }
 
 // New returns a new Pi context.
