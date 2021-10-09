@@ -46,23 +46,38 @@ func (p *Pi) processSetBillingStatus(ctx context.Context, sbs v1.SetBillingStatu
 
 // processBillingStatusChanges processes a pi v1 billingstatuschanges request.
 func (p *Pi) processBillingStatusChanges(ctx context.Context, bscs v1.BillingStatusChanges) (*v1.BillingStatusChangesReply, error) {
-	log.Tracef("processBillingStatusChanges: %v", bscs.Token)
+	log.Tracef("processBillingStatusChanges: %v", bscs.Tokens)
 
-	pbscsr, err := p.politeiad.PiBillingStatusChanges(ctx, bscs.Token)
+	// Verify request size
+	if len(bscs.Tokens) > int(v1.BillingStatusChangesPageSize) {
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodePageSizeExceeded,
+			ErrorContext: fmt.Sprintf("max page size is %v",
+				v1.SummariesPageSize),
+		}
+	}
+
+	pbscsr, err := p.politeiad.PiBillingStatusChanges(ctx, bscs.Tokens)
 	if err != nil {
 		return nil, err
 	}
 
 	// Convert reply to API.
-	billingStatusChanges := make([]v1.BillingStatusChange, 0,
-		len(pbscsr.BillingStatusChanges))
-	for _, bsc := range pbscsr.BillingStatusChanges {
-		billingStatusChanges = append(billingStatusChanges,
-			convertBillingStatusChangeToAPI(bsc))
+	billingStatusChangesMap := make(map[string][]v1.BillingStatusChange,
+		len(pbscsr))
+	// For each token, convert slice of billing status changes.
+	for t, bscs := range pbscsr {
+		billingStatusChanges := make([]v1.BillingStatusChange, 0,
+			len(bscs.BillingStatusChanges))
+		for _, bsc := range bscs.BillingStatusChanges {
+			billingStatusChanges = append(billingStatusChanges,
+				convertBillingStatusChangeToAPI(bsc))
+		}
+		billingStatusChangesMap[t] = billingStatusChanges
 	}
 
 	return &v1.BillingStatusChangesReply{
-		BillingStatusChanges: billingStatusChanges,
+		BillingStatusChanges: billingStatusChangesMap,
 	}, nil
 }
 

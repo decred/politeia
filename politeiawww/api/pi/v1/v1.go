@@ -285,6 +285,10 @@ const (
 	// SummariesPageSize is the maximum number of proposal summaries that
 	// can be requested at any one time.
 	SummariesPageSize uint32 = 5
+
+	// BillingStatusChangesPageSize is the maximum number of billing status
+	// changes that can be requested at any one time.
+	BillingStatusChangesPageSize uint32 = 5
 )
 
 // Summaries requests the proposal summaries for the provided proposal tokens.
@@ -311,12 +315,18 @@ type Summary struct {
 }
 
 // BillingStatusChanges requests the billing status changes for the provided
-// proposal token.
+// proposal tokens.
 type BillingStatusChanges struct {
-	Token string `json:"token"`
+	Tokens []string `json:"token"`
 }
 
 // BillingStatusChangesReply is the reply to the BillingStatusChanges command.
+//
+// BillingStatusChanges field contains the billing status changes for each
+// of the provided tokens.
+// The map will not contain an entry for any tokens that did not correspond
+// to an actual proposal. It is the callers responsibility to ensure that
+// the billing status changes are returned for all provided tokens.
 type BillingStatusChangesReply struct {
-	BillingStatusChanges []BillingStatusChange `json:"billingstatuschanges"`
+	BillingStatusChanges map[string][]BillingStatusChange `json:"billingstatuschanges"`
 }
