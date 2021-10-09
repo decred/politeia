@@ -263,9 +263,6 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 	case len(domains) == 0:
 		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalDomains)
-	case billingStatusChangesMax == 0:
-		return nil, errors.Errorf("plugin setting not found: %v",
-			pi.SettingKeyBillingStatusChangesMax)
 	}
 
 	// Setup pi context
