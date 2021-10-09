@@ -120,19 +120,20 @@ type Policy struct{}
 // We have not updated the field names here to avoid introducing breaking
 // changes.
 type PolicyReply struct {
-	TextFileSizeMax         uint32   `json:"textfilesizemax"` // In bytes
-	ImageFileCountMax       uint32   `json:"imagefilecountmax"`
-	ImageFileSizeMax        uint32   `json:"imagefilesizemax"` // In bytes
-	NameLengthMin           uint32   `json:"namelengthmin"`    // In characters
-	NameLengthMax           uint32   `json:"namelengthmax"`    // In characters
-	NameSupportedChars      []string `json:"namesupportedchars"`
-	AmountMin               uint64   `json:"amountmin"`    // In cents
-	AmountMax               uint64   `json:"amountmax"`    // In cents
-	StartDateMin            int64    `json:"startdatemin"` // Seconds from current time
-	EndDateMax              int64    `json:"enddatemax"`   // Seconds from current time
-	Domains                 []string `json:"domains"`
-	SummariesPageSize       uint32   `json:"summariespagesize"`
-	BillingStatusChangesMax uint32   `json:"billingstatuschangesmax"`
+	TextFileSizeMax              uint32   `json:"textfilesizemax"` // In bytes
+	ImageFileCountMax            uint32   `json:"imagefilecountmax"`
+	ImageFileSizeMax             uint32   `json:"imagefilesizemax"` // In bytes
+	NameLengthMin                uint32   `json:"namelengthmin"`    // In characters
+	NameLengthMax                uint32   `json:"namelengthmax"`    // In characters
+	NameSupportedChars           []string `json:"namesupportedchars"`
+	AmountMin                    uint64   `json:"amountmin"`    // In cents
+	AmountMax                    uint64   `json:"amountmax"`    // In cents
+	StartDateMin                 int64    `json:"startdatemin"` // Seconds from current time
+	EndDateMax                   int64    `json:"enddatemax"`   // Seconds from current time
+	Domains                      []string `json:"domains"`
+	SummariesPageSize            uint32   `json:"summariespagesize"`
+	BillingStatusChangesPageSize uint32   `json:"billingstatuschangespagesize"`
+	BillingStatusChangesMax      uint32   `json:"billingstatuschangesmax"`
 }
 
 const (
