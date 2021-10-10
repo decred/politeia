@@ -57,27 +57,25 @@ func (p *Pi) processBillingStatusChanges(ctx context.Context, bscs v1.BillingSta
 		}
 	}
 
-	pbscsr, err := p.politeiad.PiBillingStatusChanges(ctx, bscs.Tokens)
+	reply, err := p.politeiad.PiBillingStatusChanges(ctx, bscs.Tokens)
 	if err != nil {
 		return nil, err
 	}
 
 	// Convert reply to API.
-	billingStatusChangesMap := make(map[string][]v1.BillingStatusChange,
-		len(pbscsr))
+	r := make(map[string][]v1.BillingStatusChange, len(reply))
 	// For each token, convert slice of billing status changes.
-	for t, bscs := range pbscsr {
-		billingStatusChanges := make([]v1.BillingStatusChange, 0,
-			len(bscs.BillingStatusChanges))
+	for t, bscs := range reply {
+		statusChanges := make([]v1.BillingStatusChange, 0, len(reply))
 		for _, bsc := range bscs.BillingStatusChanges {
-			billingStatusChanges = append(billingStatusChanges,
+			statusChanges = append(statusChanges,
 				convertBillingStatusChangeToAPI(bsc))
 		}
-		billingStatusChangesMap[t] = billingStatusChanges
+		r[t] = statusChanges
 	}
 
 	return &v1.BillingStatusChangesReply{
-		BillingStatusChanges: billingStatusChangesMap,
+		BillingStatusChanges: r,
 	}, nil
 }
 

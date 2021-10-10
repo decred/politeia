@@ -13,7 +13,7 @@ import (
 // proposal.
 type cmdProposalBillingStatusChanges struct {
 	Args struct {
-		Tokens []string `positional-arg-name:"token" required:"true"`
+		Tokens []string `positional-arg-name:"tokens" required:"true"`
 	} `positional-args:"true"`
 }
 
@@ -47,10 +47,16 @@ func (c *cmdProposalBillingStatusChanges) Execute(args []string) error {
 
 	// Print billing status changes for all tokens
 	for t, bscs := range bscsr.BillingStatusChanges {
-		printf("Billing Status Changes of %v\n", t)
-		for _, bsc := range bscs {
-			printBillingStatusChange(bsc)
-			printf("-----\n")
+		printf("Proposal %v\n", t)
+		if len(bscs) > 0 {
+			for i, bsc := range bscs {
+				printBillingStatusChange(bsc)
+				if i != len(bscs)-1 {
+					printf("-----\n")
+				}
+			}
+		} else {
+			printf("  No billing status changes\n")
 		}
 		printf("\n")
 	}
