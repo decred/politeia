@@ -52,7 +52,7 @@ func (c *cmdProposalBillingStatusChanges) Execute(args []string) error {
 			for i, bsc := range bscs {
 				printBillingStatusChange(bsc)
 				if i != len(bscs)-1 {
-					printf("-----\n")
+					printf("  -----\n")
 				}
 			}
 		} else {
