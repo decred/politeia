@@ -53,7 +53,7 @@ func (p *Pi) processBillingStatusChanges(ctx context.Context, bscs v1.BillingSta
 		return nil, v1.UserErrorReply{
 			ErrorCode: v1.ErrorCodePageSizeExceeded,
 			ErrorContext: fmt.Sprintf("max page size is %v",
-				v1.SummariesPageSize),
+				v1.BillingStatusChangesPageSize),
 		}
 	}
 
