@@ -7,7 +7,6 @@ package client
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/politeiad/plugins/pi"
@@ -49,9 +48,9 @@ func (c *Client) PiSetBillingStatus(ctx context.Context, sbs pi.SetBillingStatus
 func (c *Client) PiSummaries(ctx context.Context, tokens []string) (map[string]pi.SummaryReply, error) {
 	// Setup request
 	cmds := make([]pdv2.PluginCmd, 0, len(tokens))
-	for _, v := range tokens {
+	for _, t := range tokens {
 		cmds = append(cmds, pdv2.PluginCmd{
-			Token:   v,
+			Token:   t,
 			ID:      pi.PluginID,
 			Command: pi.CmdSummary,
 			Payload: "",
@@ -84,17 +83,18 @@ func (c *Client) PiSummaries(ctx context.Context, tokens []string) (map[string]p
 	return ssr, nil
 }
 
-// PiBillingStatusChanges sends the pi plugin BillingStatusChanges command
-// to the politeiad v2 API.
-func (c *Client) PiBillingStatusChanges(ctx context.Context, token string) (*pi.BillingStatusChangesReply, error) {
+// PiBillingStatusChanges sends a page of pi plugin BillingStatusChanges
+// commands to the politeiad v2 API.
+func (c *Client) PiBillingStatusChanges(ctx context.Context, tokens []string) (map[string]pi.BillingStatusChangesReply, error) {
 	// Setup request
-	cmds := []pdv2.PluginCmd{
-		{
-			Token:   token,
+	cmds := make([]pdv2.PluginCmd, 0, len(tokens))
+	for _, t := range tokens {
+		cmds = append(cmds, pdv2.PluginCmd{
+			Token:   t,
 			ID:      pi.PluginID,
 			Command: pi.CmdBillingStatusChanges,
 			Payload: "",
-		},
+		})
 	}
 
 	// Send request
@@ -102,22 +102,24 @@ func (c *Client) PiBillingStatusChanges(ctx context.Context, token string) (*pi.
 	if err != nil {
 		return nil, err
 	}
-	if len(replies) == 0 {
-		return nil, fmt.Errorf("no replies found")
-	}
-	pcr := replies[0]
-	err = extractPluginCmdError(pcr)
-	if err != nil {
-		return nil, err
+
+	// Prepare reply
+	bscsr := make(map[string]pi.BillingStatusChangesReply, len(replies))
+	for _, v := range replies {
+		err = extractPluginCmdError(v)
+		if err != nil {
+			// Individual summary errors are ignored. The token will not
+			// be included in the returned summaries map.
+			continue
+		}
+		var bscr pi.BillingStatusChangesReply
+		err = json.Unmarshal([]byte(v.Payload), &bscr)
+		if err != nil {
+			return nil, err
+		}
+		bscsr[v.Token] = bscr
 	}
 
-	// Decode reply
-	var bscsr pi.BillingStatusChangesReply
-	err = json.Unmarshal([]byte(pcr.Payload), &bscsr)
-	if err != nil {
-		return nil, err
-	}
-
-	return &bscsr, nil
+	return bscsr, nil
 
 }

@@ -13,7 +13,7 @@ import (
 // proposal.
 type cmdProposalBillingStatusChanges struct {
 	Args struct {
-		Token string `positional-arg-name:"token" required:"true"`
+		Tokens []string `positional-arg-name:"tokens" required:"true"`
 	} `positional-args:"true"`
 }
 
@@ -36,7 +36,7 @@ func (c *cmdProposalBillingStatusChanges) Execute(args []string) error {
 
 	// Setup request
 	bscs := piv1.BillingStatusChanges{
-		Token: c.Args.Token,
+		Tokens: c.Args.Tokens,
 	}
 
 	// Send request
@@ -45,20 +45,30 @@ func (c *cmdProposalBillingStatusChanges) Execute(args []string) error {
 		return err
 	}
 
-	// Print billing status changes
-	for _, bsc := range bscsr.BillingStatusChanges {
-		printBillingStatusChange(bsc)
-		printf("-----\n")
+	// Print billing status changes for all tokens
+	for t, bscs := range bscsr.BillingStatusChanges {
+		printf("Proposal %v\n", t)
+		if len(bscs) > 0 {
+			for i, bsc := range bscs {
+				printBillingStatusChange(bsc)
+				if i != len(bscs)-1 {
+					printf("  -----\n")
+				}
+			}
+		} else {
+			printf("  No billing status changes\n")
+		}
+		printf("\n")
 	}
 
 	return nil
 }
 
 // proposalBillingStatusChangesHelpMsg is printed to stdout by the help command.
-const proposalBillingStatusChangesHelpMsg = `proposalbillingstatuschanges "token"
+const proposalBillingStatusChangesHelpMsg = `proposalbillingstatuschanges "tokens..."
 
-Return the billing status changes of a proposal.
+Return the billing status changes for a page of propsoals.
 
 Arguments:
-1. token   (string, required)   Proposal censorship token
+1. tokens   (string, required)   Proposal censorship tokens
 `

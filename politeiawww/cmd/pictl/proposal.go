@@ -126,15 +126,15 @@ func printProposalSummary(token string, s piv1.Summary) {
 
 // printBillingStatusChanges prints a proposal billing status change.
 func printBillingStatusChange(bsc piv1.BillingStatusChange) {
-	printf("Token    : %v\n", bsc.Token)
-	printf("Status   : %v\n", piv1.BillingStatuses[bsc.Status])
+	printf("  Token    : %v\n", bsc.Token)
+	printf("  Status   : %v\n", piv1.BillingStatuses[bsc.Status])
 	if bsc.Reason != "" {
-		printf("Reason   : %v\n", bsc.Reason)
+		printf("  Reason   : %v\n", bsc.Reason)
 	}
-	printf("PublicKey: %v\n", bsc.PublicKey)
-	printf("Signature: %v\n", bsc.Signature)
-	printf("Receipt  : %v\n", bsc.Receipt)
-	printf("Timestamp: %v\n", timestampFromUnix(bsc.Timestamp))
+	printf("  PublicKey: %v\n", bsc.PublicKey)
+	printf("  Signature: %v\n", bsc.Signature)
+	printf("  Receipt  : %v\n", bsc.Receipt)
+	printf("  Timestamp: %v\n", timestampFromUnix(bsc.Timestamp))
 }
 
 // indexFileRandom returns a proposal index file filled with random data.

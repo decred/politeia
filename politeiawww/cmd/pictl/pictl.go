@@ -129,83 +129,84 @@ const helpMsg = `Application Options:
       --silent      Suppress all output
 
 Help commands
-  help                     Print detailed help message for a command
+  help                         Print detailed help message for a command
 
 Basic commands
-  version                  (public) Get politeiawww server version and CSRF
-  policy                   (public) Get politeiawww server policy
-  secret                   (public) Ping the server
-  login                    (public) Login to politeiawww
-  logout                   (user)   Logout from politeiawww
-  me                       (user)   Get details of the logged in user
+  version                      (public) Get politeiawww server version and CSRF
+  policy                       (public) Get politeiawww server policy
+  secret                       (public) Ping the server
+  login                        (public) Login to politeiawww
+  logout                       (user)   Logout from politeiawww
+  me                           (user)   Get details of the logged in user
 
 User commands
-  usernew                  (public) Create a new user
-  useredit                 (user)   Edit the logged in user
-  usermanage               (admin)  Edit a user as an admin
-  useremailverify          (public) Verify email address
-  userverificationresend   (public) Resend verification email
-  userpasswordreset        (public) Reset password 
-  userpasswordchange       (user)   Change password
-  userusernamechange       (user)   Change username
-  userkeyupdate            (user)   Update user key (i.e. identity)
-  userregistrationpayment  (user)   Verify registration payment
-  userpaymentsrescan       (user)   Rescan all user payments
-  userproposalpaywall      (user)   Get user paywall details
-  userproposalpaywalltx    (user)   Get pending user payments
-  userproposalcredits      (user)   Get user proposal credits
-  userdetails              (public) Get user details
-  users                    (public) Get users
+  usernew                      (public) Create a new user
+  useredit                     (user)   Edit the logged in user
+  usermanage                   (admin)  Edit a user as an admin
+  useremailverify              (public) Verify email address
+  userverificationresend       (public) Resend verification email
+  userpasswordreset            (public) Reset password 
+  userpasswordchange           (user)   Change password
+  userusernamechange           (user)   Change username
+  userkeyupdate                (user)   Update user key (i.e. identity)
+  userregistrationpayment      (user)   Verify registration payment
+  userpaymentsrescan           (user)   Rescan all user payments
+  userproposalpaywall          (user)   Get user paywall details
+  userproposalpaywalltx        (user)   Get pending user payments
+  userproposalcredits          (user)   Get user proposal credits
+  userdetails                  (public) Get user details
+  users                        (public) Get users
 
 Proposal commands
-  proposalpolicy           (public) Get the pi api policy
-  proposalnew              (user)   Submit a new proposal
-  proposaledit             (user)   Edit an existing proposal
-  proposalsetstatus        (admin)  Set the status of a proposal
-  proposalsetbillingstatus (admin)  Set the billing status of a proposal
-  proposaldetails          (public) Get a full proposal record
-  proposaltimestamps       (public) Get timestamps for a proposal
-  proposals                (public) Get proposals without their files
-  proposalsummaries        (public) Get proposal summaries
-  proposalinv              (public) Get inventory by proposal status
-  proposalinvordered       (public) Get inventory ordered chronologically
-  userproposals            (public) Get proposals submitted by a user
+  proposalpolicy               (public) Get the pi api policy
+  proposalnew                  (user)   Submit a new proposal
+  proposaledit                 (user)   Edit an existing proposal
+  proposalsetstatus            (admin)  Set the status of a proposal
+  proposalsetbillingstatus     (admin)  Set the billing status of a proposal
+  proposalbillingstatuschanges (public) Get billing status changes
+  proposaldetails              (public) Get a full proposal record
+  proposaltimestamps           (public) Get timestamps for a proposal
+  proposals                    (public) Get proposals without their files
+  proposalsummaries            (public) Get proposal summaries
+  proposalinv                  (public) Get inventory by proposal status
+  proposalinvordered           (public) Get inventory ordered chronologically
+  userproposals                (public) Get proposals submitted by a user
 
 Record commands
-  recordpolicy             (public) Get the records api policy
+  recordpolicy                 (public) Get the records api policy
 
 Comment commands
-  commentpolicy            (public) Get the comments api policy
-  commentnew               (user)   Submit a new comment
-  commentvote              (user)   Upvote/downvote a comment
-  commentcensor            (admin)  Censor a comment
-  commentcount             (public) Get the number of comments
-  comments                 (public) Get comments
-  commentvotes             (public) Get comment votes
-  commenttimestamps        (public) Get comment timestamps
+  commentpolicy                (public) Get the comments api policy
+  commentnew                   (user)   Submit a new comment
+  commentvote                  (user)   Upvote/downvote a comment
+  commentcensor                (admin)  Censor a comment
+  commentcount                 (public) Get the number of comments
+  comments                     (public) Get comments
+  commentvotes                 (public) Get comment votes
+  commenttimestamps            (public) Get comment timestamps
 
 Vote commands
-  votepolicy               (public) Get the ticketvote api policy
-  voteauthorize            (user)   Authorize a proposal vote
-  votestart                (admin)  Start a proposal vote
-  castballot               (public) Cast a ballot of votes
-  votedetails              (public) Get details for a vote
-  voteresults              (public) Get full vote results
-  votesummaries            (public) Get vote summaries
-  votesubmissions          (public) Get runoff vote submissions
-  voteinv                  (public) Get proposal inventory by vote status
-  votetimestamps           (public) Get vote timestamps
+  votepolicy                   (public) Get the ticketvote api policy
+  voteauthorize                (user)   Authorize a proposal vote
+  votestart                    (admin)  Start a proposal vote
+  castballot                   (public) Cast a ballot of votes
+  votedetails                  (public) Get details for a vote
+  voteresults                  (public) Get full vote results
+  votesummaries                (public) Get vote summaries
+  votesubmissions              (public) Get runoff vote submissions
+  voteinv                      (public) Get proposal inventory by vote status
+  votetimestamps               (public) Get vote timestamps
 
 Websocket commands
-  subscribe                (public) Subscribe/unsubscribe to websocket event
+  subscribe                    (public) Subscribe/unsubscribe to websocket event
 
 Dev commands
-  sendfaucettx             Send a dcr faucet tx
-  testrun                  Execute a test run of the pi routes
-  seedproposals            Seed the backend with proposals
-  votetestsetup            Setup a vote test
-  votetest                 Execute a vote test
-  legacytest               Test legacy routes that do not have a command
+  sendfaucettx                 Send a dcr faucet tx
+  testrun                      Execute a test run of the pi routes
+  seedproposals                Seed the backend with proposals
+  votetestsetup                Setup a vote test
+  votetest                     Execute a vote test
+  legacytest                   Test legacy routes that do not have a command
 `
 
 func _main() error {

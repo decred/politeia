@@ -120,19 +120,20 @@ type Policy struct{}
 // We have not updated the field names here to avoid introducing breaking
 // changes.
 type PolicyReply struct {
-	TextFileSizeMax         uint32   `json:"textfilesizemax"` // In bytes
-	ImageFileCountMax       uint32   `json:"imagefilecountmax"`
-	ImageFileSizeMax        uint32   `json:"imagefilesizemax"` // In bytes
-	NameLengthMin           uint32   `json:"namelengthmin"`    // In characters
-	NameLengthMax           uint32   `json:"namelengthmax"`    // In characters
-	NameSupportedChars      []string `json:"namesupportedchars"`
-	AmountMin               uint64   `json:"amountmin"`    // In cents
-	AmountMax               uint64   `json:"amountmax"`    // In cents
-	StartDateMin            int64    `json:"startdatemin"` // Seconds from current time
-	EndDateMax              int64    `json:"enddatemax"`   // Seconds from current time
-	Domains                 []string `json:"domains"`
-	SummariesPageSize       uint32   `json:"summariespagesize"`
-	BillingStatusChangesMax uint32   `json:"billingstatuschangesmax"`
+	TextFileSizeMax              uint32   `json:"textfilesizemax"` // In bytes
+	ImageFileCountMax            uint32   `json:"imagefilecountmax"`
+	ImageFileSizeMax             uint32   `json:"imagefilesizemax"` // In bytes
+	NameLengthMin                uint32   `json:"namelengthmin"`    // In characters
+	NameLengthMax                uint32   `json:"namelengthmax"`    // In characters
+	NameSupportedChars           []string `json:"namesupportedchars"`
+	AmountMin                    uint64   `json:"amountmin"`    // In cents
+	AmountMax                    uint64   `json:"amountmax"`    // In cents
+	StartDateMin                 int64    `json:"startdatemin"` // Seconds from current time
+	EndDateMax                   int64    `json:"enddatemax"`   // Seconds from current time
+	Domains                      []string `json:"domains"`
+	SummariesPageSize            uint32   `json:"summariespagesize"`
+	BillingStatusChangesPageSize uint32   `json:"billingstatuschangespagesize"`
+	BillingStatusChangesMax      uint32   `json:"billingstatuschangesmax"`
 }
 
 const (
@@ -268,6 +269,29 @@ type SetBillingStatusReply struct {
 }
 
 const (
+	// BillingStatusChangesPageSize is the maximum number of billing status
+	// changes that can be requested at any one time.
+	BillingStatusChangesPageSize uint32 = 5
+)
+
+// BillingStatusChanges requests the billing status changes for the provided
+// proposal tokens.
+type BillingStatusChanges struct {
+	Tokens []string `json:"tokens"`
+}
+
+// BillingStatusChangesReply is the reply to the BillingStatusChanges command.
+//
+// BillingStatusChanges contains the billing status changes for each of the
+// provided tokens. The map will not contain an entry for any tokens that
+// did not correspond to an actual proposal. It is the callers responsibility
+// to ensure that the billing status changes are returned for all provided
+// tokens.
+type BillingStatusChangesReply struct {
+	BillingStatusChanges map[string][]BillingStatusChange `json:"billingstatuschanges"`
+}
+
+const (
 	// ProposalUpdateHint is the hint that is included in a comment's
 	// ExtraDataHint field to indicate that the comment is an update
 	// from the proposal author.
@@ -308,15 +332,4 @@ type SummariesReply struct {
 // along with all of it's possible values in the pi plugin API.
 type Summary struct {
 	Status string `json:"status"`
-}
-
-// BillingStatusChanges requests the billing status changes for the provided
-// proposal token.
-type BillingStatusChanges struct {
-	Token string `json:"token"`
-}
-
-// BillingStatusChangesReply is the reply to the BillingStatusChanges command.
-type BillingStatusChangesReply struct {
-	BillingStatusChanges []BillingStatusChange `json:"billingstatuschanges"`
 }
