@@ -7,10 +7,12 @@ package legacy
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
@@ -86,4 +88,41 @@ func (p *Politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleUnauthenticatedWebsocket attempts to upgrade the current
+// unauthenticated connection to a websocket connection.
+func (p *Politeiawww) handleUnauthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
+	// We are retrieving the uuid here to make sure it is NOT set. This
+	// check looks backwards but is correct.
+	id, err := p.sessions.GetSessionUserID(w, r)
+	if err != nil && !errors.Is(err, sessions.ErrSessionNotFound) {
+		http.Error(w, "Could not get session uuid",
+			http.StatusBadRequest)
+		return
+	}
+	if id != "" {
+		http.Error(w, "Invalid session uuid", http.StatusBadRequest)
+		return
+	}
+	log.Tracef("handleUnauthenticatedWebsocket: %v", id)
+	defer log.Tracef("handleUnauthenticatedWebsocket exit: %v", id)
+
+	p.ws.HandleWebsocket(w, r, id)
+}
+
+// handleAuthenticatedWebsocket attempts to upgrade the current authenticated
+// connection to a websocket connection.
+func (p *Politeiawww) handleAuthenticatedWebsocket(w http.ResponseWriter, r *http.Request) {
+	id, err := p.sessions.GetSessionUserID(w, r)
+	if err != nil {
+		http.Error(w, "Could not get session uuid",
+			http.StatusBadRequest)
+		return
+	}
+
+	log.Tracef("handleAuthenticatedWebsocket: %v", id)
+	defer log.Tracef("handleAuthenticatedWebsocket exit: %v", id)
+
+	p.ws.HandleWebsocket(w, r, id)
 }

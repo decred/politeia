@@ -44,11 +44,6 @@ type politeiawww struct {
 	sessions  *sessions.Sessions
 	events    *events.Manager
 	legacy    *legacy.Politeiawww // Legacy API
-
-	// Client websocket connections. These do not allow for horizontal scaling
-	// yet.
-	ws    map[string]map[string]*wsContext // [uuid][]*context
-	wsMtx sync.RWMutex
 }
 
 func _main() error {
@@ -186,7 +181,6 @@ func _main() error {
 		// sessions:   sessions.New(userDB, cookieKey),
 		events: events.NewManager(),
 		legacy: legacywww,
-		ws:     make(map[string]map[string]*wsContext),
 	}
 
 	// Bind to a port and pass our router in
