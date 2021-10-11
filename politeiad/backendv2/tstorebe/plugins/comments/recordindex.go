@@ -143,3 +143,11 @@ func (p *commentsPlugin) recordIndexSave(token []byte, s backend.StateT, ridx re
 		panic(err)
 	}
 }
+
+func (p *commentsPlugin) recordIndexRemove(token []byte, s backend.StateT) error {
+	path, err := p.recordIndexPath(token, s)
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(path)
+}
