@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
@@ -249,7 +250,7 @@ func CensorshipRecordVerify(r rcv1.Record, serverPubKey string) error {
 	}
 
 	// Verify censorship record signature
-	id, err := util.IdentityFromString(serverPubKey)
+	id, err := identity.PublicIdentityFromString(serverPubKey)
 	if err != nil {
 		return err
 	}
