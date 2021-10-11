@@ -44,6 +44,11 @@ const (
 	defaultHTTPSKeyFilename  = "https.key"
 	defaultCookieKeyFilename = "cookie.key"
 
+	defaultReadTimeout        int64 = 5               // In seconds
+	defaultWriteTimeout       int64 = 60              // In seconds
+	defaultReqBodySizeLimit   int64 = 3 * 1024 * 1024 // 3 MiB
+	defaultWebsocketReadLimit int64 = 4 * 1024 * 1024 // 4 KiB
+
 	// politeiad RPC settings
 	defaultRPCHost          = "localhost"
 	defaultRPCMainnetPort   = "49374"
@@ -62,22 +67,6 @@ const (
 
 	// Environmental variable config settings
 	envDBPass = "DBPASS"
-
-	// defaultReadTimeout is the maximum duration in seconds that is spent
-	// reading the request headers and body.
-	defaultReadTimeout int64 = 5
-
-	// defaultWriteTimeout is the maximum duration in seconds that a request
-	// connection is kept open.
-	defaultWriteTimeout int64 = 60
-
-	// defaultReqBodySizeLimit is the maximum number of bytes allowed in a
-	// request body.
-	defaultReqBodySizeLimit int64 = 3 * 1024 * 1024 // 3 MiB
-
-	// defaultWebsocketReadLimit is the maximum number of bytes allowed for a
-	// message read from a websocket client.
-	defaultWebsocketReadLimit int64 = 4 * 1024 * 1024 // 4 KiB
 )
 
 var (
@@ -106,7 +95,7 @@ type Config struct {
 	CookieKeyFile      string   `long:"cookiekey" description:"File containing the secret cookies key"`
 	ReadTimeout        int64    `long:"readtimeout" description:"Maximum duration in seconds that is spent reading the request headers and body"`
 	WriteTimeout       int64    `long:"writetimeout" description:"Maximum duration in seconds that a request connection is kept open"`
-	ReqBodySizeLimit   int64    `long:"reqbodysizelimit" description:"Maximum number of bytes allowed for a request body from a http client"`
+	ReqBodySizeLimit   int64    `long:"reqbodysizelimit" description:"Maximum number of bytes allowed in a request body submitted by a client"`
 	WebsocketReadLimit int64    `long:"websocketreadlimit" description:"Maximum number of bytes allowed for a message read from a websocket client"`
 
 	// politeiad RPC settings
@@ -132,7 +121,7 @@ type Config struct {
 	MailAddress    string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
 
 	// Embedded legacy config. This will be deleted soon.
-	legacyConfig
+	LegacyConfig
 
 	Version     string
 	ActiveNet   *ChainParams             // Active DCR network
@@ -326,7 +315,7 @@ func Load() (*Config, []string, error) {
 
 	// Initialize log rotation. After the log rotation has
 	// been initialized, the logger variables may be used.
-	logger.InitLogRotator(cfg.LogDir)
+	logger.InitLogRotator(filepath.Join(cfg.LogDir, defaultLogFilename))
 
 	// Load the system cert pool
 	cfg.SystemCerts, err = x509.SystemCertPool()
@@ -334,19 +323,15 @@ func Load() (*Config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Setup the HTTP server settings
+	// Setup the various categories of config settings
 	err = setupHTTPServerSettings(cfg)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	// Setup the politeiad RPC settings
 	err = setupRPCSettings(cfg)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	// Setup the SMTP mail server settings
 	err = setupMailSettings(cfg)
 	if err != nil {
 		return nil, nil, err

@@ -288,13 +288,15 @@ func newTestPoliteiawww(t *testing.T) (*Politeiawww, func()) {
 		t.Fatal(err)
 	}
 	cfg := &config.Config{
-		DataDir:         dataDir,
-		PaywallAmount:   1e7,
-		PaywallXpub:     xpub,
-		TestNet:         true,
-		VoteDurationMin: 2016,
-		VoteDurationMax: 4032,
-		Identity:        &fid.Public,
+		DataDir: dataDir,
+		TestNet: true,
+		LegacyConfig: config.LegacyConfig{
+			PaywallAmount:   1e7,
+			PaywallXpub:     xpub,
+			VoteDurationMin: 2016,
+			VoteDurationMax: 4032,
+		},
+		Identity: &fid.Public,
 	}
 
 	// Setup database
@@ -378,13 +380,15 @@ func newTestCMSwww(t *testing.T) (*Politeiawww, func()) {
 	xpub := "tpubVobLtToNtTq6TZNw4raWQok35PRPZou53vegZqNubtBTJMMFm" +
 		"uMpWybFCfweJ52N8uZJPZZdHE5SRnBBuuRPfC5jdNstfKjiAs8JtbYG9jx"
 	cfg := &config.Config{
-		DataDir:         dataDir,
-		PaywallAmount:   1e7,
-		PaywallXpub:     xpub,
-		TestNet:         true,
-		VoteDurationMin: 2016,
-		VoteDurationMax: 4032,
-		Mode:            config.CMSWWWMode,
+		DataDir: dataDir,
+		TestNet: true,
+		LegacyConfig: config.LegacyConfig{
+			PaywallAmount:   1e7,
+			PaywallXpub:     xpub,
+			VoteDurationMin: 2016,
+			VoteDurationMax: 4032,
+			Mode:            config.CMSWWWMode,
+		},
 	}
 
 	// Setup database

@@ -21,7 +21,8 @@ import (
 )
 
 // getIdentity fetches the remote identity from politeiad and saves it to
-// disk. politeiawww will load it from disk on future startups.
+// disk. politeiawww loads it from disk on future startups during config
+// initialization.
 func getIdentity(rpcHost, rpcCert, rpcIdentityFile, interactive string) error {
 	id, err := remoteIdentity(false, rpcHost, rpcCert)
 	if err != nil {

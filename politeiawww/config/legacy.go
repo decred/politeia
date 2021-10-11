@@ -62,7 +62,11 @@ var (
 
 )
 
-type legacyConfig struct {
+// LegacyConfig represents the config options for legacy API.
+//
+// Everything in this config is DEPRECATED and will be removed in the near
+// future.
+type LegacyConfig struct {
 	// Legacy user database settings
 	DBRootCert       string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
 	DBCert           string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
@@ -93,7 +97,11 @@ type legacyConfig struct {
 }
 
 func loadLegacyConfig(cfg *Config) error {
-	lcfg := legacyConfig{
+	lcfg := LegacyConfig{
+		// User database settings
+
+		// SMTP settings
+
 		Mode:                     PoliteiaWWWMode,
 		PaywallAmount:            defaultPaywallAmount,
 		MinConfirmationsRequired: defaultPaywallMinConfirmations,
