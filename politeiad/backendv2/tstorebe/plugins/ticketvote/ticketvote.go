@@ -7,11 +7,14 @@ package ticketvote
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -20,6 +23,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
 var (
@@ -241,6 +245,8 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 		rfps = make(map[string][]string, len(tokens)) // [parentToken][]childTokens
 	)
 
+	log.Infof("Staring ticketvote fsck for %v records", len(tokens))
+
 	for _, t := range tokens {
 		// Get the partial record for each token.
 		r, err := p.tstore.RecordPartial(t, 0, nil, false)
@@ -261,7 +267,7 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 		}
 
 		// Get best block for summary call.
-		bb, err := p.bestBlockUnsafe()
+		bb, err := p.bestBlock()
 		if err != nil {
 			return err
 		}
@@ -282,24 +288,35 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 				Status:    s.Status,
 				EndHeight: s.EndBlockHeight,
 			},
-			timestamp: r.RecordMetadata.Timestamp,
 		}
 
-		// Group inventory entries by their vote status.
+		// Set timestamp field and group tokens according to the record's vote
+		// status.
 		switch {
 		case s.Status == ticketvote.VoteStatusUnauthorized:
+			ie.timestamp = r.RecordMetadata.Timestamp
 			unauthorized = append(unauthorized, ie)
 		case s.Status == ticketvote.VoteStatusAuthorized:
+			changes, err := statusChangesDecode(r.Metadata)
+			if err != nil {
+				return err
+			}
+			ie.timestamp = changes[len(changes)-1].Timestamp
 			authorized = append(authorized, ie)
 		case s.Status == ticketvote.VoteStatusStarted:
+			ie.timestamp = int64(s.StartBlockHeight)
 			started = append(started, ie)
 		case s.Status == ticketvote.VoteStatusFinished:
+			ie.timestamp = int64(s.EndBlockHeight)
 			finished = append(finished, ie)
 		case s.Status == ticketvote.VoteStatusApproved:
+			ie.timestamp = int64(s.EndBlockHeight)
 			approved = append(approved, ie)
 		case s.Status == ticketvote.VoteStatusRejected:
+			ie.timestamp = int64(s.EndBlockHeight)
 			rejected = append(rejected, ie)
 		case s.Status == ticketvote.VoteStatusIneligible:
+			ie.timestamp = r.RecordMetadata.Timestamp
 			ineligible = append(ineligible, ie)
 		default:
 			return fmt.Errorf("invalid vote status for record %v",
@@ -355,10 +372,10 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 		bad := false
 		for _, s := range submissions {
 			_, ok := cache.Tokens[s]
-			if ok {
-				continue
+			if !ok {
+				bad = true
+				break
 			}
-			bad = true
 		}
 		// Check if cache is bad and needs a rebuild.
 		if bad {
@@ -430,6 +447,32 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 	log.Infof("%v records added to the ticketvote inventory", len(entries))
 
 	return nil
+}
+
+// statusChangesDecode decodes and returns an array of status change metadatas
+// from the provided metadata streams.
+func statusChangesDecode(metadata []backend.MetadataStream) ([]usermd.StatusChangeMetadata, error) {
+	statuses := make([]usermd.StatusChangeMetadata, 0, 16)
+	for _, v := range metadata {
+		if v.PluginID != usermd.PluginID ||
+			v.StreamID != usermd.StreamIDStatusChanges {
+			// Not status change metadata, continue searching.
+			continue
+		}
+		d := json.NewDecoder(strings.NewReader(v.Payload))
+		for {
+			var sc usermd.StatusChangeMetadata
+			err := d.Decode(&sc)
+			if errors.Is(err, io.EOF) {
+				break
+			} else if err != nil {
+				return nil, err
+			}
+			statuses = append(statuses, sc)
+		}
+		break
+	}
+	return statuses, nil
 }
 
 // Settings returns the plugin's settings.
