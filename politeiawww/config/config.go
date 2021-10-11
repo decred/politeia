@@ -428,12 +428,13 @@ func setupRPCSettings(cfg *Config) error {
 
 	// Setup the RPC host
 	if cfg.RPCHost == "" {
-		port := defaultRPCMainnetPort
-		if cfg.TestNet {
-			port = defaultRPCTestnetPort
-		}
-		cfg.RPCHost = util.NormalizeAddress(defaultRPCHost, port)
+		cfg.RPCHost = defaultRPCHost
 	}
+	port := defaultRPCMainnetPort
+	if cfg.TestNet {
+		port = defaultRPCTestnetPort
+	}
+	cfg.RPCHost = util.NormalizeAddress(cfg.RPCHost, port)
 	u, err := url.Parse("https://" + cfg.RPCHost)
 	if err != nil {
 		return fmt.Errorf("parse politeiad RPC host: %v", err)

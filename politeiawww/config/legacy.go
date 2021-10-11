@@ -245,6 +245,11 @@ func setupLegacyUserDBSettings(cfg *Config) error {
 		}
 
 	case MySQL:
+		// Set defaults
+		if cfg.EncryptionKey == "" {
+			cfg.EncryptionKey = filepath.Join(cfg.HomeDir, "sbox.key")
+		}
+
 		// Clean encryption keys paths.
 		cfg.EncryptionKey = util.CleanAndExpandPath(cfg.EncryptionKey)
 		cfg.OldEncryptionKey = util.CleanAndExpandPath(cfg.OldEncryptionKey)
