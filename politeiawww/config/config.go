@@ -65,6 +65,9 @@ const (
 	defaultMySQLDBHost     = "localhost:3306"
 	defaultCockroachDBHost = "localhost:26257"
 
+	// SMTP settings
+	defaultMailAddress = "Politeia <noreply@example.org>"
+
 	// Environmental variable config settings
 	envDBPass = "DBPASS"
 )
@@ -169,6 +172,19 @@ func Load() (*Config, []string, error) {
 
 		// User database settings
 		UserDB: LevelDB,
+
+		// SMTP settings
+		MailAddress: defaultMailAddress,
+
+		// Legacy settings. These are deprecated and will be removed soon.
+		LegacyConfig: LegacyConfig{
+			Mode:                     PiWWWMode,
+			PaywallAmount:            defaultPaywallAmount,
+			MinConfirmationsRequired: defaultPaywallMinConfirmations,
+			VoteDurationMin:          defaultVoteDurationMin,
+			VoteDurationMax:          defaultVoteDurationMax,
+			MailRateLimit:            defaultMailRateLimit,
+		},
 	}
 
 	// Service options which are only added on Windows.
@@ -323,7 +339,7 @@ func Load() (*Config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Setup the various categories of config settings
+	// Setup the various config settings
 	err = setupHTTPServerSettings(cfg)
 	if err != nil {
 		return nil, nil, err
@@ -332,13 +348,15 @@ func Load() (*Config, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	err = setupUserDBSettings(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
 	err = setupMailSettings(cfg)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	// Load the legacy config
-	err = loadLegacyConfig(cfg)
+	err = setupLegacyConfig(cfg)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -451,6 +469,52 @@ func setupRPCSettings(cfg *Config) error {
 	}
 
 	log.Infof("Identity loaded from: %v", cfg.RPCIdentityFile)
+
+	return nil
+}
+
+// setupUserDBSettings sets up the user database config settings.
+func setupUserDBSettings(cfg *Config) error {
+	// Verify database selection
+	switch cfg.UserDB {
+	case LevelDB, CockroachDB, MySQL:
+		// These are allowed
+	default:
+		return fmt.Errorf("invalid db selection '%v'",
+			cfg.UserDB)
+	}
+
+	// Verify individual database requirements
+	switch cfg.UserDB {
+	case LevelDB:
+		// LevelDB should not have a host
+		if cfg.DBHost != "" {
+			return fmt.Errorf("dbhost should not be set when using leveldb")
+		}
+
+	case CockroachDB:
+		// The CockroachDB option is deprecated. All CockroachDB
+		// validation is performed in the legacy config setup.
+
+	case MySQL:
+		// Verify database host
+		if cfg.DBHost == "" {
+			cfg.DBHost = defaultMySQLDBHost
+		}
+		_, err := url.Parse(cfg.DBHost)
+		if err != nil {
+			return fmt.Errorf("invalid dbhost '%v': %v",
+				cfg.DBHost, err)
+		}
+
+		// Pull password from env variable
+		cfg.DBPass = os.Getenv(envDBPass)
+		if cfg.DBPass == "" {
+			return fmt.Errorf("dbpass not found; you must provide "+
+				"the database password for the politeiawww user in "+
+				"the env variable %v", envDBPass)
+		}
+	}
 
 	return nil
 }

@@ -34,7 +34,7 @@ func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.Ne
 	// Execute pre plugin hooks. Checking the mode is a temporary
 	// measure until user plugins have been properly implemented.
 	switch r.cfg.Mode {
-	case config.PoliteiaWWWMode:
+	case config.PiWWWMode:
 		err := r.piHookNewRecordPre(u)
 		if err != nil {
 			return nil, err
@@ -78,7 +78,7 @@ func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.Ne
 	// Execute post plugin hooks. Checking the mode is a temporary
 	// measure until user plugins have been properly implemented.
 	switch r.cfg.Mode {
-	case config.PoliteiaWWWMode:
+	case config.PiWWWMode:
 		err := r.piHookNewRecordPost(u, rc.CensorshipRecord.Token)
 		if err != nil {
 			return nil, err

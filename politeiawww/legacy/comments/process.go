@@ -40,7 +40,7 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 	// Execute pre plugin hooks. Checking the mode is a temporary
 	// measure until user plugins have been properly implemented.
 	switch c.cfg.Mode {
-	case config.PoliteiaWWWMode:
+	case config.PiWWWMode:
 		err := c.piHookNewPre(u)
 		if err != nil {
 			return nil, err
@@ -118,7 +118,7 @@ func (c *Comments) processVote(ctx context.Context, v v1.Vote, u user.User) (*v1
 	// Execute pre plugin hooks. Checking the mode is a temporary
 	// measure until user plugins have been properly implemented.
 	switch c.cfg.Mode {
-	case config.PoliteiaWWWMode:
+	case config.PiWWWMode:
 		err := c.piHookVotePre(u)
 		if err != nil {
 			return nil, err

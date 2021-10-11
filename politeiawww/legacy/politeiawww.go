@@ -207,7 +207,7 @@ func (p *Politeiawww) Close() {
 
 	// Perform application specific shutdown
 	switch p.cfg.Mode {
-	case config.PoliteiaWWWMode:
+	case config.PiWWWMode:
 		// Nothing to do
 	case config.CMSWWWMode:
 		p.wsDcrdata.Close()
@@ -224,7 +224,7 @@ func (p *Politeiawww) setup() error {
 
 	// Perform application specific setup
 	switch p.cfg.Mode {
-	case config.PoliteiaWWWMode:
+	case config.PiWWWMode:
 		return p.setupPi()
 	case config.CMSWWWMode:
 		return p.setupCMS()
