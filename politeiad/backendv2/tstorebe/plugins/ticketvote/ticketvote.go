@@ -7,14 +7,11 @@ package ticketvote
 import (
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -23,7 +20,6 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-	"github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
 var (
@@ -245,7 +241,7 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 		rfps = make(map[string][]string, len(tokens)) // [parentToken][]childTokens
 	)
 
-	log.Infof("Staring ticketvote fsck for %v records", len(tokens))
+	log.Infof("Starting ticketvote fsck for %v records", len(tokens))
 
 	for _, t := range tokens {
 		// Get the partial record for each token.
@@ -297,11 +293,24 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 			ie.timestamp = r.RecordMetadata.Timestamp
 			unauthorized = append(unauthorized, ie)
 		case s.Status == ticketvote.VoteStatusAuthorized:
-			changes, err := statusChangesDecode(r.Metadata)
+			// Get auth details blobs from tstore.
+			blobs, err := p.tstore.BlobsByDataDesc(t,
+				[]string{dataDescriptorAuthDetails})
 			if err != nil {
 				return err
 			}
-			ie.timestamp = changes[len(changes)-1].Timestamp
+			// Decode and search for latest authorize action timestamp.
+			for _, b := range blobs {
+				a, err := convertAuthDetailsFromBlobEntry(b)
+				if err != nil {
+					return err
+				}
+				if ticketvote.AuthActionT(a.Action) ==
+					ticketvote.AuthActionAuthorize {
+					// Set vote auth timestamp for inventory entry.
+					ie.timestamp = a.Timestamp
+				}
+			}
 			authorized = append(authorized, ie)
 		case s.Status == ticketvote.VoteStatusStarted:
 			ie.timestamp = int64(s.StartBlockHeight)
@@ -447,32 +456,6 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 	log.Infof("%v records added to the ticketvote inventory", len(entries))
 
 	return nil
-}
-
-// statusChangesDecode decodes and returns an array of status change metadatas
-// from the provided metadata streams.
-func statusChangesDecode(metadata []backend.MetadataStream) ([]usermd.StatusChangeMetadata, error) {
-	statuses := make([]usermd.StatusChangeMetadata, 0, 16)
-	for _, v := range metadata {
-		if v.PluginID != usermd.PluginID ||
-			v.StreamID != usermd.StreamIDStatusChanges {
-			// Not status change metadata, continue searching.
-			continue
-		}
-		d := json.NewDecoder(strings.NewReader(v.Payload))
-		for {
-			var sc usermd.StatusChangeMetadata
-			err := d.Decode(&sc)
-			if errors.Is(err, io.EOF) {
-				break
-			} else if err != nil {
-				return nil, err
-			}
-			statuses = append(statuses, sc)
-		}
-		break
-	}
-	return statuses, nil
 }
 
 // Settings returns the plugin's settings.
