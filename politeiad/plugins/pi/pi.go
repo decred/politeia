@@ -13,6 +13,10 @@ const (
 	// CmdSetBillingStatus command sets the billing status.
 	CmdSetBillingStatus = "setbillingstatus"
 
+	// CmdBillingStatusChanges command returns the billing status changes
+	// of a proposal.
+	CmdBillingStatusChanges = "billingstatuschanges"
+
 	// CmdSummary command returns a summary for a proposal.
 	CmdSummary = "summary"
 )
@@ -64,6 +68,10 @@ const (
 	// SettingKeyProposalDomains is the plugin setting key for the
 	// SettingProposalDomains plugin setting.
 	SettingKeyProposalDomains = "proposaldomains"
+
+	// SettingKeyBillingStatusChangesMax is the plugin setting
+	// key for the SettingBillingStatusChangesMax plugin setting.
+	SettingKeyBillingStatusChangesMax = "billingstatuschangesmax"
 )
 
 // Plugin setting default values. These can be overridden by providing a plugin
@@ -104,6 +112,10 @@ const (
 	// SettingProposalStartDateMin is the default minimum possible proposal
 	// start date - seconds from current time.
 	SettingProposalStartDateMin int64 = 604800 // One week in seconds.
+
+	// SettingBillingStatusChangesMax is the default maximum allowed
+	// billing status changes.
+	SettingBillingStatusChangesMax uint32 = 1
 )
 
 var (
@@ -359,13 +371,8 @@ type SummaryReply struct {
 }
 
 // ProposalSummary summarizes proposal information.
-//
-// StatusReason field will be populated if the status change required a
-// reason to be given. Examples include when a proposal is censored/abandoned
-// or when the billing status of the proposal is set to closed.
 type ProposalSummary struct {
-	Status       PropStatusT `json:"status"`
-	StatusReason string      `json:"statusreason"`
+	Status PropStatusT `json:"status"`
 }
 
 // PropStatusT represents the status of a proposal. It combines record and
@@ -472,4 +479,15 @@ const (
 // from the proposal author.
 type ProposalUpdateMetadata struct {
 	Title string `json:"title"`
+}
+
+// BillingStatusChanges requests the billing status changes for the provided
+// proposal token.
+type BillingStatusChanges struct {
+	Token string `json:"token"`
+}
+
+// BillingStatusChangesReply is the reply to the BillingStatusChanges command.
+type BillingStatusChangesReply struct {
+	BillingStatusChanges []BillingStatusChange `json:"billingstatuschanges"`
 }

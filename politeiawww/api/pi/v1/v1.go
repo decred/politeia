@@ -13,8 +13,11 @@ const (
 	// RoutePolicy returns the policy for the pi API.
 	RoutePolicy = "/policy"
 
-	// RouteSetBillingStatus sets the record's billing status.
+	// RouteSetBillingStatus sets the proposal's billing status.
 	RouteSetBillingStatus = "/setbillingstatus"
+
+	// RouteBillingStatusChanges returns the proposal's billing status changes.
+	RouteBillingStatusChanges = "/billingstatuschanges"
 
 	// RouteSummaries returns the proposal summary for a page of
 	// records.
@@ -117,18 +120,20 @@ type Policy struct{}
 // We have not updated the field names here to avoid introducing breaking
 // changes.
 type PolicyReply struct {
-	TextFileSizeMax    uint32   `json:"textfilesizemax"` // In bytes
-	ImageFileCountMax  uint32   `json:"imagefilecountmax"`
-	ImageFileSizeMax   uint32   `json:"imagefilesizemax"` // In bytes
-	NameLengthMin      uint32   `json:"namelengthmin"`    // In characters
-	NameLengthMax      uint32   `json:"namelengthmax"`    // In characters
-	NameSupportedChars []string `json:"namesupportedchars"`
-	AmountMin          uint64   `json:"amountmin"`    // In cents
-	AmountMax          uint64   `json:"amountmax"`    // In cents
-	StartDateMin       int64    `json:"startdatemin"` // Seconds from current time
-	EndDateMax         int64    `json:"enddatemax"`   // Seconds from current time
-	Domains            []string `json:"domains"`
-	SummariesPageSize  uint32   `json:"summariespagesize"`
+	TextFileSizeMax              uint32   `json:"textfilesizemax"` // In bytes
+	ImageFileCountMax            uint32   `json:"imagefilecountmax"`
+	ImageFileSizeMax             uint32   `json:"imagefilesizemax"` // In bytes
+	NameLengthMin                uint32   `json:"namelengthmin"`    // In characters
+	NameLengthMax                uint32   `json:"namelengthmax"`    // In characters
+	NameSupportedChars           []string `json:"namesupportedchars"`
+	AmountMin                    uint64   `json:"amountmin"`    // In cents
+	AmountMax                    uint64   `json:"amountmax"`    // In cents
+	StartDateMin                 int64    `json:"startdatemin"` // Seconds from current time
+	EndDateMax                   int64    `json:"enddatemax"`   // Seconds from current time
+	Domains                      []string `json:"domains"`
+	SummariesPageSize            uint32   `json:"summariespagesize"`
+	BillingStatusChangesPageSize uint32   `json:"billingstatuschangespagesize"`
+	BillingStatusChangesMax      uint32   `json:"billingstatuschangesmax"`
 }
 
 const (
@@ -264,6 +269,29 @@ type SetBillingStatusReply struct {
 }
 
 const (
+	// BillingStatusChangesPageSize is the maximum number of billing status
+	// changes that can be requested at any one time.
+	BillingStatusChangesPageSize uint32 = 5
+)
+
+// BillingStatusChanges requests the billing status changes for the provided
+// proposal tokens.
+type BillingStatusChanges struct {
+	Tokens []string `json:"tokens"`
+}
+
+// BillingStatusChangesReply is the reply to the BillingStatusChanges command.
+//
+// BillingStatusChanges contains the billing status changes for each of the
+// provided tokens. The map will not contain an entry for any tokens that
+// did not correspond to an actual proposal. It is the callers responsibility
+// to ensure that the billing status changes are returned for all provided
+// tokens.
+type BillingStatusChangesReply struct {
+	BillingStatusChanges map[string][]BillingStatusChange `json:"billingstatuschanges"`
+}
+
+const (
 	// ProposalUpdateHint is the hint that is included in a comment's
 	// ExtraDataHint field to indicate that the comment is an update
 	// from the proposal author.
@@ -283,16 +311,16 @@ const (
 	SummariesPageSize uint32 = 5
 )
 
-// Summaries requests the proposal summaries for the provided record tokens.
+// Summaries requests the proposal summaries for the provided proposal tokens.
 type Summaries struct {
 	Tokens []string `json:"tokens"`
 }
 
 // SummariesReply is the reply to the Summaries command.
 //
-// Summaries field contains a vote summary for each of the provided tokens.
+// Summaries field contains a proposal summary for each of the provided tokens.
 // The map will not contain an entry for any tokens that did not correspond
-// to an actual record. It is the callers responsibility to ensure that a
+// to an actual proposal. It is the callers responsibility to ensure that a
 // summary is returned for all provided tokens.
 type SummariesReply struct {
 	Summaries map[string]Summary `json:"summaries"` // [token]Summary
@@ -302,11 +330,6 @@ type SummariesReply struct {
 //
 // Status field is the string value of the PropStatusT type which is defined
 // along with all of it's possible values in the pi plugin API.
-//
-// StatusReason field will be populated if the status change required a
-// reason to be given. Examples include when a proposal is censored/abandoned
-// or when the billing status of the proposal is set to closed.
 type Summary struct {
-	Status       string `json:"status"`
-	StatusReason string `json:"statusreason"`
+	Status string `json:"status"`
 }

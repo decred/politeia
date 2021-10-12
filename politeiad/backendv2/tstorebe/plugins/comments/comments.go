@@ -127,6 +127,10 @@ func (p *commentsPlugin) Settings() []backend.PluginSetting {
 			Key:   comments.SettingKeyVoteChangesMax,
 			Value: strconv.FormatUint(uint64(p.voteChangesMax), 10),
 		},
+		{
+			Key:   comments.SettingKeyAllowExtraData,
+			Value: strconv.FormatBool(p.allowExtraData),
+		},
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	v2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/util"
@@ -420,7 +421,7 @@ func RecordVerify(r pdv2.Record, serverPubKey string) error {
 	}
 
 	// Verify censorship record signature
-	id, err := util.IdentityFromString(serverPubKey)
+	id, err := identity.PublicIdentityFromString(serverPubKey)
 	if err != nil {
 		return err
 	}

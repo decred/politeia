@@ -66,6 +66,24 @@ func (c *Client) PiSummaries(s piv1.Summaries) (*piv1.SummariesReply, error) {
 	return &sr, nil
 }
 
+// PiBillingStatusChanges sends a pi v1 BillingStatusChanges request to
+// politeiawww.
+func (c *Client) PiBillingStatusChanges(bscs piv1.BillingStatusChanges) (*piv1.BillingStatusChangesReply, error) {
+	resBody, err := c.makeReq(http.MethodPost,
+		piv1.APIRoute, piv1.RouteBillingStatusChanges, bscs)
+	if err != nil {
+		return nil, err
+	}
+
+	var bscsr piv1.BillingStatusChangesReply
+	err = json.Unmarshal(resBody, &bscsr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &bscsr, nil
+}
+
 // ProposalMetadataDecode decodes and returns the ProposalMetadata from the
 // Provided record files. An error returned if a ProposalMetadata is not found.
 func ProposalMetadataDecode(files []rcv1.File) (*piv1.ProposalMetadata, error) {

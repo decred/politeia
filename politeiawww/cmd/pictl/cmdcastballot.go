@@ -15,7 +15,6 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
-	"github.com/decred/politeia/util"
 )
 
 // cmdCastBallot casts a ballot of votes.
@@ -178,7 +177,7 @@ func (c *cmdCastBallot) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("Version: %v", err)
 	}
-	serverID, err := util.IdentityFromString(version.PubKey)
+	serverID, err := identity.PublicIdentityFromString(version.PubKey)
 	if err != nil {
 		return err
 	}

@@ -122,6 +122,16 @@ func PublicIdentityFromBytes(data []byte) (*PublicIdentity, error) {
 	return &pi, nil
 }
 
+// PublicIdentityFromString converts a hex encoded public key into a
+// PublicIdentity.
+func PublicIdentityFromString(id string) (*PublicIdentity, error) {
+	pk, err := hex.DecodeString(id)
+	if err != nil {
+		return nil, err
+	}
+	return PublicIdentityFromBytes(pk)
+}
+
 func LoadPublicIdentity(filename string) (*PublicIdentity, error) {
 	idx, err := ioutil.ReadFile(filename)
 	if err != nil {

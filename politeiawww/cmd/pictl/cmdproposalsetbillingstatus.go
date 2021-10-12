@@ -85,6 +85,7 @@ func parseBillingStatus(status string) (piv1.BillingStatusT, error) {
 		bs piv1.BillingStatusT
 
 		statuses = map[string]piv1.BillingStatusT{
+			"active":    piv1.BillingStatusActive,
 			"close":     piv1.BillingStatusClosed,
 			"closed":    piv1.BillingStatusClosed,
 			"complete":  piv1.BillingStatusCompleted,
@@ -111,6 +112,7 @@ const proposalSetBillingStatusHelpMsg = `proposalsetbillingstatus "token" "statu
 Set the billing status of a proposal.
 
 Valid statuses:
+  (1) active
   (2) close
   (3) complete
 

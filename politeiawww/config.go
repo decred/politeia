@@ -18,14 +18,13 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/decred/dcrd/hdkeychain/v3"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/util/version"
 
 	v1 "github.com/decred/politeia/politeiad/api/v1"
@@ -37,7 +36,6 @@ const (
 	defaultLogLevel         = "info"
 	defaultLogDirname       = "logs"
 	defaultLogFilename      = "politeiawww.log"
-	adminLogFilename        = "admin.log"
 	defaultIdentityFilename = "identity.json"
 
 	defaultMainnetPort = "4443"
@@ -67,12 +65,7 @@ const (
 
 	defaultWWWMode = config.PoliteiaWWWMode
 
-	// User database options
-	userDBLevel     = "leveldb"
-	userDBCockroach = "cockroachdb"
-	userDBMySQL     = "mysql"
-
-	defaultUserDB          = userDBLevel
+	defaultUserDB          = config.LevelDB
 	defaultMySQLDBHost     = "localhost:3306"  // MySQL default host
 	defaultCockroachDBHost = "localhost:26257" // CockroachDB default host
 
@@ -145,20 +138,6 @@ func validLogLevel(logLevel string) bool {
 	return false
 }
 
-// supportedSubsystems returns a sorted slice of the supported subsystems for
-// logging purposes.
-func supportedSubsystems() []string {
-	// Convert the subsystemLoggers map keys to a slice.
-	subsystems := make([]string, 0, len(subsystemLoggers))
-	for subsysID := range subsystemLoggers {
-		subsystems = append(subsystems, subsysID)
-	}
-
-	// Sort the subsytems for stable display.
-	sort.Strings(subsystems)
-	return subsystems
-}
-
 // parseAndSetDebugLevels attempts to parse the specified debug level and set
 // the levels accordingly.  An appropriate error is returned if anything is
 // invalid.
@@ -173,7 +152,7 @@ func parseAndSetDebugLevels(debugLevel string) error {
 		}
 
 		// Change the logging level for all subsystems.
-		setLogLevels(debugLevel)
+		logger.SetLogLevels(debugLevel)
 
 		return nil
 	}
@@ -192,10 +171,14 @@ func parseAndSetDebugLevels(debugLevel string) error {
 		subsysID, logLevel := fields[0], fields[1]
 
 		// Validate subsystem.
-		if _, exists := subsystemLoggers[subsysID]; !exists {
+		subsystems := make(map[string]struct{})
+		for _, v := range logger.SupportedSubsystems() {
+			subsystems[v] = struct{}{}
+		}
+		if _, exists := subsystems[subsysID]; !exists {
 			str := "The specified subsystem [%v] is invalid -- " +
 				"supported subsytems %v"
-			return fmt.Errorf(str, subsysID, supportedSubsystems())
+			return fmt.Errorf(str, subsysID, logger.SupportedSubsystems())
 		}
 
 		// Validate log level.
@@ -204,7 +187,7 @@ func parseAndSetDebugLevels(debugLevel string) error {
 			return fmt.Errorf(str, logLevel)
 		}
 
-		setLogLevel(subsysID, logLevel)
+		logger.SetLogLevel(subsysID, logLevel)
 	}
 
 	return nil
@@ -339,27 +322,38 @@ func validateDBHost(host string) error {
 func loadConfig() (*config.Config, []string, error) {
 	// Default config.
 	cfg := config.Config{
-		HomeDir:                  config.DefaultHomeDir,
-		ConfigFile:               config.DefaultConfigFile,
-		DebugLevel:               defaultLogLevel,
-		DataDir:                  config.DefaultDataDir,
-		LogDir:                   defaultLogDir,
-		HTTPSKey:                 defaultHTTPSKeyFile,
-		HTTPSCert:                config.DefaultHTTPSCertFile,
-		RPCCert:                  defaultRPCCertFile,
-		CookieKeyFile:            defaultCookieKeyFile,
-		Version:                  version.String(),
-		ReadTimeout:              defaultReadTimeout,
-		WriteTimeout:             defaultWriteTimeout,
-		ReqBodySizeLimit:         defaultReqBodySizeLimit,
-		WebsocketReadLimit:       defaultWebsocketReadLimit,
+		// General application settings
+		HomeDir:    config.DefaultHomeDir,
+		ConfigFile: config.DefaultConfigFile,
+		DataDir:    config.DefaultDataDir,
+		LogDir:     defaultLogDir,
+		DebugLevel: defaultLogLevel,
+
+		// HTTP server settings
+		HTTPSCert:          config.DefaultHTTPSCertFile,
+		HTTPSKey:           defaultHTTPSKeyFile,
+		CookieKeyFile:      defaultCookieKeyFile,
+		ReadTimeout:        defaultReadTimeout,
+		WriteTimeout:       defaultWriteTimeout,
+		ReqBodySizeLimit:   defaultReqBodySizeLimit,
+		WebsocketReadLimit: defaultWebsocketReadLimit,
+
+		// politeiad RPC settings
+		RPCCert: defaultRPCCertFile,
+
+		// User database settings
+		UserDB: defaultUserDB,
+
+		// Legacy settings
 		Mode:                     defaultWWWMode,
-		UserDB:                   defaultUserDB,
 		PaywallAmount:            defaultPaywallAmount,
 		MinConfirmationsRequired: defaultPaywallMinConfirmations,
 		VoteDurationMin:          defaultVoteDurationMin,
 		VoteDurationMax:          defaultVoteDurationMax,
 		MailRateLimit:            defaultMailRateLimit,
+
+		// Other
+		Version: version.String(),
 	}
 
 	// Service options which are only added on Windows.
@@ -448,18 +442,16 @@ func loadConfig() (*config.Config, []string, error) {
 	// Load additional config from file.
 	var configFileError error
 	parser := newConfigParser(&cfg, &serviceOpts, flags.Default)
-	if !(preCfg.SimNet) || cfg.ConfigFile != config.DefaultConfigFile {
-		err := flags.NewIniParser(parser).ParseFile(cfg.ConfigFile)
-		if err != nil {
-			var e *os.PathError
-			if !errors.As(err, &e) {
-				fmt.Fprintf(os.Stderr, "Error parsing config "+
-					"file: %v\n", err)
-				fmt.Fprintln(os.Stderr, usageMessage)
-				return nil, nil, err
-			}
-			configFileError = err
+	err = flags.NewIniParser(parser).ParseFile(cfg.ConfigFile)
+	if err != nil {
+		var e *os.PathError
+		if !errors.As(err, &e) {
+			fmt.Fprintf(os.Stderr, "Error parsing config "+
+				"file: %v\n", err)
+			fmt.Fprintln(os.Stderr, usageMessage)
+			return nil, nil, err
 		}
+		configFileError = err
 	}
 
 	// Parse command line options again to ensure they take precedence.
@@ -528,11 +520,6 @@ func loadConfig() (*config.Config, []string, error) {
 		activeNetParams = &testNet3Params
 		port = defaultTestnetPort
 	}
-	if cfg.SimNet {
-		numNets++
-		// Also disable dns seeding on the simulation test network.
-		activeNetParams = &simNetParams
-	}
 	if numNets > 1 {
 		str := "%s: The testnet and simnet params can't be " +
 			"used together -- choose one of the three"
@@ -555,8 +542,6 @@ func loadConfig() (*config.Config, []string, error) {
 	// per network in the same fashion as the data directory.
 	cfg.LogDir = util.CleanAndExpandPath(cfg.LogDir)
 	cfg.LogDir = filepath.Join(cfg.LogDir, netName(activeNetParams))
-
-	cfg.AdminLogFile = filepath.Join(cfg.LogDir, adminLogFilename)
 
 	cfg.HTTPSKey = util.CleanAndExpandPath(cfg.HTTPSKey)
 	cfg.HTTPSCert = util.CleanAndExpandPath(cfg.HTTPSCert)
@@ -585,13 +570,13 @@ func loadConfig() (*config.Config, []string, error) {
 
 	// Special show command to list supported subsystems and exit.
 	if cfg.DebugLevel == "show" {
-		fmt.Println("Supported subsystems", supportedSubsystems())
+		fmt.Println("Supported subsystems", logger.SupportedSubsystems())
 		os.Exit(0)
 	}
 
 	// Initialize log rotation.  After log rotation has been initialized,
 	// the logger variables may be used.
-	initLogRotator(filepath.Join(cfg.LogDir, defaultLogFilename))
+	logger.InitLogRotator(filepath.Join(cfg.LogDir, defaultLogFilename))
 
 	// Parse, validate, and set debug log level(s).
 	if err := parseAndSetDebugLevels(cfg.DebugLevel); err != nil {
@@ -599,18 +584,6 @@ func loadConfig() (*config.Config, []string, error) {
 		fmt.Fprintln(os.Stderr, err)
 		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
-	}
-
-	// Validate profile port number
-	if cfg.Profile != "" {
-		profilePort, err := strconv.Atoi(cfg.Profile)
-		if err != nil || profilePort < 1024 || profilePort > 65535 {
-			str := "%s: The profile port must be between 1024 and 65535"
-			err := fmt.Errorf(str, funcName)
-			fmt.Fprintln(os.Stderr, err)
-			fmt.Fprintln(os.Stderr, usageMessage)
-			return nil, nil, err
-		}
 	}
 
 	// Add the default listener if none were specified. The default
@@ -716,7 +689,7 @@ func loadConfig() (*config.Config, []string, error) {
 
 	// Validate user database selection.
 	switch cfg.UserDB {
-	case userDBLevel:
+	case config.LevelDB:
 		// Leveldb implementation does not require any database settings
 		// and does support encrypting data at rest. Return an error if
 		// the user has the encryption settings set to prevent them from
@@ -736,7 +709,7 @@ func loadConfig() (*config.Config, []string, error) {
 			return nil, nil, fmt.Errorf("leveldb --oldencryptionkey not supported")
 		}
 
-	case userDBCockroach:
+	case config.CockroachDB:
 		// Cockroachdb requires these settings.
 		switch {
 		case cfg.DBRootCert == "":
@@ -794,7 +767,7 @@ func loadConfig() (*config.Config, []string, error) {
 				"and dbkey: %v", err)
 		}
 
-	case userDBMySQL:
+	case config.MySQL:
 		// The database password is provided in an env variable.
 		cfg.DBPass = os.Getenv(envDBPass)
 		if cfg.DBPass == "" {
@@ -852,7 +825,7 @@ func loadConfig() (*config.Config, []string, error) {
 		}
 
 		// Verify required paywall confirmations
-		if !cfg.TestNet && !cfg.SimNet &&
+		if !cfg.TestNet &&
 			cfg.MinConfirmationsRequired != defaultPaywallMinConfirmations {
 			return nil, nil, fmt.Errorf("cannot set --minconfirmations on mainnet")
 		}
@@ -880,12 +853,4 @@ func loadConfig() (*config.Config, []string, error) {
 	}
 
 	return &cfg, remainingArgs, nil
-}
-
-func (p *politeiawww) dcrdataHostHTTP() string {
-	return fmt.Sprintf("https://%v/api", p.cfg.DcrdataHost)
-}
-
-func (p *politeiawww) dcrdataHostWS() string {
-	return fmt.Sprintf("wss://%v/ps", p.cfg.DcrdataHost)
 }

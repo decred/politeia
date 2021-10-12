@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/util"
@@ -79,7 +80,7 @@ func verifyCensorshipRecord(serverPubKey, token, signature string, filepaths []s
 	merkle := hex.EncodeToString(mr[:])
 
 	// Load identity
-	pid, err := util.IdentityFromString(serverPubKey)
+	pid, err := identity.PublicIdentityFromString(serverPubKey)
 	if err != nil {
 		return err
 	}

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
@@ -87,7 +88,7 @@ func (c *cmdCommentVote) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	serverID, err := util.IdentityFromString(vr.PubKey)
+	serverID, err := identity.PublicIdentityFromString(vr.PubKey)
 	if err != nil {
 		return err
 	}

@@ -12,71 +12,9 @@ import (
 	"time"
 
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/util"
 )
-
-// isLoggedIn ensures that a user is logged in before calling the next
-// function.
-func (p *politeiawww) isLoggedIn(f http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log.Tracef("%v isLoggedIn: %v %v %v",
-			util.RemoteAddr(r), r.Method, r.URL, r.Proto)
-
-		id, err := p.sessions.GetSessionUserID(w, r)
-		if err != nil {
-			util.RespondWithJSON(w, http.StatusUnauthorized, www.UserError{
-				ErrorCode: www.ErrorStatusNotLoggedIn,
-			})
-			return
-		}
-
-		// Check if user is authenticated
-		if id == "" {
-			util.RespondWithJSON(w, http.StatusUnauthorized, www.UserError{
-				ErrorCode: www.ErrorStatusNotLoggedIn,
-			})
-			return
-		}
-
-		f(w, r)
-	}
-}
-
-// isAdmin returns true if the current session has admin privileges.
-func (p *politeiawww) isAdmin(w http.ResponseWriter, r *http.Request) (bool, error) {
-	user, err := p.sessions.GetSessionUser(w, r)
-	if err != nil {
-		return false, err
-	}
-
-	return user.Admin, nil
-}
-
-// isLoggedInAsAdmin ensures that a user is logged in as an admin user
-// before calling the next function.
-func (p *politeiawww) isLoggedInAsAdmin(f http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log.Tracef("%v isLoggedInAsAdmin: %v %v %v",
-			util.RemoteAddr(r), r.Method, r.URL, r.Proto)
-
-		// Check if user is admin
-		isAdmin, err := p.isAdmin(w, r)
-		if err != nil {
-			log.Errorf("isLoggedInAsAdmin: isAdmin %v", err)
-			util.RespondWithJSON(w, http.StatusUnauthorized, www.UserError{
-				ErrorCode: www.ErrorStatusNotLoggedIn,
-			})
-			return
-		}
-		if !isAdmin {
-			log.Debugf("%v user is not an admin", http.StatusForbidden)
-			util.RespondWithJSON(w, http.StatusForbidden, www.UserError{})
-			return
-		}
-
-		f(w, r)
-	}
-}
 
 // closeBodyMiddleware closes the request body.
 func closeBodyMiddleware(next http.Handler) http.Handler {
@@ -93,7 +31,7 @@ func closeBodyMiddleware(next http.Handler) http.Handler {
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Trace incoming request
-		log.Tracef("%v", newLogClosure(func() string {
+		log.Tracef("%v", logger.NewLogClosure(func() string {
 			trace, err := httputil.DumpRequest(r, true)
 			if err != nil {
 				trace = []byte(fmt.Sprintf("logging: "+

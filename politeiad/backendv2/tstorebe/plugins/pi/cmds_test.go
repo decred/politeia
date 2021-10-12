@@ -86,18 +86,6 @@ func TestCmdBillingStatus(t *testing.T) {
 			pluginError(pi.ErrorCodeTokenInvalid),
 		},
 		{
-			"set billing status to active",
-			tokenb,
-			pi.SetBillingStatus{
-				Token:     token,
-				Status:    pi.BillingStatusActive,
-				Reason:    "",
-				PublicKey: publicKey,
-				Signature: signature,
-			},
-			pluginError(pi.ErrorCodeBillingStatusChangeNotAllowed),
-		},
-		{
 			"invalid billing status",
 			tokenb,
 			pi.SetBillingStatus{
@@ -259,7 +247,7 @@ func TestProposalStatus(t *testing.T) {
 		state          backend.StateT
 		status         backend.StatusT
 		voteStatus     ticketvote.VoteStatusT
-		bsc            *pi.BillingStatusChange
+		bscs           []pi.BillingStatusChange
 		proposalStatus pi.PropStatusT // Expected proposal status
 	}{
 		{
@@ -331,8 +319,10 @@ func TestProposalStatus(t *testing.T) {
 			backend.StateVetted,
 			backend.StatusPublic,
 			ticketvote.VoteStatusApproved,
-			&pi.BillingStatusChange{
-				Status: pi.BillingStatusClosed,
+			[]pi.BillingStatusChange{
+				{
+					Status: pi.BillingStatusClosed,
+				},
 			},
 			pi.PropStatusClosed,
 		},
@@ -341,10 +331,27 @@ func TestProposalStatus(t *testing.T) {
 			backend.StateVetted,
 			backend.StatusPublic,
 			ticketvote.VoteStatusApproved,
-			&pi.BillingStatusChange{
-				Status: pi.BillingStatusCompleted,
+			[]pi.BillingStatusChange{
+				{
+					Status: pi.BillingStatusCompleted,
+				},
 			},
 			pi.PropStatusCompleted,
+		},
+		{
+			"multi_active",
+			backend.StateVetted,
+			backend.StatusPublic,
+			ticketvote.VoteStatusApproved,
+			[]pi.BillingStatusChange{
+				{
+					Status: pi.BillingStatusCompleted,
+				},
+				{
+					Status: pi.BillingStatusActive,
+				},
+			},
+			pi.PropStatusActive,
 		},
 		{
 			"invalid",
@@ -360,7 +367,7 @@ func TestProposalStatus(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Run test
-			status, _ := proposalStatus(tc.state, tc.status, tc.voteStatus, tc.bsc)
+			status, _ := proposalStatus(tc.state, tc.status, tc.voteStatus, tc.bscs)
 			// Check if received proposal status euqal to the expected.
 			if tc.proposalStatus != status {
 				t.Errorf("want proposal status %v, got '%v'", tc.proposalStatus,

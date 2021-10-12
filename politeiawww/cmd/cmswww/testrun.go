@@ -74,7 +74,7 @@ func (u *user) paymentAddress() (string, error) {
 		u.AddressIndex = u.AddressIndex % hdkeychain.HardenedKeyStart
 	}
 
-	return util.DerivePaywallAddress(chaincfg.TestNet3Params(),
+	return util.DeriveChildAddress(chaincfg.TestNet3Params(),
 		xpub, u.AddressIndex)
 }
 

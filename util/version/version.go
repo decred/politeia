@@ -28,8 +28,8 @@ const (
 // versioning 2.0.0 spec (http://semver.org/).
 const (
 	Major uint = 1
-	Minor uint = 3
-	Patch uint = 1
+	Minor uint = 2
+	Patch uint = 0
 )
 
 var (
@@ -79,11 +79,10 @@ func String() string {
 // politeia was builded.
 func BuildMainVersion() string {
 	i, ok := debug.ReadBuildInfo()
-	v := i.Main.Version
 	if !ok {
-		v = "No build information available"
+		return "No build information available"
 	}
-	return v
+	return i.Main.Version
 }
 
 // BuildInformation returns the main module plus all dependecies module

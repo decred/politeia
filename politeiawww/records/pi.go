@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	v1 "github.com/decred/politeia/politeiawww/api/records/v1"
-	"github.com/decred/politeia/politeiawww/user"
+	"github.com/decred/politeia/politeiawww/legacy/user"
 )
 
 // paywallIsEnabled returns whether the user paywall is enabled.

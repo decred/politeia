@@ -40,7 +40,7 @@ func (c *Client) Identity(ctx context.Context) (*identity.PublicIdentity, error)
 	if err != nil {
 		return nil, err
 	}
-	pid, err := util.IdentityFromString(ir.PublicKey)
+	pid, err := identity.PublicIdentityFromString(ir.PublicKey)
 	if err != nil {
 		return nil, err
 	}
