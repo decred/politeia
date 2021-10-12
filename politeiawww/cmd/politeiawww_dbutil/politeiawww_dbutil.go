@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
@@ -62,8 +61,7 @@ const (
 )
 
 var (
-	defaultHomeDir       = dcrutil.AppDataDir(config.AppName, false)
-	defaultEncryptionKey = filepath.Join(defaultHomeDir, "sbox.key")
+	defaultEncryptionKey = filepath.Join(config.DefaultHomeDir, "sbox.key")
 
 	// Database options
 	level     = flag.Bool("leveldb", false, "")
@@ -72,7 +70,7 @@ var (
 
 	// Application options
 	testnet         = flag.Bool("testnet", false, "")
-	dataDir         = flag.String("datadir", "", "")
+	dataDir         = flag.String("datadir", config.DefaultDataDir, "")
 	cockroachdbhost = flag.String("cockroachdbhost", defaultCockroachDBHost, "")
 	mysqlhost       = flag.String("mysqlhost", defaultMySQLHost, "")
 
@@ -93,8 +91,7 @@ var (
 	verifyIdentities = flag.Bool("verifyidentities", false, "")
 	resetTotp        = flag.Bool("resettotp", false, "")
 
-	chainParams *config.ChainParams
-	network     string // Mainnet or testnet3
+	chainParams *config.ChainParams // Active network
 	userDB      user.Database
 )
 
@@ -450,10 +447,10 @@ func connectCockroachDB() (user.Database, error) {
 		return nil, fmt.Errorf("new cockroachdb: %v", err)
 	}
 
-	fmt.Printf("CockroachDB : %v %v", *cockroachdbhost, network)
+	fmt.Printf("CockroachDB : %v %v", *cockroachdbhost, chainParams.Name)
 
-	return cockroachdb.New(*cockroachdbhost, network, *rootCert,
-		*clientCert, *clientKey, *encryptionKey)
+	return cockroachdb.New(*cockroachdbhost, chainParams.Name,
+		*rootCert, *clientCert, *clientKey, *encryptionKey)
 }
 
 func connectMySQL() (user.Database, error) {
@@ -462,9 +459,9 @@ func connectMySQL() (user.Database, error) {
 		return nil, err
 	}
 
-	fmt.Printf("MySQL : %v %v\n", *mysqlhost, network)
+	fmt.Printf("MySQL : %v %v\n", *mysqlhost, chainParams.Name)
 
-	return mysqldb.New(*mysqlhost, *password, network, *encryptionKey)
+	return mysqldb.New(*mysqlhost, *password, chainParams.Name, *encryptionKey)
 }
 
 func connectDB(typeDB string) (user.Database, error) {
@@ -826,15 +823,8 @@ func _main() error {
 	// Setup the active network
 	if *testnet {
 		chainParams = &config.MainNetParams
-		network = chainParams.Name
 	} else {
 		chainParams = &config.TestNet3Params
-		network = chainParams.Name
-	}
-
-	// Set data dir if one was not provided
-	if *dataDir == "" {
-		*dataDir = config.DefaultDataDir(chainParams)
 	}
 
 	// Clean and expand all file paths
@@ -843,6 +833,9 @@ func _main() error {
 	*clientCert = util.CleanAndExpandPath(*clientCert)
 	*clientKey = util.CleanAndExpandPath(*clientKey)
 	*encryptionKey = util.CleanAndExpandPath(*encryptionKey)
+
+	// Namespace data dir by network
+	*dataDir = filepath.Join(*dataDir, chainParams.Name)
 
 	// Validate database selection.
 	switch {

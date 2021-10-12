@@ -27,6 +27,8 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
+// The following defaults are exported so that they can be used by external
+// tools such as sysadmin and dev CLI tools.
 const (
 	// AppName is the politeiawww application name that is used to create the
 	// application home directory.
@@ -39,7 +41,27 @@ const (
 	// DefaultTestnetPort is the default port that the HTTPS server will be
 	// listening on when politeiawww is configured to use the DCR testnet.
 	DefaultTestnetPort = "4443"
+)
 
+// The following defaults are exported so that they can be used by external
+// tools such as sysadmin and dev CLI tools.
+var (
+	// DefaultHomeDir is the default path for the  politeiawww application home
+	// directory.
+	DefaultHomeDir = dcrutil.AppDataDir(AppName, false)
+
+	// DefaultDataDir is the default path for the politeiawww application data
+	// directory. In practice, the data directory is namespaced by network, so
+	// the network name must be appended onto this path at runtime in order to
+	// get the true data directory.
+	DefaultDataDir = filepath.Join(DefaultHomeDir, defaultDataDirname)
+
+	// DefaultHTTPSCert is the default path for the politeiawww HTTPS
+	// certificate.
+	DefaultHTTPSCert = filepath.Join(DefaultHomeDir, defaultHTTPSCertFilename)
+)
+
+const (
 	// General application settings
 	defaultDataDirname    = "data"
 	defaultLogDirname     = "logs"
@@ -80,18 +102,10 @@ const (
 	envDBPass = "DBPASS"
 )
 
-// Some directory and file path defaults are exported so that they can be
-// accessed by sysadmin and dev CLI tools.
 var (
 	// General application settings
-	defaultHomeDir    = dcrutil.AppDataDir(AppName, false)
-	defaultDataDir    = filepath.Join(defaultHomeDir, defaultDataDirname)
-	defaultConfigFile = filepath.Join(defaultHomeDir, defaultConfigFilename)
-	defaultLogDir     = filepath.Join(defaultHomeDir, defaultLogDirname)
-
-	// DefaultHTTPSCert is the default path for the politeiawww HTTPS
-	// certificate.
-	DefaultHTTPSCert = filepath.Join(defaultHomeDir, defaultHTTPSCertFilename)
+	defaultConfigFile = filepath.Join(DefaultHomeDir, defaultConfigFilename)
+	defaultLogDir     = filepath.Join(DefaultHomeDir, defaultLogDirname)
 )
 
 // Config defines the configuration options for politeiawww.
@@ -167,9 +181,9 @@ func Load() (*Config, []string, error) {
 	cfg := &Config{
 		// General application settings
 		ShowVersion: false,
-		HomeDir:     defaultHomeDir,
+		HomeDir:     DefaultHomeDir,
 		ConfigFile:  defaultConfigFile,
-		DataDir:     defaultDataDir,
+		DataDir:     DefaultDataDir,
 		LogDir:      defaultLogDir,
 		TestNet:     false,
 		DebugLevel:  defaultLogLevel,
@@ -253,7 +267,7 @@ func Load() (*Config, []string, error) {
 		} else {
 			cfg.ConfigFile = preCfg.ConfigFile
 		}
-		if preCfg.DataDir == defaultDataDir {
+		if preCfg.DataDir == DefaultDataDir {
 			cfg.DataDir = filepath.Join(cfg.HomeDir, defaultDataDirname)
 		} else {
 			cfg.DataDir = preCfg.DataDir
@@ -692,13 +706,4 @@ func removeDuplicateAddresses(addrs []string) []string {
 		}
 	}
 	return result
-}
-
-// DefaultDataDir returns the default politeiawww data directory for the
-// provided network. This function is intended to be used by sysadmin tools
-// that need direct access to politeiawww data, e.g. a tool that needs to
-// access the leveldb database. No other tools or applications should be
-// accessing the politeiawww data directory.
-func DefaultDataDir(cp *ChainParams) string {
-	return filepath.Join(defaultHomeDir, defaultDataDirname, cp.Name)
 }
