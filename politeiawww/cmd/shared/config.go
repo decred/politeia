@@ -39,7 +39,6 @@ const (
 )
 
 var (
-	defaultHTTPSCert      = config.DefaultHTTPSCertFile
 	dcrwalletHomeDir      = dcrutil.AppDataDir("dcrwallet", false)
 	defaultWalletCertFile = filepath.Join(dcrwalletHomeDir, "rpc.cert")
 )
@@ -87,7 +86,7 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 		HomeDir:    homeDir,
 		DataDir:    filepath.Join(homeDir, dataDirname),
 		Host:       defaultHost,
-		HTTPSCert:  defaultHTTPSCert,
+		HTTPSCert:  config.DefaultHTTPSCert,
 		WalletHost: defaultWalletHost + ":" + defaultWalletTestnetPort,
 		WalletCert: defaultWalletCertFile,
 		FaucetHost: defaultFaucetHost,

@@ -25,11 +25,11 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
+	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/decred/politeia/politeiawww/legacy/user/cockroachdb"
 	"github.com/decred/politeia/politeiawww/legacy/user/localdb"
@@ -62,8 +62,7 @@ const (
 )
 
 var (
-	defaultHomeDir       = dcrutil.AppDataDir("politeiawww", false)
-	defaultDataDir       = filepath.Join(defaultHomeDir, "data")
+	defaultHomeDir       = dcrutil.AppDataDir(config.AppName, false)
 	defaultEncryptionKey = filepath.Join(defaultHomeDir, "sbox.key")
 
 	// Database options
@@ -73,7 +72,7 @@ var (
 
 	// Application options
 	testnet         = flag.Bool("testnet", false, "")
-	dataDir         = flag.String("datadir", defaultDataDir, "")
+	dataDir         = flag.String("datadir", "", "")
 	cockroachdbhost = flag.String("cockroachdbhost", defaultCockroachDBHost, "")
 	mysqlhost       = flag.String("mysqlhost", defaultMySQLHost, "")
 
@@ -94,8 +93,9 @@ var (
 	verifyIdentities = flag.Bool("verifyidentities", false, "")
 	resetTotp        = flag.Bool("resettotp", false, "")
 
-	network string // Mainnet or testnet3
-	userDB  user.Database
+	chainParams *config.ChainParams
+	network     string // Mainnet or testnet3
+	userDB      user.Database
 )
 
 const usageMsg = `politeiawww_dbutil usage:
@@ -432,17 +432,16 @@ func cmdStubUsers() error {
 }
 
 func connectLevelDB() (user.Database, error) {
-	dbDir := filepath.Join(*dataDir, network)
-	_, err := os.Stat(dbDir)
+	_, err := os.Stat(*dataDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = fmt.Errorf("leveldb dir not found: %v", dbDir)
+			err = fmt.Errorf("leveldb dir not found: %v", *dataDir)
 		}
 		return nil, err
 	}
 
-	fmt.Printf("LevelDB     : %v\n", dbDir)
-	return localdb.New(dbDir)
+	fmt.Printf("LevelDB     : %v\n", *dataDir)
+	return localdb.New(*dataDir)
 }
 
 func connectCockroachDB() (user.Database, error) {
@@ -824,17 +823,26 @@ func cmdResetTOTP() error {
 func _main() error {
 	flag.Parse()
 
+	// Setup the active network
+	if *testnet {
+		chainParams = &config.MainNetParams
+		network = chainParams.Name
+	} else {
+		chainParams = &config.TestNet3Params
+		network = chainParams.Name
+	}
+
+	// Set data dir if one was not provided
+	if *dataDir == "" {
+		*dataDir = config.DefaultDataDir(chainParams)
+	}
+
+	// Clean and expand all file paths
 	*dataDir = util.CleanAndExpandPath(*dataDir)
 	*rootCert = util.CleanAndExpandPath(*rootCert)
 	*clientCert = util.CleanAndExpandPath(*clientCert)
 	*clientKey = util.CleanAndExpandPath(*clientKey)
 	*encryptionKey = util.CleanAndExpandPath(*encryptionKey)
-
-	if *testnet {
-		network = chaincfg.TestNet3Params().Name
-	} else {
-		network = chaincfg.MainNetParams().Name
-	}
 
 	// Validate database selection.
 	switch {

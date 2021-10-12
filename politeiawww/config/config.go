@@ -28,18 +28,26 @@ import (
 )
 
 const (
-	appName = "politeiawww"
+	// AppName is the politeiawww application name that is used to create the
+	// application home directory.
+	AppName = "politeiawww"
+
+	// DefaultMainnetPort is the default port that the HTTPS server will be
+	// listening on when politeiawww is configured to use the DCR mainnet.
+	DefaultMainnetPort = "4443"
+
+	// DefaultTestnetPort is the default port that the HTTPS server will be
+	// listening on when politeiawww is configured to use the DCR testnet.
+	DefaultTestnetPort = "4443"
 
 	// General application settings
 	defaultDataDirname    = "data"
-	defaultLogLevel       = "info"
 	defaultLogDirname     = "logs"
 	defaultConfigFilename = "politeiawww.conf"
 	defaultLogFilename    = "politeiawww.log"
+	defaultLogLevel       = "info"
 
 	// HTTP server settings
-	defaultMainnetPort       = "4443"
-	defaultTestnetPort       = "4443"
 	defaultHTTPSCertFilename = "https.cert"
 	defaultHTTPSKeyFilename  = "https.key"
 	defaultCookieKeyFilename = "cookie.key"
@@ -72,12 +80,18 @@ const (
 	envDBPass = "DBPASS"
 )
 
+// Some directory and file path defaults are exported so that they can be
+// accessed by sysadmin and dev CLI tools.
 var (
 	// General application settings
-	defaultHomeDir    = dcrutil.AppDataDir(appName, false)
-	defaultConfigFile = filepath.Join(defaultHomeDir, defaultConfigFilename)
+	defaultHomeDir    = dcrutil.AppDataDir(AppName, false)
 	defaultDataDir    = filepath.Join(defaultHomeDir, defaultDataDirname)
+	defaultConfigFile = filepath.Join(defaultHomeDir, defaultConfigFilename)
 	defaultLogDir     = filepath.Join(defaultHomeDir, defaultLogDirname)
+
+	// DefaultHTTPSCert is the default path for the politeiawww HTTPS
+	// certificate.
+	DefaultHTTPSCert = filepath.Join(defaultHomeDir, defaultHTTPSCertFilename)
 )
 
 // Config defines the configuration options for politeiawww.
@@ -194,23 +208,25 @@ func Load() (*Config, []string, error) {
 	// file or the version flag was specified.  Any errors aside from the
 	// help message error can be ignored here since they will be caught by
 	// the final parse below.
-	preCfg := cfg
-	preParser := newConfigParser(preCfg, &serviceOpts, flags.HelpFlag)
+	var (
+		preCfg       = cfg
+		preParser    = newConfigParser(preCfg, &serviceOpts, flags.HelpFlag)
+		usageMessage = fmt.Sprintf("use %s -h to show usage", AppName)
+	)
 	_, err := preParser.Parse()
 	if err != nil {
 		var e *flags.Error
-		if errors.As(err, &e) && e.Type == flags.ErrHelp {
+		if errors.As(err, &e) {
 			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintln(os.Stderr, usageMessage)
 			os.Exit(0)
 		}
+		return nil, nil, err
 	}
 
 	// Show the version and exit if the version flag was specified.
-	appName := filepath.Base(os.Args[0])
-	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
-	usageMessage := fmt.Sprintf("Use %s -h to show usage", appName)
 	if preCfg.ShowVersion {
-		fmt.Printf("%s version %s (Go version %s %s/%s)\n", appName,
+		fmt.Printf("%s version %s (Go version %s %s/%s)\n", AppName,
 			version.String(), runtime.Version(), runtime.GOOS,
 			runtime.GOARCH)
 		os.Exit(0)
@@ -270,10 +286,6 @@ func Load() (*Config, []string, error) {
 	// Parse command line options again to ensure they take precedence.
 	remainingArgs, err := parser.Parse()
 	if err != nil {
-		var e *flags.Error
-		if !errors.As(err, &e) || e.Type != flags.ErrHelp {
-			fmt.Fprintln(os.Stderr, usageMessage)
-		}
 		return nil, nil, err
 	}
 
@@ -311,15 +323,15 @@ func Load() (*Config, []string, error) {
 	}
 
 	// Setup the active network
-	cfg.ActiveNet = &mainNetParams
+	cfg.ActiveNet = &MainNetParams
 	if cfg.TestNet {
-		cfg.ActiveNet = &testNet3Params
+		cfg.ActiveNet = &TestNet3Params
 	}
 
 	// Append the network type to the data and log directories
 	// so that they are "namespaced" per network.
-	cfg.DataDir = filepath.Join(cfg.DataDir, netName(cfg.ActiveNet))
-	cfg.LogDir = filepath.Join(cfg.LogDir, netName(cfg.ActiveNet))
+	cfg.DataDir = filepath.Join(cfg.DataDir, cfg.ActiveNet.Name)
+	cfg.LogDir = filepath.Join(cfg.LogDir, cfg.ActiveNet.Name)
 
 	// Parse, validate, and set debug log level(s).
 	if err := parseAndSetDebugLevels(cfg.DebugLevel); err != nil {
@@ -378,7 +390,7 @@ func setupHTTPServerSettings(cfg *Config) error {
 	// defaults need to be checked. All other defaults should be set
 	// on the original config initialization.
 	if cfg.HTTPSCert == "" {
-		cfg.HTTPSCert = filepath.Join(cfg.HomeDir, defaultHTTPSCertFilename)
+		cfg.HTTPSCert = DefaultHTTPSCert
 	}
 	if cfg.HTTPSKey == "" {
 		cfg.HTTPSKey = filepath.Join(cfg.HomeDir, defaultHTTPSKeyFilename)
@@ -395,9 +407,9 @@ func setupHTTPServerSettings(cfg *Config) error {
 	// Add the default listener if none were specified. The
 	// default listener is all addresses on the listen port
 	// for the network we are to connect to.
-	port := defaultMainnetPort
+	port := DefaultMainnetPort
 	if cfg.TestNet {
-		port = defaultTestnetPort
+		port = DefaultTestnetPort
 	}
 	if len(cfg.Listeners) == 0 {
 		cfg.Listeners = []string{
@@ -680,4 +692,13 @@ func removeDuplicateAddresses(addrs []string) []string {
 		}
 	}
 	return result
+}
+
+// DefaultDataDir returns the default politeiawww data directory for the
+// provided network. This function is intended to be used by sysadmin tools
+// that need direct access to politeiawww data, e.g. a tool that needs to
+// access the leveldb database. No other tools or applications should be
+// accessing the politeiawww data directory.
+func DefaultDataDir(cp *ChainParams) string {
+	return filepath.Join(defaultHomeDir, defaultDataDirname, cp.Name)
 }

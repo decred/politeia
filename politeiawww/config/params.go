@@ -7,7 +7,6 @@ package config
 
 import (
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/wire"
 )
 
 // ChainParams is used to group parameters for various networks such as the
@@ -23,7 +22,7 @@ type ChainParams struct {
 // separate wallet process listens on the well-known port and forwards requests
 // it does not handle on to dcrd.  This approach allows the wallet process
 // to emulate the full reference implementation RPC API.
-var mainNetParams = ChainParams{
+var MainNetParams = ChainParams{
 	Params:              chaincfg.MainNetParams(),
 	WalletRPCServerPort: "9111",
 }
@@ -32,32 +31,14 @@ var mainNetParams = ChainParams{
 // (wire.TestNet).  NOTE: The RPC port is intentionally different than the
 // reference implementation - see the mainNetParams comment for details.
 
-var testNet3Params = ChainParams{
+var TestNet3Params = ChainParams{
 	Params:              chaincfg.TestNet3Params(),
 	WalletRPCServerPort: "19111",
 }
 
 // simNetParams contains parameters specific to the simulation test network
 // (wire.SimNet).
-var simNetParams = ChainParams{
+var SimNetParams = ChainParams{
 	Params:              chaincfg.SimNetParams(),
 	WalletRPCServerPort: "19558",
-}
-
-// netName returns the name used when referring to a decred network.  At the
-// time of writing, dcrd currently places blocks for testnet version 0 in the
-// data and log directory "testnet", which does not match the Name field of the
-// chaincfg parameters.  This function can be used to override this directory name
-// as "testnet" when the passed active network matches wire.TestNet.
-//
-// A proper upgrade to move the data and log directories for this network to
-// "testnet" is planned for the future, at which point this function can be
-// removed and the network parameter's name used instead.
-func netName(chainParams *ChainParams) string {
-	switch chainParams.Net {
-	case wire.TestNet3:
-		return "testnet3"
-	default:
-		return chainParams.Name
-	}
 }
