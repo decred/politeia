@@ -96,6 +96,9 @@ func verifyVotesBundle(fp string) error {
 
 	fmt.Printf("Cast votes: %v/%v\n", len(vb.Votes), len(eligible))
 
+	fmt.Printf("Checking votes for eligibility, duplicates, and " +
+		"valid signatures...\n")
+
 	for _, v := range vb.Votes {
 		err := client.CastVoteDetailsVerify(v, vb.ServerPublicKey)
 		if err != nil {
@@ -119,8 +122,6 @@ func verifyVotesBundle(fp string) error {
 			"duplicates %v", notEligible, duplicates)
 	}
 
-	fmt.Printf("All cast votes have been checked for eligibility, " +
-		"duplicates, and valid signatures.\n")
 	fmt.Printf("Cast votes verified!\n")
 
 	return nil
