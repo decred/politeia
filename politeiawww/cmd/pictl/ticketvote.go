@@ -67,7 +67,8 @@ func printVoteSummary(token string, s tkv1.Summary) {
 	printf("Token             : %v\n", token)
 	printf("Status            : %v\n", tkv1.VoteStatuses[s.Status])
 	switch s.Status {
-	case tkv1.VoteStatusUnauthorized, tkv1.VoteStatusAuthorized:
+	case tkv1.VoteStatusUnauthorized, tkv1.VoteStatusAuthorized,
+		tkv1.VoteStatusIneligible:
 		// Nothing else to print
 		return
 	}
