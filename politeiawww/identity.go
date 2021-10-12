@@ -20,7 +20,9 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// getIdentity fetches the remote identity from politeiad.
+// getIdentity fetches the remote identity from politeiad and saves it to
+// disk. politeiawww loads it from disk on future startups during config
+// initialization.
 func getIdentity(rpcHost, rpcCert, rpcIdentityFile, interactive string) error {
 	id, err := remoteIdentity(false, rpcHost, rpcCert)
 	if err != nil {
@@ -32,7 +34,7 @@ func getIdentity(rpcHost, rpcCert, rpcIdentityFile, interactive string) error {
 	log.Infof("Key        : %x", id.Key)
 	log.Infof("Fingerprint: %v", id.Fingerprint())
 
-	if interactive != allowInteractive {
+	if interactive == "" {
 		// Ask user if we like this identity
 		log.Infof("Press enter to save to %v or ctrl-c to abort",
 			rpcIdentityFile)

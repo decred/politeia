@@ -39,7 +39,7 @@ const (
 )
 
 var (
-	defaultHTTPSCert      = config.DefaultHTTPSCertFile
+	defaultHTTPSCert      = config.DefaultHTTPSCert
 	dcrwalletHomeDir      = dcrutil.AppDataDir("dcrwallet", false)
 	defaultWalletCertFile = filepath.Join(dcrwalletHomeDir, "rpc.cert")
 )
