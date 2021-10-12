@@ -46,6 +46,16 @@ func (p *ticketVotePlugin) submissionsCachePath(token []byte) (string, error) {
 	return filepath.Join(p.dataDir, fn), nil
 }
 
+// submissionsCacheRemove removes the cache from its path for the provided
+// token.
+func (p *ticketVotePlugin) submissionsCacheRemove(token []byte) error {
+	path, err := p.submissionsCachePath(token)
+	if err != nil {
+		return nil
+	}
+	return os.RemoveAll(path)
+}
+
 // submissionsCacheWithLock return the submissions list for a record token. If
 // a submissions list does not exist for the token then an empty list will be
 // returned.
