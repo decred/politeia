@@ -20,6 +20,9 @@ type logWriter struct{}
 
 func (logWriter) Write(p []byte) (n int, err error) {
 	os.Stdout.Write(p)
+	if logRotator == nil {
+		return 0, nil
+	}
 	return logRotator.Write(p)
 }
 
