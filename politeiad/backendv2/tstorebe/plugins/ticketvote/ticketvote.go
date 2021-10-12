@@ -250,6 +250,11 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 			return err
 		}
 
+		// Skip ticketvote fsck if record state is unvetted.
+		if r.RecordMetadata.State == backend.StateUnvetted {
+			continue
+		}
+
 		// Decode vote metadata and build submissions map.
 		vmd, err := voteMetadataDecode(r.Files)
 		if err != nil {
@@ -294,21 +299,15 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 			unauthorized = append(unauthorized, ie)
 		case s.Status == ticketvote.VoteStatusAuthorized:
 			// Get auth details blobs from tstore.
-			blobs, err := p.tstore.BlobsByDataDesc(t,
-				[]string{dataDescriptorAuthDetails})
+			auths, err := p.auths(t)
 			if err != nil {
 				return err
 			}
-			// Decode and search for latest authorize action timestamp.
-			for _, b := range blobs {
-				a, err := convertAuthDetailsFromBlobEntry(b)
-				if err != nil {
-					return err
-				}
-				if ticketvote.AuthActionT(a.Action) ==
+			// Search for latest authorize action timestamp.
+			for _, auth := range auths {
+				if ticketvote.AuthActionT(auth.Action) ==
 					ticketvote.AuthActionAuthorize {
-					// Set vote auth timestamp for inventory entry.
-					ie.timestamp = a.Timestamp
+					ie.timestamp = auth.Timestamp
 				}
 			}
 			authorized = append(authorized, ie)
@@ -334,6 +333,13 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 
 		// Audit finished votes. This verifies that all cast votes use eligible
 		// tickets, and that no duplicate votes exist.
+
+		// Skip votes audit if record is unauthorized, authorized or censored.
+		if s.Status == ticketvote.VoteStatusUnauthorized ||
+			s.Status == ticketvote.VoteStatusAuthorized ||
+			s.Status == ticketvote.VoteStatusIneligible {
+			continue
+		}
 
 		// Get vote details for eligible tickets.
 		vd, err := p.voteDetails(t)
