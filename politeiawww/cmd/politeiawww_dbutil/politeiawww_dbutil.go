@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend/gitbe"
@@ -61,7 +62,9 @@ const (
 )
 
 var (
-	defaultEncryptionKey = filepath.Join(config.DefaultHomeDir, "sbox.key")
+	defaultHomeDir       = config.DefaultHomeDir
+	defaultDataDir       = config.DefaultDataDir
+	defaultEncryptionKey = filepath.Join(defaultHomeDir, "sbox.key")
 
 	// Database options
 	level     = flag.Bool("leveldb", false, "")
@@ -70,7 +73,7 @@ var (
 
 	// Application options
 	testnet         = flag.Bool("testnet", false, "")
-	dataDir         = flag.String("datadir", config.DefaultDataDir, "")
+	dataDir         = flag.String("datadir", defaultDataDir, "")
 	cockroachdbhost = flag.String("cockroachdbhost", defaultCockroachDBHost, "")
 	mysqlhost       = flag.String("mysqlhost", defaultMySQLHost, "")
 
@@ -91,8 +94,8 @@ var (
 	verifyIdentities = flag.Bool("verifyidentities", false, "")
 	resetTotp        = flag.Bool("resettotp", false, "")
 
-	chainParams *config.ChainParams // Active network
-	userDB      user.Database
+	network string // Mainnet or testnet3
+	userDB  user.Database
 )
 
 const usageMsg = `politeiawww_dbutil usage:
@@ -429,16 +432,17 @@ func cmdStubUsers() error {
 }
 
 func connectLevelDB() (user.Database, error) {
-	_, err := os.Stat(*dataDir)
+	dbDir := filepath.Join(*dataDir, network)
+	_, err := os.Stat(dbDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = fmt.Errorf("leveldb dir not found: %v", *dataDir)
+			err = fmt.Errorf("leveldb dir not found: %v", dbDir)
 		}
 		return nil, err
 	}
 
-	fmt.Printf("LevelDB     : %v\n", *dataDir)
-	return localdb.New(*dataDir)
+	fmt.Printf("LevelDB     : %v\n", dbDir)
+	return localdb.New(dbDir)
 }
 
 func connectCockroachDB() (user.Database, error) {
@@ -447,10 +451,10 @@ func connectCockroachDB() (user.Database, error) {
 		return nil, fmt.Errorf("new cockroachdb: %v", err)
 	}
 
-	fmt.Printf("CockroachDB : %v %v", *cockroachdbhost, chainParams.Name)
+	fmt.Printf("CockroachDB : %v %v", *cockroachdbhost, network)
 
-	return cockroachdb.New(*cockroachdbhost, chainParams.Name,
-		*rootCert, *clientCert, *clientKey, *encryptionKey)
+	return cockroachdb.New(*cockroachdbhost, network, *rootCert,
+		*clientCert, *clientKey, *encryptionKey)
 }
 
 func connectMySQL() (user.Database, error) {
@@ -459,9 +463,9 @@ func connectMySQL() (user.Database, error) {
 		return nil, err
 	}
 
-	fmt.Printf("MySQL : %v %v\n", *mysqlhost, chainParams.Name)
+	fmt.Printf("MySQL : %v %v\n", *mysqlhost, network)
 
-	return mysqldb.New(*mysqlhost, *password, chainParams.Name, *encryptionKey)
+	return mysqldb.New(*mysqlhost, *password, network, *encryptionKey)
 }
 
 func connectDB(typeDB string) (user.Database, error) {
@@ -820,22 +824,17 @@ func cmdResetTOTP() error {
 func _main() error {
 	flag.Parse()
 
-	// Setup the active network
-	if *testnet {
-		chainParams = &config.MainNetParams
-	} else {
-		chainParams = &config.TestNet3Params
-	}
-
-	// Clean and expand all file paths
 	*dataDir = util.CleanAndExpandPath(*dataDir)
 	*rootCert = util.CleanAndExpandPath(*rootCert)
 	*clientCert = util.CleanAndExpandPath(*clientCert)
 	*clientKey = util.CleanAndExpandPath(*clientKey)
 	*encryptionKey = util.CleanAndExpandPath(*encryptionKey)
 
-	// Namespace data dir by network
-	*dataDir = filepath.Join(*dataDir, chainParams.Name)
+	if *testnet {
+		network = chaincfg.TestNet3Params().Name
+	} else {
+		network = chaincfg.MainNetParams().Name
+	}
 
 	// Validate database selection.
 	switch {
