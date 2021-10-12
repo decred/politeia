@@ -2405,6 +2405,19 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 
 	// Summary has not been cached. Get it manually.
 
+	// Verify that the record is eligble for a vote.
+	r, err := p.recordAbridged(token)
+	if err != nil {
+		return nil, err
+	}
+	if r.RecordMetadata.Status != backend.StatusPublic {
+		return &ticketvote.SummaryReply{
+			Status:    ticketvote.VoteStatusIneligible,
+			Results:   []ticketvote.VoteOptionResult{},
+			BestBlock: bestBlock,
+		}, nil
+	}
+
 	// Assume vote is unauthorized. Only update the status when the
 	// appropriate record has been found that proves otherwise.
 	status := ticketvote.VoteStatusUnauthorized

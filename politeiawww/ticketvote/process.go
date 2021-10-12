@@ -486,6 +486,8 @@ func convertVoteStatusToV1(s ticketvote.VoteStatusT) v1.VoteStatusT {
 		return v1.VoteStatusApproved
 	case ticketvote.VoteStatusRejected:
 		return v1.VoteStatusRejected
+	case ticketvote.VoteStatusIneligible:
+		return v1.VoteStatusIneligible
 	default:
 		return v1.VoteStatusInvalid
 	}
