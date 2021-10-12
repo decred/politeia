@@ -334,7 +334,7 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 		// Audit finished votes. This verifies that all cast votes use eligible
 		// tickets, and that no duplicate votes exist.
 
-		// Skip votes audit if record is unauthorized, authorized or censored.
+		// Skip votes audit if record is unauthorized, authorized or ineligible.
 		if s.Status == ticketvote.VoteStatusUnauthorized ||
 			s.Status == ticketvote.VoteStatusAuthorized ||
 			s.Status == ticketvote.VoteStatusIneligible {
