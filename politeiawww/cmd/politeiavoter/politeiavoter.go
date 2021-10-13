@@ -1003,15 +1003,15 @@ func (c *ctx) _vote(token, voteID string) error {
 
 		// Calculate vote duration if not set
 		if c.cfg.voteDuration.Seconds() == 0 {
-			blocksLeft := vs.EndBlockHeight - bestBlock
-			if blocksLeft < uint32(c.cfg.blocksPerHour) {
-				return fmt.Errorf("less than one hour left to" +
-					" vote, please set --voteduration " +
-					"manually")
+			blocksLeft := int64(vs.EndBlockHeight) - int64(bestBlock)
+			if blocksLeft < int64(c.cfg.HoursPrior*c.cfg.blocksPerHour) {
+				return fmt.Errorf("less than twelve hours " +
+					"left to vote, please set " +
+					"--voteduration manually")
 			}
 			c.cfg.voteDuration = activeNetParams.TargetTimePerBlock *
 				(time.Duration(blocksLeft) -
-					time.Duration(c.cfg.blocksPerHour))
+					time.Duration(c.cfg.HoursPrior*c.cfg.blocksPerHour))
 		}
 
 		// Generate work
