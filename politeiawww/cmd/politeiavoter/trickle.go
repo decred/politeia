@@ -16,14 +16,16 @@ import (
 
 func (c *ctx) calculateTrickle(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) error {
 	votes := len(ctres.TicketAddresses)
+	workers := c.cfg.Workers
 	duration := c.cfg.voteDuration
-	voteDuration := duration - time.Hour
+	voteDuration := duration - time.Duration(c.cfg.HoursPrior)*time.Hour
 	if voteDuration < time.Hour {
 		return fmt.Errorf("not enough time left to trickle votes")
 	}
-	fmt.Printf("Total number of votes: %v\n", votes)
-	fmt.Printf("Total vote duration  : %v\n", duration)
-	fmt.Printf("Duration calculated  : %v\n", voteDuration)
+	fmt.Printf("Total number of votes  : %v\n", votes)
+	fmt.Printf("Total number of workers: %v\n", workers)
+	fmt.Printf("Total vote duration    : %v\n", duration)
+	fmt.Printf("Duration calculated    : %v\n", voteDuration)
 
 	prng, err := uniformprng.RandSource(rand.Reader)
 	if err != nil {

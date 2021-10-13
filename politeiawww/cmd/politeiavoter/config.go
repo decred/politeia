@@ -37,6 +37,9 @@ const (
 
 	clientCertFile = "client.pem"
 	clientKeyFile  = "client-key.pem"
+
+	defaultHoursPrior = uint64(12)
+	defaultWorkers    = uint(1)
 )
 
 var (
@@ -74,7 +77,15 @@ type config struct {
 	ProxyPass        string `long:"proxypass" default-mask:"-" description:"Password for proxy server"`
 	VoteDuration     string `long:"voteduration" description:"Duration to cast all votes in hours and minutes e.g. 5h10m (default 0s means autodetect duration)"`
 	Trickle          bool   `long:"trickle" description:"Enable vote trickling, requires --proxy."`
-	SkipVerify       bool   `long:"skipverify" description:"Skip verifying the server's certifcate chain and host name."`
+	//Workers          uint   `long:"workers" description:"Number of parallel workers that start at random times."`
+	Workers    uint // XXX temporary remove Workers
+	SkipVerify bool `long:"skipverify" description:"Skip verifying the server's certifcate chain and host name."`
+
+	// HoursPrior designates the hours to subtract from the end of the
+	// voting period and is set to a default of 12 hours. These extra
+	// hours, prior to expiration gives the user some additional margin to
+	// correct failures.
+	HoursPrior uint64 `long:"hoursprior" description:"Number of hours to subtract from available voting window."`
 
 	ClientCert string `long:"clientcert" description:"Path to TLS certificate for client authentication (default: client.pem)"`
 	ClientKey  string `long:"clientkey" description:"Path to TLS client authentication key (default: client-key.pem)"`
@@ -205,6 +216,8 @@ func loadConfig() (*config, []string, error) {
 		LogDir:     defaultLogDir,
 		voteDir:    defaultVoteDir,
 		Version:    version.String(),
+		Workers:    defaultWorkers,
+		HoursPrior: defaultHoursPrior,
 	}
 
 	// Service options which are only added on Windows.
@@ -460,6 +473,11 @@ func loadConfig() (*config, []string, error) {
 			return nil, nil, fmt.Errorf("invalid --voteduration "+
 				"%v", err)
 		}
+	}
+	// Number of workers
+	if cfg.Workers < 1 || cfg.Workers > 10 {
+		return nil, nil, fmt.Errorf("invalid number of workers "+
+			"(1-10): %v", cfg.Workers)
 	}
 
 	if !cfg.BypassProxyCheck {
