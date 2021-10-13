@@ -310,6 +310,16 @@ const (
 	BillingStatusCompleted BillingStatusT = 3
 )
 
+var (
+	// BillingStatuses contains the human readable billing statuses.
+	BillingStatuses = map[BillingStatusT]string{
+		BillingStatusInvalid:   "invalid",
+		BillingStatusActive:    "active",
+		BillingStatusClosed:    "closed",
+		BillingStatusCompleted: "completed",
+	}
+)
+
 // BillingStatusChange represents the structure that is saved to disk when
 // a proposal has its billing status updated. Some billing status changes
 // require a reason to be given. Only admins can update the billing status
