@@ -15,4 +15,8 @@ func TestMaps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ErrorCodes: %v", err)
 	}
+	err = unittest.TestGenericConstMap(BillingStatuses, uint64(BillingStatusLast))
+	if err != nil {
+		t.Fatalf("BillingStatuses: %v", err)
+	}
 }

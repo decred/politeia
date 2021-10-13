@@ -226,7 +226,9 @@ const (
 	// invalid.
 	ErrorCodeExtraDataInvalid = 19
 
-	// ErrorCodeLast unit test only.
+	// ErrorCodeLast is used by unit tests to verify that all error codes have
+	// a human readable entry in the ErrorCodes map. This error will never be
+	// returned.
 	ErrorCodeLast ErrorCodeT = 20
 )
 
@@ -308,6 +310,11 @@ const (
 	// A completed proposal can no longer be billed against. A proposal
 	// is marked as completed by an admin.
 	BillingStatusCompleted BillingStatusT = 3
+
+	// BillingStatusLast is used by unit tests to verify that all billing
+	// statuses have a human readable entry in the BillingStatuses map. This
+	// status will never be returned.
+	BillingStatusLast ErrorCodeT = 4
 )
 
 var (
