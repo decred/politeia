@@ -140,7 +140,8 @@ func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, er
 			PluginID:  pi.PluginID,
 			ErrorCode: uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
 			ErrorContext: fmt.Sprintf("invalid billing status transition, "+
-				"current: %v, new: %v", currStatus, sbs.Status),
+				"%v to %v is not allowed", pi.BillingStatuses[currStatus],
+				pi.BillingStatuses[sbs.Status]),
 		}
 	}
 
