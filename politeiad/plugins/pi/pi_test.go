@@ -13,10 +13,10 @@ import (
 func TestMaps(t *testing.T) {
 	err := unittest.TestGenericConstMap(ErrorCodes, uint64(ErrorCodeLast))
 	if err != nil {
-		t.Fatalf("ErrorCodes: %v", err)
+		t.Errorf("ErrorCodes: %v", err)
 	}
 	err = unittest.TestGenericConstMap(BillingStatuses, uint64(BillingStatusLast))
 	if err != nil {
-		t.Fatalf("BillingStatuses: %v", err)
+		t.Errorf("BillingStatuses: %v", err)
 	}
 }
