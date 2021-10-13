@@ -39,7 +39,7 @@ const (
 	clientKeyFile  = "client-key.pem"
 
 	defaultHoursPrior = uint64(12)
-	defaultWorkers    = uint(1)
+	defaultBunches    = uint(1)
 )
 
 var (
@@ -77,9 +77,8 @@ type config struct {
 	ProxyPass        string `long:"proxypass" default-mask:"-" description:"Password for proxy server"`
 	VoteDuration     string `long:"voteduration" description:"Duration to cast all votes in hours and minutes e.g. 5h10m (default 0s means autodetect duration)"`
 	Trickle          bool   `long:"trickle" description:"Enable vote trickling, requires --proxy."`
-	//Workers          uint   `long:"workers" description:"Number of parallel workers that start at random times."`
-	Workers    uint // XXX temporary remove Workers
-	SkipVerify bool `long:"skipverify" description:"Skip verifying the server's certifcate chain and host name."`
+	Bunches          uint   `long:"bunches" description:"Number of parallel bunches that start at random times."`
+	SkipVerify       bool   `long:"skipverify" description:"Skip verifying the server's certifcate chain and host name."`
 
 	// HoursPrior designates the hours to subtract from the end of the
 	// voting period and is set to a default of 12 hours. These extra
@@ -216,7 +215,7 @@ func loadConfig() (*config, []string, error) {
 		LogDir:     defaultLogDir,
 		voteDir:    defaultVoteDir,
 		Version:    version.String(),
-		Workers:    defaultWorkers,
+		Bunches:    defaultBunches,
 		HoursPrior: defaultHoursPrior,
 	}
 
@@ -474,10 +473,10 @@ func loadConfig() (*config, []string, error) {
 				"%v", err)
 		}
 	}
-	// Number of workers
-	if cfg.Workers < 1 || cfg.Workers > 10 {
-		return nil, nil, fmt.Errorf("invalid number of workers "+
-			"(1-10): %v", cfg.Workers)
+	// Number of bunches
+	if cfg.Bunches < 1 || cfg.Bunches > 10 {
+		return nil, nil, fmt.Errorf("invalid number of bunches "+
+			"(1-10): %v", cfg.Bunches)
 	}
 
 	if !cfg.BypassProxyCheck {

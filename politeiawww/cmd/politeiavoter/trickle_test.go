@@ -1,7 +1,6 @@
 package main
 
 import (
-	"container/list"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -11,7 +10,7 @@ import (
 	pb "decred.org/dcrwallet/rpc/walletrpc"
 )
 
-func fakeTickets(x int) (*pb.CommittedTicketsResponse, *pb.SignMessagesResponse) {
+func fakeTickets(x uint) (*pb.CommittedTicketsResponse, *pb.SignMessagesResponse) {
 	ctres := pb.CommittedTicketsResponse{
 		TicketAddresses: make([]*pb.CommittedTicketsResponse_TicketAddress, x),
 	}
@@ -32,7 +31,7 @@ func fakeTickets(x int) (*pb.CommittedTicketsResponse, *pb.SignMessagesResponse)
 	return &ctres, &smr
 }
 
-func fakeCtx(t *testing.T, d time.Duration, x int, hoursPrior uint64) (*ctx, func()) {
+func fakeCtx(t *testing.T, d time.Duration, x uint, hoursPrior uint64) (*ctx, func()) {
 	// Setup temp home dir
 	homeDir, err := ioutil.TempDir("", "politeiavoter.test")
 	if err != nil {
@@ -51,42 +50,42 @@ func fakeCtx(t *testing.T, d time.Duration, x int, hoursPrior uint64) (*ctx, fun
 			voteDir:      filepath.Join(homeDir, defaultVoteDirname),
 			voteDuration: d,
 			HoursPrior:   hoursPrior,
+			Bunches:      x,
 		},
-		voteIntervalQ: new(list.List),
 	}, cleanup
 }
 
 func TestTrickleNotEnoughTime(t *testing.T) {
-	x := 10
+	x := uint(10)
 	c, cleanup := fakeCtx(t, time.Hour, x, 1)
 	defer cleanup()
 
 	ctres, smr := fakeTickets(x)
-	err := c.calculateTrickle("", "", ctres, smr)
+	err := c.alarmTrickler("", "", ctres, smr)
 	if err == nil {
 		t.Fatal("expected error")
 	}
 }
 
 func TestTrickle2(t *testing.T) {
-	x := 10
+	x := uint(10)
 	c, cleanup := fakeCtx(t, 24*time.Hour, x, 1)
 	defer cleanup()
 
 	ctres, smr := fakeTickets(x)
-	err := c.calculateTrickle("", "", ctres, smr)
+	err := c.alarmTrickler("", "", ctres, smr)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestTrickleWorkers(t *testing.T) {
-	x := 10
+	x := uint(10)
 	c, cleanup := fakeCtx(t, 24*time.Hour, x, 12)
 	defer cleanup()
 
 	ctres, smr := fakeTickets(x)
-	err := c.calculateTrickle("", "", ctres, smr)
+	err := c.alarmTrickler("", "", ctres, smr)
 	if err != nil {
 		t.Fatal(err)
 	}

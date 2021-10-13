@@ -6,7 +6,6 @@ package main
 
 import (
 	"bytes"
-	"container/list"
 	"context"
 	crand "crypto/rand"
 	"crypto/tls"
@@ -14,7 +13,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -32,7 +30,6 @@ import (
 	"time"
 
 	pb "decred.org/dcrwallet/rpc/walletrpc"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -163,14 +160,8 @@ func verifyMessage(params *chaincfg.Params, address, message, signature string) 
 
 // ctx is the client context.
 type ctx struct {
-	sync.RWMutex                            // retryQ lock
-	retryQ             *list.List           // retry message queue FIFO
-	retryWG            sync.WaitGroup       // Wait for retry loop to exit
-	mainLoopDone       chan struct{}        // message when done
-	mainLoopForceExit  chan struct{}        // message when main loop forces an exit
-	retryLoopForceExit chan struct{}        // message when retry loop forces an exit
-	ballotResults      []tkv1.CastVoteReply // results of voting
-	voteIntervalQ      *list.List           // work that has to be completed
+	sync.RWMutex                       // retryQ lock
+	ballotResults []tkv1.CastVoteReply // results of voting
 
 	run time.Time // when this run started
 
@@ -243,17 +234,12 @@ func newClient(shutdownCtx context.Context, cfg *config) (*ctx, error) {
 
 	// return context
 	return &ctx{
-		run:                time.Now(),
-		retryQ:             new(list.List),
-		voteIntervalQ:      new(list.List),
-		mainLoopDone:       make(chan struct{}),
-		mainLoopForceExit:  make(chan struct{}),
-		retryLoopForceExit: make(chan struct{}),
-		wctx:               shutdownCtx,
-		creds:              creds,
-		conn:               conn,
-		wallet:             wallet,
-		cfg:                cfg,
+		run:    time.Now(),
+		wctx:   shutdownCtx,
+		creds:  creds,
+		conn:   conn,
+		wallet: wallet,
+		cfg:    cfg,
 		client: &http.Client{
 			Transport: tr,
 			Jar:       jar,
@@ -336,6 +322,27 @@ func (c *ctx) makeRequest(method, api, route string, b interface{}) ([]byte, err
 		log.Tracef("%v  ", string(requestBody))
 	}
 
+	// This is a hack, when context is not set we are in test mode
+	// XXX use test flag
+	if c.wctx == nil {
+		// Fake out CastBallotReply
+		cbr := tkv1.CastBallotReply{
+			Receipts: []tkv1.CastVoteReply{
+				{
+					Ticket:  "ticket",
+					Receipt: "receipt",
+					//ErrorCode: tkv1.VoteErrorInvalid,
+					//ErrorContext:"ec",
+
+				},
+			},
+		}
+		jcbr, err := json.Marshal(cbr)
+		if err != nil {
+			return nil, fmt.Errorf("TEST FAILED: %v", err)
+		}
+		return jcbr, nil
+	}
 	req, err := http.NewRequestWithContext(c.wctx, method, fullRoute,
 		bytes.NewReader(requestBody))
 	if err != nil {
@@ -706,7 +713,8 @@ func (c *ctx) sendVote(ballot *tkv1.CastBallot) (*tkv1.CastVoteReply, error) {
 	}
 	if len(vr.Receipts) != 1 {
 		// Should be impossible
-		return nil, fmt.Errorf("sendVote: received multiple answers")
+		return nil, fmt.Errorf("sendVote: invalid receipt count %v",
+			len(vr.Receipts))
 	}
 
 	return &vr.Receipts[0], nil
@@ -723,141 +731,19 @@ func (c *ctx) dumpComplete() {
 	}
 }
 
+func (c *ctx) dumpQueue() {
+	c.RLock()
+	defer c.RUnlock()
+
+	panic("dumpQueue")
+}
+
 // dumpTogo dumps the votes that have not been casrt yet.
 func (c *ctx) dumpTogo() {
 	c.RLock()
 	defer c.RUnlock()
 
-	fmt.Printf("Votes queued (%v):\n", c.voteIntervalQ.Len())
-	for e := c.voteIntervalQ.Front(); e != nil; e = e.Next() {
-		r := e.Value.(*voteInterval)
-		fmt.Printf("  %v %v\n", r.Vote.Ticket, r.At)
-	}
-}
-
-func (c *ctx) voteIntervalPush(v *voteInterval) {
-	c.Lock()
-	defer c.Unlock()
-	c.voteIntervalQ.PushBack(v)
-}
-
-func (c *ctx) voteIntervalPop() *voteInterval {
-	c.Lock()
-	defer c.Unlock()
-
-	e := c.voteIntervalQ.Front()
-	if e == nil {
-		return nil
-	}
-	return c.voteIntervalQ.Remove(e).(*voteInterval)
-}
-
-func (c *ctx) voteIntervalLen() uint64 {
-	c.RLock()
-	defer c.RUnlock()
-	return uint64(c.voteIntervalQ.Len())
-}
-
-// _voteTrickler trickles votes to the server. The idea here is to not issue
-// large number of votes in one go to the server at the same time giving away
-// which IP address owns what votes.
-func (c *ctx) _voteTrickler(token string) error {
-	// Synthesize reply, needs locking once go routines launch
-	voteCount := c.voteIntervalLen()
-	c.ballotResults = make([]tkv1.CastVoteReply, 0, voteCount)
-
-	// Launch retry loop
-	c.retryWG.Add(1)
-	go c.retryLoop()
-
-	for i := 0; ; {
-		vote := c.voteIntervalPop()
-		if vote == nil {
-			break
-		}
-		log.Tracef("mainLoop pop %v", spew.Sdump(vote))
-
-		// Fire off the first vote without a delay
-		if i == 0 {
-			goto vote
-		}
-
-		fmt.Printf("Next vote at %v (delay %v)\n",
-			time.Now().Add(vote.At).Format(time.Stamp), vote.At)
-
-		select {
-		case <-c.wctx.Done():
-			goto exit
-		case <-time.After(vote.At):
-		case <-c.retryLoopForceExit:
-			// The retry loop is forcing an exit. Put vote back
-			// into the queue before exiting so the vote summary
-			// statistics are correct.
-			c.voteIntervalPush(vote)
-			fmt.Printf("Forced exit main vote queue.\n")
-			goto exit
-		}
-
-	vote:
-		fmt.Printf("Voting: %v/%v %v\n", i+1, voteCount,
-			vote.Vote.Ticket)
-
-		// Send off vote
-		b := tkv1.CastBallot{Votes: []tkv1.CastVote{vote.Vote}}
-		vr, err := c.sendVote(&b)
-		var e ErrRetry
-		if errors.As(err, &e) {
-			// Append failed vote to retry queue
-			fmt.Printf("Vote rescheduled: %v\n", vote.Vote.Ticket)
-			err := c.jsonLog(failedJournal, token, b, e)
-			if err != nil {
-				return err
-			}
-			c.retryPush(&retry{vote: vote.Vote})
-		} else if err != nil {
-			// Unrecoverable error
-			return fmt.Errorf("unrecoverable error: %v",
-				err)
-		} else {
-			// Vote completed
-			c.Lock()
-			c.ballotResults = append(c.ballotResults, *vr)
-			c.Unlock()
-
-			if vr.ErrorCode == tkv1.VoteErrorVoteStatusInvalid {
-				// Force an exit of the both the main queue and the
-				// retry queue if the voting period has ended.
-				err = c.jsonLog(failedJournal, token, vr)
-				if err != nil {
-					return err
-				}
-				fmt.Printf("Vote has ended; forced exit main vote queue.\n")
-				fmt.Printf("Awaiting retry vote queue to exit.\n")
-				c.mainLoopForceExit <- struct{}{}
-				goto exit
-			}
-
-			err = c.jsonLog(successJournal, token, vr)
-			if err != nil {
-				return err
-			}
-		}
-
-		// Go to next vote
-		i++
-	}
-
-	// Tell retry loop that main loop is done
-	log.Debugf("_voteTrickler: main loop done")
-	fmt.Printf("Awaiting retry vote queue to complete.\n")
-	c.mainLoopDone <- struct{}{}
-
-	// Wait for retry loop to exit
-	c.retryWG.Wait()
-	log.Debugf("ballotResults %v", spew.Sdump(c.ballotResults))
-
-exit:
-	return nil
+	panic("dumpTogo")
 }
 
 func (c *ctx) _vote(token, voteID string) error {
@@ -1014,13 +900,7 @@ func (c *ctx) _vote(token, voteID string) error {
 					time.Duration(c.cfg.HoursPrior*c.cfg.blocksPerHour))
 		}
 
-		// Generate work
-		err := c.calculateTrickle(token, voteBit, ctres, smr)
-		if err != nil {
-			return err
-		}
-
-		return c._voteTrickler(token)
+		return c.alarmTrickler(token, voteBit, ctres, smr)
 	}
 
 	// Vote everything at once.
@@ -1084,9 +964,9 @@ func (c *ctx) vote(args []string) error {
 	fmt.Printf("Votes succeeded: %v\n", len(c.ballotResults)-
 		len(failedReceipts))
 	fmt.Printf("Votes failed   : %v\n", len(failedReceipts))
-	notCast := c.voteIntervalLen() + uint64(c.retryLen())
+	notCast := 111111
 	if notCast > 0 {
-		fmt.Printf("Votes not cast : %v\n", notCast)
+		fmt.Printf("Votes not cast : %v (FIXME)\n", notCast)
 	}
 	for _, v := range failedReceipts {
 		fmt.Printf("Failed vote    : %v %v\n",
