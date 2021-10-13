@@ -217,7 +217,7 @@ func (p *commentsPlugin) Fsck(tokens [][]byte) error {
 		}
 
 		if !bad {
-			// Cache verified successfuly, continue to next token.
+			// Cache verified successfully, continue to next token.
 			continue
 		}
 
@@ -235,7 +235,7 @@ func (p *commentsPlugin) Fsck(tokens [][]byte) error {
 			return err
 		}
 		// Initialize maps on the comment index for this record. Since all
-		// votes need a corresponding add to be valid, it's ok to intialize
+		// votes need a corresponding add to be valid, it's ok to initialize
 		// them by ranging the comment adds.
 		for _, c := range adds {
 			id := c.CommentID
