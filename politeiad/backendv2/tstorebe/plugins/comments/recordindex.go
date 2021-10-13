@@ -144,6 +144,8 @@ func (p *commentsPlugin) recordIndexSave(token []byte, s backend.StateT, ridx re
 	}
 }
 
+// recordIndexRemove removes the record index cache from the path of the
+// provided record token and state.
 func (p *commentsPlugin) recordIndexRemove(token []byte, s backend.StateT) error {
 	path, err := p.recordIndexPath(token, s)
 	if err != nil {
