@@ -1010,7 +1010,7 @@ func (t *tstoreBackend) PluginInventory() []backend.Plugin {
 //
 // This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) Fsck() error {
-	log.Infof("Performing record fsck")
+	log.Infof("Performing fsck for the tstorebe")
 
 	// Get the tokens for all records in the backend
 	allTokens, err := t.tstore.Inventory()
