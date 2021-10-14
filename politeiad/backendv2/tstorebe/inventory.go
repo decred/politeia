@@ -47,8 +47,8 @@ func (t *tstoreBackend) invPathVetted() string {
 //
 // This function must be called WITHOUT the write lock held.
 func (t *tstoreBackend) invRemoveUnvetted() error {
-	t.RLock()
-	defer t.RUnlock()
+	t.Lock()
+	defer t.Unlock()
 
 	return os.RemoveAll(t.invPathUnvetted())
 }
@@ -57,8 +57,8 @@ func (t *tstoreBackend) invRemoveUnvetted() error {
 //
 // This function must be called WITHOUT the write lock held.
 func (t *tstoreBackend) invRemoveVetted() error {
-	t.RLock()
-	defer t.RUnlock()
+	t.Lock()
+	defer t.Unlock()
 
 	return os.RemoveAll(t.invPathVetted())
 }
