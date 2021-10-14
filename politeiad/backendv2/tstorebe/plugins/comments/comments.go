@@ -104,7 +104,7 @@ func (p *commentsPlugin) Hook(h plugins.HookT, payload string) error {
 func (p *commentsPlugin) Fsck(tokens [][]byte) error {
 	log.Tracef("comments Fsck")
 
-	log.Infof("Starting comments fsck")
+	log.Infof("Starting comments fsck for %v records", len(tokens))
 
 	counter := 0 // number of rebuilded record indexes
 
@@ -125,7 +125,7 @@ func (p *commentsPlugin) Fsck(tokens [][]byte) error {
 		if err != nil {
 			return err
 		}
-		// Get comment votes digests for this record token.
+		// Get comment vote digests for this record token.
 		digestsVote, err := p.tstore.DigestsByDataDesc(token,
 			[]string{dataDescriptorCommentVote})
 		if err != nil {
@@ -227,8 +227,6 @@ func (p *commentsPlugin) Fsck(tokens [][]byte) error {
 		// Initialize map for the comment indexes.
 		index := make(map[uint32]*commentIndex)
 
-		// Build comment adds.
-
 		// Get comment add for the add digests.
 		adds, err := p.commentAdds(token, digestsAdd)
 		if err != nil {
@@ -251,8 +249,6 @@ func (p *commentsPlugin) Fsck(tokens [][]byte) error {
 			index[id].Adds[version] = digestsAdd[k]
 		}
 
-		// Build comment dels.
-
 		// Get comment dels for the del digest.
 		dels, err := p.commentDels(token, digestsDel)
 		if err != nil {
@@ -264,14 +260,12 @@ func (p *commentsPlugin) Fsck(tokens [][]byte) error {
 			index[id].Del = digestsDel[k]
 		}
 
-		// Build comment votes.
-
 		// Get comment votes for the vote digests
 		votes, err := p.commentVotes(token, digestsVote)
 		if err != nil {
 			return err
 		}
-		// Build the Votes entry for the commentIndex.
+		// Build the votes entry for the comment index.
 		for k, v := range votes {
 			userID := v.UserID
 			commentID := v.CommentID
@@ -288,7 +282,7 @@ func (p *commentsPlugin) Fsck(tokens [][]byte) error {
 			return err
 		}
 
-		// Make record index with the comment indexes previously built.
+		// Build record index with the comment indexes previously built.
 		var ri recordIndex
 		ri.Comments = make(map[uint32]commentIndex)
 		for id, indx := range index {
