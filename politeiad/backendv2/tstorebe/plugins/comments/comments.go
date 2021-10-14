@@ -102,12 +102,36 @@ func (p *commentsPlugin) Hook(h plugins.HookT, payload string) error {
 func (p *commentsPlugin) Fsck(tokens [][]byte) error {
 	log.Tracef("comments Fsck")
 
-	// Verify the cohereny of the record index for each token. This
-	// includes verifying that:
-	// - All comment adds are present in the record index.
-	// - All comment dels are present in the record index and the
-	//   corresponding comment adds have been deleted from the db.
-	// - All comment votes are present in the record index.
+	log.Infof("Starting comments fsck for %v records", len(tokens))
+
+	// Navigate the provided record tokens and verify their record index
+	// comments cache integrity. This will only rebuild the cache if any
+	// inconsistency is found.
+
+	var counter int // number of record indexes rebuilt.
+
+	for _, token := range tokens {
+		// Verify the coherency of the record index.
+		isCoherent, digests, err := p.verifyRecordIndex(token)
+		if err != nil {
+			return err
+		}
+
+		if isCoherent {
+			continue
+		}
+
+		// The record index is not coherent and needs to be rebuilt.
+		err = p.rebuildRecordIndex(token, *digests)
+		if err != nil {
+			return err
+		}
+
+		counter++
+	}
+
+	log.Infof("%v comment record indexes verified", len(tokens))
+	log.Infof("%v comment record indexes rebuilt", counter)
 
 	return nil
 }

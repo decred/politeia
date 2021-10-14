@@ -178,7 +178,7 @@ func (t *Tstore) Fsck(allTokens [][]byte) error {
 	for _, pluginID := range t.pluginIDs() {
 		p, _ := t.plugin(pluginID)
 
-		log.Infof("Performing plugin fsck for the %v plugin", pluginID)
+		log.Infof("Performing fsck for the %v plugin", pluginID)
 
 		err := p.client.Fsck(allTokens)
 		if err != nil {

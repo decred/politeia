@@ -44,12 +44,22 @@ func (t *tstoreBackend) invPathVetted() string {
 }
 
 // invRemoveUnvetted removes the unvetted inventory from its respective path.
+//
+// This function must be called WITHOUT the write lock held.
 func (t *tstoreBackend) invRemoveUnvetted() error {
+	t.Lock()
+	defer t.Unlock()
+
 	return os.RemoveAll(t.invPathUnvetted())
 }
 
 // invRemoveVetted removes the vetted inventory from its respective path.
+//
+// This function must be called WITHOUT the write lock held.
 func (t *tstoreBackend) invRemoveVetted() error {
+	t.Lock()
+	defer t.Unlock()
+
 	return os.RemoveAll(t.invPathVetted())
 }
 

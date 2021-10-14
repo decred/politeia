@@ -370,7 +370,7 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 		}
 	}
 
-	log.Infof("%v records summaries cache verified", len(tokens))
+	log.Infof("%v ticketvote summaries verified", len(tokens))
 	log.Infof("%v records audited for eligible cast votes", len(tokens))
 
 	// Verify the coherency of the submissions cache.
@@ -407,7 +407,7 @@ func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 		}
 	}
 
-	log.Infof("%v RFP parents submissions cache verified", len(rfps))
+	log.Infof("%v RFP submission lists verified", len(rfps))
 
 	// Rebuild the ticketvote inventory cache.
 
