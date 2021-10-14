@@ -45,7 +45,12 @@ func (p *ticketVotePlugin) invPath() string {
 }
 
 // invRemove removes the ticketvote inventory from its respective path.
+//
+// This function must be called WITHOUT the mtxInv write lock held.
 func (p *ticketVotePlugin) invRemove() error {
+	p.mtxInv.Lock()
+	defer p.mtxInv.Unlock()
+
 	return os.RemoveAll(p.invPath())
 }
 

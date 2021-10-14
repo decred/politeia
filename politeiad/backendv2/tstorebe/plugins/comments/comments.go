@@ -108,7 +108,7 @@ func (p *commentsPlugin) Fsck(tokens [][]byte) error {
 	// comments cache integrity. This will only rebuild the cache if any
 	// inconsistency is found.
 
-	counter := 0 // number of rebuilded record indexes
+	var counter int // number of record indexes rebuilt.
 
 	for _, token := range tokens {
 		// Verify the coherency of the record index.
@@ -130,8 +130,8 @@ func (p *commentsPlugin) Fsck(tokens [][]byte) error {
 		counter++
 	}
 
-	log.Infof("%v records comments cache verified", len(tokens))
-	log.Infof("%v records comments cache rebuilt", counter)
+	log.Infof("%v comment record indexes verified", len(tokens))
+	log.Infof("%v comment record indexes rebuilt", counter)
 
 	return nil
 }
