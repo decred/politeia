@@ -669,7 +669,7 @@ func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error
 		return errors.Errorf("unknown state: %v", state)
 	}
 
-	// Validate vote status.
+	// Validate vote status
 	vs, err := p.voteSummary(token)
 	if err != nil {
 		return err
