@@ -1,5 +1,3 @@
-// Copyright (c) 2020-2021 The Decred developers
-// Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package pi
@@ -659,12 +657,19 @@ func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error
 	}
 	state := r.RecordMetadata.State
 
-	// If record is unvetted comment writes are allowed.
-	if state == backend.StateUnvetted {
+	switch state {
+	case backend.StateUnvetted:
+		// Comment writes are allowed
 		return nil
+	case backend.StateVetted:
+		// Comment writes on vetted proposals depends on the
+		// proposal vote status. Continue to the vote status
+		// validation below.
+	default:
+		return errors.Errorf("unknown state: %v", state)
 	}
 
-	// If record is vetted apply vote criteria.
+	// Validate vote status.
 	vs, err := p.voteSummary(token)
 	if err != nil {
 		return err
