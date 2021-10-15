@@ -652,6 +652,19 @@ func (p *piPlugin) writesAllowedOnApprovedProposal(token []byte, cmd, payload st
 // The comment thread will remain open until either the author starts a new
 // update thread or an admin marks the proposal as closed/completed.
 func (p *piPlugin) commentWritesAllowed(token []byte, cmd, payload string) error {
+	// Get record state
+	r, err := p.recordAbridged(token)
+	if err != nil {
+		return err
+	}
+	state := r.RecordMetadata.State
+
+	// If record is unvetted comment writes are allowed.
+	if state == backend.StateUnvetted {
+		return nil
+	}
+
+	// If record is vetted apply vote criteria.
 	vs, err := p.voteSummary(token)
 	if err != nil {
 		return err
