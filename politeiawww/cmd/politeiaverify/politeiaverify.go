@@ -111,12 +111,12 @@ func verifyCensorshipRecord(serverPubKey, token, signature string, filepaths []s
 var (
 	// Regexps for matching file bundles downloaded from politeiagui
 	expJSONFile          = `.json$`
-	expRecord            = `^[0-9a-f]{16}-v[\d]{1,2}.json$`
-	expRecordTimestamps  = `^[0-9a-f]{16}-v[\d]{1,2}-timestamps.json$`
-	expComments          = `^[0-9a-f]{16}-comments.json$`
-	expCommentTimestamps = `^[0-9a-f]{16}-comments-timestamps.json$`
-	expVotes             = `^[0-9a-f]{16}-votes.json$`
-	expVoteTimestamps    = `^[0-9a-f]{16}-votes-timestamps.json$`
+	expRecord            = `^[0-9a-f]{7,16}-v[\d]{1,2}.json$`
+	expRecordTimestamps  = `^[0-9a-f]{7,16}-v[\d]{1,2}-timestamps.json$`
+	expComments          = `^[0-9a-f]{7,16}-comments.json$`
+	expCommentTimestamps = `^[0-9a-f]{7,16}-comments-timestamps.json$`
+	expVotes             = `^[0-9a-f]{7,16}-votes.json$`
+	expVoteTimestamps    = `^[0-9a-f]{7,16}-votes-timestamps.json$`
 
 	regexpJSONFile          = regexp.MustCompile(expJSONFile)
 	regexpRecord            = regexp.MustCompile(expRecord)
