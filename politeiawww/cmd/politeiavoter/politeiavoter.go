@@ -598,6 +598,9 @@ func (c *ctx) records(tokens []string, serverPubKey string) (*rcv1.RecordsReply,
 	// Verify records
 	for _, r := range rsr.Records {
 		err = client.RecordVerify(r, serverPubKey)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &rsr, nil
