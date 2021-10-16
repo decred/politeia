@@ -640,7 +640,7 @@ func (c *ctx) inventory() error {
 		return nil
 	}
 
-	// Retrieve proposals' metadata and store proposal names in a
+	// Retrieve the proposals metadata and store proposal names in a
 	// map[token] => name.
 	names := make(map[string]string, len(tokens))
 	remainingTokens := tokens
