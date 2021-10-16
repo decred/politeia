@@ -40,6 +40,8 @@ import (
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
+	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/client"
@@ -508,6 +510,45 @@ func (c *ctx) _inventory(i tkv1.Inventory) (*tkv1.InventoryReply, error) {
 	return &ar, nil
 }
 
+// records sends records API Records request, then verifies and returns
+// the reply.
+func (c *ctx) records(tokens []string, serverPubKey string) (*rcv1.RecordsReply, error) {
+	// Prepare request
+	reqs := make([]rcv1.RecordRequest, 0, len(tokens))
+	for _, t := range tokens {
+		reqs = append(reqs, rcv1.RecordRequest{
+			Token: t,
+			Filenames: []string{
+				piv1.FileNameProposalMetadata,
+			},
+		})
+	}
+	rs := rcv1.Records{
+		Requests: reqs,
+	}
+
+	// Send request
+	responseBody, err := c.makeRequest(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteRecords, rs)
+	if err != nil {
+		return nil, err
+	}
+
+	var rsr rcv1.RecordsReply
+	err = json.Unmarshal(responseBody, &rsr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal RecordsReply: %v",
+			err)
+	}
+
+	// Verify records
+	for _, r := range rsr.Records {
+		err = client.RecordVerify(r, serverPubKey)
+	}
+
+	return &rsr, nil
+}
+
 // voteDetails sends ticketvote API Details request, then verifies and
 // returns the reply.
 func (c *ctx) voteDetails(token, serverPubKey string) (*tkv1.DetailsReply, error) {
@@ -597,6 +638,43 @@ func (c *ctx) inventory() error {
 		return nil
 	}
 
+	// Get records metdata and store proposal names to print them. If number of
+	// tokens exceeds the Records route page size, fetch records page by page.
+	//
+	// Store proposal name is a map[token] => name.
+	names := make(map[string]string, len(tokens))
+	remainingTokens := tokens
+	for {
+		var page []string
+		if len(remainingTokens) > rcv1.RecordsPageSize {
+			page = remainingTokens[:rcv1.RecordsPageSize]
+			remainingTokens = remainingTokens[rcv1.RecordsPageSize:]
+		} else {
+			page = remainingTokens
+			remainingTokens = []string{}
+		}
+
+		// Fetch page of records
+		reply, err := c.records(page, serverPubKey)
+		if err != nil {
+			return err
+		}
+
+		// Get proposal metadata and store proposal name in map.
+		for token, record := range reply.Records {
+			md, err := client.ProposalMetadataDecode(record.Files)
+			if err != nil {
+				return nil
+			}
+			names[token] = md.Name
+		}
+
+		// If has no more more tokens to fetch, break.
+		if len(remainingTokens) == 0 {
+			break
+		}
+	}
+
 	for _, t := range tokens {
 		// Get vote details.
 		dr, err := c.voteDetails(t, serverPubKey)
@@ -646,8 +724,11 @@ func (c *ctx) inventory() error {
 			continue
 		}
 
+		name, _ := names[t]
+
 		// Display vote bits
 		fmt.Printf("Vote: %v\n", dr.Vote.Params.Token)
+		fmt.Printf("  Proposal        : %v\n", name)
 		fmt.Printf("  Start block     : %v\n", dr.Vote.StartBlockHeight)
 		fmt.Printf("  End block       : %v\n", dr.Vote.EndBlockHeight)
 		fmt.Printf("  Mask            : %v\n", dr.Vote.Params.Mask)
@@ -658,7 +739,7 @@ func (c *ctx) inventory() error {
 			fmt.Printf("    Id                   : %v\n", vo.ID)
 			fmt.Printf("    Description          : %v\n",
 				vo.Description)
-			fmt.Printf("    Bit                 : %v\n", vo.Bit)
+			fmt.Printf("    Bit                  : %v\n", vo.Bit)
 			fmt.Printf("    To choose this option: "+
 				"politeiavoter vote %v %v\n", dr.Vote.Params.Token,
 				vo.ID)
