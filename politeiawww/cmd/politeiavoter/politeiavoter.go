@@ -510,45 +510,6 @@ func (c *ctx) _inventory(i tkv1.Inventory) (*tkv1.InventoryReply, error) {
 	return &ar, nil
 }
 
-// records sends records API Records request, then verifies and returns
-// the reply.
-func (c *ctx) records(tokens []string, serverPubKey string) (*rcv1.RecordsReply, error) {
-	// Prepare request
-	reqs := make([]rcv1.RecordRequest, 0, len(tokens))
-	for _, t := range tokens {
-		reqs = append(reqs, rcv1.RecordRequest{
-			Token: t,
-			Filenames: []string{
-				piv1.FileNameProposalMetadata,
-			},
-		})
-	}
-	rs := rcv1.Records{
-		Requests: reqs,
-	}
-
-	// Send request
-	responseBody, err := c.makeRequest(http.MethodPost, rcv1.APIRoute,
-		rcv1.RouteRecords, rs)
-	if err != nil {
-		return nil, err
-	}
-
-	var rsr rcv1.RecordsReply
-	err = json.Unmarshal(responseBody, &rsr)
-	if err != nil {
-		return nil, fmt.Errorf("Could not unmarshal RecordsReply: %v",
-			err)
-	}
-
-	// Verify records
-	for _, r := range rsr.Records {
-		err = client.RecordVerify(r, serverPubKey)
-	}
-
-	return &rsr, nil
-}
-
 // voteDetails sends ticketvote API Details request, then verifies and
 // returns the reply.
 func (c *ctx) voteDetails(token, serverPubKey string) (*tkv1.DetailsReply, error) {
@@ -602,6 +563,44 @@ func (c *ctx) voteResults(token, serverPubKey string) (*tkv1.ResultsReply, error
 	}
 
 	return &rr, nil
+}
+
+// records sends records API Records request, then verifies and returns
+// the reply.
+func (c *ctx) records(tokens []string, serverPubKey string) (*rcv1.RecordsReply, error) {
+	// Prepare request
+	reqs := make([]rcv1.RecordRequest, 0, len(tokens))
+	for _, t := range tokens {
+		reqs = append(reqs, rcv1.RecordRequest{
+			Token: t,
+			Filenames: []string{
+				piv1.FileNameProposalMetadata,
+			},
+		})
+	}
+
+	// Send request
+	responseBody, err := c.makeRequest(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteRecords, rcv1.Records{
+			Requests: reqs,
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	var rsr rcv1.RecordsReply
+	err = json.Unmarshal(responseBody, &rsr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal RecordsReply: %v",
+			err)
+	}
+
+	// Verify records
+	for _, r := range rsr.Records {
+		err = client.RecordVerify(r, serverPubKey)
+	}
+
+	return &rsr, nil
 }
 
 func (c *ctx) inventory() error {
