@@ -565,8 +565,7 @@ func (c *ctx) voteResults(token, serverPubKey string) (*tkv1.ResultsReply, error
 	return &rr, nil
 }
 
-// records sends a records API Records request, then verifies and returns
-// the reply.
+// records sends a records API Records request and returns the reply.
 func (c *ctx) records(tokens []string, serverPubKey string) (*rcv1.RecordsReply, error) {
 	// Prepare request
 	reqs := make([]rcv1.RecordRequest, 0, len(tokens))
@@ -593,14 +592,6 @@ func (c *ctx) records(tokens []string, serverPubKey string) (*rcv1.RecordsReply,
 	if err != nil {
 		return nil, fmt.Errorf("Could not unmarshal RecordsReply: %v",
 			err)
-	}
-
-	// Verify records
-	for _, r := range rsr.Records {
-		err = client.RecordVerify(r, serverPubKey)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return &rsr, nil
