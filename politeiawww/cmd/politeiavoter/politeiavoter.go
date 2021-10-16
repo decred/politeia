@@ -510,7 +510,7 @@ func (c *ctx) _inventory(i tkv1.Inventory) (*tkv1.InventoryReply, error) {
 	return &ar, nil
 }
 
-// voteDetails sends ticketvote API Details request, then verifies and
+// voteDetails sends a ticketvote API Details request, then verifies and
 // returns the reply.
 func (c *ctx) voteDetails(token, serverPubKey string) (*tkv1.DetailsReply, error) {
 	d := tkv1.Details{
@@ -565,7 +565,7 @@ func (c *ctx) voteResults(token, serverPubKey string) (*tkv1.ResultsReply, error
 	return &rr, nil
 }
 
-// records sends records API Records request, then verifies and returns
+// records sends a records API Records request, then verifies and returns
 // the reply.
 func (c *ctx) records(tokens []string, serverPubKey string) (*rcv1.RecordsReply, error) {
 	// Prepare request
@@ -637,13 +637,11 @@ func (c *ctx) inventory() error {
 		return nil
 	}
 
-	// Get records metdata and store proposal names to print them. If number of
-	// tokens exceeds the Records route page size, fetch records page by page.
-	//
-	// Store proposal name is a map[token] => name.
+	// Retrieve proposals' metadata and store proposal names in a
+	// map[token] => name.
 	names := make(map[string]string, len(tokens))
 	remainingTokens := tokens
-	for {
+	for len(remainingTokens) == 0 {
 		var page []string
 		if len(remainingTokens) > rcv1.RecordsPageSize {
 			page = remainingTokens[:rcv1.RecordsPageSize]
@@ -666,11 +664,6 @@ func (c *ctx) inventory() error {
 				return nil
 			}
 			names[token] = md.Name
-		}
-
-		// If has no more more tokens to fetch, break.
-		if len(remainingTokens) == 0 {
-			break
 		}
 	}
 
@@ -723,11 +716,9 @@ func (c *ctx) inventory() error {
 			continue
 		}
 
-		name, _ := names[t]
-
 		// Display vote bits
 		fmt.Printf("Vote: %v\n", dr.Vote.Params.Token)
-		fmt.Printf("  Proposal        : %v\n", name)
+		fmt.Printf("  Proposal        : %v\n", names[t])
 		fmt.Printf("  Start block     : %v\n", dr.Vote.StartBlockHeight)
 		fmt.Printf("  End block       : %v\n", dr.Vote.EndBlockHeight)
 		fmt.Printf("  Mask            : %v\n", dr.Vote.Params.Mask)
