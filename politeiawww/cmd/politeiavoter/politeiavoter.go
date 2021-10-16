@@ -644,7 +644,7 @@ func (c *ctx) inventory() error {
 	// map[token] => name.
 	names := make(map[string]string, len(tokens))
 	remainingTokens := tokens
-	for len(remainingTokens) == 0 {
+	for len(remainingTokens) != 0 {
 		var page []string
 		if len(remainingTokens) > rcv1.RecordsPageSize {
 			page = remainingTokens[:rcv1.RecordsPageSize]
