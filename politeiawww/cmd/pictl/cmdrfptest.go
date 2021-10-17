@@ -56,6 +56,15 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	// Log start time
 	fmt.Printf("Start time: %v\n", timestampFromUnix(time.Now().Unix()))
 
+	// Create a RFP and make it public
+	_, err = proposalPublic(admin, admin, &proposalOpts{
+		Random: true,
+		RFP:    true,
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

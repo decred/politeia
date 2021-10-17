@@ -110,9 +110,9 @@ type pictl struct {
 	SendFaucetTx  cmdSendFaucetTx  `command:"sendfaucettx"`
 	TestRun       cmdTestRun       `command:"testrun"`
 	SeedProposals cmdSeedProposals `command:"seedproposals"`
-	RFPTest       cmdRFPTest       `command:"rfptest"`
 	VoteTestSetup cmdVoteTestSetup `command:"votetestsetup"`
 	VoteTest      cmdVoteTest      `command:"votetest"`
+	RFPTest       cmdRFPTest       `command:"rfptest"`
 	LegacyTest    cmdLegacyTest    `command:"legacytest"`
 
 	// Legacy www routes (deprecated)
