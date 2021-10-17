@@ -162,18 +162,21 @@ type Config struct {
 	SystemCerts *x509.CertPool
 }
 
-// Load initializes and parses the config using a config file and command line
-// options.
+// Load initializes and parses the config using a config file, command line
+// options, and env variables.
 //
 // The configuration proceeds as follows:
 // 	1) Start with a default config with sane settings
 // 	2) Pre-parse the command line to check for an alternative config file
 // 	3) Load configuration file overwriting defaults with any specified options
 // 	4) Parse CLI options and overwrite/add any specified options
+//  5) Parse env variables and overwrite/add any specified options
 //
-// The above results in rpc functioning properly without any config settings
-// while still allowing the user to override settings with config files and
-// command line options.  Command line options always take precedence.
+// The above results in politeia functioning properly without any config
+// settings while still allowing the user to override settings with config
+// files and command line options. Command line options always take precedence
+// over the config file. Env variables always take precendence over the command
+// line options.
 func Load() (*Config, []string, error) {
 	// Setup the default config. Most of settings that contain file
 	// paths are not set to default values and handled later on, once
