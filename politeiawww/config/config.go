@@ -175,7 +175,7 @@ type Config struct {
 // The above results in politeia functioning properly without any config
 // settings while still allowing the user to override settings with config
 // files and command line options. Command line options always take precedence
-// over the config file. Env variables always take precendence over the command
+// over the config file. Env variables always take precedence over the command
 // line options.
 func Load() (*Config, []string, error) {
 	// Setup the default config. Most of settings that contain file
