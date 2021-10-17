@@ -99,6 +99,8 @@ const (
 	defaultMailAddress = "Politeia <noreply@example.org>"
 
 	// Environmental variable config settings
+	envUserDB = "USERDB"
+	envDBHost = "DBHOST"
 	envDBPass = "DBPASS"
 )
 
@@ -139,9 +141,9 @@ type Config struct {
 	Interactive     string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity"`
 
 	// User database settings
-	UserDB string `long:"userdb" description:"Database choice for the user database"`
-	DBHost string `long:"dbhost" description:"Database ip:port"`
-	DBPass string // Provided in env variable "DBPASS"
+	UserDB string `long:"userdb" description:"Database choice for the user database; can also be provided in the USERDB env variable"`
+	DBHost string `long:"dbhost" description:"Database ip:port; can also be provided in the DBHOST env variable"`
+	DBPass string `long:"dbpass" description:"Database password; can also be provided in the DBPASS env variable"`
 
 	// SMTP settings
 	MailHost       string `long:"mailhost" description:"Email server address <host>:<port>"`
@@ -502,6 +504,24 @@ func setupRPCSettings(cfg *Config) error {
 
 // setupUserDBSettings sets up the user database config settings.
 func setupUserDBSettings(cfg *Config) error {
+	// Update the database settings with any env variable
+	// provided values. Env variables supersede existing
+	// config settings.
+	var (
+		userDB = os.Getenv(envUserDB)
+		dbHost = os.Getenv(envDBHost)
+		dbPass = os.Getenv(envDBPass)
+	)
+	if userDB != "" {
+		cfg.UserDB = userDB
+	}
+	if dbHost != "" {
+		cfg.DBHost = dbHost
+	}
+	if dbPass != "" {
+		cfg.DBPass = dbPass
+	}
+
 	// Verify database selection
 	switch cfg.UserDB {
 	case LevelDB, CockroachDB, MySQL:
@@ -524,7 +544,7 @@ func setupUserDBSettings(cfg *Config) error {
 		// validation is performed in the legacy config setup.
 
 	case MySQL:
-		// Verify database host
+		// Verify MySQL settings
 		if cfg.DBHost == "" {
 			cfg.DBHost = defaultMySQLDBHost
 		}
@@ -533,9 +553,6 @@ func setupUserDBSettings(cfg *Config) error {
 			return fmt.Errorf("invalid dbhost '%v': %v",
 				cfg.DBHost, err)
 		}
-
-		// Pull password from env variable
-		cfg.DBPass = os.Getenv(envDBPass)
 		if cfg.DBPass == "" {
 			return fmt.Errorf("dbpass not found; you must provide "+
 				"the database password for the politeiawww user in "+
