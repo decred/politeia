@@ -778,7 +778,7 @@ func (c *ctx) castBallot(cv tkv1.CastVote) {
 		fmt.Printf("Vote rescheduled: %v\n", cv.Ticket)
 		err := c.jsonLog(failedJournal, cv.Token, b, e)
 		if err != nil {
-			return
+			log.Errorf("could not log json: %v", err)
 		}
 		c.retryPush(&retry{vote: cv})
 	} else if err != nil {
