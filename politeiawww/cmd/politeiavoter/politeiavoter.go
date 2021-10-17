@@ -758,6 +758,62 @@ func (c *ctx) voteIntervalLen() uint64 {
 	return uint64(c.voteIntervalQ.Len())
 }
 
+// castBallot sends a cast ballot request to politeiawww. Any encountered
+// errors are logged on exit.
+func (c *ctx) castBallot(cv tkv1.CastVote) {
+	// Log any errors on exit
+	var err error
+	defer func() {
+		if err != nil {
+			log.Error(err)
+		}
+	}()
+
+	// Send off vote
+	b := tkv1.CastBallot{Votes: []tkv1.CastVote{cv}}
+	vr, err := c.sendVote(&b)
+	var e ErrRetry
+	if errors.As(err, &e) {
+		// Append failed vote to retry queue
+		fmt.Printf("Vote rescheduled: %v\n", cv.Ticket)
+		err := c.jsonLog(failedJournal, cv.Token, b, e)
+		if err != nil {
+			err = fmt.Errorf("could not log json: %v",
+				err)
+			return
+		}
+		c.retryPush(&retry{vote: cv})
+	} else if err != nil {
+		// Unrecoverable error
+		err = fmt.Errorf("unrecoverable error: %v",
+			err)
+		return
+	} else {
+		// Vote completed
+		c.Lock()
+		c.ballotResults = append(c.ballotResults, *vr)
+		c.Unlock()
+
+		if vr.ErrorCode == tkv1.VoteErrorVoteStatusInvalid {
+			// Force an exit of the both the main queue and the
+			// retry queue if the voting period has ended.
+			err = c.jsonLog(failedJournal, cv.Token, vr)
+			if err != nil {
+				log.Errorf("could not log json: %v", err)
+			}
+			fmt.Printf("Vote has ended; forced exit main vote queue.\n")
+			fmt.Printf("Awaiting retry vote queue to exit.\n")
+			c.mainLoopForceExit <- struct{}{}
+			return
+		}
+
+		err = c.jsonLog(successJournal, cv.Token, vr)
+		if err != nil {
+			return
+		}
+	}
+}
+
 // _voteTrickler trickles votes to the server. The idea here is to not issue
 // large number of votes in one go to the server at the same time giving away
 // which IP address owns what votes.
@@ -789,6 +845,13 @@ func (c *ctx) _voteTrickler(token string) error {
 		case <-c.wctx.Done():
 			goto exit
 		case <-time.After(vote.At):
+		case <-c.mainLoopForceExit:
+			// The main loop is forcing an exit. Put vote back
+			// into the queue before exiting so the vote summary
+			// statistics are correct.
+			c.voteIntervalPush(vote)
+			fmt.Printf("Forced exit main vote queue.\n")
+			goto exit
 		case <-c.retryLoopForceExit:
 			// The retry loop is forcing an exit. Put vote back
 			// into the queue before exiting so the vote summary
@@ -802,46 +865,7 @@ func (c *ctx) _voteTrickler(token string) error {
 		fmt.Printf("Voting: %v/%v %v\n", i+1, voteCount,
 			vote.Vote.Ticket)
 
-		// Send off vote
-		b := tkv1.CastBallot{Votes: []tkv1.CastVote{vote.Vote}}
-		vr, err := c.sendVote(&b)
-		var e ErrRetry
-		if errors.As(err, &e) {
-			// Append failed vote to retry queue
-			fmt.Printf("Vote rescheduled: %v\n", vote.Vote.Ticket)
-			err := c.jsonLog(failedJournal, token, b, e)
-			if err != nil {
-				return err
-			}
-			c.retryPush(&retry{vote: vote.Vote})
-		} else if err != nil {
-			// Unrecoverable error
-			return fmt.Errorf("unrecoverable error: %v",
-				err)
-		} else {
-			// Vote completed
-			c.Lock()
-			c.ballotResults = append(c.ballotResults, *vr)
-			c.Unlock()
-
-			if vr.ErrorCode == tkv1.VoteErrorVoteStatusInvalid {
-				// Force an exit of the both the main queue and the
-				// retry queue if the voting period has ended.
-				err = c.jsonLog(failedJournal, token, vr)
-				if err != nil {
-					return err
-				}
-				fmt.Printf("Vote has ended; forced exit main vote queue.\n")
-				fmt.Printf("Awaiting retry vote queue to exit.\n")
-				c.mainLoopForceExit <- struct{}{}
-				goto exit
-			}
-
-			err = c.jsonLog(successJournal, token, vr)
-			if err != nil {
-				return err
-			}
-		}
+		go c.castBallot(vote.Vote)
 
 		// Go to next vote
 		i++
