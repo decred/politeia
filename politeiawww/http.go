@@ -13,6 +13,19 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+/*
+Add custom permission classes.
+Set permissions on routes.
+Set permissions on users.
+Routes check permissions.
+
+Need a permissions user plugin.
+Set permission on user creation.
+Update permission.
+*/
+
+func (p *politeiawww) setupRoutes() {}
+
 func (p *politeiawww) addRoute(method string, routePrefix string, route string, handler http.HandlerFunc) {
 	fullRoute := routePrefix + route
 

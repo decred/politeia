@@ -186,8 +186,11 @@ func _main() error {
 		legacy: legacywww,
 	}
 
-	// Setup API routes
-	p.setupRecordRoutes()
+	// Setup API routes. For now, only set these up
+	// if the legacy routes have been disabled.
+	if cfg.DisableLegacy {
+		p.setupRoutes()
+	}
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)
