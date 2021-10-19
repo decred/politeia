@@ -239,7 +239,9 @@ func _main() error {
 done:
 	log.Infof("Exiting")
 
-	p.legacy.Close()
+	if p.legacy != nil {
+		p.legacy.Close()
+	}
 
 	return nil
 }

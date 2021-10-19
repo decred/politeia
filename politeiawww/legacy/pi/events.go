@@ -19,9 +19,9 @@ import (
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/politeiawww/legacy/comments"
+	"github.com/decred/politeia/politeiawww/legacy/records"
 	"github.com/decred/politeia/politeiawww/legacy/ticketvote"
 	"github.com/decred/politeia/politeiawww/legacy/user"
-	"github.com/decred/politeia/politeiawww/records"
 	"github.com/google/uuid"
 )
 
