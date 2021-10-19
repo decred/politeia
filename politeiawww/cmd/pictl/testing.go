@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
+	pclient "github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
 )
@@ -367,15 +368,23 @@ func voteStart(admin user, token string, duration, quorum, pass uint32) error {
 		return err
 	}
 
-	// Start the voting period
-	c := cmdVoteStart{}
-	c.Args.Token = token
-	c.Args.Duration = duration
-	c.Args.QuorumPercentage = quorum
-	c.Args.PassPercentage = pass
-	err = c.Execute(nil)
+	// Setup client
+	opts := pclient.Opts{
+		HTTPSCert:  cfg.HTTPSCert,
+		Cookies:    cfg.Cookies,
+		HeaderCSRF: cfg.CSRF,
+		Verbose:    cfg.Verbose,
+		RawJSON:    cfg.RawJSON,
+	}
+	pc, err := pclient.New(cfg.Host, opts)
 	if err != nil {
-		return fmt.Errorf("cmdVoteStart: %v", err)
+		return err
+	}
+
+	// Start the voting period
+	_, err = voteStartStandard(token, duration, quorum, pass, pc)
+	if err != nil {
+		return err
 	}
 
 	// Logout admin

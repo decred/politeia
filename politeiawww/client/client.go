@@ -146,12 +146,12 @@ func (c *Client) makeReq(method string, api, route string, v interface{}) ([]byt
 
 // Opts contains the politeiawww client options. All values are optional.
 //
-// Any provided HTTPSCert will be added to the http client's trusted cert pool,
-// allowing you to interact with a politeiawww instance that uses a self signed
-// cert.
+// Any provided HTTPSCert will be added to the http client's trusted cert
+// pool, allowing you to interact with a politeiawww instance that uses a
+// self signed cert.
 //
-// Authenticated routes require a CSRF cookie as well as the corresponding CSRF
-// header.
+// Authenticated routes require a CSRF cookie as well as the corresponding
+// CSRF header.
 type Opts struct {
 	HTTPSCert  string
 	Cookies    []*http.Cookie
