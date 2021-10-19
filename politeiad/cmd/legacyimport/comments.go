@@ -30,7 +30,7 @@ func (l *legacyImport) parseCommentsJournal(path, legacyToken string, newToken [
 	l.comments[hex.EncodeToString(newToken)] = make(map[string]decredplugin.Comment)
 	l.Unlock()
 
-	fmt.Printf("  comments:   Parsing comments journal for %v...\n", legacyToken)
+	fmt.Printf("  comments:   %v parsing comments journal...\n", legacyToken[:7])
 
 	for i := 0; s.Scan(); i++ {
 		ss := bytes.NewReader([]byte(s.Text()))
@@ -87,7 +87,7 @@ func (l *legacyImport) parseCommentsJournal(path, legacyToken string, newToken [
 		}
 	}
 
-	fmt.Printf("  comments:   Done for %v!\n", legacyToken)
+	fmt.Printf("  comments:   %v Done!\n", legacyToken[:7])
 
 	return nil
 }

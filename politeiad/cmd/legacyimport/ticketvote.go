@@ -23,8 +23,6 @@ func (l *legacyImport) parseBallotJournal(path, legacyToken string, newToken []b
 		return err
 	}
 
-	fmt.Printf("  ticketvote: Pre parsing ballot journal for %v...\n", legacyToken)
-
 	var (
 		tickets         []string // Used to fetch largest commitment address
 		castVoteDetails []*tv.CastVoteDetails
@@ -44,19 +42,16 @@ func (l *legacyImport) parseBallotJournal(path, legacyToken string, newToken []b
 			var cvj castVoteJournalV1
 			err = d.Decode(&cvj)
 			if err != nil {
-				return fmt.Errorf("ballot journal add: %v", err)
+				return err
 			}
 
 			tickets = append(tickets, cvj.CastVote.Ticket)
 			castVoteDetails = append(castVoteDetails, &tv.CastVoteDetails{
-				// Keep legacy token on cast vote detail blob so that we can
-				// verify the signature.
 				Token:     cvj.CastVote.Token,
 				Ticket:    cvj.CastVote.Ticket,
 				VoteBit:   cvj.CastVote.VoteBit,
 				Signature: cvj.CastVote.Signature,
 				Receipt:   cvj.Receipt,
-				// Add commitment address
 				// Add timestamp
 			})
 
@@ -65,14 +60,12 @@ func (l *legacyImport) parseBallotJournal(path, legacyToken string, newToken []b
 		}
 	}
 
-	fmt.Println("  ticketvote: Fetching largest commitment addresses from dcrdata...")
-
 	addrs, err := largestCommitmentAddresses(tickets)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("  ticketvote: Saving ticketvote blobs to tstore for %v...\n", legacyToken)
+	fmt.Printf("  ticketvote: %v parsing ballot journal...\n", legacyToken[:7])
 
 	for _, details := range castVoteDetails {
 		cv := details
@@ -95,7 +88,7 @@ func (l *legacyImport) parseBallotJournal(path, legacyToken string, newToken []b
 		}
 	}
 
-	fmt.Printf("  ticketvote: Done for %v!\n", legacyToken)
+	fmt.Printf("  ticketvote: %v Done!\n", legacyToken[:7])
 
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -58,6 +59,8 @@ var (
 	dbPass    = flag.String("dbpass", defaultDBPass, "mysql DB pass")
 	commentsf = flag.Bool("comments", false, "parse comments journal")
 	ballot    = flag.Bool("ballot", false, "parse ballot journal")
+
+	errorIsRFPSubmission = errors.New("is rfp submission")
 )
 
 type legacyImport struct {
@@ -68,6 +71,10 @@ type legacyImport struct {
 	// comments is a cache used for feeding the parentID data to the
 	// comment del metadata payload.
 	comments map[string]map[string]decredplugin.Comment // [legacyToken][commentid]comment
+
+	// queue holds the RFP submission record paths that needs to be parsed
+	// last, when their respective RFP parent has already been inserted.
+	queue []string
 
 	// tokens is a cache that maps legacy tokens to new tlog tokens, and
 	// is used to get the new token from a legacy RFP proposal for their
@@ -271,10 +278,23 @@ func (l *legacyImport) parseRecordData(rootpath string) (*parsedData, error) {
 
 				// Parse vote metadata.
 				if pm.LinkTo != "" {
+					l.RLock()
+					// Get linkTo tstore token.
+					linkTo := l.tokens[pm.LinkTo]
+					l.RUnlock()
+
+					if linkTo == "" {
+						// RFP Parent has not been inserted yet, put this record
+						// on queue.
+						l.Lock()
+						l.queue = append(l.queue, rootpath)
+						l.Unlock()
+						return errorIsRFPSubmission
+					}
 
 					// Link to RFP parent's new tlog token.
-					voteMd.LinkTo = pm.LinkTo
-					parentToken = pm.LinkTo
+					voteMd.LinkTo = linkTo
+					parentToken = linkTo
 				}
 				if pm.LinkBy != 0 {
 					voteMd.LinkBy = pm.LinkBy
@@ -388,6 +408,16 @@ func (l *legacyImport) saveRecordData(data parsedData) ([]byte, error) {
 	data.statusChangeMd.Token = data.legacyToken
 	// Save new tstore token to record metadata.
 	data.recordMd.Token = hex.EncodeToString(newToken)
+
+	// Check to see if record is RFP. If so, update the RFP parents cache with
+	// the new tlog token.
+	l.Lock()
+	_, ok := l.rfpParents[data.legacyToken]
+	if ok {
+		l.rfpParents[hex.EncodeToString(newToken)] = l.rfpParents[data.legacyToken]
+		delete(l.rfpParents, data.legacyToken)
+	}
+	l.Unlock()
 
 	// Check if record in question is an RFP submission. If so, add it to the
 	// submissions list of its parent.
@@ -503,17 +533,17 @@ func _main() error {
 	var wg sync.WaitGroup
 	for _, path := range paths {
 		pData, err := l.parseRecordData(path)
-		// if err == errorIsRFPSubmission {
-		// 	// This record is an RFP submission and is on queue, will be parsed
-		// 	// last.
-		// 	continue
-		// }
+		if err == errorIsRFPSubmission {
+			// This record is an RFP submission and is on queue, will be parsed
+			// last.
+			continue
+		}
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("legacyimport: Parsing record %v on thread %v\n",
-			pData.recordMd.Token, i)
+		fmt.Printf("legacyimport: %v record being parsed on thread %v\n",
+			pData.recordMd.Token[:7], i)
 
 		i++
 		wg.Add(1)
@@ -526,8 +556,8 @@ func _main() error {
 				panic(err)
 			}
 
-			fmt.Printf("legacyimport: Parsed record %v. new tlog token: %v\n",
-				data.legacyToken, hex.EncodeToString(newToken))
+			fmt.Printf("legacyimport: Parsed record %v, new tlog token: %v\n",
+				data.legacyToken[:7], hex.EncodeToString(newToken))
 
 			return nil
 		}(*pData)
@@ -536,12 +566,45 @@ func _main() error {
 
 	fmt.Println("legacyimport: Done parsing first batch!")
 
+	fmt.Printf("legacyimport: Parsing %v on queue records...\n", len(l.queue))
+
+	// Now we parse the remaining RFP submission proposals.
+	i = 0
+	var qwg sync.WaitGroup
+	for _, path = range l.queue {
+		pData, err := l.parseRecordData(path)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("legacyimport: %v queued record being parsed on thread %v\n",
+			pData.recordMd.Token[:7], i)
+
+		i++
+		qwg.Add(1)
+		go func(data parsedData) error {
+			defer qwg.Done()
+
+			// Save legacy record on tstore.
+			newToken, err := l.saveRecordData(data)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("legacyimport: Parsed record %v, new tlog token: %v\n",
+				data.legacyToken[:7], hex.EncodeToString(newToken))
+
+			return nil
+		}(*pData)
+	}
+
+	qwg.Wait()
+
 	// Add the dataDescriptorStartRunoff blob for each RFP parent after
 	// the submissions list has been built.
 	l.RLock()
 	for token, startRunoffRecord := range l.rfpParents {
-		tlogToken := l.tokens[token]
-		b, err := hex.DecodeString(tlogToken)
+		b, err := hex.DecodeString(token)
 		if err != nil {
 			return err
 		}
