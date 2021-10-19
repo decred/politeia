@@ -146,6 +146,9 @@ func _main() error {
 	// Setup 404 handler
 	router.NotFoundHandler = http.HandlerFunc(handleNotFound)
 
+	// Ignore trailing slashes on routes
+	router.StrictSlash(true)
+
 	// Setup a subrouter that is CSRF protected. Authenticated routes
 	// are required to use the auth router. The subrouter takes on the
 	// configuration of the router that it was spawned from, including
@@ -182,6 +185,9 @@ func _main() error {
 		events: events.NewManager(),
 		legacy: legacywww,
 	}
+
+	// Setup API routes
+	p.setupRecordRoutes()
 
 	// Bind to a port and pass our router in
 	listenC := make(chan error)

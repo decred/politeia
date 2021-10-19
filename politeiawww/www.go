@@ -13,6 +13,13 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+func (p *politeiawww) addRoute(method string, routePrefix string, route string, handler http.HandlerFunc) {
+	fullRoute := routePrefix + route
+
+	// Add route to public router
+	p.router.HandleFunc(fullRoute, handler).Methods(method)
+}
+
 // handleNotFound handles all invalid routes and returns a 404 to the client.
 func handleNotFound(w http.ResponseWriter, r *http.Request) {
 	// Log incoming connection
