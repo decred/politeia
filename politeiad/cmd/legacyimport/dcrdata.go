@@ -68,9 +68,6 @@ func largestCommitmentAddresses(hashes []string) (map[string]largestCommitmentRe
 			}
 			if *v.ScriptPubKeyDecoded.CommitAmt > bestAmount {
 				if len(v.ScriptPubKeyDecoded.Addresses) == 0 {
-					// jrick, does this need to be printed?
-					fmt.Errorf("unexpected addresses "+
-						"length: %v", ttxs[i].TxID)
 					continue
 				}
 				bestAddr = v.ScriptPubKeyDecoded.Addresses[0]

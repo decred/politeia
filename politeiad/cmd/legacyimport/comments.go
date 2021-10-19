@@ -109,30 +109,6 @@ func (l *legacyImport) blobSaveCommentAdd(c decredplugin.Comment, newToken []byt
 		return err
 	}
 
-	// fmt.Println("before verify comment")
-	// // Verify comment blob signature
-	// cv1 := v1.Comment{
-	// 	UserID:    usr.ID,
-	// 	Username:  "",
-	// 	State:     v1.RecordStateT(comments.RecordStateVetted),
-	// 	Token:     c.Token,
-	// 	ParentID:  uint32(pid),
-	// 	Comment:   c.Comment,
-	// 	PublicKey: c.PublicKey,
-	// 	Signature: c.Signature,
-	// 	CommentID: uint32(cid),
-	// 	Timestamp: c.Timestamp,
-	// 	Receipt:   c.Receipt,
-	// 	Downvotes: 0,
-	// 	Upvotes:   0,
-	// 	Deleted:   false,
-	// 	Reason:    "",
-	// }
-	// err = client.CommentVerify(cv1, serverPubkey)
-	// if err != nil {
-	// 	return err
-	// }
-
 	// Create comment add blob entry
 	cn := &comments.CommentAdd{
 		// UserID:    usr.ID,
