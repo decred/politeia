@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -59,8 +58,6 @@ var (
 	dbPass    = flag.String("dbpass", defaultDBPass, "mysql DB pass")
 	commentsf = flag.Bool("comments", false, "parse comments journal")
 	ballot    = flag.Bool("ballot", false, "parse ballot journal")
-
-	errorIsRFPSubmission = errors.New("is rfp submission")
 )
 
 type legacyImport struct {
@@ -77,15 +74,17 @@ type legacyImport struct {
 	// submissions and feed the LinkTo metadata field.
 	tokens map[string]string // [legacyToken]newToken
 
-	// queue holds the RFP submission record paths that needs to be parsed
-	// last, when their respective RFP parent has already been inserted.
-	queue []string
-
+	// rfpParents holds the startRunoffRecord blob of each RFP parent to be
+	// saved at a later stage of the parsing.
 	rfpParents map[string]*startRunoffRecord
+
+	// versions holds a cache for the record latest version being parsed.
+	versions map[string]int // [legacyToken]version
 }
 
+// newLegacyImport returns an initialized legacyImport with an open tstore
+// connection and client http.
 func newLegacyImport() (*legacyImport, error) {
-	// Initialize tstore instance.
 	ts, err := tstore.New(defaultHomeDir, defaultDataDir, activeNetParams.Params,
 		*tlogHost, *tlogPass, defaultDBType, *dbHost, *dbPass,
 		v1.DefaultTestnetTimeHost,
@@ -94,7 +93,6 @@ func newLegacyImport() (*legacyImport, error) {
 		return nil, err
 	}
 
-	// Initialize http client to make pi requests.
 	c, err := util.NewHTTPClient(false, "")
 	if err != nil {
 		return nil, err
@@ -106,14 +104,15 @@ func newLegacyImport() (*legacyImport, error) {
 		comments:   make(map[string]map[string]decredplugin.Comment),
 		tokens:     make(map[string]string),
 		rfpParents: make(map[string]*startRunoffRecord),
+		versions:   make(map[string]int),
 	}, nil
 }
 
 // preParsePaths builds an optimized traversal path for the git record
 // repository.
-func preParsePaths(path string) (map[string]string, error) {
-	// Pre-parse git records folder and get the path for each record's
-	// latest version.
+func (l *legacyImport) preParsePaths(path string) (map[string]string, error) {
+	// Walk the repository and parse the location of each record's latest
+	// version.
 	var (
 		token       string
 		version     int
@@ -147,7 +146,13 @@ func preParsePaths(path string) (map[string]string, error) {
 				versionPath = path
 			}
 
+			// Save version path on the paths slice to be returned.
 			paths[token] = versionPath
+
+			// Save cache of legacy record latest version.
+			l.Lock()
+			l.versions[token] = version
+			l.Unlock()
 
 			return nil
 		})
@@ -213,11 +218,16 @@ func (l *legacyImport) parseRecordData(rootpath string) (*parsedData, error) {
 				if err != nil {
 					return err
 				}
+				// Get correct record version from cache. The version in 13.metadata.txt
+				// is not coherent. This makes the signature verify successfully.
+				l.RLock()
+				authDetailsMd.Version = uint32(l.versions[authDetailsMd.Token])
+				l.RUnlock()
 			}
 
 			// Build start vote metadata.
 			if info.Name() == "14.metadata.txt" {
-				startVoteMd, err = convertStartVoteMetadata(path)
+				startVoteMd, err = l.convertStartVoteMetadata(path)
 				if err != nil {
 					return err
 				}
@@ -225,7 +235,7 @@ func (l *legacyImport) parseRecordData(rootpath string) (*parsedData, error) {
 
 			// Build vote details metadata.
 			if info.Name() == "15.metadata.txt" {
-				voteDetailsMd, err = convertVoteDetailsMetadata(path, startVoteMd.Starts)
+				voteDetailsMd, err = convertVoteDetailsMetadata(path, startVoteMd.Starts[0])
 				if err != nil {
 					return err
 				}
@@ -261,22 +271,10 @@ func (l *legacyImport) parseRecordData(rootpath string) (*parsedData, error) {
 
 				// Parse vote metadata.
 				if pm.LinkTo != "" {
-					l.RLock()
-					linkTo := l.tokens[pm.LinkTo]
-					l.RUnlock()
-
-					if linkTo == "" {
-						// RFP Parent has not been inserted yet, put this record
-						// on queue.
-						l.Lock()
-						l.queue = append(l.queue, rootpath)
-						l.Unlock()
-						return errorIsRFPSubmission
-					}
 
 					// Link to RFP parent's new tlog token.
-					voteMd.LinkTo = linkTo
-					parentToken = linkTo
+					voteMd.LinkTo = pm.LinkTo
+					parentToken = pm.LinkTo
 				}
 				if pm.LinkBy != 0 {
 					voteMd.LinkBy = pm.LinkBy
@@ -342,7 +340,8 @@ func (l *legacyImport) parseRecordData(rootpath string) (*parsedData, error) {
 	if voteMd.LinkBy != 0 {
 		l.Lock()
 		l.rfpParents[proposalMd.LegacyToken] = &startRunoffRecord{
-			// Submissions:   Will be set when all records have been parsed and inserted.
+			// Submissions:   Will be set when all records have been parsed
+			// 				  and inserted.
 			Mask:             voteDetailsMd.Params.Mask,
 			Duration:         voteDetailsMd.Params.Duration,
 			QuorumPercentage: voteDetailsMd.Params.QuorumPercentage,
@@ -385,20 +384,10 @@ func (l *legacyImport) saveRecordData(data parsedData) ([]byte, error) {
 		return nil, err
 	}
 
-	// Save new token to record metadata.
+	// Save token to status change metadata.
+	data.statusChangeMd.Token = data.legacyToken
+	// Save new tstore token to record metadata.
 	data.recordMd.Token = hex.EncodeToString(newToken)
-	// Save new token to status change metadata.
-	data.statusChangeMd.Token = hex.EncodeToString(newToken)
-
-	// Check to see if record is RFP. If so, update the RFP parents cache with
-	// the new tlog token.
-	l.Lock()
-	_, ok := l.rfpParents[data.legacyToken]
-	if ok {
-		l.rfpParents[hex.EncodeToString(newToken)] = l.rfpParents[data.legacyToken]
-		delete(l.rfpParents, data.legacyToken)
-	}
-	l.Unlock()
 
 	// Check if record in question is an RFP submission. If so, add it to the
 	// submissions list of its parent.
@@ -436,28 +425,22 @@ func (l *legacyImport) saveRecordData(data parsedData) ([]byte, error) {
 
 	// Save vote details blob, if any.
 	if data.voteDetailsMd != nil {
-		if data.parentToken != "" {
-			data.voteDetailsMd.Params.Parent = data.parentToken
-		}
 		err = l.blobSaveVoteDetails(*data.voteDetailsMd, newToken)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	// TODO: Concurrently parse comments and votes for each record.
-	// wait group for both routines.
-
 	var wg sync.WaitGroup
 	// Spin routine for parsing comments.
 	wg.Add(1)
 	go func() error {
 		defer wg.Done()
-		// Navigate and convert comments journal.
 		if data.commentsPath != "" && *commentsf {
-			err = l.convertCommentsJournal(data.commentsPath, data.legacyToken, newToken)
+			err = l.parseCommentsJournal(data.commentsPath, data.legacyToken,
+				newToken)
 			if err != nil {
-				return err
+				panic(err)
 			}
 		}
 		return nil
@@ -466,19 +449,16 @@ func (l *legacyImport) saveRecordData(data parsedData) ([]byte, error) {
 	wg.Add(1)
 	go func() error {
 		defer wg.Done()
-		// Navigate and convert vote ballot journal.
 		if data.ballotPath != "" && *ballot {
-			err = l.convertBallotJournal(data.ballotPath, data.legacyToken, newToken)
+			err = l.parseBallotJournal(data.ballotPath, data.legacyToken,
+				newToken)
 			if err != nil {
-				return err
+				panic(err)
 			}
 		}
 		return nil
 	}()
-
 	wg.Wait()
-
-	fmt.Println("DONE PARSING COMMENTS&VOTES CONCURRENTLY")
 
 	// Save legacy token to new token mapping in cache.
 	l.Lock()
@@ -509,27 +489,25 @@ func _main() error {
 		return err
 	}
 
-	fmt.Println("legacyimport: Pre parsing record paths...")
-
-	paths, err := preParsePaths(path)
+	paths, err := l.preParsePaths(path)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("legacyimport: Pre parsing complete, parsing %v records...\n", len(paths))
+	fmt.Printf("legacyimport: Parsing %v records...\n", len(paths))
 
-	// First we parse and add all records that are not RFP submissions to
-	// tstore. This is done because their respective RFP parent needs to be
-	// added first in order to link to the new tlog token correctly.
+	// Parse and add all records that are not RFP submissions to tstore.
+	// This is done because their respective RFP parent needs to be added
+	// first in order to link to the new tlog token correctly.
 	i := 0
 	var wg sync.WaitGroup
 	for _, path := range paths {
 		pData, err := l.parseRecordData(path)
-		if err == errorIsRFPSubmission {
-			// This record is an RFP submission and is on queue, will be parsed
-			// last.
-			continue
-		}
+		// if err == errorIsRFPSubmission {
+		// 	// This record is an RFP submission and is on queue, will be parsed
+		// 	// last.
+		// 	continue
+		// }
 		if err != nil {
 			return err
 		}
@@ -558,45 +536,12 @@ func _main() error {
 
 	fmt.Println("legacyimport: Done parsing first batch!")
 
-	fmt.Printf("legacyimport: Parsing %v on queue records...\n", len(l.queue))
-
-	// Now we parse the remaining RFP submission proposals.
-	i = 0
-	var qwg sync.WaitGroup
-	for _, path = range l.queue {
-		pData, err := l.parseRecordData(path)
-		if err != nil {
-			return err
-		}
-
-		fmt.Printf("legacyimport: Parsing queued record %v on thread %v\n",
-			pData.recordMd.Token, i)
-
-		i++
-		qwg.Add(1)
-		go func(data parsedData) error {
-			defer qwg.Done()
-
-			// Save legacy record on tstore.
-			newToken, err := l.saveRecordData(data)
-			if err != nil {
-				return err
-			}
-
-			fmt.Printf("legacyimport: Parsed record %v. new tlog token: %v\n",
-				data.legacyToken, hex.EncodeToString(newToken))
-
-			return nil
-		}(*pData)
-	}
-
-	qwg.Wait()
-
-	// Now we add the dataDescriptorStartRunoff blob for each RFP parent while
-	// building the submissions list.
+	// Add the dataDescriptorStartRunoff blob for each RFP parent after
+	// the submissions list has been built.
 	l.RLock()
 	for token, startRunoffRecord := range l.rfpParents {
-		b, err := hex.DecodeString(token)
+		tlogToken := l.tokens[token]
+		b, err := hex.DecodeString(tlogToken)
 		if err != nil {
 			return err
 		}

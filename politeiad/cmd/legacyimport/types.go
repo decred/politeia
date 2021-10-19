@@ -7,6 +7,8 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
+const serverPubkey = "a70134196c3cdf3f85f8af6abaa38c15feb7bccf5e6d3db6212358363465e502"
+
 // parsedData holds the data needed by tlog to insert the legacy
 // records on tstore.
 type parsedData struct {
@@ -133,7 +135,7 @@ type params struct {
 	WalletRPCServerPort string
 }
 
-// Types for pi API interaction
+// Types for external API (Pi and Dcrdata)
 type user struct {
 	ID       string `json:"id"`
 	Email    string `json:"email,omitempty"`
@@ -143,4 +145,10 @@ type usersReply struct {
 	TotalUsers   uint64 `json:"totalusers,omitempty"`
 	TotalMatches uint64 `json:"totalmatches"`
 	Users        []user `json:"users"`
+}
+
+// largestCommitmentResult returns the largest commitment address or an error.
+type largestCommitmentResult struct {
+	bestAddr string
+	err      error
 }
