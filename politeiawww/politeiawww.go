@@ -161,10 +161,13 @@ func _main() error {
 	}
 
 	// Setup the legacy politeiawww context
-	legacywww, err := legacy.NewPoliteiawww(cfg, router, auth,
-		cfg.ActiveNet.Params, pdc)
-	if err != nil {
-		return err
+	var legacywww *legacy.Politeiawww
+	if !cfg.DisableLegacy {
+		legacywww, err = legacy.NewPoliteiawww(cfg, router, auth,
+			cfg.ActiveNet.Params, pdc)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Setup application context

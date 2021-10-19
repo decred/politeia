@@ -151,7 +151,8 @@ type Config struct {
 	MailPass       string `long:"mailpass" description:"Email server password"`
 	MailAddress    string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
 
-	// Embedded legacy config. This will be deleted soon.
+	// Embedded legacy settings. This will be deleted soon.
+	DisableLegacy bool `long:"disablelegacy" description:"Disable legacy routes"`
 	LegacyConfig
 
 	Version     string
