@@ -13,27 +13,32 @@ import (
 	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
+	"github.com/gorilla/mux"
 )
 
 /*
 Add custom permission classes.
-Set permissions on routes.
+Set permissions on routes. Need to map classes to non-CSRF and CSRF routers.
 Set permissions on users.
 Routes check permissions.
 
-Need a permissions user plugin.
 Set permission on user creation.
-Update permission.
+Allow sysadmin to update user permission.
 */
 
+// setupRoutes sets up the routes for the politeia http API.
 func (p *politeiawww) setupRoutes() {
-	// NOTE: these will override the legacy version routes.
-	// Disable them until we are ready to switch over.
-	// p.addRoute(http.MethodGet, "",
-	//		"/", p.handleVersion)
-	// p.addRoute(http.MethodGet, v1.APIRoute,
-	// 	 v1.RouteVersion, p.handleVersion)
+	/*
+		// NOTE: these will override the legacy version routes.
+		// Disable them until we are ready to switch over.
+		addRoute(p.router, http.MethodGet, "",
+			"/", p.handleVersion)
+		addRoute(p.router, http.MethodGet, v1.APIRoute,
+			v1.RouteVersion, p.handleVersion)
+	*/
 
+	addRoute(p.auth, http.MethodPost, v1.APIRoute,
+		v1.RouteWrite, p.handleWrite)
 }
 
 // handleVersion is the request handler for the http v1 Version command.
@@ -50,11 +55,25 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
-func (p *politeiawww) addRoute(method string, routePrefix string, route string, handler http.HandlerFunc) {
-	fullRoute := routePrefix + route
+// handleWrite is the request handler for the http v1 Write command.
+func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleWrite")
 
-	// Add route to public router
-	p.router.HandleFunc(fullRoute, handler).Methods(method)
+	// Pre plugin hooks
+	//  - Check cookie session
+	//  - Check user permissions
+
+	var wr *v1.WriteReply
+
+	// Post plugin hooks
+
+	util.RespondWithJSON(w, http.StatusOK, wr)
+}
+
+// addRoute adds a route to the provided router.
+func addRoute(router *mux.Router, method string, routePrefix string, route string, handler http.HandlerFunc) {
+	fullRoute := routePrefix + route
+	router.HandleFunc(fullRoute, handler).Methods(method)
 }
 
 // handleNotFound handles all invalid routes and returns a 404 to the client.

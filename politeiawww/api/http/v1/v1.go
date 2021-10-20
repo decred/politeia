@@ -4,8 +4,10 @@
 
 package v1
 
+import "fmt"
+
 const (
-	// APIVersion if the version of the API in this package.
+	// APIVersion if the version of the API that this package represents.
 	APIVersion uint32 = 1
 
 	// APIRoute is prefixed onto all routes defined in this package.
@@ -15,15 +17,23 @@ const (
 	// information. The VersionReply is returned from both the "/" route and the
 	// "/v1/version" route. This allows clients to be able to determine version
 	// information without needing to have any prior knowledge of the API.
+	//
+	// This route also sets CSRF tokens for clients using the double submit
+	// cookie technique. Clients MUST make a successful Version call before
+	// they'll be able to use CSRF protected routes.
 	RouteVersion = "/version"
 
 	// RouteWrite is a POST request route that executes a plugin write command.
+	//
+	// This route is CSRF protected. Clients must obtain CSRF tokens from the
+	// Version route before they'll be able to use this route. A 403 is returned
+	// if the client attempts to use this route without the proper CSRF tokens.
 	RouteWrite = "/write"
 
 	// RouteRead is a POST request route that executes an individual plugin read
 	// command. This route is intended to be used for expensive plugin read
 	// commands that should not be batched due to their memory or performance
-	// requirements. This also allows the sysadmin to set different rate limiting
+	// requirements. This allows the sysadmin to set different rate limiting
 	// constrains for these expensive commands.
 	RouteRead = "/read"
 
@@ -37,6 +47,10 @@ const (
 // Version returns the server version information and the list of plugins that
 // the server is running. The client should verify compatibility with the
 // server version and plugins.
+//
+// This call also sets CSRF tokens using the double submit cookie method.
+// Clients must make a successful Version call before they'll be able to use
+// CSRF protected routes.
 type Version struct{}
 
 // VersionReply is the reply to the Version command.
@@ -66,14 +80,6 @@ type PluginReply struct {
 	Payload  string `json:"payload"` // Reply payload, JSON encoded
 }
 
-// PluginError is the reply that is returned when a plugin command encounters
-// an error that was caused by the user (ex. malformed input, bad timing, etc).
-type PluginError struct {
-	PluginID     string `json:"pluginid"`
-	ErrorCode    uint32 `json:"errorcode"`
-	ErrorContext string `json:"errorcontext,omitempty"`
-}
-
 type Write struct {
 	PluginCmd PluginCmd `json:"plugincmd"`
 }
@@ -83,11 +89,31 @@ type WriteReply struct {
 	Error       error       `json:"error,omitempty"`
 }
 
+// PluginError is the reply that is returned when a plugin command encounters
+// an error that was caused by the user (ex. malformed input, bad timing, etc).
+// The HTTP status code will be 200 and the error will be returned in the
+// Error field of the JSON encoded response body.
+type PluginError struct {
+	PluginID     string `json:"pluginid"`
+	ErrorCode    uint32 `json:"errorcode"`
+	ErrorContext string `json:"errorcontext,omitempty"`
+}
+
+// Error satisfies the error interface.
+func (e PluginError) Error() string {
+	return fmt.Sprintf("%v plugin error code: %v", e.PluginID, e.ErrorCode)
+}
+
 // InternalErrorReply is the reply that the server returns when it encounters
 // an unrecoverable error while executing a command. The HTTP status code will
-// be 500 and the ErrorCode field will contain a Unix timestamp that the user
-// can provide to the server operator to track down the error details in the
-// logs.
+// be 500 and the InternalError will be returned in the response body. The
+// ErrorCode field will contain a Unix timestamp that the user can provide to
+// the server operator to track down the error details in the logs.
 type InternalError struct {
 	ErrorCode int64 `json:"errorcode"`
+}
+
+// Error satisfies the error interface.
+func (e InternalError) Error() string {
+	return fmt.Sprintf("internal server error: %v", e.ErrorCode)
 }
