@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"net/http/httputil"
 
+	v1 "github.com/decred/politeia/politeiawww/api/http/v1"
 	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/util"
+	"github.com/decred/politeia/util/version"
 )
 
 /*
@@ -24,7 +26,29 @@ Set permission on user creation.
 Update permission.
 */
 
-func (p *politeiawww) setupRoutes() {}
+func (p *politeiawww) setupRoutes() {
+	// NOTE: these will override the legacy version routes.
+	// Disable them until we are ready to switch over.
+	// p.addRoute(http.MethodGet, "",
+	//		"/", p.handleVersion)
+	// p.addRoute(http.MethodGet, v1.APIRoute,
+	// 	 v1.RouteVersion, p.handleVersion)
+
+}
+
+// handleVersion is the request handler for the http v1 Version command.
+func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleVersion")
+
+	vr := v1.VersionReply{
+		APIVersion:   v1.APIVersion,
+		APIRoute:     v1.APIRoute,
+		BuildVersion: version.String(),
+		Plugins:      []string{},
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vr)
+}
 
 func (p *politeiawww) addRoute(method string, routePrefix string, route string, handler http.HandlerFunc) {
 	fullRoute := routePrefix + route

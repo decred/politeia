@@ -5,29 +5,33 @@
 package v1
 
 const (
+	// APIVersion if the version of the API in this package.
+	APIVersion uint32 = 1
+
 	// APIRoute is prefixed onto all routes defined in this package.
 	APIRoute = "/v1"
 
-	// RouteVersion returns server version information. The VersionReply is
-	// returned from both the "/" route and the "/v1/version" route. This allows
-	// clients to be able to determine version information without needing to
-	// have any prior knowledge of the API.
+	// RouteVersion is a GET request route that returns the server version
+	// information. The VersionReply is returned from both the "/" route and the
+	// "/v1/version" route. This allows clients to be able to determine version
+	// information without needing to have any prior knowledge of the API.
 	RouteVersion = "/version"
 
-	// RouteWrite executes a plugin write command.
+	// RouteWrite is a POST request route that executes a plugin write command.
 	RouteWrite = "/write"
 
-	// RouteRead executes an individual plugin read command. This route is
-	// intended to be used for expensive plugin read commands that should not
-	// be batched due to their memory or performance requirements. This also
-	// allows the sysadmin to set different rate limiting constrains for these
-	// expensive commands.
+	// RouteRead is a POST request route that executes an individual plugin read
+	// command. This route is intended to be used for expensive plugin read
+	// commands that should not be batched due to their memory or performance
+	// requirements. This also allows the sysadmin to set different rate limiting
+	// constrains for these expensive commands.
 	RouteRead = "/read"
 
-	// RouteReads executes a batch of plugin read commands. This route is
-	// intended to be used for inexpensive plugin commands that will not cause
-	// performance issues during the execution of large batches.
-	RouteReads = "/reads"
+	// RouteReadBatch is a POST request route that executes a batch of plugin
+	// read commands. This route is intended to be used for inexpensive plugin
+	// commands that will not cause performance issues during the execution of
+	// large batches.
+	RouteReadBatch = "/readbatch"
 )
 
 // Version returns the server version information and the list of plugins that
@@ -38,7 +42,7 @@ type Version struct{}
 // VersionReply is the reply to the Version command.
 type VersionReply struct {
 	// APIVersion is the lowest supported API version.
-	APIVersion uint `json:"apiversion"`
+	APIVersion uint32 `json:"apiversion"`
 
 	// APIRoute is the API route for the lowest supported API version.
 	APIRoute string `json:"apiroute"`
