@@ -1,173 +1,229 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package sessions
 
 import (
+	"encoding/base32"
 	"errors"
 	"net/http"
-	"time"
 
-	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/legacy/user"
-	"github.com/google/uuid"
+	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 )
 
-const (
-	// SessionMaxAge is the max age for a session in seconds.
-	SessionMaxAge = 86400 // One day
-
-	// Session value keys. A user session contains a map that is used
-	// for application specific values. The following is a list of the
-	// keys for the politeiawww specific values.
-	sessionValueUserID    = "user_id"
-	sessionValueCreatedAt = "created_at"
-)
-
 var (
-	// ErrSessionNotFound is emitted when a session is not found in the
-	// session store.
-	ErrSessionNotFound = errors.New("session not found")
+	_ sessions.Store = (*sessionStore)(nil)
 )
 
-// Sessions manages politeiawww sessions.
-type Sessions struct {
-	store  sessions.Store
-	userdb user.Database
+// sessionStore is a custom sessions store that implements the gorilla/sessions
+// Store interface.
+type sessionStore struct {
+	Codecs  []securecookie.Codec
+	Options *sessions.Options
+	db      DB
 }
 
-func sessionIsExpired(session *sessions.Session) bool {
-	createdAt := session.Values[sessionValueCreatedAt].(int64)
-	expiresAt := createdAt + int64(session.Options.MaxAge)
-	return time.Now().Unix() > expiresAt
+// NewOptions returns a new session Options for the session store that is
+// configured conservatively. Only deviate from this configuration if you
+// know what you're doing.
+func NewOptions(sessionMaxAge int) *sessions.Options {
+	return &sessions.Options{
+		Path:     "/",
+		MaxAge:   sessionMaxAge,
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	}
 }
 
-// GetSession returns the Session for the session ID from the given http
-// request cookie. If no session exists then a new session object is returned.
-// Access IsNew on the session to check if it is an existing session or a new
-// one. The new session will not have any sessions values set, such as user_id,
-// and will not have been saved to the session store yet.
-func (s *Sessions) GetSession(r *http.Request) (*sessions.Session, error) {
-	log.Tracef("GetSession")
-
-	return s.store.Get(r, www.CookieSession)
-}
-
-// GetSessionUserID returns the user ID of the user for the given session. A
-// ErrSessionNotFound error is returned if a user session does not exist or
-// has expired.
-func (s *Sessions) GetSessionUserID(w http.ResponseWriter, r *http.Request) (string, error) {
-	log.Tracef("GetSessionUserID")
-
-	session, err := s.GetSession(r)
-	if err != nil {
-		return "", err
-	}
-	if session.IsNew {
-		// If the session is new it means the request did not contain a
-		// valid session. This could be because it was expired or it
-		// did not exist.
-		log.Debugf("Session not found for user")
-		return "", ErrSessionNotFound
+// New returns a new sessionStore.
+//
+// Keys are defined in pairs to allow key rotation, but the common case is
+// to set a single authentication key and optionally an encryption key.
+//
+// The first key in a pair is used for authentication and the second for
+// encryption. The encryption key can be set to nil or omitted in the last
+// pair, but the authentication key is required in all pairs.
+//
+// It is recommended to use an authentication key with 32 or 64 bytes.
+// The encryption key, if set, must be either 16, 24, or 32 bytes to select
+// AES-128, AES-192, or AES-256 modes.
+func New(db DB, opts *sessions.Options, keyPairs ...[]byte) *sessionStore {
+	// Set default options
+	if opts == nil {
+		opts = NewOptions(0)
 	}
 
-	// Delete the session if its expired. Setting the MaxAge to <= 0
-	// and saving the session will trigger a deletion. The previous
-	// GetSession call should already filter out expired sessions so
-	// this is really just a sanity check.
-	if sessionIsExpired(session) {
-		log.Debug("Session is expired")
-		session.Options.MaxAge = -1
-		s.store.Save(r, w, session)
-		return "", ErrSessionNotFound
-	}
-
-	return session.Values[sessionValueUserID].(string), nil
-}
-
-// GetSessionUser returns the User for the given session. A errSessionFound
-// error is returned if a user session does not exist or has expired.
-func (s *Sessions) GetSessionUser(w http.ResponseWriter, r *http.Request) (*user.User, error) {
-	log.Tracef("GetSessionUser")
-
-	uid, err := s.GetSessionUserID(w, r)
-	if err != nil {
-		return nil, err
-	}
-
-	pid, err := uuid.Parse(uid)
-	if err != nil {
-		return nil, err
-	}
-
-	user, err := s.userdb.UserGetById(pid)
-	if err != nil {
-		return nil, err
-	}
-
-	if user.Deactivated {
-		log.Debugf("User has been deactivated")
-		err := s.DelSession(w, r)
-		if err != nil {
-			return nil, err
+	// Set the maxAge for each securecookie instance
+	codecs := securecookie.CodecsFromPairs(keyPairs...)
+	for _, codec := range codecs {
+		if sc, ok := codec.(*securecookie.SecureCookie); ok {
+			sc.MaxAge(opts.MaxAge)
 		}
-		return nil, ErrSessionNotFound
 	}
 
-	log.Debugf("Session found for user %v", user.ID)
-
-	return user, nil
+	return &sessionStore{
+		Codecs:  codecs,
+		Options: opts,
+		db:      db,
+	}
 }
 
-// DelSession removes the given session from the session store.
-func (s *Sessions) DelSession(w http.ResponseWriter, r *http.Request) error {
-	log.Tracef("DelSession")
+// New returns a session for the given name without adding it to the registry.
+//
+// The sessions Store interface dictates that New() should never return a nil
+// session, even in the case of an error if using the Registry infrastructure
+// to cache the session.
+//
+// The difference between New() and Get() is that calling New() twice will
+// decode the session data twice, while Get() registers and reuses the same
+// decoded session after the first call.
+//
+// This function satisfies the gorilla/sessions Store interface.
+func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Session, error) {
+	log.Tracef("New: %v", cookieName)
 
-	session, err := s.GetSession(r)
+	// Setup new session
+	session := sessions.NewSession(s, cookieName)
+	opts := *s.Options
+	session.Options = &opts
+	session.IsNew = true
+	session.ID = newSessionID()
+
+	// Check if the session cookie already exists
+	c, err := r.Cookie(cookieName)
+	if errors.Is(err, http.ErrNoCookie) {
+		log.Tracef("Session cookie not found; returning a new session")
+		return session, nil
+	} else if err != nil {
+		return session, err
+	}
+
+	// Session cookie already exists. The encoded session ID travels in
+	// the cookie. Decode it and use it to check if the session exists
+	// in the store.
+
+	// Decode session ID (overwrites existing session ID)
+	err = securecookie.DecodeMulti(cookieName, c.Value,
+		&session.ID, s.Codecs...)
+	if err != nil {
+		// If there are any issues decoding the session ID,
+		// the existing session is considered invalid and
+		// the newly created session is returned.
+		log.Errorf("Failed to decode session: %v", err)
+		log.Tracef("Session invalid; returning a new one")
+		return session, nil
+	}
+
+	// Check if session exists in the database
+	encodedSession, err := s.db.Get(session.ID)
+	switch err {
+	case nil:
+		// Sanity check. If this is hit then it means that the
+		// sessions database is not implemented correctly. The
+		// database MUST return a ErrNotFound if a session is
+		// not found.
+		if encodedSession == nil {
+			panic("sessions database did not return a session or an error")
+		}
+
+		// The session was found in the database. Decode
+		// the session values from the encoded entry into
+		// the session being returned.
+		session.IsNew = false
+		err = securecookie.DecodeMulti(session.Name(),
+			encodedSession.Values, &session.Values,
+			s.Codecs...)
+		if err != nil {
+			return session, err
+		}
+		log.Tracef("Session found %v", session.ID)
+
+	case ErrNotFound:
+		// Session not found in database; return the new one.
+		log.Tracef("Session not found; returning new session")
+		return session, nil
+
+	default:
+		// All other errors
+		return session, err
+	}
+
+	return session, nil
+}
+
+// Save saves the session to both the database and the http response cookie.
+// The session ID is encoded prior to being saved to the response cookie.
+//
+// If the Options.MaxAge of the session is <= 0 then the session will be
+// deleted from the database. With this process it enforces proper session
+// cookie handling so no need to trust in the cookie management in the web
+// browser.
+//
+// This function satisfies the gorrila/sessions Store interface.
+func (s *sessionStore) Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error {
+	log.Tracef("Save: %v", session.ID)
+
+	// Delete session if max-age is <= 0
+	if session.Options.MaxAge <= 0 {
+		err := s.db.Del(session.ID)
+		if err != nil {
+			return err
+		}
+		http.SetCookie(w, sessions.NewCookie(session.Name(), "", session.Options))
+		return nil
+	}
+
+	// Encode session values
+	encodedValues, err := securecookie.EncodeMulti(session.Name(),
+		session.Values, s.Codecs...)
 	if err != nil {
 		return err
 	}
-	if session.IsNew {
-		return ErrSessionNotFound
-	}
 
-	log.Debugf("Deleting user session %v", session.Values[sessionValueUserID])
-
-	// Saving the session with a negative MaxAge will cause it to be
-	// deleted.
-	session.Options.MaxAge = -1
-	return s.store.Save(r, w, session)
-}
-
-// NewSession creates a new session, adds it to the given http response
-// session cookie, and saves it to the session store. If the http request
-// already contains a session cookie then the session values will be updated
-// and the session will be updated in the session store.
-func (s *Sessions) NewSession(w http.ResponseWriter, r *http.Request, userID string) error {
-	log.Tracef("NewSession: %v", userID)
-
-	// Init session
-	session, err := s.GetSession(r)
+	// Save session to the store
+	err = s.db.Save(session.ID, EncodedSession{
+		Values: encodedValues,
+	})
 	if err != nil {
 		return err
 	}
 
-	// Update session with politeiawww specific values
-	session.Values[sessionValueCreatedAt] = time.Now().Unix()
-	session.Values[sessionValueUserID] = userID
+	// Update session cookie with encoded session ID
+	encodedID, err := securecookie.EncodeMulti(session.Name(),
+		session.ID, s.Codecs...)
+	if err != nil {
+		return err
+	}
+	c := sessions.NewCookie(session.Name(), encodedID, session.Options)
+	http.SetCookie(w, c)
 
-	log.Debugf("Session created for user %v", userID)
-
-	// Update session in the store and update the response cookie
-	return s.store.Save(r, w, session)
+	return nil
 }
 
-// New returns a new Sessions context.
-func New(userdb user.Database, keyPairs ...[]byte) *Sessions {
-	return &Sessions{
-		store:  newSessionStore(userdb, keyPairs...),
-		userdb: userdb,
-	}
+// Get returns a session for the given name after adding it to the registry.
+//
+// A new session is returned if the given session doesn't exist. Access IsNew
+// on the session to check if it is an existing session or a new one. The new
+// session will not have any sessions values set and will not have been saved
+// to the session store yet.
+//
+// Get returns a new session and an error if the session exists but could not
+// be decoded.
+//
+// This function satisfies the gorilla/sessions Store interface.
+func (s *sessionStore) Get(r *http.Request, cookieName string) (*sessions.Session, error) {
+	log.Tracef("Get: %v", cookieName)
+
+	return sessions.GetRegistry(r).Get(s, cookieName)
+}
+
+// newSessionID returns a new session ID. A session ID is defined as a 32 byte
+// base32 string with padding. The session ID is set by the store and can be
+// whatever the store chooses. This ID was chosen simply because it's what the
+// gorilla/sesssions package reference implemenation uses.
+func newSessionID() string {
+	return base32.StdEncoding.EncodeToString(securecookie.GenerateRandomKey(32))
 }
