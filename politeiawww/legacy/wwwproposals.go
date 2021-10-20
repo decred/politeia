@@ -10,7 +10,7 @@ import (
 	"net/http"
 
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
-	"github.com/decred/politeia/politeiawww/sessions"
+	"github.com/decred/politeia/politeiawww/legacy/sessions"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/mux"
 )
