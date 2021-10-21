@@ -20,7 +20,6 @@ import (
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/legacy"
-	"github.com/decred/politeia/politeiawww/legacy/sessions"
 	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -29,8 +28,8 @@ import (
 )
 
 const (
-	csrfKeyLength = 32    // In bytes
-	sessionMaxAge = 86400 // 1 day in seconds
+	csrfKeyLength       = 32    // In bytes
+	csrfCookieMaxAgeAge = 86400 // 1 day in seconds
 )
 
 // politeiawww represents the politeiawww server.
@@ -129,7 +128,7 @@ func _main() error {
 	csrfMiddleware := csrf.Protect(
 		csrfKey,
 		csrf.Path("/"),
-		csrf.MaxAge(sessionMaxAge),
+		csrf.MaxAge(csrfCookieMaxAgeAge),
 	)
 
 	// Setup the router. Middleware is executed in

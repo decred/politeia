@@ -12,12 +12,12 @@ Save().
 The caller uses Get() to initialize a new session.
 
 The caller can save application specific key-value data to the session by
-saving it to the Values field. This data is never sent to the client. It is
+saving it to the Values field. This data is never sent to the client. It's
 saved to the databse as an encoded string and can be retrieved using the
 session ID.
 
-The caller uses Save() to save the encoded session values to database and to
-save the encoded session ID to the http response cookies.
+The caller uses Save() to save the encoded session values to the database and
+to save the encoded session ID to the http response cookies.
 
 On future requests, the encoded session ID is provided by the client in the
 request cookie. The caller uses Get() to decode the session ID and to lookup
