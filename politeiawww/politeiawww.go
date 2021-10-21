@@ -20,6 +20,7 @@ import (
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/legacy"
+	"github.com/decred/politeia/politeiawww/legacy/sessions"
 	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
