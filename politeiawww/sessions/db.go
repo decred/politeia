@@ -13,15 +13,18 @@ var (
 
 // DB represents the database for encoded session data.
 type DB interface {
-	// Save save the provided session to the database.
+	// Save saves a session to the database.
 	Save(sessionID string, s EncodedSession) error
 
-	// Del deletes the session with the provided session ID. No error is
-	// returned if a session is not found for the session ID.
+	// Del deletes a session from the database.
+	//
+	// An error is not returned if the session does not exist.
 	Del(sessionID string) error
 
-	// Get returns the session with the provided session ID. An ErrNotFound
-	// error MUST be returned if a session is not found for the session ID.
+	// Get gets a session from the database.
+	//
+	// An ErrNotFound error MUST be returned if a session is not found
+	// for the session ID.
 	Get(sessionID string) (*EncodedSession, error)
 }
 

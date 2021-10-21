@@ -38,7 +38,7 @@ func NewOptions(sessionMaxAge int) *sessions.Options {
 	}
 }
 
-// New returns a new sessionStore.
+// NewStore returns a new sessionStore.
 //
 // Keys are defined in pairs to allow key rotation, but the common case is
 // to set a single authentication key and optionally an encryption key.
@@ -50,7 +50,7 @@ func NewOptions(sessionMaxAge int) *sessions.Options {
 // It is recommended to use an authentication key with 32 or 64 bytes.
 // The encryption key, if set, must be either 16, 24, or 32 bytes to select
 // AES-128, AES-192, or AES-256 modes.
-func New(db DB, opts *sessions.Options, keyPairs ...[]byte) *sessionStore {
+func NewStore(db DB, opts *sessions.Options, keyPairs ...[]byte) *sessionStore {
 	// Set default options if none were provided
 	if opts == nil {
 		opts = NewOptions(0)
