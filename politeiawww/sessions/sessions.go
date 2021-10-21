@@ -25,9 +25,9 @@ type sessionStore struct {
 	db      DB
 }
 
-// NewOptions returns a new session Options for the session store that is
-// configured conservatively. Only deviate from this configuration if you
-// know what you're doing.
+// NewOptions returns a Options for the session store that is configured
+// conservatively. Only deviate from this configuration if you know what
+// you're doing.
 func NewOptions(sessionMaxAge int) *sessions.Options {
 	return &sessions.Options{
 		Path:     "/",
@@ -51,7 +51,7 @@ func NewOptions(sessionMaxAge int) *sessions.Options {
 // The encryption key, if set, must be either 16, 24, or 32 bytes to select
 // AES-128, AES-192, or AES-256 modes.
 func New(db DB, opts *sessions.Options, keyPairs ...[]byte) *sessionStore {
-	// Set default options
+	// Set default options if none were provided
 	if opts == nil {
 		opts = NewOptions(0)
 	}
@@ -95,7 +95,7 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 	// Check if the session cookie already exists
 	c, err := r.Cookie(cookieName)
 	if errors.Is(err, http.ErrNoCookie) {
-		log.Tracef("Session cookie not found; returning a new session")
+		log.Debugf("Session cookie not found; returning a new session")
 		return session, nil
 	} else if err != nil {
 		return session, err
@@ -113,11 +113,11 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 		// the existing session is considered invalid and
 		// the newly created session is returned.
 		log.Errorf("Failed to decode session: %v", err)
-		log.Tracef("Session invalid; returning a new one")
+		log.Debugf("Session invalid; returning new session")
 		return session, nil
 	}
 
-	// Check if session exists in the database
+	// Check if the session exists in the database
 	encodedSession, err := s.db.Get(session.ID)
 	switch err {
 	case nil:
@@ -126,7 +126,7 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 		// database MUST return a ErrNotFound if a session is
 		// not found.
 		if encodedSession == nil {
-			panic("sessions database did not return a session or an error")
+			panic("database did not return a session or an error")
 		}
 
 		// The session was found in the database. Decode
@@ -139,11 +139,11 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 		if err != nil {
 			return session, err
 		}
-		log.Tracef("Session found %v", session.ID)
+		log.Debugf("Session found %v", session.ID)
 
 	case ErrNotFound:
 		// Session not found in database; return the new one.
-		log.Tracef("Session not found; returning new session")
+		log.Debugf("Session not found; returning new session")
 		return session, nil
 
 	default:
@@ -154,8 +154,8 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 	return session, nil
 }
 
-// Save saves the session to both the database and the http response cookie.
-// The session ID is encoded prior to being saved to the response cookie.
+// Save saves the encoded session values to the database and the encoded
+// session ID to the http response cookie.
 //
 // If the Options.MaxAge of the session is <= 0 then the session will be
 // deleted from the database. With this process it enforces proper session
@@ -191,7 +191,7 @@ func (s *sessionStore) Save(r *http.Request, w http.ResponseWriter, session *ses
 		return err
 	}
 
-	// Update session cookie with encoded session ID
+	// Update session cookie with the encoded session ID
 	encodedID, err := securecookie.EncodeMulti(session.Name(),
 		session.ID, s.Codecs...)
 	if err != nil {
