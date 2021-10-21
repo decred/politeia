@@ -10,46 +10,48 @@ const (
 	// APIVersion if the version of the API that this package represents.
 	APIVersion uint32 = 1
 
-	// APIRoute is prefixed onto all routes defined in this package.
-	APIRoute = "/v1"
+	// HeaderCSRF is the header that contains the CSRF token.
+	HeaderCSRF = "X-CSRF-Token"
 
 	// RouteVersion is a GET request route that returns the server version
-	// information. The VersionReply is returned from both the "/" route and the
-	// "/v1/version" route. This allows clients to be able to determine version
-	// information without needing to have any prior knowledge of the API.
+	// information and sets CSRF tokens for the client. This route uses the base
+	// route "/" for the API so that clients can determine version information
+	// without needing to have any prior knowledge of the API.
 	//
-	// This route also sets CSRF tokens for clients using the double submit
-	// cookie technique. Clients MUST make a successful Version call before
-	// they'll be able to use CSRF protected routes.
-	RouteVersion = "/version"
+	// This route sets CSRF tokens for clients using the double submit cookie
+	// technique. A token is set in a cookie and a token is set in a header.
+	// Clients MUST make a successful Version call before they'll be able to
+	// use CSRF protected routes.
+	RouteVersion = "/"
 
 	// RouteWrite is a POST request route that executes a plugin write command.
 	//
 	// This route is CSRF protected. Clients must obtain CSRF tokens from the
 	// Version route before they'll be able to use this route. A 403 is returned
 	// if the client attempts to use this route without the proper CSRF tokens.
-	RouteWrite = "/write"
+	RouteWrite = "/v1/write"
 
 	// RouteRead is a POST request route that executes an individual plugin read
 	// command. This route is intended to be used for expensive plugin read
 	// commands that should not be batched due to their memory or performance
 	// requirements. This allows the sysadmin to set different rate limiting
 	// constrains for these expensive commands.
-	RouteRead = "/read"
+	RouteRead = "/v1/read"
 
 	// RouteReadBatch is a POST request route that executes a batch of plugin
 	// read commands. This route is intended to be used for inexpensive plugin
 	// commands that will not cause performance issues during the execution of
 	// large batches.
-	RouteReadBatch = "/readbatch"
+	RouteReadBatch = "/v1/readbatch"
 )
 
 // Version returns the server version information and the list of plugins that
 // the server is running. The client should verify compatibility with the
 // server version and plugins.
 //
-// This call also sets CSRF tokens using the double submit cookie method.
-// Clients must make a successful Version call before they'll be able to use
+// This also sets sets CSRF tokens for clients using the double submit cookie
+// technique. A token is set in a cookie and a token is set in a header.
+// Clients MUST make a successful Version call before they'll be able to use
 // CSRF protected routes.
 type Version struct{}
 
@@ -58,13 +60,10 @@ type VersionReply struct {
 	// APIVersion is the lowest supported API version.
 	APIVersion uint32 `json:"apiversion"`
 
-	// APIRoute is the API route for the lowest supported API version.
-	APIRoute string `json:"apiroute"`
-
 	// BuildVersion is the sematic version of the server build.
 	BuildVersion string `json:"buildversion"`
 
-	// Plugins contains the plugin IDs of the running plugins.
+	// Plugins contains the plugin IDs of the server plugins.
 	Plugins []string `json:"plugins"`
 }
 

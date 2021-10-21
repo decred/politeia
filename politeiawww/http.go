@@ -13,6 +13,7 @@ import (
 	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
+	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 )
 
@@ -29,16 +30,17 @@ Allow sysadmin to update user permission.
 // setupRoutes sets up the routes for the politeia http API.
 func (p *politeiawww) setupRoutes() {
 	/*
-		// NOTE: these will override the legacy version routes.
-		// Disable them until we are ready to switch over.
-		addRoute(p.router, http.MethodGet, "",
-			"/", p.handleVersion)
-		addRoute(p.router, http.MethodGet, v1.APIRoute,
-			v1.RouteVersion, p.handleVersion)
+		// NOTE: This will override the legacy version route.
+		// Disable it until we are ready to switch over.
+
+		// The version routes set the CSRF header token and thus needs
+		// to be part of the CSRF protected auth router so that the
+		// cookie CSRF is set too. The CSRF cookie is set on all auth
+		// routes. The header token is only set on the version route.
+		addRoute(p.auth, http.MethodGet, v1.RouteVersion, p.handleVersion)
 	*/
 
-	addRoute(p.auth, http.MethodPost, v1.APIRoute,
-		v1.RouteWrite, p.handleWrite)
+	addRoute(p.auth, http.MethodPost, v1.RouteWrite, p.handleWrite)
 }
 
 // handleVersion is the request handler for the http v1 Version command.
@@ -47,10 +49,13 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 
 	vr := v1.VersionReply{
 		APIVersion:   v1.APIVersion,
-		APIRoute:     v1.APIRoute,
 		BuildVersion: version.String(),
 		Plugins:      []string{},
 	}
+
+	// Set the CSRF header. This is the only route
+	// that sets the CSRF header.
+	w.Header().Set(v1.HeaderCSRF, csrf.Token(r))
 
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
@@ -71,9 +76,8 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 }
 
 // addRoute adds a route to the provided router.
-func addRoute(router *mux.Router, method string, routePrefix string, route string, handler http.HandlerFunc) {
-	fullRoute := routePrefix + route
-	router.HandleFunc(fullRoute, handler).Methods(method)
+func addRoute(router *mux.Router, method string, route string, handler http.HandlerFunc) {
+	router.HandleFunc(route, handler).Methods(method)
 }
 
 // handleNotFound handles all invalid routes and returns a 404 to the client.

@@ -29,7 +29,8 @@ import (
 )
 
 const (
-	csrfKeyLength = 32
+	csrfKeyLength    = 32    // In bytes
+	csrfCookieMaxAge = 86400 // 1 day in seconds
 )
 
 // politeiawww represents the politeiawww server.
@@ -126,12 +127,6 @@ func _main() error {
 	}
 	fCSRF.Close()
 
-	csrfMiddleware := csrf.Protect(
-		csrfKey,
-		csrf.Path("/"),
-		csrf.MaxAge(sessions.SessionMaxAge),
-	)
-
 	// Setup the router. Middleware is executed in
 	// the same order that they are registered in.
 	router := mux.NewRouter()
@@ -154,6 +149,21 @@ func _main() error {
 	// configuration of the router that it was spawned from, including
 	// all of the middleware that has already been registered.
 	auth := router.NewRoute().Subrouter()
+
+	// The CSRF middleware uses the double submit cookie method. The
+	// server provides clients with two CSRF tokens: a cookie token and
+	// a header token. The cookie token is set automatically by the CSRF
+	// protected subrouter anytime one of the protected routes it hit.
+	// The header token must be set manually by a request handler.
+	// Clients MUST provide both tokens in their request if they want
+	// to access a CSRF protected route. The CSRF protected subrouter
+	// returns a 403 HTTP status code if a client attempts to accesss
+	// a protected route without providing the proper CSRF tokens.
+	csrfMiddleware := csrf.Protect(
+		csrfKey,
+		csrf.Path("/"),
+		csrf.MaxAge(csrfCookieMaxAge),
+	)
 	auth.Use(csrfMiddleware)
 
 	// Setup the politeiad client
