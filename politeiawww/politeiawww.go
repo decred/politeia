@@ -20,7 +20,6 @@ import (
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/legacy"
-	"github.com/decred/politeia/politeiawww/legacy/sessions"
 	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
@@ -29,7 +28,8 @@ import (
 )
 
 const (
-	csrfKeyLength = 32
+	csrfKeyLength       = 32    // In bytes
+	csrfCookieMaxAgeAge = 86400 // 1 day in seconds
 )
 
 // politeiawww represents the politeiawww server.
@@ -39,7 +39,6 @@ type politeiawww struct {
 	router    *mux.Router
 	auth      *mux.Router // CSRF protected subrouter
 	politeiad *pdclient.Client
-	sessions  *sessions.Sessions
 	events    *events.Manager
 	legacy    *legacy.Politeiawww // Legacy API
 }
@@ -129,7 +128,7 @@ func _main() error {
 	csrfMiddleware := csrf.Protect(
 		csrfKey,
 		csrf.Path("/"),
-		csrf.MaxAge(sessions.SessionMaxAge),
+		csrf.MaxAge(csrfCookieMaxAgeAge),
 	)
 
 	// Setup the router. Middleware is executed in
@@ -173,11 +172,8 @@ func _main() error {
 		router:    router,
 		auth:      auth,
 		politeiad: pdc,
-		// NOTE: This needs an implementation that
-		// doesn't use the legacy user database.
-		// sessions:   sessions.New(userDB, cookieKey),
-		events: events.NewManager(),
-		legacy: legacywww,
+		events:    events.NewManager(),
+		legacy:    legacywww,
 	}
 
 	// Bind to a port and pass our router in
