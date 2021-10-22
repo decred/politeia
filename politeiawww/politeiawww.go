@@ -21,7 +21,6 @@ import (
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/legacy"
 	"github.com/decred/politeia/politeiawww/logger"
-	"github.com/decred/politeia/politeiawww/sessions"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
@@ -40,7 +39,6 @@ type politeiawww struct {
 	router    *mux.Router
 	auth      *mux.Router // CSRF protected subrouter
 	politeiad *pdclient.Client
-	sessions  *sessions.Sessions
 	events    *events.Manager
 	legacy    *legacy.Politeiawww // Legacy API
 }
@@ -189,11 +187,8 @@ func _main() error {
 		router:    router,
 		auth:      auth,
 		politeiad: pdc,
-		// NOTE: This needs an implementation that
-		// doesn't use the legacy user database.
-		// sessions:   sessions.New(userDB, cookieKey),
-		events: events.NewManager(),
-		legacy: legacywww,
+		events:    events.NewManager(),
+		legacy:    legacywww,
 	}
 
 	// Setup API routes. For now, only set these up
