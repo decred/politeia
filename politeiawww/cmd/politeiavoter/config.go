@@ -93,6 +93,9 @@ type config struct {
 	dial          func(string, string) (net.Conn, error)
 	voteDuration  time.Duration // Parsed VoteDuration
 	blocksPerHour uint64
+
+	// Test only
+	testing bool
 }
 
 // serviceOptions defines the configuration options for the daemon as a service

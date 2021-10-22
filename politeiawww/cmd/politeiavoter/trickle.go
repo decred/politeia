@@ -98,14 +98,14 @@ func generateVoteAlarm(token, voteBit string, ctres *pb.CommittedTicketsResponse
 	return va, nil
 }
 
-func (c *ctx) voteTicket(ctx context.Context, wg *sync.WaitGroup, bunchID, voteID, of int, va voteAlarm) {
+func (p *piv) voteTicket(wg *sync.WaitGroup, bunchID, voteID, of int, va voteAlarm) {
 	defer wg.Done()
 
 	voteID++ // make human readable
 	//fmt.Printf("bunchID: %v voterID: %v\n", bunchID, voteID)
 
 	// Wait
-	err := WaitUntil(ctx, va.At)
+	err := WaitUntil(p.ctx, va.At)
 	if err != nil {
 		fmt.Printf("%v bunch %v vote %v failed: %v\n",
 			time.Now(), bunchID, voteID, err)
@@ -126,12 +126,12 @@ func (c *ctx) voteTicket(ctx context.Context, wg *sync.WaitGroup, bunchID, voteI
 
 		// Send off vote
 		b := tkv1.CastBallot{Votes: []tkv1.CastVote{va.Vote}}
-		vr, err := c.sendVote(&b)
+		vr, err := p.sendVote(&b)
 		var e ErrRetry
 		if errors.As(err, &e) {
 			// Append failed vote to retry queue
 			fmt.Printf("Vote rescheduled: %v\n", va.Vote.Ticket)
-			err := c.jsonLog(failedJournal, va.Vote.Token, b, e)
+			err := p.jsonLog(failedJournal, va.Vote.Token, b, e)
 			if err != nil {
 				panic(err) // XXX
 			}
@@ -144,14 +144,14 @@ func (c *ctx) voteTicket(ctx context.Context, wg *sync.WaitGroup, bunchID, voteI
 				err)) // XXX
 		} else {
 			// Vote completed
-			c.Lock()
-			c.ballotResults = append(c.ballotResults, *vr)
-			c.Unlock()
+			p.Lock()
+			p.ballotResults = append(p.ballotResults, *vr)
+			p.Unlock()
 
 			if vr.ErrorCode == tkv1.VoteErrorVoteStatusInvalid {
 				// Force an exit of the both the main queue and the
 				// retry queue if the voting period has ended.
-				err = c.jsonLog(failedJournal, va.Vote.Token, vr)
+				err = p.jsonLog(failedJournal, va.Vote.Token, vr)
 				if err != nil {
 					panic(err) // XXX
 				}
@@ -160,7 +160,7 @@ func (c *ctx) voteTicket(ctx context.Context, wg *sync.WaitGroup, bunchID, voteI
 				return
 			}
 
-			err = c.jsonLog(successJournal, va.Vote.Token, vr)
+			err = p.jsonLog(successJournal, va.Vote.Token, vr)
 			if err != nil {
 				panic(err)
 			}
@@ -175,16 +175,16 @@ func (c *ctx) voteTicket(ctx context.Context, wg *sync.WaitGroup, bunchID, voteI
 	// Not reached
 }
 
-func (c *ctx) alarmTrickler(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) error {
+func (p *piv) alarmTrickler(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) error {
 	votes, err := generateVoteAlarm(token, voteBit, ctres, smr)
 	if err != nil {
 		return err
 	}
 
-	bunches := int(c.cfg.Bunches)
-	duration := c.cfg.voteDuration
-	voteDuration := duration - time.Duration(c.cfg.HoursPrior)*time.Hour
-	if voteDuration < time.Duration(c.cfg.HoursPrior)*time.Hour {
+	bunches := int(p.cfg.Bunches)
+	duration := p.cfg.voteDuration
+	voteDuration := duration - time.Duration(p.cfg.HoursPrior)*time.Hour
+	if voteDuration < time.Duration(p.cfg.HoursPrior)*time.Hour {
 		return fmt.Errorf("not enough time left to trickle votes")
 	}
 	fmt.Printf("Total number of votes  : %v\n", len(ctres.TicketAddresses))
@@ -193,27 +193,22 @@ func (c *ctx) alarmTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 	fmt.Printf("Duration calculated    : %v\n", voteDuration)
 
 	// Log work
-	err = c.jsonLog(workJournal, token, votes)
+	err = p.jsonLog(workJournal, token, votes)
 	if err != nil {
 		return err
 	}
 
 	// Launch voting go routines
 	var wg sync.WaitGroup
-	c.ballotResults = make([]tkv1.CastVoteReply, len(ctres.TicketAddresses))
-	ctx, cancel := context.WithCancel(context.Background())
+	p.ballotResults = make([]tkv1.CastVoteReply, len(ctres.TicketAddresses))
 	for k := range votes {
 		voterID := k
 		bunchID := voterID % bunches
 		v := *votes[k]
 		wg.Add(1)
-		go c.voteTicket(ctx, &wg, bunchID, voterID, len(votes), v)
+		go p.voteTicket(&wg, bunchID, voterID, len(votes), v)
 	}
-	time.Sleep(4 * time.Second)
-	cancel()
 	wg.Wait()
-
-	_ = cancel
 
 	return nil
 }

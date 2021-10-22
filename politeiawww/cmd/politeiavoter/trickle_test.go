@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -31,7 +32,7 @@ func fakeTickets(x uint) (*pb.CommittedTicketsResponse, *pb.SignMessagesResponse
 	return &ctres, &smr
 }
 
-func fakeCtx(t *testing.T, d time.Duration, x uint, hoursPrior uint64) (*ctx, func()) {
+func fakePiv(t *testing.T, d time.Duration, x uint, hoursPrior uint64) (*piv, func()) {
 	// Setup temp home dir
 	homeDir, err := ioutil.TempDir("", "politeiavoter.test")
 	if err != nil {
@@ -44,20 +45,22 @@ func fakeCtx(t *testing.T, d time.Duration, x uint, hoursPrior uint64) (*ctx, fu
 		}
 	}
 
-	return &ctx{
+	return &piv{
+		ctx: context.Background(),
 		cfg: &config{
 			HomeDir:      homeDir,
 			voteDir:      filepath.Join(homeDir, defaultVoteDirname),
 			voteDuration: d,
 			HoursPrior:   hoursPrior,
 			Bunches:      x,
+			testing:      true,
 		},
 	}, cleanup
 }
 
 func TestTrickleNotEnoughTime(t *testing.T) {
 	x := uint(10)
-	c, cleanup := fakeCtx(t, time.Hour, x, 1)
+	c, cleanup := fakePiv(t, time.Hour, x, 1)
 	defer cleanup()
 
 	ctres, smr := fakeTickets(x)
@@ -69,7 +72,7 @@ func TestTrickleNotEnoughTime(t *testing.T) {
 
 func TestTrickle2(t *testing.T) {
 	x := uint(10)
-	c, cleanup := fakeCtx(t, 24*time.Hour, x, 1)
+	c, cleanup := fakePiv(t, 24*time.Hour, x, 1)
 	defer cleanup()
 
 	ctres, smr := fakeTickets(x)
@@ -81,7 +84,7 @@ func TestTrickle2(t *testing.T) {
 
 func TestTrickleWorkers(t *testing.T) {
 	x := uint(10)
-	c, cleanup := fakeCtx(t, 24*time.Hour, x, 12)
+	c, cleanup := fakePiv(t, 24*time.Hour, x, 12)
 	defer cleanup()
 
 	ctres, smr := fakeTickets(x)
