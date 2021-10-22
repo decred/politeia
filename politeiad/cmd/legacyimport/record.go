@@ -20,8 +20,9 @@ import (
 	"github.com/subosito/gozaru"
 )
 
+// recordSave saves a record to tstore.
 func (l *legacyImport) recordSave(newToken []byte, files []backend.File, metadata []backend.MetadataStream, recordmd backend.RecordMetadata) error {
-	// Verify data
+	// Verify metadata streams and files data.
 	err := metadataStreamsVerify(metadata)
 	if err != nil {
 		return err
@@ -40,14 +41,12 @@ func (l *legacyImport) recordSave(newToken []byte, files []backend.File, metadat
 		recordmd.Status = backend.StatusUnreviewed
 	}
 
-	// Save record.
 	err = l.tstore.RecordSave(newToken, recordmd, metadata, files)
 	if err != nil {
 		return err
 	}
 
-	// If it's public, we need another save to ensure the public status
-	// properly.
+	// If it's public, update from unreviewed to public status.
 	if isPublic {
 		recordmd.Status = backend.StatusPublic
 		recordmd.Iteration = 2
@@ -60,6 +59,8 @@ func (l *legacyImport) recordSave(newToken []byte, files []backend.File, metadat
 	return nil
 }
 
+// fetchUserByPubKey makes a call to the politeia API requesting the user
+// with the provided public key.
 func (l *legacyImport) fetchUserByPubKey(pubkey string) (*user, error) {
 	url := "https://proposals.decred.org/api/v1/users?publickey=" + pubkey
 	r, err := l.client.Get(url)
@@ -101,12 +102,12 @@ func convertRecordMetadata(path string) (*backendv2.RecordMetadata, error) {
 	}
 
 	var mdv2 backendv2.RecordMetadata
-	mdv2.Version = 1
 	mdv2.Token = mdv1.Token
-	mdv2.Iteration = 1
 	mdv2.State = backend.StateVetted
-	mdv2.Timestamp = mdv1.Timestamp
 	mdv2.Merkle = mdv1.Merkle
+	mdv2.Timestamp = mdv1.Timestamp
+	mdv2.Version = 1
+	mdv2.Iteration = 1
 
 	// Convert backend v1 status to v2.
 	switch {
@@ -160,8 +161,10 @@ func convertStatusChangeMetadata(path string) (*usermd.StatusChangeMetadata, err
 
 	// Return most recent status change md.
 	latest := streams[len(streams)-1]
+
+	// Many proposals do not have the signature on the 02.metadata.txt
+	// status change data.
 	return &pusermd.StatusChangeMetadata{
-		// Token:
 		Version:   uint32(latest.Version),
 		Status:    uint32(latest.NewStatus),
 		Reason:    latest.StatusChangeMessage,
@@ -185,19 +188,25 @@ func (l *legacyImport) convertUserMetadata(path string) (*usermd.UserMetadata, s
 		return nil, "", err
 	}
 
-	_, err = l.fetchUserByPubKey(pgv1.PublicKey)
+	usr, err := l.fetchUserByPubKey(pgv1.PublicKey)
 	if err != nil {
 		return nil, "", err
 	}
 
-	// If userid/publickey are data from a user that is not registered in the
-	// userdb this tool is using, then recordSave will error out.
-	// TODO: add to readme that this needs to be set. add flag maybe
+	// Check if userid flag is set, used for testing.
+	id := usr.ID
+	if *userid != "" {
+		id = *userid
+	}
+
+	// If userid/publickey is data from a user that is not registered in the
+	// local userdb this tool is using, then recordSave will error out.
+	//
+	// Signature from user metadata changed since files on tstore are different,
+	// resulting in a different merkle root.
 	return &pusermd.UserMetadata{
-		// UserID:    usr.ID,
-		// PublicKey: pgv1.PublicKey,
-		UserID:    "810aefda-1e13-4ebc-a9e8-4162435eca7b",
-		PublicKey: "1e2edbee94c9b2d6af1062cf9e10336910de3ebd68a38150ae76bc01b1e7da41",
+		UserID:    id,
+		PublicKey: pgv1.PublicKey,
 		Signature: pgv1.Signature,
 	}, pgv1.Name, nil
 }

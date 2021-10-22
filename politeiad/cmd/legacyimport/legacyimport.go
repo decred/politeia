@@ -34,13 +34,13 @@ import (
 )
 
 const (
-	defaultTlogHost = "localhost:8090"
-	defaultTlogPass = "tlogpass"
-	defaultDBType   = "mysql"
-	defaultDBHost   = "localhost:3306"
-	defaultDBPass   = "politeiadpass"
-
+	defaultTlogHost    = "localhost:8090"
+	defaultTlogPass    = "tlogpass"
+	defaultDBType      = "mysql"
+	defaultDBHost      = "localhost:3306"
+	defaultDBPass      = "politeiadpass"
 	defaultDataDirname = "data"
+	defaultBallotCount = 0 // 0 meaning parse all votes
 )
 
 var (
@@ -51,14 +51,25 @@ var (
 		WalletRPCServerPort: "9111",
 	}
 
-	// Configurable flags
-	gitpath   = flag.String("gitpath", "", "path to git record repository")
-	tlogHost  = flag.String("tloghost", defaultTlogHost, "tlog host")
-	tlogPass  = flag.String("tlogpass", defaultTlogPass, "tlog pass")
-	dbHost    = flag.String("dbhost", defaultDBHost, "mysql DB host")
-	dbPass    = flag.String("dbpass", defaultDBPass, "mysql DB pass")
-	commentsf = flag.Bool("comments", false, "parse comments journal")
-	ballot    = flag.Bool("ballot", false, "parse ballot journal")
+	// Flags
+
+	// Record repository path. This flag must be set.
+	path = flag.String("path", "", "path to git record repository")
+
+	// Journal parse configs. Set this flag if the user wants to parse the
+	// comments and/or ballot journals.
+	commentsf   = flag.Bool("comments", false, "parse comments journal")
+	ballot      = flag.Bool("ballot", false, "parse ballot journal")
+	ballotCount = flag.Int("ballotcount", defaultBallotCount, "number of votes to parse")
+
+	// A userid from the local user db. Thi
+	userid = flag.String("userid", "", "local db userid used for testing")
+
+	// Tstore config flags
+	tlogHost = flag.String("tloghost", defaultTlogHost, "tlog host")
+	tlogPass = flag.String("tlogpass", defaultTlogPass, "tlog pass")
+	dbHost   = flag.String("dbhost", defaultDBHost, "mysql DB host")
+	dbPass   = flag.String("dbpass", defaultDBPass, "mysql DB pass")
 
 	errorIsRFPSubmission = errors.New("is rfp submission")
 )
@@ -70,7 +81,7 @@ type legacyImport struct {
 
 	// comments is a cache used for feeding the parentID data to the
 	// comment del metadata payload.
-	comments map[string]map[string]decredplugin.Comment // [legacyToken][commentid]comment
+	comments map[string]map[string]decredplugin.Comment // [newToken][commentid]comment
 
 	// queue holds the RFP submission record paths that needs to be parsed
 	// last, when their respective RFP parent has already been inserted.
@@ -171,7 +182,7 @@ func (l *legacyImport) preParsePaths(path string) (map[string]string, error) {
 }
 
 // parseRecordData will navigate the legacy record path and parse all necessary
-// data for tlog.
+// data for tlog backend.
 func (l *legacyImport) parseRecordData(rootpath string) (*parsedData, error) {
 	var (
 		files          []backend.File
@@ -355,13 +366,13 @@ func (l *legacyImport) parseRecordData(rootpath string) (*parsedData, error) {
 		files = append(files, *vmd)
 	}
 
-	// Check if record is a RFP Parent. If so, save to cache for future
-	// reference.
+	// Check if record is a RFP Parent. If so, save the start runoff blob
+	// to be saved later on.
 	if voteMd.LinkBy != 0 {
 		l.Lock()
 		l.rfpParents[proposalMd.LegacyToken] = &startRunoffRecord{
 			// Submissions:   Will be set when all records have been parsed
-			// 				  and inserted.
+			// 				  and inserted to tstore.
 			Mask:             voteDetailsMd.Params.Mask,
 			Duration:         voteDetailsMd.Params.Duration,
 			QuorumPercentage: voteDetailsMd.Params.QuorumPercentage,
@@ -404,7 +415,7 @@ func (l *legacyImport) saveRecordData(data parsedData) ([]byte, error) {
 		return nil, err
 	}
 
-	// Save token to status change metadata.
+	// Save legacy token to status change metadata.
 	data.statusChangeMd.Token = data.legacyToken
 	// Save new tstore token to record metadata.
 	data.recordMd.Token = hex.EncodeToString(newToken)
@@ -502,11 +513,11 @@ func _main() error {
 	fmt.Println("legacyimport: Start!")
 
 	flag.Parse()
-	if *gitpath == "" {
+	if *path == "" {
 		return fmt.Errorf("missing path for cloned git record repository")
 	}
 
-	path := util.CleanAndExpandPath(*gitpath)
+	path := util.CleanAndExpandPath(*path)
 	_, err := os.Stat(path)
 	if err != nil {
 		return err

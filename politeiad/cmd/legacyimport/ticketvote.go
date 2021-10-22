@@ -17,12 +17,17 @@ import (
 	"github.com/decred/politeia/politeiawww/client"
 )
 
+// parseBallotJournal walks through the legacy ballot journal converting
+// the payloads to their tstore blob equivalents.
 func (l *legacyImport) parseBallotJournal(path, legacyToken string, newToken []byte) error {
 	fh, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0664)
 	if err != nil {
 		return err
 	}
 
+	// First pre parse the ballot journal and build the tickets slice and
+	// cast vote details slice. These are used to fetch the largest commitment
+	// address and to save the vote blobs onto tstore.
 	var (
 		tickets         []string // Used to fetch largest commitment address
 		castVoteDetails []*tv.CastVoteDetails
@@ -52,7 +57,7 @@ func (l *legacyImport) parseBallotJournal(path, legacyToken string, newToken []b
 				VoteBit:   cvj.CastVote.VoteBit,
 				Signature: cvj.CastVote.Signature,
 				Receipt:   cvj.Receipt,
-				// Add timestamp
+				// Add git timestamp.
 			})
 
 		default:
@@ -67,6 +72,10 @@ func (l *legacyImport) parseBallotJournal(path, legacyToken string, newToken []b
 
 	fmt.Printf("  ticketvote: %v parsing ballot journal...\n", legacyToken[:7])
 
+	// Save the cast vote details blob into tstore, and its respective vote
+	// collider blob. This will also limit the number of votes saved to store
+	// if the ballotCount flag is set.
+	var count int
 	for _, details := range castVoteDetails {
 		cv := details
 		cv.Address = addrs[cv.Ticket].bestAddr
@@ -85,6 +94,14 @@ func (l *legacyImport) parseBallotJournal(path, legacyToken string, newToken []b
 		err = l.blobSaveVoteCollider(vc, newToken)
 		if err != nil {
 			return err
+		}
+
+		// Limit votes if ballot count flag is set.
+		if *ballotCount != 0 {
+			count++
+			if count == *ballotCount {
+				break
+			}
 		}
 	}
 
@@ -126,9 +143,6 @@ func (l *legacyImport) blobSaveCastVoteDetails(cdv tv.CastVoteDetails, newToken 
 }
 
 func (l *legacyImport) blobSaveAuthDetails(authDetails tv.AuthDetails, newToken []byte) error {
-	// // Set new tlog token to auth details.
-	// authDetails.Token = hex.EncodeToString(newToken)
-
 	// Verify auth details signature.
 	err := client.AuthDetailsVerify(convertAuthDetailsToV1(authDetails),
 		serverPubkey)
@@ -159,12 +173,6 @@ func (l *legacyImport) blobSaveAuthDetails(authDetails tv.AuthDetails, newToken 
 }
 
 func (l *legacyImport) blobSaveVoteDetails(voteDetails tv.VoteDetails, newToken []byte) error {
-	// Vote details blob is a combination of parsing the 14.metadata.txt and
-	// 15.metadata.txt. Therefore, the tool needs to verify the start vote
-	// signature, which comes from the 14.metadata.txt file, instead of the
-	// vote details blob signature. This way, the signature verification
-	// process is the same as in the git legacy backend.
-
 	data, err := json.Marshal(voteDetails)
 	if err != nil {
 		return err
@@ -307,7 +315,8 @@ func (l *legacyImport) convertStartVoteMetadata(path string) (*tv.Start, error) 
 }
 
 // convertVoteDetailsMetadata converts the 15.metadata.txt file to the vote
-// details structure from tlog backend.
+// details structure from tlog backend. It also uses part of the 14.metadata.txt
+// data, the StartDetails struct, to feed the Params data for the vote details.
 func convertVoteDetailsMetadata(path string, startDetails tv.StartDetails) (*tv.VoteDetails, error) {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -341,6 +350,8 @@ func convertVoteDetailsMetadata(path string, startDetails tv.StartDetails) (*tv.
 	}, nil
 }
 
+// convertAuthDetailsToV1 is used to verify the auth details signature
+// through the www client.
 func convertAuthDetailsToV1(auth tv.AuthDetails) v1.AuthDetails {
 	return v1.AuthDetails{
 		Token:     auth.Token,
@@ -353,6 +364,8 @@ func convertAuthDetailsToV1(auth tv.AuthDetails) v1.AuthDetails {
 	}
 }
 
+// convertCastVoteDetailsToV1 is used to verify the cast vote details signature
+// through the www client.
 func convertCastVoteDetailsToV1(vote tv.CastVoteDetails) v1.CastVoteDetails {
 	return v1.CastVoteDetails{
 		Token:     vote.Token,

@@ -16,7 +16,7 @@ import (
 )
 
 // parseCommentsJournal walks through the legacy comments journal converting
-// them to the appropriate plugin payloads for the tstore backend.
+// the payloads to their tstore blob equivalents.
 func (l *legacyImport) parseCommentsJournal(path, legacyToken string, newToken []byte) error {
 	fh, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0664)
 	if err != nil {
@@ -25,7 +25,7 @@ func (l *legacyImport) parseCommentsJournal(path, legacyToken string, newToken [
 
 	s := bufio.NewScanner(fh)
 
-	// Initialize comments cache.
+	// Initialize comments cache for this record.
 	l.Lock()
 	l.comments[hex.EncodeToString(newToken)] = make(map[string]decredplugin.Comment)
 	l.Unlock()
@@ -94,7 +94,7 @@ func (l *legacyImport) parseCommentsJournal(path, legacyToken string, newToken [
 
 func (l *legacyImport) blobSaveCommentAdd(c decredplugin.Comment, newToken []byte) error {
 	// Get user id from pubkey
-	_, err := l.fetchUserByPubKey(c.PublicKey)
+	usr, err := l.fetchUserByPubKey(c.PublicKey)
 	if err != nil {
 		return err
 	}
@@ -109,11 +109,15 @@ func (l *legacyImport) blobSaveCommentAdd(c decredplugin.Comment, newToken []byt
 		return err
 	}
 
+	// Check if userid flag is set, used for testing.
+	id := usr.ID
+	if *userid != "" {
+		id = *userid
+	}
+
 	// Create comment add blob entry
 	cn := &comments.CommentAdd{
-		// UserID:    usr.ID,
-		// Token:     hex.EncodeToString(newToken),
-		UserID:    "810aefda-1e13-4ebc-a9e8-4162435eca7b",
+		UserID:    id,
 		State:     comments.RecordStateVetted,
 		Token:     c.Token,
 		ParentID:  uint32(pid),
@@ -152,7 +156,7 @@ func (l *legacyImport) blobSaveCommentAdd(c decredplugin.Comment, newToken []byt
 
 func (l *legacyImport) blobSaveCommentDel(cc decredplugin.CensorComment, newToken []byte, parentID string) error {
 	// Get user ID from pubkey
-	_, err := l.fetchUserByPubKey(cc.PublicKey)
+	usr, err := l.fetchUserByPubKey(cc.PublicKey)
 	if err != nil {
 		return err
 	}
@@ -169,6 +173,12 @@ func (l *legacyImport) blobSaveCommentDel(cc decredplugin.CensorComment, newToke
 		return err
 	}
 
+	// Check if userid flag is set, used for testing.
+	id := usr.ID
+	if *userid != "" {
+		id = *userid
+	}
+
 	// Create comment del blob entry
 	cd := &comments.CommentDel{
 		Token:     cc.Token,
@@ -179,7 +189,7 @@ func (l *legacyImport) blobSaveCommentDel(cc decredplugin.CensorComment, newToke
 		Signature: cc.Signature,
 
 		ParentID:  uint32(pid),
-		UserID:    "810aefda-1e13-4ebc-a9e8-4162435eca7b",
+		UserID:    id,
 		Timestamp: cc.Timestamp,
 		Receipt:   cc.Receipt,
 	}
@@ -206,7 +216,7 @@ func (l *legacyImport) blobSaveCommentDel(cc decredplugin.CensorComment, newToke
 
 func (l *legacyImport) blobSaveCommentLike(lc likeCommentV1, newToken []byte) error {
 	// Get user ID from pubkey
-	_, err := l.fetchUserByPubKey(lc.PublicKey)
+	usr, err := l.fetchUserByPubKey(lc.PublicKey)
 	if err != nil {
 		return err
 	}
@@ -228,9 +238,15 @@ func (l *legacyImport) blobSaveCommentLike(lc likeCommentV1, newToken []byte) er
 		return fmt.Errorf("invalid comment vote code")
 	}
 
+	// Check if userid flag is set, used for testing.
+	id := usr.ID
+	if *userid != "" {
+		id = *userid
+	}
+
 	// Create comment vote blob entry
 	c := &comments.CommentVote{
-		UserID:    "810aefda-1e13-4ebc-a9e8-4162435eca7b",
+		UserID:    id,
 		State:     comments.RecordStateVetted,
 		Token:     lc.Token,
 		CommentID: uint32(cid),
