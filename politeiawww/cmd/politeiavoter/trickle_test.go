@@ -11,6 +11,8 @@ import (
 	pb "decred.org/dcrwallet/rpc/walletrpc"
 )
 
+const keepFiles = false
+
 func fakeTickets(x uint) (*pb.CommittedTicketsResponse, *pb.SignMessagesResponse) {
 	ctres := pb.CommittedTicketsResponse{
 		TicketAddresses: make([]*pb.CommittedTicketsResponse_TicketAddress, x),
@@ -39,6 +41,10 @@ func fakePiv(t *testing.T, d time.Duration, x uint, hoursPrior uint64) (*piv, fu
 		t.Fatal(err)
 	}
 	cleanup := func() {
+		if keepFiles {
+			t.Logf("Files not deleted from: %v", homeDir)
+			return
+		}
 		err = os.RemoveAll(homeDir)
 		if err != nil {
 			t.Fatal(err)
@@ -47,6 +53,7 @@ func fakePiv(t *testing.T, d time.Duration, x uint, hoursPrior uint64) (*piv, fu
 
 	return &piv{
 		ctx: context.Background(),
+		run: time.Now(),
 		cfg: &config{
 			HomeDir:      homeDir,
 			voteDir:      filepath.Join(homeDir, defaultVoteDirname),
