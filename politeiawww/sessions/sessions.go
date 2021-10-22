@@ -129,9 +129,8 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 			panic("database did not return a session or an error")
 		}
 
-		// The session was found in the database. Decode
-		// the session values from the encoded entry into
-		// the session being returned.
+		// The session was found in the database. Decode the
+		// session values into the session being returned.
 		session.IsNew = false
 		err = securecookie.DecodeMulti(session.Name(),
 			encodedSession.Values, &session.Values,
@@ -144,7 +143,6 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 	case ErrNotFound:
 		// Session not found in database; return the new one.
 		log.Debugf("Session not found; returning new session")
-		return session, nil
 
 	default:
 		// All other errors
@@ -210,8 +208,9 @@ func (s *sessionStore) Save(r *http.Request, w http.ResponseWriter, session *ses
 // session will not have any sessions values set and will not have been saved
 // to the session store yet.
 //
-// Get returns a new session and an error if the session exists but could not
-// be decoded.
+// A nil session is never returned. If an error occurs, a new session and the
+// error will both be returned. This is the behavior that gorilla/sessions
+// expects.
 //
 // This function satisfies the gorilla/sessions Store interface.
 func (s *sessionStore) Get(r *http.Request, cookieName string) (*sessions.Session, error) {

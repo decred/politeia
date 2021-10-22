@@ -24,7 +24,7 @@ request cookie. The caller uses Get() to decode the session ID and to lookup
 the session values from the database.
 
 The key used to encode/decode the session ID and the session values is provided
-to the session store on initialization. Keys can be rotated by provided
+to the session store on initialization. Keys can be rotated by providing
 multiple keys on initialization.
 */
 package sessions
