@@ -317,11 +317,13 @@ func (p *piv) makeRequest(method, api, route string, b interface{}) ([]byte, err
 
 	// This is a hack to test this code.
 	if p.cfg.testing {
-		// Fake out CastBallotReply
+		// Fake out CastBallotReply. We cast b to CastBallot but this
+		// may have to change in the future if we add additional
+		// functionality here.
 		cbr := tkv1.CastBallotReply{
 			Receipts: []tkv1.CastVoteReply{
 				{
-					Ticket:  "ticket",
+					Ticket:  b.(*tkv1.CastBallot).Votes[0].Ticket,
 					Receipt: "receipt",
 					//ErrorCode: tkv1.VoteErrorInvalid,
 					//ErrorContext:"ec",

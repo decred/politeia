@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -11,15 +12,17 @@ import (
 	pb "decred.org/dcrwallet/rpc/walletrpc"
 )
 
-const keepFiles = false
+const keepFiles = true
 
 func fakeTickets(x uint) (*pb.CommittedTicketsResponse, *pb.SignMessagesResponse) {
 	ctres := pb.CommittedTicketsResponse{
 		TicketAddresses: make([]*pb.CommittedTicketsResponse_TicketAddress, x),
 	}
 	for k := range ctres.TicketAddresses {
+		ticket := make([]byte, 32)
+		binary.LittleEndian.PutUint64(ticket[:], uint64(k))
 		ctres.TicketAddresses[k] = &pb.CommittedTicketsResponse_TicketAddress{
-			Ticket: make([]byte, 32),
+			Ticket: ticket,
 		}
 	}
 	smr := pb.SignMessagesResponse{
@@ -71,7 +74,7 @@ func TestTrickleNotEnoughTime(t *testing.T) {
 	defer cleanup()
 
 	ctres, smr := fakeTickets(x)
-	err := c.alarmTrickler("", "", ctres, smr)
+	err := c.alarmTrickler("token", "voteBit", ctres, smr)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -83,7 +86,7 @@ func TestTrickle2(t *testing.T) {
 	defer cleanup()
 
 	ctres, smr := fakeTickets(x)
-	err := c.alarmTrickler("", "", ctres, smr)
+	err := c.alarmTrickler("token", "voteBit", ctres, smr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +98,7 @@ func TestTrickleWorkers(t *testing.T) {
 	defer cleanup()
 
 	ctres, smr := fakeTickets(x)
-	err := c.alarmTrickler("", "", ctres, smr)
+	err := c.alarmTrickler("token", "voteBit", ctres, smr)
 	if err != nil {
 		t.Fatal(err)
 	}
