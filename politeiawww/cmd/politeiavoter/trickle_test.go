@@ -12,7 +12,7 @@ import (
 	pb "decred.org/dcrwallet/rpc/walletrpc"
 )
 
-const keepFiles = true
+const keepFiles = false
 
 func fakeTickets(x uint) (*pb.CommittedTicketsResponse, *pb.SignMessagesResponse) {
 	ctres := pb.CommittedTicketsResponse{
@@ -107,6 +107,10 @@ func TestUnrecoverableTrickleWorkers(t *testing.T) {
 }
 
 func TestManyTrickleWorkers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("TestManyTrickleWorkers: skipping test in short mode.")
+	}
+
 	bunches := uint(10)
 	c, cleanup := fakePiv(t, 2*time.Minute, bunches, 0)
 	defer cleanup()
