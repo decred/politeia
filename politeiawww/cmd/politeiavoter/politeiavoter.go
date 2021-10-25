@@ -249,6 +249,9 @@ func (p *piv) jsonLog(filename, token string, work ...interface{}) error {
 	dir := filepath.Join(p.cfg.voteDir, token)
 	os.MkdirAll(dir, 0700)
 
+	p.Lock()
+	defer p.Unlock()
+
 	f := filepath.Join(dir, fmt.Sprintf("%v.%v", filename, p.run.Unix()))
 	fh, err := os.OpenFile(f, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {

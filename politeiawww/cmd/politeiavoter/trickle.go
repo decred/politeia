@@ -65,7 +65,7 @@ func (p *piv) generateVoteAlarm(token, voteBit string, ctres *pb.CommittedTicket
 	fmt.Printf("Total number of votes  : %v\n", len(ctres.TicketAddresses))
 	fmt.Printf("Total number of bunches: %v\n", bunches)
 	fmt.Printf("Total vote duration    : %v\n", duration)
-	fmt.Printf("Duration calculated    : %d\n", voteDuration)
+	fmt.Printf("Duration calculated    : %v\n", voteDuration)
 
 	// Initialize bunches
 	tStart := make([]time.Time, bunches)
@@ -79,18 +79,6 @@ func (p *piv) generateVoteAlarm(token, voteBit string, ctres *pb.CommittedTicket
 		fmt.Printf("bunchID: %v start %v end %v duration %v\n",
 			i, tStart[i], tEnd[i], tEnd[i].Sub(tStart[i]))
 	}
-
-	// Generate voteAlarm array
-	//now := time.Now()                           // XXX generate N now() based on the number of bunches
-	//startTime := now.Add(time.Second).Unix()    // XXX randomize
-	//endTime := now.Add(10 * time.Second).Unix() // XXX randomize
-	//start := new(big.Int).SetInt64(startTime)
-	//end := new(big.Int).SetInt64(endTime)
-	//fmt.Printf("now      : %v\n", now)
-	//fmt.Printf("startTime: %v\n", startTime)
-	//fmt.Printf("endTime  : %v\n", endTime)
-	//fmt.Printf("start    : %v\n", start)
-	//fmt.Printf("end      : %v\n", end)
 
 	va := make([]*voteAlarm, len(ctres.TicketAddresses))
 	for k := range ctres.TicketAddresses {
