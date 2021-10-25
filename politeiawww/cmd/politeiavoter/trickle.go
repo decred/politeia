@@ -20,7 +20,10 @@ import (
 // WaitUntil will block until the given time.  Can be cancelled by cancelling
 // the context
 func WaitUntil(ctx context.Context, t time.Time) error {
-	diff := t.Sub(time.Now())
+	// This garbage is a fucking retarded lint idea.
+	// We therefore replace the readable `diff := t.Sub(time.Now())` line
+	// into unreadable time.Until() crap.
+	diff := time.Until(t)
 	if diff <= 0 {
 		return nil
 	}
