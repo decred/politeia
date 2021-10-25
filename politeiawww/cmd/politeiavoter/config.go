@@ -40,6 +40,10 @@ const (
 
 	defaultHoursPrior = uint64(12)
 	defaultBunches    = uint(1)
+
+	// Testing stuff
+	testNormal            = 0
+	testFailUnrecoverable = 1
 )
 
 var (
@@ -95,7 +99,9 @@ type config struct {
 	blocksPerHour uint64
 
 	// Test only
-	testing bool
+	testing        bool
+	testingCounter int
+	testingMode    int // Type of failure
 }
 
 // serviceOptions defines the configuration options for the daemon as a service

@@ -286,6 +286,47 @@ func convertTicketHashes(h []string) ([][]byte, error) {
 	return hashes, nil
 }
 
+func (p *piv) testMaybeFail(b interface{}) ([]byte, error) {
+	switch p.cfg.testingMode {
+	case testFailUnrecoverable:
+		return nil, fmt.Errorf("%v, %v %v", http.StatusBadRequest,
+			255, "fake")
+	default:
+	}
+	// Fail every 3rd vote
+	p.Lock()
+	p.cfg.testingCounter++
+	if p.cfg.testingCounter%3 == 0 {
+		p.Unlock()
+		return nil, ErrRetry{
+			At:   "FAKE r.StatusCode != http.StatusOK",
+			Err:  fmt.Errorf("fake error"),
+			Body: []byte{},
+			Code: http.StatusRequestTimeout,
+		}
+	}
+	p.Unlock()
+
+	// Fake out CastBallotReply. We cast b to CastBallot but this
+	// may have to change in the future if we add additional
+	// functionality here.
+	cbr := tkv1.CastBallotReply{
+		Receipts: []tkv1.CastVoteReply{
+			{
+				Ticket:  b.(*tkv1.CastBallot).Votes[0].Ticket,
+				Receipt: "receipt",
+				//ErrorCode:    tkv1.VoteErrorInternalError,
+				//ErrorContext: "testing",
+			},
+		},
+	}
+	jcbr, err := json.Marshal(cbr)
+	if err != nil {
+		return nil, fmt.Errorf("TEST FAILED: %v", err)
+	}
+	return jcbr, nil
+}
+
 func (p *piv) makeRequest(method, api, route string, b interface{}) ([]byte, error) {
 	var requestBody []byte
 	var queryParams string
@@ -317,25 +358,7 @@ func (p *piv) makeRequest(method, api, route string, b interface{}) ([]byte, err
 
 	// This is a hack to test this code.
 	if p.cfg.testing {
-		// Fake out CastBallotReply. We cast b to CastBallot but this
-		// may have to change in the future if we add additional
-		// functionality here.
-		cbr := tkv1.CastBallotReply{
-			Receipts: []tkv1.CastVoteReply{
-				{
-					Ticket:  b.(*tkv1.CastBallot).Votes[0].Ticket,
-					Receipt: "receipt",
-					//ErrorCode: tkv1.VoteErrorInvalid,
-					//ErrorContext:"ec",
-
-				},
-			},
-		}
-		jcbr, err := json.Marshal(cbr)
-		if err != nil {
-			return nil, fmt.Errorf("TEST FAILED: %v", err)
-		}
-		return jcbr, nil
+		return p.testMaybeFail(b)
 	}
 	req, err := http.NewRequestWithContext(p.ctx, method, fullRoute,
 		bytes.NewReader(requestBody))

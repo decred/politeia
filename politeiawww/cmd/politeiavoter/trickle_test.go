@@ -80,24 +80,39 @@ func TestTrickleNotEnoughTime(t *testing.T) {
 	}
 }
 
-func TestTrickle2(t *testing.T) {
-	x := uint(10)
-	c, cleanup := fakePiv(t, 24*time.Hour, x, 1)
+func TestTrickleWorkers(t *testing.T) {
+	bunches := uint(3)
+	c, cleanup := fakePiv(t, time.Minute, bunches, 0)
 	defer cleanup()
 
-	ctres, smr := fakeTickets(x)
+	nrVotes := uint(20)
+	ctres, smr := fakeTickets(nrVotes)
 	err := c.alarmTrickler("token", "voteBit", ctres, smr)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestTrickleWorkers(t *testing.T) {
-	x := uint(10)
-	c, cleanup := fakePiv(t, 24*time.Hour, x, 12)
+func TestUnrecoverableTrickleWorkers(t *testing.T) {
+	c, cleanup := fakePiv(t, 10*time.Second, 1, 0)
 	defer cleanup()
 
-	ctres, smr := fakeTickets(x)
+	c.cfg.testingMode = testFailUnrecoverable
+
+	ctres, smr := fakeTickets(1)
+	err := c.alarmTrickler("token", "voteBit", ctres, smr)
+	if err == nil {
+		t.Fatal("expected unrecoverable error")
+	}
+}
+
+func TestManyTrickleWorkers(t *testing.T) {
+	bunches := uint(10)
+	c, cleanup := fakePiv(t, 2*time.Minute, bunches, 0)
+	defer cleanup()
+
+	nrVotes := uint(20000)
+	ctres, smr := fakeTickets(nrVotes)
 	err := c.alarmTrickler("token", "voteBit", ctres, smr)
 	if err != nil {
 		t.Fatal(err)
