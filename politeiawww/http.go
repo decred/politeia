@@ -5,9 +5,14 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
+	"runtime/debug"
+	"time"
 
 	v1 "github.com/decred/politeia/politeiawww/api/http/v1"
 	"github.com/decred/politeia/politeiawww/logger"
@@ -15,17 +20,11 @@ import (
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 )
 
 /*
-Add custom permission classes.
-Set permissions on routes.
-Set permissions on users.
-Routes check permissions.
-
-Set permission on user creation.
-Allow sysadmin to update user permission.
-*/
+ */
 
 // setupRoutes sets up the routes for the politeia http API.
 func (p *politeiawww) setupRoutes() {
@@ -58,7 +57,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 
 	// Set the CSRF header. This is the only route
 	// that sets the CSRF header.
-	w.Header().Set(v1.HeaderCSRF, csrf.Token(r))
+	w.Header().Set(v1.CSRFTokenHeader, csrf.Token(r))
 
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
@@ -67,15 +66,53 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleWrite")
 
-	// Pre plugin hooks
-	//  - Check cookie session
-	//  - Check user permissions
+	// Decode the request body
+	var payload v1.Write
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&payload); err != nil {
+		respondWithError(w, r, "handleWrite: unmarshal",
+			v1.UserError{
+				ErrorCode: v1.ErrorCodeInvalidInput,
+			})
+		return
+	}
 
-	var wr *v1.WriteReply
+	// Get the session from the request cookie
+	s, err := p.sessions.Get(r, v1.SessionCookieName)
+	if err != nil {
+		respondWithError(w, r,
+			"handleWrite: get session: %v", err)
+		return
+	}
 
-	// Post plugin hooks
+	// Execute the pre plugin hooks
 
-	util.RespondWithJSON(w, http.StatusOK, wr)
+	// Execute the plugin command
+	var reply *v1.WriteReply
+
+	// Execute the post plugin hooks
+
+	// Save the updated session
+	err = p.saveSession(r, w, s)
+	if err != nil {
+		// The plugin command has already written data. This
+		// error needs to be handled gracefully. Log it and
+		// continue.
+		log.Errorf("handleWrite: saveSession %v: %v", s.ID, err)
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// saveSession saves the encoded session values to the database and the encoded
+// session ID to the response cookie. This is only performed if there are
+// session values that need to be saved.
+func (p *politeiawww) saveSession(r *http.Request, w http.ResponseWriter, s *sessions.Session) error {
+	if len(s.Values) == 0 {
+		// Nothing to save
+		return nil
+	}
+	return p.sessions.Save(r, w, s)
 }
 
 // addRoute adds a route to the provided router.
@@ -99,4 +136,62 @@ func handleNotFound(w http.ResponseWriter, r *http.Request) {
 	}))
 
 	util.RespondWithJSON(w, http.StatusNotFound, nil)
+}
+
+// responseWithError checks the error type and responds with the appropriate
+// HTTP status body and response body.
+func respondWithError(w http.ResponseWriter, r *http.Request, format string, err error) {
+	// Check if the client dropped the connection
+	if err := r.Context().Err(); err == context.Canceled {
+		log.Infof("%v %v %v %v client aborted connection",
+			util.RemoteAddr(r), r.Method, r.URL, r.Proto)
+
+		// The client dropped the connection. There
+		// is no need to send a response.
+		return
+	}
+
+	// Check for expected error types
+	var (
+		ue v1.UserError
+	)
+	switch {
+	case errors.As(err, &ue):
+		// User error. Log it and return a 400.
+		m := fmt.Sprintf("%v user error: %v %v", util.RemoteAddr(r),
+			ue.ErrorCode, v1.ErrorCodes[ue.ErrorCode])
+		if ue.ErrorContext != "" {
+			m += fmt.Sprintf(": %v", ue.ErrorContext)
+		}
+		log.Infof(m)
+		util.RespondWithJSON(w, http.StatusBadRequest,
+			v1.UserError{
+				ErrorCode:    ue.ErrorCode,
+				ErrorContext: ue.ErrorContext,
+			})
+		return
+
+	default:
+		// Internal server error. Log it and return a 500.
+		t := time.Now().Unix()
+		e := fmt.Sprintf(format, err)
+		log.Errorf("%v %v %v %v Internal error %v: %v",
+			util.RemoteAddr(r), r.Method, r.URL, r.Proto, t, e)
+
+		// If this is a pkg/errors error then we can pull the
+		// stack trace out of the error, otherwise, we use the
+		// stack trace that points to this function.
+		stack, ok := util.StackTrace(err)
+		if !ok {
+			stack = string(debug.Stack())
+		}
+
+		log.Errorf("Stacktrace (NOT A REAL CRASH): %v", stack)
+
+		util.RespondWithJSON(w, http.StatusInternalServerError,
+			v1.InternalError{
+				ErrorCode: t,
+			})
+		return
+	}
 }

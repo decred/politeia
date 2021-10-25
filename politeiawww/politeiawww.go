@@ -25,6 +25,7 @@ import (
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 )
 
 const (
@@ -38,6 +39,7 @@ type politeiawww struct {
 	cfg       *config.Config
 	router    *mux.Router
 	auth      *mux.Router // CSRF protected subrouter
+	sessions  sessions.Store
 	politeiad *pdclient.Client
 	events    *events.Manager
 	legacy    *legacy.Politeiawww // Legacy API

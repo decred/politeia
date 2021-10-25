@@ -10,9 +10,6 @@ const (
 	// APIVersion if the version of the API that this package represents.
 	APIVersion uint32 = 1
 
-	// HeaderCSRF is the header that will contain a CSRF token.
-	HeaderCSRF = "X-CSRF-Token"
-
 	// APIRoute is prefixed onto all routes defined in this package.
 	APIRoute = "/v1"
 
@@ -49,6 +46,16 @@ const (
 	RouteReadBatch = "/readbatch"
 )
 
+const (
+	// CSRFTokenHeader is the header that will contain a CSRF token.
+	CSRFTokenHeader = "X-CSRF-Token"
+
+	// SessionCookieName is the cookie name for the session cookie. A client will
+	// have the session cookie set the first time one of the read or write routes
+	// is hit.
+	SessionCookieName = "session"
+)
+
 // Version returns the server version information and the list of plugins that
 // the server is running. The client should verify compatibility with the
 // server version and plugins.
@@ -81,15 +88,7 @@ type PluginReply struct {
 	PluginID string `json:"pluginid"`
 	Cmd      string `json:"cmd"`
 	Payload  string `json:"payload"` // Reply payload, JSON encoded
-}
-
-type Write struct {
-	PluginCmd PluginCmd `json:"plugincmd"`
-}
-
-type WriteReply struct {
-	PluginReply PluginReply `json:"pluginreply"`
-	Error       error       `json:"error,omitempty"`
+	Error    error  `json:"error,omitempty"`
 }
 
 // PluginError is the reply that is returned when a plugin command encounters
@@ -104,12 +103,59 @@ type PluginError struct {
 
 // Error satisfies the error interface.
 func (e PluginError) Error() string {
-	return fmt.Sprintf("%v plugin error code: %v", e.PluginID, e.ErrorCode)
+	return fmt.Sprintf("%v plugin error code: %v",
+		e.PluginID, e.ErrorCode)
 }
 
-// InternalErrorReply is the reply that the server returns when it encounters
-// an unrecoverable error while executing a command. The HTTP status code will
-// be 500 and the InternalError will be returned in the response body. The
+type Write struct {
+	PluginCmd PluginCmd `json:"plugincmd"`
+}
+
+type WriteReply struct {
+	PluginReply PluginReply `json:"pluginreply"`
+}
+
+// ErrorCodeT represents a user error code.
+type ErrorCodeT uint32
+
+const (
+	// ErrorCodeInvalid is an invalid error code.
+	ErrorCodeInvalid ErrorCodeT = 0
+
+	// ErrorCodeInvalidInput is returned when the request body could not be
+	// parsed.
+	ErrorCodeInvalidInput ErrorCodeT = 1
+)
+
+var (
+	// ErrorCodes contains the human readable errors.
+	ErrorCodes = map[ErrorCodeT]string{
+		ErrorCodeInvalid:      "invalid error",
+		ErrorCodeInvalidInput: "invalid input",
+	}
+)
+
+// UserError is the reply that the server returns when it encounters an error
+// prior to plugin command execution and that is caused by something that the
+// user did, such as a invalid request body. The HTTP status code will be 400.
+type UserError struct {
+	ErrorCode    ErrorCodeT `json:"errorcode"`
+	ErrorContext string     `json:"errorcontext,omitempty"`
+}
+
+// Error satisfies the error interface.
+func (e UserError) Error() string {
+	if e.ErrorContext == "" {
+		return fmt.Sprintf("user error (%v): %v",
+			e.ErrorCode, ErrorCodes[e.ErrorCode])
+	}
+	return fmt.Sprintf("user error (%v): %v, %v",
+		e.ErrorCode, ErrorCodes[e.ErrorCode], e.ErrorContext)
+}
+
+// InternalError is the reply that the server returns when it encounters an
+// unrecoverable error while executing a command. The HTTP status code will be
+// 500 and the InternalError will be returned in the response body. The
 // ErrorCode field will contain a Unix timestamp that the user can provide to
 // the server operator to track down the error details in the logs.
 type InternalError struct {
