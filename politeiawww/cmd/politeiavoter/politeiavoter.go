@@ -968,9 +968,7 @@ func (p *piv) vote(args []string) error {
 	}
 
 	err := p._vote(args[0], args[1])
-	if err != nil {
-		return err
-	}
+	// we return err after printing details
 
 	// Verify vote replies
 	failedReceipts := make([]tkv1.CastVoteReply, 0,
@@ -993,7 +991,7 @@ func (p *piv) vote(args []string) error {
 			v.Ticket, v.ErrorContext)
 	}
 
-	return nil
+	return err
 }
 
 func (p *piv) _summary(token string) (*tkv1.SummariesReply, error) {
