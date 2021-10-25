@@ -308,7 +308,11 @@ func (l *legacyImport) convertStartVoteMetadata(path string) (*tv.Start, error) 
 					Options:          opts,
 				},
 				PublicKey: av.PublicKey,
-				Signature: av.Signature,
+
+				// The signature for this struct is not sound on tlog due to
+				// significant data changes.
+
+				// Signature: av.Signature,
 			},
 		},
 	}, nil
@@ -341,12 +345,16 @@ func convertVoteDetailsMetadata(path string, startDetails tv.StartDetails) (*tv.
 	return &tv.VoteDetails{
 		Params:    startDetails.Params,
 		PublicKey: startDetails.PublicKey,
-		Signature: startDetails.Signature,
 
 		StartBlockHeight: uint32(sbh),
 		StartBlockHash:   vd.StartBlockHash,
 		EndBlockHeight:   uint32(ebh),
 		EligibleTickets:  vd.EligibleTickets,
+
+		// The signature for this struct is not coherent on tlog due to
+		// significant data changes.
+
+		// Signature: startDetails.Signature,
 	}, nil
 }
 

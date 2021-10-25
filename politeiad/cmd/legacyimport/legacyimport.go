@@ -419,6 +419,10 @@ func (l *legacyImport) saveRecordData(data parsedData) ([]byte, error) {
 	data.statusChangeMd.Token = data.legacyToken
 	// Save new tstore token to record metadata.
 	data.recordMd.Token = hex.EncodeToString(newToken)
+	// Save new tstore token to vote details params.
+	if data.voteDetailsMd != nil {
+		data.voteDetailsMd.Params.Token = hex.EncodeToString(newToken)
+	}
 
 	// Check to see if record is RFP. If so, update the RFP parents cache with
 	// the new tlog token.

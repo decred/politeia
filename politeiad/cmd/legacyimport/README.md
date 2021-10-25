@@ -18,7 +18,7 @@ Application flags:
 `--userid`      - Replace userid data of blobs with a userid from the localdb.
   `default: "" (maintain userid from gitbe payloads)`
 
-Connection to tstore and mysql flags:
+Connection to tstore/mysql flags:
 
 `--tloghost`    - Host for tlog.
   `default: localhost:8090`
@@ -37,7 +37,7 @@ ballot journal takes a few hours.
 
 A userid from a localdb must be set in order to test the legacy import locally.
 This is because `politeiawww` will throw a `user not found` error when it tries
-to locally fetch the userid coming from the git repository.
+to locally fetch userid's coming from the git records.
 
 ##### Usage
 
@@ -61,11 +61,17 @@ Production scenario fully importing all data from legacy records into tstore:
 - Since the `recordmetadata.json` data struct was never signed in the first
 place, it was decided to replace the `Token` field from this struct for the
 newly created tstore token, instead of the legacy gitbe token, when importing
-the records.
+the records. This solves a lot of functionality problems that arise by having
+the recordmetadata pointing to a legacy gitbe token.
 
-- It was decided to import only the latest version of each record into tlog, 
-and save it as a version 1 record. If one wishes to check further versions
-of a finished legacy record, the git repo will be available.
+- The vote parameter options from vote details struct was also updated to
+reference the newly created tstore token, in order to preserve summary fetching
+functionality. This struct did not exist on gitbe and therefore we do not lose
+any signature verification capabilities by doing this.
+
+- It was decided to import only the latest version of each record into tstore, 
+and save it as a version 1 record. If one wishes to check further versions of
+a finished legacy record, the git repo will be available.
 
 - Legacy signatures cannot be verified using the current politeia public key.
 The key that should be used for verifying legacy record signatures is:

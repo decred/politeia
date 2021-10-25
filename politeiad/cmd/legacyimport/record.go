@@ -88,7 +88,7 @@ func (l *legacyImport) fetchUserByPubKey(pubkey string) (*user, error) {
 }
 
 // convertRecordMetadata reads the recordmetadata.json from the gitbe record
-// and converts it to a v2 RecordMetadata for the tlogbe.
+// and converts it to a RecordMetadata for the tlogbe.
 func convertRecordMetadata(path string) (*backendv2.RecordMetadata, error) {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -201,13 +201,14 @@ func (l *legacyImport) convertUserMetadata(path string) (*usermd.UserMetadata, s
 
 	// If userid/publickey is data from a user that is not registered in the
 	// local userdb this tool is using, then recordSave will error out.
-	//
-	// Signature from user metadata changed since files on tstore are different,
-	// resulting in a different merkle root.
 	return &pusermd.UserMetadata{
 		UserID:    id,
 		PublicKey: pgv1.PublicKey,
-		Signature: pgv1.Signature,
+
+		// The signature for this struct is not coherent on tlog due to
+		// significant data changes.
+
+		// Signature: pgv1.Signature,
 	}, pgv1.Name, nil
 }
 
