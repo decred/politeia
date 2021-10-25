@@ -19,7 +19,7 @@ import (
 
 /*
 Add custom permission classes.
-Set permissions on routes. Need to map classes to non-CSRF and CSRF routers.
+Set permissions on routes.
 Set permissions on users.
 Routes check permissions.
 
@@ -37,10 +37,13 @@ func (p *politeiawww) setupRoutes() {
 		// to be part of the CSRF protected auth router so that the
 		// cookie CSRF is set too. The CSRF cookie is set on all auth
 		// routes. The header token is only set on the version route.
-		addRoute(p.auth, http.MethodGet, v1.RouteVersion, p.handleVersion)
+		addRoute(p.auth, http.MethodGet, "", "/", p.handleVersion)
+		addRoute(p.auth, http.MethodGet, v1.APIRoute,
+		  v1.RouteVersion, p.handleVersion)
 	*/
 
-	addRoute(p.auth, http.MethodPost, v1.RouteWrite, p.handleWrite)
+	addRoute(p.auth, http.MethodPost, v1.APIRoute,
+		v1.RouteWrite, p.handleWrite)
 }
 
 // handleVersion is the request handler for the http v1 Version command.
@@ -76,8 +79,8 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 }
 
 // addRoute adds a route to the provided router.
-func addRoute(router *mux.Router, method string, route string, handler http.HandlerFunc) {
-	router.HandleFunc(route, handler).Methods(method)
+func addRoute(router *mux.Router, method string, routePrefix, route string, handler http.HandlerFunc) {
+	router.HandleFunc(routePrefix+route, handler).Methods(method)
 }
 
 // handleNotFound handles all invalid routes and returns a 404 to the client.

@@ -10,39 +10,43 @@ const (
 	// APIVersion if the version of the API that this package represents.
 	APIVersion uint32 = 1
 
-	// HeaderCSRF is the header that contains the CSRF token.
+	// HeaderCSRF is the header that will contain a CSRF token.
 	HeaderCSRF = "X-CSRF-Token"
 
+	// APIRoute is prefixed onto all routes defined in this package.
+	APIRoute = "/v1"
+
 	// RouteVersion is a GET request route that returns the server version
-	// information and sets CSRF tokens for the client. This route uses the base
-	// route "/" for the API so that clients can determine version information
-	// without needing to have any prior knowledge of the API.
+	// information and sets CSRF tokens for the client. The VersionReply can be
+	// retrieved from both the "/" route and the "/v1/version" route. This allows
+	// clients to be able to determine version information without needing to
+	// have any prior knowledge of the API.
 	//
 	// This route sets CSRF tokens for clients using the double submit cookie
 	// technique. A token is set in a cookie and a token is set in a header.
 	// Clients MUST make a successful Version call before they'll be able to
 	// use CSRF protected routes.
-	RouteVersion = "/"
+	RouteVersion = "/version"
 
 	// RouteWrite is a POST request route that executes a plugin write command.
 	//
 	// This route is CSRF protected. Clients must obtain CSRF tokens from the
 	// Version route before they'll be able to use this route. A 403 is returned
 	// if the client attempts to use this route without the proper CSRF tokens.
-	RouteWrite = "/v1/write"
+	RouteWrite = "/write"
 
 	// RouteRead is a POST request route that executes an individual plugin read
 	// command. This route is intended to be used for expensive plugin read
 	// commands that should not be batched due to their memory or performance
 	// requirements. This allows the sysadmin to set different rate limiting
 	// constrains for these expensive commands.
-	RouteRead = "/v1/read"
+	RouteRead = "/read"
 
 	// RouteReadBatch is a POST request route that executes a batch of plugin
 	// read commands. This route is intended to be used for inexpensive plugin
 	// commands that will not cause performance issues during the execution of
 	// large batches.
-	RouteReadBatch = "/v1/readbatch"
+	RouteReadBatch = "/readbatch"
 )
 
 // Version returns the server version information and the list of plugins that
