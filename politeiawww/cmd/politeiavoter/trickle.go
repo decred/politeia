@@ -197,21 +197,67 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 			p.ballotResults = append(p.ballotResults, *vr)
 			p.Unlock()
 
-			if vr.ErrorCode == tkv1.VoteErrorVoteStatusInvalid {
-				// Force an exit of the both the main queue and the
-				// retry queue if the voting period has ended.
+			// XXX TODO(lukebp) please make this a pointer and only
+			// evaluate these errors when it is set. For now we
+			// have to treat VoteErrorInvalid as valid because of
+			// this.
+			switch vr.ErrorCode {
+			// Success
+			case tkv1.VoteErrorInvalid:
+				// XXX treat as success for now
+
+			// Silently ignore.
+			case tkv1.VoteErrorTicketAlreadyVoted:
+				// This happens during network errors. Since
+				// the ticket has already voted record success
+				// and exit.
+
+			// Restart
+			case tkv1.VoteErrorInternalError:
+				// Politeia puked. Retry later to see if it
+				// recovered.
+				continue
+
+			// Non-terminal errors
+			case tkv1.VoteErrorTokenInvalid,
+				tkv1.VoteErrorRecordNotFound,
+				tkv1.VoteErrorMultipleRecordVotes,
+				tkv1.VoteErrorVoteBitInvalid,
+				tkv1.VoteErrorSignatureInvalid,
+				tkv1.VoteErrorTicketNotEligible:
+
+				// Log failure
 				err = p.jsonLog(failedJournal, va.Vote.Token, vr)
 				if err != nil {
 					return fmt.Errorf("1 jsonLog: %v", err)
 				}
-				return fmt.Errorf("Vote has ended; forced exit main vote queue.")
+				return nil
+
+			// Terminal
+			case tkv1.VoteErrorVoteStatusInvalid:
+				// Force an exit of the both the main queue and the
+				// retry queue if the voting period has ended.
+				err = p.jsonLog(failedJournal, va.Vote.Token, vr)
+				if err != nil {
+					return fmt.Errorf("2 jsonLog: %v", err)
+				}
+				return fmt.Errorf("Vote has ended; forced " +
+					"exit main vote queue.")
+
+			// Should not happen
+			default:
+				// Log failure
+				err = p.jsonLog(failedJournal, va.Vote.Token, vr)
+				if err != nil {
+					return fmt.Errorf("3 jsonLog: %v", err)
+				}
+				return nil
 			}
 
-			// XXX This cannot be correct since we only test for 1
-			// failure.
+			// Success, log it and exit
 			err = p.jsonLog(successJournal, va.Vote.Token, vr)
 			if err != nil {
-				return fmt.Errorf("2 jsonLog: %v", err)
+				return fmt.Errorf("3 jsonLog: %v", err)
 			}
 
 			// All done with this vote
