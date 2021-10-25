@@ -173,18 +173,14 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 
 			}
 
-			// Drop to retry loop
+			// Retry
+			continue
 
 		} else if err != nil {
 			// Unrecoverable error
 			return fmt.Errorf("unrecoverable error: %v",
 				err)
 		} else {
-			// Vote completed
-			p.Lock()
-			p.ballotResults = append(p.ballotResults, *vr)
-			p.Unlock()
-
 			// XXX TODO(lukebp) please make this a pointer and only
 			// evaluate these errors when it is set. For now we
 			// have to treat VoteErrorInvalid as valid because of
@@ -219,6 +215,13 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 				if err != nil {
 					return fmt.Errorf("1 jsonLog: %v", err)
 				}
+
+				// We have to do this for all failures, this
+				// should be rewritten.
+				p.Lock()
+				p.ballotResults = append(p.ballotResults, *vr)
+				p.Unlock()
+
 				return nil
 
 			// Terminal
@@ -239,6 +242,13 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 				if err != nil {
 					return fmt.Errorf("3 jsonLog: %v", err)
 				}
+
+				// We have to do this for all failures, this
+				// should be rewritten.
+				p.Lock()
+				p.ballotResults = append(p.ballotResults, *vr)
+				p.Unlock()
+
 				return nil
 			}
 
@@ -249,8 +259,13 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 			}
 
 			// All done with this vote
-			fmt.Printf("%v finished bunch %v vote %v\n",
-				time.Now(), bunchID, voteID)
+			// Vote completed
+			p.Lock()
+			p.ballotResults = append(p.ballotResults, *vr)
+			fmt.Printf("%v finished bunch %v vote %v -- "+
+				"total progress %v/%v\n", time.Now(), bunchID,
+				voteID, len(p.ballotResults), cap(p.ballotResults))
+			p.Unlock()
 			return nil
 		}
 	}
@@ -298,13 +313,21 @@ func (p *piv) alarmTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 
 	// Launch voting go routines
 	eg, ectx := errgroup.WithContext(p.ctx)
-	p.ballotResults = make([]tkv1.CastVoteReply, len(ctres.TicketAddresses))
+	p.ballotResults = make([]tkv1.CastVoteReply, 0, len(ctres.TicketAddresses))
+	div := len(votes) / int(p.cfg.Bunches)
+	mod := len(votes) % int(p.cfg.Bunches)
 	for k := range votes {
 		voterID := k
 		bunchID := voterID % int(p.cfg.Bunches)
 		v := *votes[k]
+
+		// Calculate of
+		of := div
+		if mod != 0 && bunchID == int(p.cfg.Bunches)-1 {
+			of = mod
+		}
 		eg.Go(func() error {
-			return p.voteTicket(ectx, bunchID, voterID, len(votes), v)
+			return p.voteTicket(ectx, bunchID, voterID, of, v)
 		})
 	}
 	err = eg.Wait()
