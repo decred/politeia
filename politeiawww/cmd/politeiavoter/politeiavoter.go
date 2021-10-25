@@ -984,7 +984,7 @@ func (p *piv) vote(args []string) error {
 	fmt.Printf("Votes succeeded: %v\n", len(p.ballotResults)-
 		len(failedReceipts))
 	fmt.Printf("Votes failed   : %v\n", len(failedReceipts))
-	notCast := 111111
+	notCast := cap(p.ballotResults) - len(p.ballotResults)
 	if notCast > 0 {
 		fmt.Printf("Votes not cast : %v (FIXME)\n", notCast)
 	}
