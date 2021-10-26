@@ -50,10 +50,15 @@ func (p *politeiawww) setupRoutes() {
 func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
+	plugins := make([]string, 0, len(p.userPlugins))
+	for _, p := range p.userPlugins {
+		plugins = append(plugins, p.ID())
+	}
+
 	vr := v1.VersionReply{
 		APIVersion:   v1.APIVersion,
 		BuildVersion: version.String(),
-		Plugins:      p.plugins,
+		Plugins:      plugins,
 	}
 
 	// Set the CSRF header. This is the only route
@@ -85,43 +90,87 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 			"handleWrite: get session: %v", err)
 		return
 	}
+	session := convertSession(*s)
 
-	// Start database transaction
-
-	// Execute the pre plugin hooks
-	reply, err := p.execPreHooks(user.HookPreWrite, cmd, s)
+	// Execute plugin command
+	reply, err := p.execWrite(r.Context(), cmd, &session)
 	if err != nil {
 		respondWithError(w, r,
-			"handleWrite: execPreHooks: %v", err)
-		return
-	}
-	if reply != nil {
-		util.RespondWithJSON(w, http.StatusOK, reply)
+			"handleWrite: execWrite: %v", err)
 		return
 	}
 
-	// Execute the plugin command
-
-	// Execute the post plugin hooks
-	err = p.execPostHooks(user.HookPostWrite, cmd, s)
-	if err != nil {
-		respondWithError(w, r,
-			"handleWrite: execPostHooks: %v", err)
-		return
-	}
-
-	// Commit database transaction
-
-	// Save the updated session
+	// Save any updated session values
+	s.Values = session.Values
 	err = p.saveSession(r, w, s)
 	if err != nil {
-		// The database transaction has already been committed.
-		// This error needs to be handled gracefully. Log it and
-		// continue.
+		// The database transaction for the plugin write has
+		// already been committed and can't be rolled back.
+		// Handled this error gracefully. Log it and continue.
 		log.Errorf("handleWrite: saveSession %v: %v", s.ID, err)
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// execWrite executes a plugin command that writes data.
+func (p *politeiawww) execWrite(ctx context.Context, cmd v1.PluginCmd, s *user.Session) (*v1.PluginReply, error) {
+	// Start database transaction
+	tx, cancel, err := p.beginUserDBTx()
+	if err != nil {
+		return nil, err
+	}
+	defer cancel()
+
+	// Execute the pre plugin hooks
+	reply, err := p.execPreHooks(user.HookPreWrite, cmd, s)
+	if err != nil {
+		return nil, err
+	}
+	if reply != nil {
+		return reply, nil
+	}
+
+	// Execute the plugin command
+	reply, err = p.execCmd(cmd, s)
+	if err != nil {
+		return nil, err
+	}
+	if reply.Error != nil {
+		// The plugin command encountered an expected
+		// plugin error. Nothing else to do.
+		return reply, nil
+	}
+
+	// Execute the post plugin hooks
+	err = p.execPostHooks(user.HookPostWrite, cmd, s)
+	if err != nil {
+		return nil, err
+	}
+
+	// Commit database transaction
+	err = commitTx(tx)
+	if err != nil {
+		// Attempt to roll back the transaction
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			e := fmt.Sprintf("commit err: %v, unable to rollback: %v", err, err2)
+			panic(e)
+		}
+		return nil, err
+	}
+
+	return reply, nil
+}
+
+func (p *politeiawww) execCmd(cmd v1.PluginCmd, s *user.Session) (*v1.PluginReply, error) {
+	// Get the plugin
+
+	// Execute the plugin command
+
+	// Convert reply
+
+	return nil, nil
 }
 
 // execPreHooks executes the provided pre hook for all user plugins. Pre hooks
@@ -130,13 +179,10 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 // A plugin reply will be returned if one of the plugins throws an expected
 // error during hook execution. The plugin error will be embedded in the plugin
 // reply. Unexpected errors result in a standard golang error being returned.
-func (p *politeiawww) execPreHooks(h user.HookT, c v1.PluginCmd, s *sessions.Session) (*v1.PluginReply, error) {
-	var (
-		cmd     = convertCmd(c)
-		session = convertSession(*s)
-	)
-	for _, plugin := range p.plugins {
-		err := plugin.Hook(h, cmd, &session)
+func (p *politeiawww) execPreHooks(h user.HookT, c v1.PluginCmd, s *user.Session) (*v1.PluginReply, error) {
+	cmd := convertCmd(c)
+	for _, plugin := range p.userPlugins {
+		err := plugin.Hook(h, cmd, s)
 		if err != nil {
 			var pe user.PluginError
 			if errors.As(err, &pe) {
@@ -163,13 +209,10 @@ func (p *politeiawww) execPreHooks(h user.HookT, c v1.PluginCmd, s *sessions.Ses
 // Post hooks are not able to throw plugin errors like the pre hooks are. Any
 // error returned by a plugin from a post hook will be treated as an unexpected
 // error.
-func (p *politeiawww) execPostHooks(h user.HookT, c v1.PluginCmd, s *sessions.Session) error {
-	var (
-		cmd     = convertCmd(c)
-		session = convertSession(*s)
-	)
-	for _, plugin := range p.plugins {
-		err := plugin.Hook(h, cmd, &session)
+func (p *politeiawww) execPostHooks(h user.HookT, c v1.PluginCmd, s *user.Session) error {
+	cmd := convertCmd(c)
+	for _, plugin := range p.userPlugins {
+		err := plugin.Hook(h, cmd, s)
 		if err != nil {
 			return err
 		}

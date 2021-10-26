@@ -20,8 +20,11 @@ type Plugin interface {
 	// Hook executes a plugin hook.
 	Hook(h HookT, cmd PluginCmd, s *Session) error
 
-	// Write executes a write plugin command.
-	Write(tx *sql.Tx, cmd PluginCmd, s *Session) (*PluginReply, error)
+	// WriteTx executes a write plugin command using a database transaction.
+	WriteTx(tx *sql.Tx, cmd PluginCmd, s *Session) (*PluginReply, error)
+
+	// ReadTx executes a read plugin command using a database transaction.
+	ReadTx(tx *sql.Tx, cmd PluginCmd, s *Session) (*PluginReply, error)
 
 	// Read executes a read plugin command.
 	Read(cmd PluginCmd, s *Session) (*PluginReply, error)

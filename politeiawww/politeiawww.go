@@ -7,6 +7,7 @@ package main
 import (
 	"crypto/elliptic"
 	"crypto/tls"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
@@ -44,7 +45,10 @@ type politeiawww struct {
 	politeiad *pdclient.Client
 	events    *events.Manager
 	legacy    *legacy.Politeiawww // Legacy API
-	plugins   []user.Plugin
+
+	// User plugin layer
+	userDB      *sql.DB
+	userPlugins []user.Plugin
 }
 
 func _main() error {
@@ -187,13 +191,13 @@ func _main() error {
 
 	// Setup application context
 	p := &politeiawww{
-		cfg:       cfg,
-		router:    router,
-		auth:      auth,
-		politeiad: pdc,
-		events:    events.NewManager(),
-		legacy:    legacywww,
-		plugins:   make([]user.Plugin, 0, 16),
+		cfg:         cfg,
+		router:      router,
+		auth:        auth,
+		politeiad:   pdc,
+		events:      events.NewManager(),
+		legacy:      legacywww,
+		userPlugins: make([]user.Plugin, 0, 16),
 	}
 
 	// Setup API routes. For now, only set these up
