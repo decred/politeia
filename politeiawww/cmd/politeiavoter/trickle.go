@@ -62,8 +62,11 @@ func (p *piv) generateVoteAlarm(token, voteBit string, ctres *pb.CommittedTicket
 	bunches := int(p.cfg.Bunches)
 	duration := p.cfg.voteDuration
 	voteDuration := duration - time.Duration(p.cfg.HoursPrior)*time.Hour
-	if voteDuration < time.Duration(p.cfg.HoursPrior)*time.Hour {
-		return nil, fmt.Errorf("not enough time left to trickle votes")
+	vd := time.Duration(p.cfg.HoursPrior) * time.Hour
+	if voteDuration < vd {
+		return nil, fmt.Errorf("not enough time left to trickle "+
+			"votes: %v < %v, use --hoursprior to modify this "+
+			"behavior", voteDuration, vd)
 	}
 	fmt.Printf("Total number of votes  : %v\n", len(ctres.TicketAddresses))
 	fmt.Printf("Total number of bunches: %v\n", bunches)

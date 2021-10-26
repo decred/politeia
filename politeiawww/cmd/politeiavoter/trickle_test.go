@@ -75,6 +75,7 @@ func TestTrickleNotEnoughTime(t *testing.T) {
 
 	ctres, smr := fakeTickets(x)
 	err := c.alarmTrickler("token", "voteBit", ctres, smr)
+	t.Logf("error received: %v", err)
 	if err == nil {
 		t.Fatal("expected error")
 	}
