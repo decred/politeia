@@ -269,6 +269,7 @@ func filesVerify(files []backend.File, filesDel []string) error {
 				ErrorContext: e,
 			}
 		}
+
 		if !mime.MimeValid(files[i].MIME) {
 			return backend.ContentError{
 				ErrorCode:    backend.ContentErrorFileMIMETypeUnsupported,

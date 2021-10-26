@@ -40,7 +40,9 @@ const (
 	defaultDBHost      = "localhost:3306"
 	defaultDBPass      = "politeiadpass"
 	defaultDataDirname = "data"
-	defaultBallotCount = 0 // 0 meaning parse all votes
+
+	defaultBallotCount = 0  // 0  meaning parse all votes
+	defaultUserID      = "" // "" meaning use userid from gitbe payloads
 )
 
 var (
@@ -62,10 +64,11 @@ var (
 	ballot      = flag.Bool("ballot", false, "parse ballot journal")
 	ballotCount = flag.Int("ballotcount", defaultBallotCount, "number of votes to parse")
 
-	// A userid from the local user db. Thi
-	userid = flag.String("userid", "", "local db userid used for testing")
+	// A userid from the local user db. Set this flag for testing this tool
+	// locally.
+	userid = flag.String("userid", defaultUserID, "local db userid used for testing")
 
-	// Tstore config flags
+	// Config flags for tstore
 	tlogHost = flag.String("tloghost", defaultTlogHost, "tlog host")
 	tlogPass = flag.String("tlogpass", defaultTlogPass, "tlog pass")
 	dbHost   = flag.String("dbhost", defaultDBHost, "mysql DB host")
@@ -532,6 +535,15 @@ func _main() error {
 	l, err := newLegacyImport()
 	if err != nil {
 		return err
+	}
+
+	_, err = gitData(path)
+	if err != nil {
+		return err
+	}
+
+	if true {
+		return nil
 	}
 
 	paths, err := l.preParsePaths(path)

@@ -85,7 +85,7 @@ func printProposalFiles(files []rcv1.File) error {
 			printf("  Domain: %v\n", pm.Domain)
 		}
 		if pm.LegacyToken != "" {
-			printf("  LegacyToken: %v\n", pm.LegacyToken)
+			printf("\n  Legacy Token: %v\n", pm.LegacyToken)
 		}
 	}
 
