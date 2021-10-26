@@ -537,15 +537,6 @@ func _main() error {
 		return err
 	}
 
-	_, err = gitData(path)
-	if err != nil {
-		return err
-	}
-
-	if true {
-		return nil
-	}
-
 	paths, err := l.preParsePaths(path)
 	if err != nil {
 		return err
