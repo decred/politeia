@@ -14,8 +14,11 @@ import (
 )
 
 // execWrite executes a plugin command that writes data.
-func (p *politeiawww) execWrite(ctx context.Context, cmd plugin.Cmd, s *plugin.Session) (*plugin.Reply, error) {
-	// Start the database transaction
+//
+// This function assumes the caller has verified that the plugin exists for
+// the plugin command.
+func (p *politeiawww) execWrite(ctx context.Context, pluginID string, cmd plugin.Cmd, s *plugin.Session) (*plugin.Reply, error) {
+	// Setup the database transaction
 	tx, cancel, err := p.beginTx()
 	if err != nil {
 		return nil, err
@@ -32,13 +35,18 @@ func (p *politeiawww) execWrite(ctx context.Context, cmd plugin.Cmd, s *plugin.S
 	}
 
 	// Execute the plugin command
-	reply, err = p.execCmd(cmd, s)
+	plug, ok := p.plugins[pluginID]
+	if !ok {
+		return nil, errors.Errorf("plugin not found: %v",
+			pluginID)
+	}
+	reply, err = plug.TxWrite(tx, cmd, s)
 	if err != nil {
 		return nil, err
 	}
 	if reply.Error != nil {
-		// The plugin command encountered an
-		// expected error. Nothing else to do.
+		// The plugin command encountered
+		// a user error. Return it.
 		return reply, nil
 	}
 
@@ -60,14 +68,6 @@ func (p *politeiawww) execWrite(ctx context.Context, cmd plugin.Cmd, s *plugin.S
 	}
 
 	return reply, nil
-}
-
-func (p *politeiawww) execCmd(cmd plugin.Cmd, s *plugin.Session) (*plugin.Reply, error) {
-	// Get the plugin
-
-	// Execute the plugin command
-
-	return nil, nil
 }
 
 // execPreHooks executes the provided pre hook for all plugins. Pre hooks are

@@ -124,16 +124,23 @@ const (
 	// ErrorCodeInvalidInput is returned when the request body could not be
 	// parsed.
 	ErrorCodeInvalidInput ErrorCodeT = 1
+
+	// ErrorCodePluginNotFound is returned when a plugin ID is provided that
+	// does not correspond to a registered plugin.
+	ErrorCodePluginNotFound ErrorCodeT = 2
 )
 
 var (
 	// ErrorCodes contains the human readable errors.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid:      "invalid error",
-		ErrorCodeInvalidInput: "invalid input",
+		ErrorCodeInvalid:        "invalid error",
+		ErrorCodeInvalidInput:   "invalid input",
+		ErrorCodePluginNotFound: "plugin not found",
 	}
 )
 
+// TODO these should be returned in the PluginReply too.
+//
 // UserError is the reply that the server returns when it encounters an error
 // prior to plugin command execution and that is caused by something that the
 // user did, such as a invalid request body. The HTTP status code will be 400.

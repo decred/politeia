@@ -68,9 +68,19 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	var cmd v1.PluginCmd
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cmd); err != nil {
-		respondWithError(w, r, "handleWrite: unmarshal",
+		respondWithError(w, r, "",
 			v1.UserError{
 				ErrorCode: v1.ErrorCodeInvalidInput,
+			})
+		return
+	}
+
+	// Verify plugin exists
+	_, ok := p.plugins[cmd.PluginID]
+	if !ok {
+		respondWithError(w, r, "",
+			v1.UserError{
+				ErrorCode: v1.ErrorCodePluginNotFound,
 			})
 		return
 	}
@@ -82,12 +92,13 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 			"handleWrite: get session: %v", err)
 		return
 	}
+
 	// Execute plugin command
 	var (
 		session = convertSession(*s)
 		command = convertCmd(cmd)
 	)
-	reply, err := p.execWrite(r.Context(), command, &session)
+	reply, err := p.execWrite(r.Context(), cmd.PluginID, command, &session)
 	if err != nil {
 		respondWithError(w, r,
 			"handleWrite: execWrite: %v", err)
@@ -100,7 +111,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// The database transaction for the plugin write has
 		// already been committed and can't be rolled back.
-		// Handled this error gracefully. Log it and continue.
+		// Handled the error gracefully. Log it and continue.
 		log.Errorf("handleWrite: saveSession %v: %v", s.ID, err)
 	}
 
