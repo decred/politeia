@@ -21,6 +21,7 @@ import (
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/legacy"
 	"github.com/decred/politeia/politeiawww/logger"
+	user "github.com/decred/politeia/politeiawww/user/v1"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
@@ -43,6 +44,7 @@ type politeiawww struct {
 	politeiad *pdclient.Client
 	events    *events.Manager
 	legacy    *legacy.Politeiawww // Legacy API
+	plugins   []user.Plugin
 }
 
 func _main() error {
@@ -191,6 +193,7 @@ func _main() error {
 		politeiad: pdc,
 		events:    events.NewManager(),
 		legacy:    legacywww,
+		plugins:   make([]user.Plugin, 0, 16),
 	}
 
 	// Setup API routes. For now, only set these up

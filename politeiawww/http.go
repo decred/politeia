@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 The Decred developers
+// Copyright (c) 2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -16,6 +16,7 @@ import (
 
 	v1 "github.com/decred/politeia/politeiawww/api/http/v1"
 	"github.com/decred/politeia/politeiawww/logger"
+	user "github.com/decred/politeia/politeiawww/user/v1"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
@@ -67,9 +68,9 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleWrite")
 
 	// Decode the request body
-	var payload v1.Write
+	var cmd v1.PluginCmd
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&payload); err != nil {
+	if err := decoder.Decode(&cmd); err != nil {
 		respondWithError(w, r, "handleWrite: unmarshal",
 			v1.UserError{
 				ErrorCode: v1.ErrorCodeInvalidInput,
@@ -86,11 +87,26 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Execute the pre plugin hooks
+	reply, err := p.execPreHooks(user.HookPreWrite, cmd, s)
+	if err != nil {
+		respondWithError(w, r,
+			"handleWrite: execPreHooks: %v", err)
+		return
+	}
+	if reply != nil {
+		util.RespondWithJSON(w, http.StatusOK, reply)
+		return
+	}
 
 	// Execute the plugin command
-	var reply *v1.WriteReply
 
-	// Execute the post plugin hooks
+	// Execute the post plugin hooks.
+	err = p.execPostHooks(user.HookPostWrite, cmd, s)
+	if err != nil {
+		respondWithError(w, r,
+			"handleWrite: execPostHooks: %v", err)
+		return
+	}
 
 	// Save the updated session
 	err = p.saveSession(r, w, s)
@@ -102,6 +118,73 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// execPreHooks executes the provided pre hook for all user plugins. Pre hooks
+// are used to perform validation on the plugin command.
+//
+// A plugin reply will only be returned if one of the plugins throws an
+// expected error during hook execution. The plugin error will be embedded in
+// the plugin reply. Unexpected errors result in a standard golang error being
+// returned.
+func (p *politeiawww) execPreHooks(h user.HookT, c v1.PluginCmd, s *sessions.Session) (*v1.PluginReply, error) {
+	var (
+		cmd     = convertCmd(c)
+		session = convertSession(*s)
+	)
+	for _, plugin := range p.plugins {
+		err := plugin.Hook(h, cmd, &session)
+		if err != nil {
+			var pe user.PluginError
+			if errors.As(err, &pe) {
+				return &v1.PluginReply{
+					// Plugin from the original cmd
+					PluginID: c.PluginID,
+					Cmd:      c.Cmd,
+					Error: v1.PluginError{
+						// Plugin throwing the error
+						PluginID:     plugin.ID(),
+						ErrorCode:    pe.ErrorCode,
+						ErrorContext: pe.ErrorContext,
+					},
+				}, nil
+			}
+			return nil, err
+		}
+	}
+	return nil, nil
+}
+
+// execPostHooks executes the provided post hook for all user plugins.
+//
+// Post hooks are not able to throw plugin errors like the pre hooks are. Any
+// error returned by a plugin from a post hook will be treated as an unexpected
+// error.
+func (p *politeiawww) execPostHooks(h user.HookT, c v1.PluginCmd, s *sessions.Session) error {
+	var (
+		cmd     = convertCmd(c)
+		session = convertSession(*s)
+	)
+	for _, plugin := range p.plugins {
+		err := plugin.Hook(h, cmd, &session)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func convertCmd(c v1.PluginCmd) user.PluginCmd {
+	return user.PluginCmd{
+		Cmd:     c.Cmd,
+		Payload: c.Payload,
+	}
+}
+
+func convertSession(s sessions.Session) user.Session {
+	return user.Session{
+		Values: s.Values,
+	}
 }
 
 // saveSession saves the encoded session values to the database and the encoded

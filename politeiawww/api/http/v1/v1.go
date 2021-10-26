@@ -91,6 +91,14 @@ type PluginReply struct {
 	Error    error  `json:"error,omitempty"`
 }
 
+type ReadBatch struct {
+	Cmds []PluginCmd `json:"cmds"`
+}
+
+type ReadBatchReply struct {
+	Replies []PluginReply `json:"replies"`
+}
+
 // PluginError is the reply that is returned when a plugin command encounters
 // an error that was caused by the user (ex. malformed input, bad timing, etc).
 // The HTTP status code will be 200 and the error will be returned in the
@@ -103,16 +111,7 @@ type PluginError struct {
 
 // Error satisfies the error interface.
 func (e PluginError) Error() string {
-	return fmt.Sprintf("%v plugin error code: %v",
-		e.PluginID, e.ErrorCode)
-}
-
-type Write struct {
-	PluginCmd PluginCmd `json:"plugincmd"`
-}
-
-type WriteReply struct {
-	PluginReply PluginReply `json:"pluginreply"`
+	return fmt.Sprintf("%v plugin error code: %v", e.PluginID, e.ErrorCode)
 }
 
 // ErrorCodeT represents a user error code.
