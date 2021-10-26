@@ -53,7 +53,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	vr := v1.VersionReply{
 		APIVersion:   v1.APIVersion,
 		BuildVersion: version.String(),
-		Plugins:      []string{},
+		Plugins:      p.plugins,
 	}
 
 	// Set the CSRF header. This is the only route
@@ -86,6 +86,8 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Start database transaction
+
 	// Execute the pre plugin hooks
 	reply, err := p.execPreHooks(user.HookPreWrite, cmd, s)
 	if err != nil {
@@ -100,7 +102,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 	// Execute the plugin command
 
-	// Execute the post plugin hooks.
+	// Execute the post plugin hooks
 	err = p.execPostHooks(user.HookPostWrite, cmd, s)
 	if err != nil {
 		respondWithError(w, r,
@@ -108,11 +110,13 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Commit database transaction
+
 	// Save the updated session
 	err = p.saveSession(r, w, s)
 	if err != nil {
-		// The plugin command has already written data. This
-		// error needs to be handled gracefully. Log it and
+		// The database transaction has already been committed.
+		// This error needs to be handled gracefully. Log it and
 		// continue.
 		log.Errorf("handleWrite: saveSession %v: %v", s.ID, err)
 	}
@@ -123,10 +127,9 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 // execPreHooks executes the provided pre hook for all user plugins. Pre hooks
 // are used to perform validation on the plugin command.
 //
-// A plugin reply will only be returned if one of the plugins throws an
-// expected error during hook execution. The plugin error will be embedded in
-// the plugin reply. Unexpected errors result in a standard golang error being
-// returned.
+// A plugin reply will be returned if one of the plugins throws an expected
+// error during hook execution. The plugin error will be embedded in the plugin
+// reply. Unexpected errors result in a standard golang error being returned.
 func (p *politeiawww) execPreHooks(h user.HookT, c v1.PluginCmd, s *sessions.Session) (*v1.PluginReply, error) {
 	var (
 		cmd     = convertCmd(c)
@@ -172,19 +175,6 @@ func (p *politeiawww) execPostHooks(h user.HookT, c v1.PluginCmd, s *sessions.Se
 		}
 	}
 	return nil
-}
-
-func convertCmd(c v1.PluginCmd) user.PluginCmd {
-	return user.PluginCmd{
-		Cmd:     c.Cmd,
-		Payload: c.Payload,
-	}
-}
-
-func convertSession(s sessions.Session) user.Session {
-	return user.Session{
-		Values: s.Values,
-	}
 }
 
 // saveSession saves the encoded session values to the database and the encoded
@@ -276,5 +266,18 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 				ErrorCode: t,
 			})
 		return
+	}
+}
+
+func convertCmd(c v1.PluginCmd) user.PluginCmd {
+	return user.PluginCmd{
+		Cmd:     c.Cmd,
+		Payload: c.Payload,
+	}
+}
+
+func convertSession(s sessions.Session) user.Session {
+	return user.Session{
+		Values: s.Values,
 	}
 }

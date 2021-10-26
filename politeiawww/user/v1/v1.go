@@ -4,7 +4,10 @@
 
 package v1
 
-import "fmt"
+import (
+	"database/sql"
+	"fmt"
+)
 
 // Plugin represents a politeia user plugin.
 //
@@ -18,7 +21,7 @@ type Plugin interface {
 	Hook(h HookT, cmd PluginCmd, s *Session) error
 
 	// Write executes a write plugin command.
-	Write(cmd PluginCmd, s *Session) (*PluginReply, error)
+	Write(tx *sql.Tx, cmd PluginCmd, s *Session) (*PluginReply, error)
 
 	// Read executes a read plugin command.
 	Read(cmd PluginCmd, s *Session) (*PluginReply, error)
