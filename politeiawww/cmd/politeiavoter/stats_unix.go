@@ -13,7 +13,7 @@ import (
 	"syscall"
 )
 
-func (c *ctx) statsHandler() {
+func (p *piv) statsHandler() {
 	// Launch signal handler
 	signalsChan := make(chan os.Signal, 1)
 	signalsDone := make(chan struct{}, 1)
@@ -21,16 +21,16 @@ func (c *ctx) statsHandler() {
 
 	for {
 		select {
-		case <-c.wctx.Done():
+		case <-p.ctx.Done():
 			// Shut down signal handler
 			signal.Stop(signalsChan)
 			close(signalsDone)
 			return
 		case <-signalsChan:
 			fmt.Printf("----- politeiavoter status -----\n")
-			c.dumpTogo()
-			c.dumpComplete()
-			c.dumpQueue()
+			p.dumpTogo()
+			p.dumpComplete()
+			p.dumpQueue()
 		}
 	}
 }

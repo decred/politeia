@@ -6,5 +6,5 @@
 
 package main
 
-func (c *ctx) statsHandler() {
+func (p *piv) statsHandler() {
 }
