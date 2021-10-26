@@ -7,7 +7,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -68,9 +67,11 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	var cmd v1.PluginCmd
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cmd); err != nil {
-		respondWithError(w, r, "",
-			v1.UserError{
-				ErrorCode: v1.ErrorCodeInvalidInput,
+		util.RespondWithJSON(w, http.StatusOK,
+			v1.PluginReply{
+				Error: v1.UserError{
+					ErrorCode: v1.ErrorCodeInvalidInput,
+				},
 			})
 		return
 	}
@@ -78,9 +79,11 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	// Verify plugin exists
 	_, ok := p.plugins[cmd.PluginID]
 	if !ok {
-		respondWithError(w, r, "",
-			v1.UserError{
-				ErrorCode: v1.ErrorCodePluginNotFound,
+		util.RespondWithJSON(w, http.StatusOK,
+			v1.PluginReply{
+				Error: v1.UserError{
+					ErrorCode: v1.ErrorCodePluginNotFound,
+				},
 			})
 		return
 	}
@@ -165,49 +168,27 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 		return
 	}
 
-	// Check for expected error types
-	var (
-		ue v1.UserError
-	)
-	switch {
-	case errors.As(err, &ue):
-		// User error. Log it and return a 400.
-		m := fmt.Sprintf("%v user error: %v %v", util.RemoteAddr(r),
-			ue.ErrorCode, v1.ErrorCodes[ue.ErrorCode])
-		if ue.ErrorContext != "" {
-			m += fmt.Sprintf(": %v", ue.ErrorContext)
-		}
-		log.Infof(m)
-		util.RespondWithJSON(w, http.StatusBadRequest,
-			v1.UserError{
-				ErrorCode:    ue.ErrorCode,
-				ErrorContext: ue.ErrorContext,
-			})
-		return
+	// Internal server error. Log it and return a 500.
+	t := time.Now().Unix()
+	e := fmt.Sprintf(format, err)
+	log.Errorf("%v %v %v %v Internal error %v: %v",
+		util.RemoteAddr(r), r.Method, r.URL, r.Proto, t, e)
 
-	default:
-		// Internal server error. Log it and return a 500.
-		t := time.Now().Unix()
-		e := fmt.Sprintf(format, err)
-		log.Errorf("%v %v %v %v Internal error %v: %v",
-			util.RemoteAddr(r), r.Method, r.URL, r.Proto, t, e)
-
-		// If this is a pkg/errors error then we can pull the
-		// stack trace out of the error, otherwise, we use the
-		// stack trace that points to this function.
-		stack, ok := util.StackTrace(err)
-		if !ok {
-			stack = string(debug.Stack())
-		}
-
-		log.Errorf("Stacktrace (NOT A REAL CRASH): %v", stack)
-
-		util.RespondWithJSON(w, http.StatusInternalServerError,
-			v1.InternalError{
-				ErrorCode: t,
-			})
-		return
+	// If this is a pkg/errors error then we can pull the
+	// stack trace out of the error, otherwise, we use the
+	// stack trace that points to this function.
+	stack, ok := util.StackTrace(err)
+	if !ok {
+		stack = string(debug.Stack())
 	}
+
+	log.Errorf("Stacktrace (NOT A REAL CRASH): %v", stack)
+
+	util.RespondWithJSON(w, http.StatusInternalServerError,
+		v1.InternalError{
+			ErrorCode: t,
+		})
+	return
 }
 
 func convertCmd(c v1.PluginCmd) plugin.Cmd {

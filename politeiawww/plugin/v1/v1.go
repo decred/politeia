@@ -14,9 +14,6 @@ import (
 // Plugins are allowed to update the session values. Updated values will be
 // persisted by the caller.
 type Plugin interface {
-	// ID returns the plugin ID.
-	ID() string
-
 	// Hook executes a plugin hook.
 	Hook(h HookT, cmd Cmd, s *Session) error
 

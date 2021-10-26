@@ -18,6 +18,8 @@ import (
 // This function assumes the caller has verified that the plugin exists for
 // the plugin command.
 func (p *politeiawww) execWrite(ctx context.Context, pluginID string, cmd plugin.Cmd, s *plugin.Session) (*plugin.Reply, error) {
+	log.Tracef("execWrite: %v %v", pluginID, cmd.Cmd)
+
 	// Setup the database transaction
 	tx, cancel, err := p.beginTx()
 	if err != nil {

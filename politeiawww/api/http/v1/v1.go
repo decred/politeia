@@ -139,11 +139,11 @@ var (
 	}
 )
 
-// TODO these should be returned in the PluginReply too.
-//
 // UserError is the reply that the server returns when it encounters an error
 // prior to plugin command execution and that is caused by something that the
-// user did, such as a invalid request body. The HTTP status code will be 400.
+// user did, such as a invalid request body. The HTTP status code will be 200
+// and the error will be returned in the Error field of the JSON encoded
+// response body.
 type UserError struct {
 	ErrorCode    ErrorCodeT `json:"errorcode"`
 	ErrorContext string     `json:"errorcontext,omitempty"`
@@ -161,7 +161,7 @@ func (e UserError) Error() string {
 
 // InternalError is the reply that the server returns when it encounters an
 // unrecoverable error while executing a command. The HTTP status code will be
-// 500 and the InternalError will be returned in the response body. The
+// 500 and the InternalError will be returned as the response body. The
 // ErrorCode field will contain a Unix timestamp that the user can provide to
 // the server operator to track down the error details in the logs.
 type InternalError struct {
