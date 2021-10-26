@@ -635,12 +635,18 @@ func (c *ctx) inventory() error {
 	// map[token] => name.
 	names := make(map[string]string, len(tokens))
 	remainingTokens := tokens
+	// As the records API Records route is paged, we need to fetch the proposals
+	// metadata page by page.
 	for len(remainingTokens) != 0 {
 		var page []string
 		if len(remainingTokens) > rcv1.RecordsPageSize {
+			// If the number of remaining tokens to fetch exceeds the page size, we
+			// get the next page and keep the rest for the next iteration.
 			page = remainingTokens[:rcv1.RecordsPageSize]
 			remainingTokens = remainingTokens[rcv1.RecordsPageSize:]
 		} else {
+			// If the number of remaining tokens to fetch is equal or smaller than
+			// the page size then that's the last page.
 			page = remainingTokens
 			remainingTokens = []string{}
 		}
