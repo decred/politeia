@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"sync"
 	"syscall"
 	"time"
 
@@ -22,7 +21,7 @@ import (
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/legacy"
 	"github.com/decred/politeia/politeiawww/logger"
-	user "github.com/decred/politeia/politeiawww/user/v1"
+	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
@@ -37,18 +36,30 @@ const (
 
 // politeiawww represents the politeiawww server.
 type politeiawww struct {
-	sync.RWMutex
-	cfg       *config.Config
-	router    *mux.Router
-	auth      *mux.Router // CSRF protected subrouter
-	sessions  sessions.Store
+	cfg      *config.Config
+	router   *mux.Router
+	auth     *mux.Router // CSRF protected subrouter
+	sessions sessions.Store
+	db       *sql.DB
+
+	// plugins contains all registered plugins.
+	plugins map[string]plugin.Plugin // [pluginID]plugin
+
+	// authPlugins contains the plugin IDs of the plugins that handle user
+	// authentication and authorization. The hooks for these plugins are run
+	// first to allow user permissions to be layered on top of other plugin
+	// commands. The order of the plugin IDs is the order that the hooks are
+	// executed in.
+	authPlugins []string
+
+	// standardPlugins contains the plugin IDs from all non-auth plugins. The
+	// order of the plugin IDs is the order that the hooks are executed in.
+	standardPlugins []string
+
+	// Legacy fields
 	politeiad *pdclient.Client
 	events    *events.Manager
-	legacy    *legacy.Politeiawww // Legacy API
-
-	// User plugin layer
-	userDB      *sql.DB
-	userPlugins []user.Plugin
+	legacy    *legacy.Politeiawww
 }
 
 func _main() error {
@@ -191,13 +202,15 @@ func _main() error {
 
 	// Setup application context
 	p := &politeiawww{
-		cfg:         cfg,
-		router:      router,
-		auth:        auth,
-		politeiad:   pdc,
-		events:      events.NewManager(),
-		legacy:      legacywww,
-		userPlugins: make([]user.Plugin, 0, 16),
+		cfg:             cfg,
+		router:          router,
+		auth:            auth,
+		politeiad:       pdc,
+		events:          events.NewManager(),
+		legacy:          legacywww,
+		plugins:         make(map[string]plugin.Plugin, 64),
+		authPlugins:     make([]string, 0, 64),
+		standardPlugins: make([]string, 0, 64),
 	}
 
 	// Setup API routes. For now, only set these up

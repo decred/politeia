@@ -18,29 +18,33 @@ type Plugin interface {
 	ID() string
 
 	// Hook executes a plugin hook.
-	Hook(h HookT, cmd PluginCmd, s *Session) error
-
-	// WriteTx executes a write plugin command using a database transaction.
-	WriteTx(tx *sql.Tx, cmd PluginCmd, s *Session) (*PluginReply, error)
-
-	// ReadTx executes a read plugin command using a database transaction.
-	ReadTx(tx *sql.Tx, cmd PluginCmd, s *Session) (*PluginReply, error)
+	Hook(h HookT, cmd Cmd, s *Session) error
 
 	// Read executes a read plugin command.
-	Read(cmd PluginCmd, s *Session) (*PluginReply, error)
+	Read(cmd Cmd, s *Session) (*Reply, error)
+
+	// TxHook executes a plugin hook using a database transaction.
+	TxHook(tx *sql.Tx, h HookT, cmd Cmd, s *Session) error
+
+	// TxWrite executes a write plugin command using a database transaction.
+	TxWrite(tx *sql.Tx, cmd Cmd, s *Session) (*Reply, error)
+
+	// TxRead executes a read plugin command using a database transaction.
+	TxRead(tx *sql.Tx, cmd Cmd, s *Session) (*Reply, error)
 }
 
 type Session struct {
 	Values map[interface{}]interface{}
 }
 
-type PluginCmd struct {
+type Cmd struct {
 	Cmd     string
 	Payload string // JSON encoded
 }
 
-type PluginReply struct {
+type Reply struct {
 	Payload string // JSON encoded
+	Error   error
 }
 
 type HookT string
@@ -51,14 +55,15 @@ const (
 	HookPostWrite HookT = "post-write"
 )
 
-// PluginError is the reply that is returned when a plugin command encounters
-// an error that was caused by the user.
-type PluginError struct {
+// UserError is the reply that is returned when a plugin command encounters an
+// error that was caused by the user.
+type UserError struct {
+	PluginID     string `json:"pluginid"`
 	ErrorCode    uint32 `json:"errorcode"`
 	ErrorContext string `json:"errorcontext,omitempty"`
 }
 
 // Error satisfies the error interface.
-func (e PluginError) Error() string {
-	return fmt.Sprintf("plugin error code: %v", e.ErrorCode)
+func (e UserError) Error() string {
+	return fmt.Sprintf("plugin user error: %v", e.ErrorCode)
 }
