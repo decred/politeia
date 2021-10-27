@@ -37,6 +37,8 @@ import (
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
+	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/client"
@@ -535,7 +537,7 @@ func (p *piv) _inventory(i tkv1.Inventory) (*tkv1.InventoryReply, error) {
 	return &ar, nil
 }
 
-// voteDetails sends ticketvote API Details request, then verifies and
+// voteDetails sends a ticketvote API Details request, then verifies and
 // returns the reply.
 func (p *piv) voteDetails(token, serverPubKey string) (*tkv1.DetailsReply, error) {
 	d := tkv1.Details{
@@ -590,6 +592,38 @@ func (p *piv) voteResults(token, serverPubKey string) (*tkv1.ResultsReply, error
 	return &rr, nil
 }
 
+// records sends a records API Records request and returns the reply.
+func (p *piv) records(tokens []string, serverPubKey string) (*rcv1.RecordsReply, error) {
+	// Prepare request
+	reqs := make([]rcv1.RecordRequest, 0, len(tokens))
+	for _, t := range tokens {
+		reqs = append(reqs, rcv1.RecordRequest{
+			Token: t,
+			Filenames: []string{
+				piv1.FileNameProposalMetadata,
+			},
+		})
+	}
+
+	// Send request
+	responseBody, err := p.makeRequest(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteRecords, rcv1.Records{
+			Requests: reqs,
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	var rsr rcv1.RecordsReply
+	err = json.Unmarshal(responseBody, &rsr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal RecordsReply: %v",
+			err)
+	}
+
+	return &rsr, nil
+}
+
 func (p *piv) inventory() error {
 	// Get server public key to verify replies.
 	version, err := p.getVersion()
@@ -622,6 +656,42 @@ func (p *piv) inventory() error {
 	if len(tokens) == 0 {
 		fmt.Printf("No active votes found.\n")
 		return nil
+	}
+
+	// Retrieve the proposals metadata and store proposal names in a
+	// map[token] => name.
+	names := make(map[string]string, len(tokens))
+	remainingTokens := tokens
+	// As the records API Records route is paged, we need to fetch the proposals
+	// metadata page by page.
+	for len(remainingTokens) != 0 {
+		var page []string
+		if len(remainingTokens) > rcv1.RecordsPageSize {
+			// If the number of remaining tokens to fetch exceeds the page size, we
+			// get the next page and keep the rest for the next iteration.
+			page = remainingTokens[:rcv1.RecordsPageSize]
+			remainingTokens = remainingTokens[rcv1.RecordsPageSize:]
+		} else {
+			// If the number of remaining tokens to fetch is equal or smaller than
+			// the page size then that's the last page.
+			page = remainingTokens
+			remainingTokens = []string{}
+		}
+
+		// Fetch page of records
+		reply, err := p.records(page, serverPubKey)
+		if err != nil {
+			return err
+		}
+
+		// Get proposal metadata and store proposal name in map.
+		for token, record := range reply.Records {
+			md, err := client.ProposalMetadataDecode(record.Files)
+			if err != nil {
+				return nil
+			}
+			names[token] = md.Name
+		}
 	}
 
 	for _, t := range tokens {
@@ -675,6 +745,7 @@ func (p *piv) inventory() error {
 
 		// Display vote bits
 		fmt.Printf("Vote: %v\n", dr.Vote.Params.Token)
+		fmt.Printf("  Proposal        : %v\n", names[t])
 		fmt.Printf("  Start block     : %v\n", dr.Vote.StartBlockHeight)
 		fmt.Printf("  End block       : %v\n", dr.Vote.EndBlockHeight)
 		fmt.Printf("  Mask            : %v\n", dr.Vote.Params.Mask)
@@ -685,7 +756,7 @@ func (p *piv) inventory() error {
 			fmt.Printf("    Id                   : %v\n", vo.ID)
 			fmt.Printf("    Description          : %v\n",
 				vo.Description)
-			fmt.Printf("    Bit                 : %v\n", vo.Bit)
+			fmt.Printf("    Bit                  : %v\n", vo.Bit)
 			fmt.Printf("    To choose this option: "+
 				"politeiavoter vote %v %v\n", dr.Vote.Params.Token,
 				vo.ID)
