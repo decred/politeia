@@ -133,6 +133,8 @@ func (c *cmdRFPTest) Execute(args []string) error {
 			vs.BestBlock, vs.EndBlockHeight)
 		time.Sleep(sleepInterval)
 	}
+
+	// Verify RFP vote status
 	switch vs.Status {
 	case tkv1.VoteStatusApproved:
 		// RFP approved, continue
@@ -247,7 +249,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	for _, t := range tokens {
 		s := summaries[t]
 		if s.Status != tkv1.VoteStatusStarted {
-			return errors.Errorf("public proposal %v invalid vote status, "+
+			return errors.Errorf("public submission %v invalid vote status, "+
 				"expected: %v, got: %v", t, tkv1.VoteStatuses[tkv1.VoteStatusStarted],
 				tkv1.VoteStatuses[s.Status])
 		}
@@ -264,10 +266,69 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	for _, t := range tokens {
 		s := summaries[t]
 		if s.Status == tkv1.VoteStatusStarted {
-			return errors.Errorf("proposal %v has unexpected vote status: %v",
+			return errors.Errorf("submission %v has unexpected vote status: %v",
 				t, tkv1.VoteStatuses[s.Status])
 		}
 	}
+
+	// Vote 'yes' on first public proposal, 'no' on the second and
+	// don't vote on third.
+	fmt.Printf("  Vote 'yes' on first public proposal, 'no' on the second and" +
+		" don't vote on third\n")
+
+	tokenFirst := tokensPublic[0]
+	err = castBallot(tokenFirst, "yes", password)
+	if err != nil {
+		return err
+	}
+
+	tokenSecond := tokensPublic[1]
+	err = castBallot(tokensPublic[1], "no", password)
+	if err != nil {
+		return err
+	}
+
+	// Wait for the runoff vote to finish
+	vs = tkv1.Summary{}
+	for vs.Status != tkv1.VoteStatusApproved {
+		// Fetch vote summary
+		var cvs cmdVoteSummaries
+		cvs.Args.Tokens = []string{tokenFirst}
+		summaries, err := voteSummaries(&cvs)
+		if err != nil {
+			return err
+		}
+		vs = summaries[tokenFirst]
+
+		fmt.Printf("  Runoff voting still going on, block %v\\%v \n",
+			vs.BestBlock, vs.EndBlockHeight)
+		time.Sleep(sleepInterval)
+	}
+	fmt.Printf("  First submission %v was approved successfully\n", tokenFirst)
+
+	// Fetch vote summary of rejected proposal
+	cvs = cmdVoteSummaries{}
+	tokenThird := tokensPublic[2]
+	tokens = []string{tokenSecond, tokenThird}
+	cvs.Args.Tokens = tokens
+	summaries, err = voteSummaries(&cvs)
+	if err != nil {
+		return err
+	}
+	for _, t := range tokens {
+		s := summaries[t]
+		if s.Status != tkv1.VoteStatusRejected {
+			return errors.Errorf("public submission %v invalid vote status, "+
+				"expected: %v, got: %v", t, tkv1.VoteStatuses[tkv1.VoteStatusRejected],
+				tkv1.VoteStatuses[s.Status])
+		}
+	}
+	fmt.Printf("  The other two submissions %v were rejected successfully\n",
+		tokens)
+
+	ts := timestampFromUnix(time.Now().Unix())
+	fmt.Printf("Done!\n")
+	fmt.Printf("Stop time: %v\n", ts)
 
 	return nil
 }
