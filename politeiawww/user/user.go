@@ -13,8 +13,8 @@ type User struct {
 }
 
 type PluginData struct {
-	ClearText map[string][]byte // [pluginID]data
-	Encrypted map[string][]byte // [pluginID]data
+	ClearText map[string][]byte // [pluginID]dataBlob
+	Encrypted map[string][]byte // [pluginID]dataBlob
 }
 
 type DB interface {

@@ -22,6 +22,7 @@ import (
 	"github.com/decred/politeia/politeiawww/legacy"
 	"github.com/decred/politeia/politeiawww/logger"
 	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
+	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
@@ -36,11 +37,14 @@ const (
 
 // politeiawww represents the politeiawww server.
 type politeiawww struct {
-	cfg      *config.Config
-	router   *mux.Router
-	auth     *mux.Router // CSRF protected subrouter
+	cfg    *config.Config
+	router *mux.Router
+	auth   *mux.Router // CSRF protected subrouter
+	db     *sql.DB
+
+	// Database interfaces
 	sessions sessions.Store
-	db       *sql.DB
+	userDB   user.DB
 
 	// plugins contains all registered plugins.
 	plugins map[string]plugin.Plugin // [pluginID]plugin

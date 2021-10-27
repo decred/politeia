@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
+	"github.com/decred/politeia/politeiawww/user"
 	"github.com/pkg/errors"
 )
 
@@ -17,7 +18,7 @@ import (
 //
 // This function assumes the caller has verified that the plugin exists for
 // the plugin command.
-func (p *politeiawww) execWrite(ctx context.Context, pluginID string, cmd plugin.Cmd, s *plugin.Session) (*plugin.Reply, error) {
+func (p *politeiawww) execWrite(ctx context.Context, pluginID string, cmd plugin.Cmd, usr *user.User, s *plugin.Session) (*plugin.Reply, error) {
 	log.Tracef("execWrite: %v %v", pluginID, cmd.Cmd)
 
 	// Setup the database transaction

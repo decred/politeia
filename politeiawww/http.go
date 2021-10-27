@@ -88,11 +88,11 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the session from the request cookie
-	s, err := p.sessions.Get(r, v1.SessionCookieName)
+	// Extract the session data from the request cookies
+	s, usr, err := p.extractSession(r)
 	if err != nil {
 		respondWithError(w, r,
-			"handleWrite: get session: %v", err)
+			"handleWrite: extractSession: %v", err)
 		return
 	}
 
@@ -102,7 +102,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 		command = convertCmdFromHTTP(cmd)
 	)
 	pluginReply, err := p.execWrite(r.Context(),
-		cmd.PluginID, command, &session)
+		cmd.PluginID, command, usr, &session)
 	if err != nil {
 		respondWithError(w, r,
 			"handleWrite: execWrite: %v", err)
@@ -123,17 +123,6 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 	// Send the response
 	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-// saveSession saves the encoded session values to the database and the encoded
-// session ID to the response cookie. This is only performed if there are
-// session values that need to be saved.
-func (p *politeiawww) saveSession(r *http.Request, w http.ResponseWriter, s *sessions.Session) error {
-	if len(s.Values) == 0 {
-		// Nothing to save
-		return nil
-	}
-	return p.sessions.Save(r, w, s)
 }
 
 // addRoute adds a route to the provided router.
