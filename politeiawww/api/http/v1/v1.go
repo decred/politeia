@@ -66,7 +66,7 @@ const (
 // CSRF protected routes.
 type Version struct{}
 
-// VersionReply is the reply to the Version command.
+// VersionReply is the reply to the Version route.
 type VersionReply struct {
 	// APIVersion is the lowest supported API version.
 	APIVersion uint32 `json:"apiversion"`
@@ -102,7 +102,7 @@ type ReadBatchReply struct {
 // PluginError is the reply that is returned when a plugin command encounters
 // an error that was caused by the user (ex. malformed input, bad timing, etc).
 // The HTTP status code will be 200 and the error will be returned in the
-// Error field of the JSON encoded response body.
+// PluginReply Error field.
 type PluginError struct {
 	PluginID     string `json:"pluginid"`
 	ErrorCode    uint32 `json:"errorcode"`
@@ -142,8 +142,7 @@ var (
 // UserError is the reply that the server returns when it encounters an error
 // prior to plugin command execution and that is caused by something that the
 // user did, such as a invalid request body. The HTTP status code will be 200
-// and the error will be returned in the Error field of the JSON encoded
-// response body.
+// and the error will be returned in the PluginReply Error field.
 type UserError struct {
 	ErrorCode    ErrorCodeT `json:"errorcode"`
 	ErrorContext string     `json:"errorcontext,omitempty"`

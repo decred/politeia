@@ -96,17 +96,20 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Execute plugin command
+	// Execute the plugin command
 	var (
 		session = convertSession(*s)
-		command = convertCmd(cmd)
+		command = convertCmdFromHTTP(cmd)
 	)
-	reply, err := p.execWrite(r.Context(), cmd.PluginID, command, &session)
+	pluginReply, err := p.execWrite(r.Context(),
+		cmd.PluginID, command, &session)
 	if err != nil {
 		respondWithError(w, r,
 			"handleWrite: execWrite: %v", err)
 		return
 	}
+
+	reply := convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
 
 	// Save any updated session values
 	s.Values = session.Values
@@ -118,6 +121,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("handleWrite: saveSession %v: %v", s.ID, err)
 	}
 
+	// Send the response
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
@@ -191,15 +195,24 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 	return
 }
 
-func convertCmd(c v1.PluginCmd) plugin.Cmd {
+func convertSession(s sessions.Session) plugin.Session {
+	return plugin.Session{
+		Values: s.Values,
+	}
+}
+
+func convertCmdFromHTTP(c v1.PluginCmd) plugin.Cmd {
 	return plugin.Cmd{
 		Cmd:     c.Cmd,
 		Payload: c.Payload,
 	}
 }
 
-func convertSession(s sessions.Session) plugin.Session {
-	return plugin.Session{
-		Values: s.Values,
+func convertReplyToHTTP(pluginID, cmd string, r plugin.Reply) v1.PluginReply {
+	return v1.PluginReply{
+		PluginID: pluginID,
+		Cmd:      cmd,
+		Payload:  r.Payload,
+		Error:    r.Error,
 	}
 }
