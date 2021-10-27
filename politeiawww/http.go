@@ -20,7 +20,6 @@ import (
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 )
 
 // setupRoutes sets up the routes for the politeia http API.
@@ -111,9 +110,8 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 	reply := convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
 
-	// Save any updated session values
-	s.Values = session.Values
-	err = p.saveSession(r, w, s)
+	// Save the updated session
+	err = p.saveSession(r, w, s, session)
 	if err != nil {
 		// The database transaction for the plugin write has
 		// already been committed and can't be rolled back.
@@ -182,12 +180,6 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 			ErrorCode: t,
 		})
 	return
-}
-
-func convertSession(s sessions.Session) plugin.Session {
-	return plugin.Session{
-		Values: s.Values,
-	}
 }
 
 func convertCmdFromHTTP(c v1.PluginCmd) plugin.Cmd {
