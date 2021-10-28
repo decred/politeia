@@ -446,7 +446,7 @@ type RecordTimestamps struct {
 	Version   uint32 `json:"version,omitempty"` // Record version
 }
 
-// RecordGetTimestampsReply is the reply ot the RecordTimestamps command.
+// RecordTimestampsReply is the reply ot the RecordTimestamps command.
 type RecordTimestampsReply struct {
 	Response       string    `json:"response"` // Challenge response
 	RecordMetadata Timestamp `json:"recordmetadata"`
@@ -494,6 +494,9 @@ type Records struct {
 // RecordsReply is the reply to the Records command. If a record was not found
 // or an error occurred while retrieving it the token will not be included in
 // the returned map.
+//
+// **Note** partial record's merkle root is not verifiable - when generating
+// the record's merkle all files must be present.
 type RecordsReply struct {
 	Response string            `json:"response"` // Challenge response
 	Records  map[string]Record `json:"records"`  // [token]Record
