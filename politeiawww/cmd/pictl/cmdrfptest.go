@@ -46,6 +46,30 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		return errors.Errorf("paywall is not disabled")
 	}
 
+	// Get ticketvote API policy to verify voteduartionmin
+	// policy.
+	//
+	// Setup client
+	opts := pclient.Opts{
+		HTTPSCert: cfg.HTTPSCert,
+		Verbose:   cfg.Verbose,
+		RawJSON:   cfg.RawJSON,
+	}
+	pc, err := pclient.New(cfg.Host, opts)
+	if err != nil {
+		return err
+	}
+
+	// Get policy
+	pr, err := pc.TicketVotePolicy()
+	if err != nil {
+		return err
+	}
+	if pr.VoteDurationMin > 1 {
+		return errors.Errorf("--votedurationmin flag should be <= 1, as the " +
+			"tests include RFP & submssions voting, and the RFP deadline is 6m")
+	}
+
 	// Log start time
 	fmt.Printf("Start time: %v\n", timestampFromUnix(time.Now().Unix()))
 
@@ -72,6 +96,8 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	fmt.Printf("  Create a RFP\n")
 	r, err := proposalPublic(admin, admin, &proposalOpts{
 		Random: true,
+		// The RFP deadline is 6 minutes, this should be safe as we
+		// require the votedurationmin policy to be one block.
 		LinkBy: "6m",
 	})
 	if err != nil {
@@ -89,7 +115,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 
 	// Start RFP vote
 	fmt.Printf("  Start vote on RFP\n")
-	err = voteStart(admin, tokenRFP, 1, 0, 0)
+	err = voteStart(admin, tokenRFP, pr.VoteDurationMin, 0, 0)
 	if err != nil {
 		return err
 	}
@@ -228,7 +254,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 
 	// Start runoff vote for the submissions
 	fmt.Printf("  Start runoff vote for the submissions\n")
-	err = voteRunoff(admin, tokenRFP, 1, 0, 0)
+	err = voteRunoff(admin, tokenRFP, pr.VoteDurationMin, 0, 0)
 	if err != nil {
 		return err
 	}
