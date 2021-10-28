@@ -144,9 +144,8 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	}
 
 	// Wait to RFP to finish voting
-	var vs tkv1.Summary
-	for vs.Status != tkv1.VoteStatusApproved &&
-		vs.Status != tkv1.VoteStatusRejected {
+	var approvedRFP bool
+	for !approvedRFP {
 		// Fetch vote summary
 		var cvs cmdVoteSummaries
 		cvs.Args.Tokens = []string{tokenRFP}
@@ -154,23 +153,17 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		vs = summaries[tokenRFP]
+		vs := summaries[tokenRFP]
 
-		fmt.Printf("  RFP voting still going on, block %v/%v \n",
-			vs.BestBlock, vs.EndBlockHeight)
-		time.Sleep(sleepInterval)
+		if vs.Status != tkv1.VoteStatusApproved {
+			fmt.Printf("  RFP voting still going on, block %v/%v \n",
+				vs.BestBlock, vs.EndBlockHeight)
+			time.Sleep(sleepInterval)
+		} else {
+			approvedRFP = true
+		}
 	}
-
-	// Verify RFP vote status
-	switch vs.Status {
-	case tkv1.VoteStatusApproved:
-		// RFP approved, continue
-		fmt.Printf("  RFP approved successfully\n")
-	case tkv1.VoteStatusRejected:
-		return errors.Errorf("wrong RFP vote status, want '%v', got '%v'",
-			tkv1.VoteStatuses[tkv1.VoteStatusApproved],
-			tkv1.VoteStatuses[tkv1.VoteStatusRejected])
-	}
+	fmt.Printf("  RFP approved successfully\n")
 
 	// Create 1 unvetted censored RFP submission
 	fmt.Printf("  Create 1 unvetted censored RFP submission\n")
@@ -305,8 +298,8 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	}
 
 	// Wait for the runoff vote to finish
-	vs = tkv1.Summary{}
-	for vs.Status != tkv1.VoteStatusApproved {
+	var approvedSubmission bool
+	for !approvedSubmission {
 		// Fetch vote summary
 		var cvs cmdVoteSummaries
 		cvs.Args.Tokens = []string{tokenFirst}
@@ -314,11 +307,15 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		vs = summaries[tokenFirst]
+		vs := summaries[tokenFirst]
 
-		fmt.Printf("  Runoff voting still going on, block %v/%v \n",
-			vs.BestBlock, vs.EndBlockHeight)
-		time.Sleep(sleepInterval)
+		if vs.Status != tkv1.VoteStatusApproved {
+			fmt.Printf("  Runoff voting still going on, block %v/%v \n",
+				vs.BestBlock, vs.EndBlockHeight)
+			time.Sleep(sleepInterval)
+		} else {
+			approvedSubmission = true
+		}
 	}
 	fmt.Printf("  First submission %v was approved successfully\n", tokenFirst)
 
