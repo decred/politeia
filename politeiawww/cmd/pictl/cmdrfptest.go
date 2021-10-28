@@ -229,7 +229,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	// Wait for the rfp deadline to expire
 	for linkByTime.Unix() > time.Now().Unix() {
 		fmt.Printf("  Waiting for the RFP deadline to expire, remaining: %v\n",
-			time.Until(linkByTime))
+			time.Until(linkByTime).Round(time.Second))
 		time.Sleep(sleepInterval)
 	}
 
