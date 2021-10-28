@@ -44,7 +44,7 @@ to locally fetch userid's coming from the git records.
 Testing scenario importing comments journal and ten cast votes from the ballot 
 journal: 
 
-`legacyimport --path=path/to/repo 
+`legacyimport --path=/path/to/repo 
   \ --comments 
   \ --ballot 
   \ --ballotCount=10 
@@ -52,7 +52,7 @@ journal:
 
 Production scenario fully importing all data from legacy records into tstore:
 
-`legacyimport --path=path/to/repo 
+`legacyimport --path=/path/to/repo 
   \ --comments 
   \ --ballot`
 

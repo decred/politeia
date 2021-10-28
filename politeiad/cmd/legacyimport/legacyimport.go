@@ -53,6 +53,9 @@ var (
 		WalletRPCServerPort: "9111",
 	}
 
+	// this is where we'll dump pre-parsed data
+	parsedDataDir = "" // will be set later on
+
 	// Flags
 
 	// Record repository path. This flag must be set.
@@ -101,6 +104,9 @@ type legacyImport struct {
 
 	// versions holds a cache for the record latest version being parsed.
 	versions map[string]int // [legacyToken]version
+
+	// ts holds the cast vote timestamps for each record, parsed through git.
+	ts map[string]map[string]int64 // [legacyToken][ticket]timestamp
 }
 
 // newLegacyImport returns an initialized legacyImport with an open tstore
@@ -126,6 +132,7 @@ func newLegacyImport() (*legacyImport, error) {
 		tokens:     make(map[string]string),
 		rfpParents: make(map[string]*startRunoffRecord),
 		versions:   make(map[string]int),
+		ts:         make(map[string]map[string]int64),
 	}, nil
 }
 
@@ -536,6 +543,29 @@ func _main() error {
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("legacyimport: Parsing cast vote timestamps with git cmd...")
+
+	// ------------ PRE PARSE ALL DATA ------------
+	pwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	parsedDataDir = pwd + "/data"
+
+	if true {
+		return nil
+	}
+
+	// --------------------------------------------
+
+	r, err := gitData(path)
+	if err != nil {
+		return err
+	}
+	l.Lock()
+	l.ts = r
+	l.Unlock()
 
 	paths, err := l.preParsePaths(path)
 	if err != nil {

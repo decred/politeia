@@ -50,6 +50,10 @@ func (l *legacyImport) parseBallotJournal(path, legacyToken string, newToken []b
 				return err
 			}
 
+			l.RLock()
+			t := l.ts[legacyToken][cvj.CastVote.Ticket]
+			l.RUnlock()
+
 			tickets = append(tickets, cvj.CastVote.Ticket)
 			castVoteDetails = append(castVoteDetails, &tv.CastVoteDetails{
 				Token:     cvj.CastVote.Token,
@@ -57,6 +61,7 @@ func (l *legacyImport) parseBallotJournal(path, legacyToken string, newToken []b
 				VoteBit:   cvj.CastVote.VoteBit,
 				Signature: cvj.CastVote.Signature,
 				Receipt:   cvj.Receipt,
+				Timestamp: t,
 				// Add git timestamp.
 			})
 
@@ -65,9 +70,29 @@ func (l *legacyImport) parseBallotJournal(path, legacyToken string, newToken []b
 		}
 	}
 
-	addrs, err := largestCommitmentAddresses(tickets)
-	if err != nil {
-		panic(err)
+	// Fetch largest commitment addresses for all tickets from dcrdata, in
+	// batches of 500.
+	n := len(tickets) / 500
+	if len(tickets)%500 != 0 {
+		n++
+	}
+	batches := make([][]string, n)
+	index := 0
+	for _, t := range tickets {
+		if len(batches[index]) >= 500 {
+			index++
+		}
+		batches[index] = append(batches[index], t)
+	}
+	addrs := make(map[string]largestCommitmentResult, len(tickets))
+	for _, b := range batches {
+		results, err := largestCommitmentAddresses(b)
+		if err != nil {
+			panic(err)
+		}
+		for k, lcr := range results {
+			addrs[k] = lcr
+		}
 	}
 
 	fmt.Printf("  ticketvote: %v parsing ballot journal...\n", legacyToken[:7])
