@@ -207,6 +207,7 @@ Dev commands
   seedproposals                Seed the backend with proposals
   votetestsetup                Setup a vote test
   votetest                     Execute a vote test
+  rfptest                      Test RFP workflow
   legacytest                   Test legacy routes that do not have a command
 `
 

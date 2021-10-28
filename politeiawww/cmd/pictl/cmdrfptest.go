@@ -94,11 +94,12 @@ func (c *cmdRFPTest) Execute(args []string) error {
 
 	// Create a RFP and make it public
 	fmt.Printf("  Create a RFP\n")
+	// The RFP deadline is in 6 minutes from now, this should be safe as we
+	// require the votedurationmin policy to be one block.
+	linkByTime := time.Now().Add(6 * time.Minute)
 	r, err := proposalPublic(admin, admin, &proposalOpts{
 		Random: true,
-		// The RFP deadline is 6 minutes, this should be safe as we
-		// require the votedurationmin policy to be one block.
-		LinkBy: "6m",
+		LinkBy: time.Until(linkByTime).String(),
 	})
 	if err != nil {
 		return err
@@ -155,7 +156,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		}
 		vs = summaries[tokenRFP]
 
-		fmt.Printf("  RFP voting still going on, block %v\\%v \n",
+		fmt.Printf("  RFP voting still going on, block %v/%v \n",
 			vs.BestBlock, vs.EndBlockHeight)
 		time.Sleep(sleepInterval)
 	}
@@ -232,23 +233,10 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	}
 	tokensPublic[2] = r.CensorshipRecord.Token
 
-	// Get linkby unix value
-	var cps cmdProposals
-	cps.Args.Tokens = []string{tokenRFP}
-	ps, err := proposals(&cps)
-	if err != nil {
-		return err
-	}
-	p := ps[tokenRFP]
-	vm, err := pclient.VoteMetadataDecode(p.Files)
-	if err != nil {
-		return err
-	}
-	linkBy := vm.LinkBy
-
 	// Wait for the rfp deadline to expire
-	for linkBy > time.Now().Unix() {
-		fmt.Printf("  Waiting for the RFP deadline to expire\n")
+	for linkByTime.Unix() > time.Now().Unix() {
+		fmt.Printf("  Waiting for the RFP deadline to expire, remaining: %v\n",
+			time.Until(linkByTime))
 		time.Sleep(sleepInterval)
 	}
 
@@ -275,7 +263,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	for _, t := range tokens {
 		s := summaries[t]
 		if s.Status != tkv1.VoteStatusStarted {
-			return errors.Errorf("public submission %v invalid vote status, "+
+			return errors.Errorf("submission %v invalid vote status, "+
 				"expected: %v, got: %v", t, tkv1.VoteStatuses[tkv1.VoteStatusStarted],
 				tkv1.VoteStatuses[s.Status])
 		}
@@ -291,9 +279,11 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	// Ensure abandoned/censored proposals are not voting
 	for _, t := range tokens {
 		s := summaries[t]
-		if s.Status == tkv1.VoteStatusStarted {
-			return errors.Errorf("submission %v has unexpected vote status: %v",
-				t, tkv1.VoteStatuses[s.Status])
+		if s.Status != tkv1.VoteStatusIneligible {
+			return errors.Errorf("submission %v invalid vote status, "+
+				"expected: %v, got: %v", t,
+				tkv1.VoteStatuses[tkv1.VoteStatusIneligible],
+				tkv1.VoteStatuses[s.Status])
 		}
 	}
 
@@ -326,7 +316,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		}
 		vs = summaries[tokenFirst]
 
-		fmt.Printf("  Runoff voting still going on, block %v\\%v \n",
+		fmt.Printf("  Runoff voting still going on, block %v/%v \n",
 			vs.BestBlock, vs.EndBlockHeight)
 		time.Sleep(sleepInterval)
 	}
