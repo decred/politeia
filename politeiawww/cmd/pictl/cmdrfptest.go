@@ -349,7 +349,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 // RFPTestHelpMsg is the printed to stdout by the help command.
 const RFPTestHelpMsg = `rfptest "adminemail" "adminpassword"
 
-Run tests to ensure the RFP workflow works as expected..
+Run tests to ensure the RFP workflow works as expected.
 
 Arguments:
 1. adminemail     (string, required)  Email for admin account.
