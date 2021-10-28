@@ -21,6 +21,27 @@ type cmdProposals struct {
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdProposals) Execute(args []string) error {
+	records, err := proposals(c)
+	if err != nil {
+		return err
+	}
+
+	// Print proposals to stdout
+	for _, v := range records {
+		err = printProposal(v)
+		if err != nil {
+			return err
+		}
+		printf("-----\n")
+	}
+
+	return nil
+}
+
+// proposals fetches the records API Records route for a page of
+// tokens. This function has been pulled out of the Execute method so that
+// it can be used in the test commands.
+func proposals(c *cmdProposals) (map[string]rcv1.Record, error) {
 	// Setup client
 	opts := pclient.Opts{
 		HTTPSCert:  cfg.HTTPSCert,
@@ -31,7 +52,7 @@ func (c *cmdProposals) Execute(args []string) error {
 	}
 	pc, err := pclient.New(cfg.Host, opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Get records
@@ -50,19 +71,10 @@ func (c *cmdProposals) Execute(args []string) error {
 	}
 	records, err := pc.Records(r)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Print proposals to stdout
-	for _, v := range records {
-		err = printProposal(v)
-		if err != nil {
-			return err
-		}
-		printf("-----\n")
-	}
-
-	return nil
+	return records, nil
 }
 
 // proposalsHelpMsg is printed to stdout by the help command.

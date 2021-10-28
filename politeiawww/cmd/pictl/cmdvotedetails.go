@@ -22,28 +22,12 @@ type cmdVoteDetails struct {
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdVoteDetails) Execute(args []string) error {
-	// Setup client
-	opts := pclient.Opts{
-		HTTPSCert: cfg.HTTPSCert,
-		Verbose:   cfg.Verbose,
-		RawJSON:   cfg.RawJSON,
-	}
-	pc, err := pclient.New(cfg.Host, opts)
-	if err != nil {
-		return err
-	}
-
-	// Get vote details
-	d := tkv1.Details{
-		Token: c.Args.Token,
-	}
-	dr, err := pc.TicketVoteDetails(d)
+	dr, err := voteDetails(c)
 	if err != nil {
 		return err
 	}
 
 	// Print results
-
 	for _, v := range dr.Auths {
 		fmt.Printf("Vote authorization\n")
 		printAuthDetails(v)
@@ -55,6 +39,33 @@ func (c *cmdVoteDetails) Execute(args []string) error {
 	}
 
 	return nil
+}
+
+// voteDetails fetches the ticketvote API Details route for a token. This
+// function has been pulled out of the Execute method so that it can be used
+// in the test commands.
+func voteDetails(c *cmdVoteDetails) (*tkv1.DetailsReply, error) {
+	// Setup client
+	opts := pclient.Opts{
+		HTTPSCert: cfg.HTTPSCert,
+		Verbose:   cfg.Verbose,
+		RawJSON:   cfg.RawJSON,
+	}
+	pc, err := pclient.New(cfg.Host, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get vote details
+	d := tkv1.Details{
+		Token: c.Args.Token,
+	}
+	dr, err := pc.TicketVoteDetails(d)
+	if err != nil {
+		return nil, err
+	}
+
+	return dr, nil
 }
 
 // voteDetailsHelpMsg is printed to stdout by the help command.

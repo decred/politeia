@@ -155,6 +155,8 @@ func (c *cmdHelp) Execute(args []string) error {
 		fmt.Printf("%s\n", voteTestSetupHelpMsg)
 	case "votetest":
 		fmt.Printf("%s\n", voteTestHelpMsg)
+	case "rfptest":
+		fmt.Printf("%s\n", RFPTestHelpMsg)
 	case "legacytest":
 		fmt.Printf("%s\n", legacyTestHelpMsg)
 

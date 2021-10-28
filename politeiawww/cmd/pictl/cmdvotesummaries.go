@@ -20,6 +20,17 @@ type cmdVoteSummaries struct {
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdVoteSummaries) Execute(args []string) error {
+	_, err := voteSummaries(c)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// voteSummaries fetches the ticketvote API Summaries route for a page of
+// tokens. This function has been pulled out of the Execute method so that
+// it can be used in the test commands.
+func voteSummaries(c *cmdVoteSummaries) (map[string]tkv1.Summary, error) {
 	// Setup client
 	opts := pclient.Opts{
 		HTTPSCert: cfg.HTTPSCert,
@@ -28,7 +39,7 @@ func (c *cmdVoteSummaries) Execute(args []string) error {
 	}
 	pc, err := pclient.New(cfg.Host, opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Get vote summaries
@@ -37,7 +48,7 @@ func (c *cmdVoteSummaries) Execute(args []string) error {
 	}
 	sr, err := pc.TicketVoteSummaries(s)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Print summaries
@@ -46,7 +57,7 @@ func (c *cmdVoteSummaries) Execute(args []string) error {
 		printf("-----\n")
 	}
 
-	return nil
+	return sr.Summaries, nil
 }
 
 // voteSummariesHelpMsg is printed to stdout by the help command.

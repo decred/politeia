@@ -88,7 +88,10 @@ func (c *cmdVoteTestSetup) Execute(args []string) error {
 		printInPlace(s)
 
 		// Create a public proposal
-		r, err := proposalPublic(admin, admin, false)
+		r, err := proposalPublic(admin, admin, &proposalOpts{
+			Random:       true,
+			RandomImages: false,
+		})
 		if err != nil {
 			return err
 		}
@@ -107,63 +110,6 @@ func (c *cmdVoteTestSetup) Execute(args []string) error {
 		}
 	}
 	fmt.Printf("\n")
-
-	return nil
-}
-
-// voteAuthorize authorizes the ticket vote.
-//
-// This function returns with the user logged out.
-func voteAuthorize(author user, token string) error {
-	// Login author
-	err := userLogin(author)
-	if err != nil {
-		return err
-	}
-
-	// Authorize the voting period
-	c := cmdVoteAuthorize{}
-	c.Args.Token = token
-	err = c.Execute(nil)
-	if err != nil {
-		return fmt.Errorf("cmdVoteAuthorize: %v", err)
-	}
-
-	// Logout author
-	err = userLogout()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// voteStart starts the voting period on a record.
-//
-// This function returns with the admin logged out.
-func voteStart(admin user, token string, duration, quorum, pass uint32) error {
-	// Login admin
-	err := userLogin(admin)
-	if err != nil {
-		return err
-	}
-
-	// Start the voting period
-	c := cmdVoteStart{}
-	c.Args.Token = token
-	c.Args.Duration = duration
-	c.Args.QuorumPercentage = quorum
-	c.Args.PassPercentage = pass
-	err = c.Execute(nil)
-	if err != nil {
-		return fmt.Errorf("cmdVoteStart: %v", err)
-	}
-
-	// Logout admin
-	err = userLogout()
-	if err != nil {
-		return err
-	}
 
 	return nil
 }

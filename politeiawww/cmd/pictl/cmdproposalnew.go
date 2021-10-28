@@ -62,8 +62,8 @@ func (c *cmdProposalNew) Execute(args []string) error {
 	return nil
 }
 
-// proposalNew creates a new proposal. This function has been pulled out of the
-// Execute method so that it can be used in the test commands.
+// proposalNew creates a new proposal. This function has been pulled out of
+// the Execute method so that it can be used in the test commands.
 func proposalNew(c *cmdProposalNew) (*rcv1.Record, error) {
 	// Unpack args
 	indexFile := c.Args.IndexFile

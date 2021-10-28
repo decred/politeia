@@ -136,7 +136,7 @@ dcrwallet must be running on localhost and listening on the default dcrwallet
 port.
 
 Flags:
- --password (string, required) dcrwallet password. The user will be prompted
+ --password (string, optional) dcrwallet password. The user will be prompted
                                for their password if one is not provided using
                                this flag.
 `
