@@ -556,15 +556,12 @@ func (p *Politeiawww) processCastVotes(ctx context.Context, ballot *www.Ballot) 
 	// Prepare reply
 	receipts := make([]www.CastVoteReply, 0, len(cbr.Receipts))
 	for k, v := range cbr.Receipts {
-		r := www.CastVoteReply{
+		receipts = append(receipts, www.CastVoteReply{
 			ClientSignature: ballot.Votes[k].Signature,
 			Signature:       v.Receipt,
 			Error:           v.ErrorContext,
-		}
-		if v.ErrorCode != nil {
-			r.ErrorStatus = convertVoteErrorCodeToWWW(*v.ErrorCode)
-		}
-		receipts = append(receipts, r)
+			ErrorStatus:     convertVoteErrorCodeToWWW(v.ErrorCode),
+		})
 	}
 
 	return &www.BallotReply{
@@ -835,8 +832,11 @@ func convertVoteTypeToWWW(t tkplugin.VoteT) www.VoteT {
 	}
 }
 
-func convertVoteErrorCodeToWWW(e tkplugin.VoteErrorT) decredplugin.ErrorStatusT {
-	switch e {
+func convertVoteErrorCodeToWWW(e *tkplugin.VoteErrorT) decredplugin.ErrorStatusT {
+	if e == nil {
+		return decredplugin.ErrorStatusInvalid
+	}
+	switch *e {
 	case tkplugin.VoteErrorInvalid:
 		return decredplugin.ErrorStatusInvalid
 	case tkplugin.VoteErrorInternalError:

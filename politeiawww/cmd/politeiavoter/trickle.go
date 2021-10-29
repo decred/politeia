@@ -186,7 +186,8 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 			// Unrecoverable error
 			return fmt.Errorf("unrecoverable error: %v",
 				err)
-		} else {
+		} else if vr.ErrorCode != nil {
+			// Evaluate errors when ErrorCode is set
 			switch *vr.ErrorCode {
 			// Silently ignore.
 			case tkv1.VoteErrorTicketAlreadyVoted:

@@ -391,40 +391,43 @@ func convertVoteParamsToV1(v ticketvote.VoteParams) v1.VoteParams {
 	return vp
 }
 
-func convertVoteErrorToV1(e ticketvote.VoteErrorT) v1.VoteErrorT {
-	switch e {
-	case ticketvote.VoteErrorInvalid:
-		return v1.VoteErrorInvalid
-	case ticketvote.VoteErrorInternalError:
-		return v1.VoteErrorInternalError
-	case ticketvote.VoteErrorRecordNotFound:
-		return v1.VoteErrorRecordNotFound
-	case ticketvote.VoteErrorVoteBitInvalid:
-		return v1.VoteErrorVoteBitInvalid
-	case ticketvote.VoteErrorVoteStatusInvalid:
-		return v1.VoteErrorVoteStatusInvalid
-	case ticketvote.VoteErrorTicketAlreadyVoted:
-		return v1.VoteErrorTicketAlreadyVoted
-	case ticketvote.VoteErrorTicketNotEligible:
-		return v1.VoteErrorTicketNotEligible
-	default:
-		return v1.VoteErrorInternalError
+func convertVoteErrorToV1(e *ticketvote.VoteErrorT) *v1.VoteErrorT {
+	if e == nil {
+		return nil
 	}
+
+	var ve v1.VoteErrorT
+	switch *e {
+	case ticketvote.VoteErrorInvalid:
+		ve = v1.VoteErrorInvalid
+	case ticketvote.VoteErrorInternalError:
+		ve = v1.VoteErrorInternalError
+	case ticketvote.VoteErrorRecordNotFound:
+		ve = v1.VoteErrorRecordNotFound
+	case ticketvote.VoteErrorVoteBitInvalid:
+		ve = v1.VoteErrorVoteBitInvalid
+	case ticketvote.VoteErrorVoteStatusInvalid:
+		ve = v1.VoteErrorVoteStatusInvalid
+	case ticketvote.VoteErrorTicketAlreadyVoted:
+		ve = v1.VoteErrorTicketAlreadyVoted
+	case ticketvote.VoteErrorTicketNotEligible:
+		ve = v1.VoteErrorTicketNotEligible
+	default:
+		ve = v1.VoteErrorInternalError
+	}
+
+	return &ve
 }
 
 func convertCastVoteRepliesToV1(replies []ticketvote.CastVoteReply) []v1.CastVoteReply {
 	r := make([]v1.CastVoteReply, 0, len(replies))
 	for _, v := range replies {
-		cvr := v1.CastVoteReply{
+		r = append(r, v1.CastVoteReply{
 			Ticket:       v.Ticket,
 			Receipt:      v.Receipt,
 			ErrorContext: v.ErrorContext,
-		}
-		if v.ErrorCode != nil {
-			ec := convertVoteErrorToV1(*v.ErrorCode)
-			cvr.ErrorCode = &ec
-		}
-		r = append(r, cvr)
+			ErrorCode:    convertVoteErrorToV1(v.ErrorCode),
+		})
 	}
 	return r
 }
