@@ -145,7 +145,6 @@ func waitRandom(min, max byte) time.Duration {
 
 func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteAlarm) error {
 	voteID++ // make human readable
-	//fmt.Printf("bunchID: %v voterID: %v at: %v\n", bunchID, voteID, va.At)
 
 	// Wait
 	err := WaitUntil(ectx, va.At)
@@ -250,7 +249,7 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 
 				return nil
 			}
-
+		} else {
 			// Success, log it and exit
 			err = p.jsonLog(successJournal, va.Vote.Token, vr)
 			if err != nil {
