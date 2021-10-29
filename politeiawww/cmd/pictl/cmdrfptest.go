@@ -1,3 +1,5 @@
+// Copyright (c) 2021 The Decred developers
+// Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
@@ -292,7 +294,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	}
 
 	tokenSecond := tokensPublic[1]
-	err = castBallot(tokensPublic[1], "no", password)
+	err = castBallot(tokenSecond, "no", password)
 	if err != nil {
 		return err
 	}
