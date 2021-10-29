@@ -1521,8 +1521,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 	// that are not found in the cache are fetched manually.
 	tickets := make([]string, 0, len(cb.Ballot))
 	for k, v := range votes {
-		if receipts[k].ErrorCode != nil &&
-			*receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
+		if receipts[k].ErrorCode != nil {
 			// Vote has an error. Skip it.
 			continue
 		}
@@ -1555,8 +1554,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 
 	// Verify the signatures
 	for k, v := range votes {
-		if receipts[k].ErrorCode != nil &&
-			*receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
+		if receipts[k].ErrorCode != nil {
 			// Vote has an error. Skip it.
 			continue
 		}
@@ -1643,8 +1641,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		ballotCount int
 	)
 	for k, v := range votes {
-		if receipts[k].ErrorCode != nil &&
-			*receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
+		if receipts[k].ErrorCode != nil {
 			// Vote has an error. Skip it.
 			continue
 		}
@@ -1682,8 +1679,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 
 	// Fill in the receipts
 	for k, v := range votes {
-		if receipts[k].ErrorCode != nil &&
-			*receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
+		if receipts[k].ErrorCode != nil {
 			// Vote has an error. Skip it.
 			continue
 		}
