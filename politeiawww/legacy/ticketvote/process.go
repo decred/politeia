@@ -425,8 +425,8 @@ func convertCastVoteRepliesToV1(replies []ticketvote.CastVoteReply) []v1.CastVot
 		r = append(r, v1.CastVoteReply{
 			Ticket:       v.Ticket,
 			Receipt:      v.Receipt,
-			ErrorContext: v.ErrorContext,
 			ErrorCode:    convertVoteErrorToV1(v.ErrorCode),
+			ErrorContext: v.ErrorContext,
 		})
 	}
 	return r
