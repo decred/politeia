@@ -446,8 +446,8 @@ type CastVoteReply struct {
 
 	// The follwing fields will only be present if an error occurred
 	// while attempting to cast the vote.
-	ErrorCode    VoteErrorT `json:"errorcode,omitempty"`
-	ErrorContext string     `json:"errorcontext,omitempty"`
+	ErrorCode    *VoteErrorT `json:"errorcode,omitempty"`
+	ErrorContext string      `json:"errorcontext,omitempty"`
 }
 
 // CastBallot casts a ballot of votes. A ballot can only contain the votes for

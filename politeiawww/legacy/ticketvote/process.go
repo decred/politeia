@@ -415,12 +415,16 @@ func convertVoteErrorToV1(e ticketvote.VoteErrorT) v1.VoteErrorT {
 func convertCastVoteRepliesToV1(replies []ticketvote.CastVoteReply) []v1.CastVoteReply {
 	r := make([]v1.CastVoteReply, 0, len(replies))
 	for _, v := range replies {
-		r = append(r, v1.CastVoteReply{
+		cvr := v1.CastVoteReply{
 			Ticket:       v.Ticket,
 			Receipt:      v.Receipt,
-			ErrorCode:    convertVoteErrorToV1(v.ErrorCode),
 			ErrorContext: v.ErrorContext,
-		})
+		}
+		if v.ErrorCode != nil {
+			ec := convertVoteErrorToV1(*v.ErrorCode)
+			cvr.ErrorCode = &ec
+		}
+		r = append(r, cvr)
 	}
 	return r
 }

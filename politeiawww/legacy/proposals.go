@@ -556,12 +556,15 @@ func (p *Politeiawww) processCastVotes(ctx context.Context, ballot *www.Ballot) 
 	// Prepare reply
 	receipts := make([]www.CastVoteReply, 0, len(cbr.Receipts))
 	for k, v := range cbr.Receipts {
-		receipts = append(receipts, www.CastVoteReply{
+		r := www.CastVoteReply{
 			ClientSignature: ballot.Votes[k].Signature,
 			Signature:       v.Receipt,
 			Error:           v.ErrorContext,
-			ErrorStatus:     convertVoteErrorCodeToWWW(v.ErrorCode),
-		})
+		}
+		if v.ErrorCode != nil {
+			r.ErrorStatus = convertVoteErrorCodeToWWW(*v.ErrorCode)
+		}
+		receipts = append(receipts, r)
 	}
 
 	return &www.BallotReply{

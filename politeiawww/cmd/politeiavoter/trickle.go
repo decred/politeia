@@ -150,7 +150,7 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 	// Wait
 	err := WaitUntil(ectx, va.At)
 	if err != nil {
-		return fmt.Errorf("%v bunch %v vote %v failed: %v\n",
+		return fmt.Errorf("%v bunch %v vote %v failed: %v",
 			time.Now(), bunchID, voteID, err)
 	}
 
@@ -187,15 +187,7 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 			return fmt.Errorf("unrecoverable error: %v",
 				err)
 		} else {
-			// XXX TODO(lukebp) please make this a pointer and only
-			// evaluate these errors when it is set. For now we
-			// have to treat VoteErrorInvalid as valid because of
-			// this.
-			switch vr.ErrorCode {
-			// Success
-			case tkv1.VoteErrorInvalid:
-				// XXX treat as success for now
-
+			switch *vr.ErrorCode {
 			// Silently ignore.
 			case tkv1.VoteErrorTicketAlreadyVoted:
 				// This happens during network errors. Since
