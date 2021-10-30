@@ -169,7 +169,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		}
 	}
 	fmt.Printf("  RFP approved successfully\n")
-	printVoteSummaryResults(tokenRFP, vs)
+	printVoteSummary(tokenRFP, vs)
 
 	// Create 1 unvetted censored RFP submission
 	fmt.Printf("  Create 1 unvetted censored RFP submission\n")
@@ -324,7 +324,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		}
 	}
 	fmt.Printf("  First submission was approved successfully\n")
-	printVoteSummaryResults(tokenFirst, vs)
+	printVoteSummary(tokenFirst, vs)
 
 	// Fetch vote summary of rejected proposal
 	cvs = cmdVoteSummaries{}
@@ -345,7 +345,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	}
 	fmt.Printf("  The other two submissions were rejected successfully\n")
 	for i, t := range tokens {
-		printVoteSummaryResults(t, summaries[t])
+		printVoteSummary(t, summaries[t])
 		if i != len(tokens)-1 {
 			fmt.Printf("    -----\n")
 		}
@@ -356,25 +356,6 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	fmt.Printf("Stop time: %v\n", ts)
 
 	return nil
-}
-
-func printVoteSummaryResults(token string, vs tkv1.Summary) {
-	fmt.Printf("    Token   : %v\n", token)
-	quorumVotes := vs.QuorumPercentage * vs.EligibleTickets
-	fmt.Printf("    Quorum  : %v votes\n", quorumVotes)
-	fmt.Printf("    Approval: %v votes\n", vs.PassPercentage*quorumVotes)
-	var yesVotes, noVotes, allVotes uint64
-	for _, r := range vs.Results {
-		switch r.ID {
-		case "yes":
-			yesVotes = r.Votes
-		case "no":
-			noVotes = r.Votes
-		}
-	}
-	allVotes = noVotes + yesVotes
-	fmt.Printf("    Results : %v/%v yes, %v/%v no\n", yesVotes, allVotes, noVotes,
-		allVotes)
 }
 
 // RFPTestHelpMsg is the printed to stdout by the help command.
