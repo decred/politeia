@@ -1,3 +1,5 @@
+// Copyright (c) 2021 The Decred developers
+// Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
@@ -144,7 +146,10 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	}
 
 	// Wait to RFP to finish voting
-	var approvedRFP bool
+	var (
+		approvedRFP bool
+		vs          tkv1.Summary
+	)
 	for !approvedRFP {
 		// Fetch vote summary
 		var cvs cmdVoteSummaries
@@ -153,7 +158,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		vs := summaries[tokenRFP]
+		vs = summaries[tokenRFP]
 
 		if vs.Status != tkv1.VoteStatusApproved {
 			fmt.Printf("  RFP voting still going on, block %v/%v \n",
@@ -164,6 +169,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		}
 	}
 	fmt.Printf("  RFP approved successfully\n")
+	fmt.Printf(voteSummaryString(tokenRFP, "    ", vs))
 
 	// Create 1 unvetted censored RFP submission
 	fmt.Printf("  Create 1 unvetted censored RFP submission\n")
@@ -292,7 +298,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	}
 
 	tokenSecond := tokensPublic[1]
-	err = castBallot(tokensPublic[1], "no", password)
+	err = castBallot(tokenSecond, "no", password)
 	if err != nil {
 		return err
 	}
@@ -307,7 +313,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		vs := summaries[tokenFirst]
+		vs = summaries[tokenFirst]
 
 		if vs.Status != tkv1.VoteStatusApproved {
 			fmt.Printf("  Runoff voting still going on, block %v/%v \n",
@@ -317,7 +323,8 @@ func (c *cmdRFPTest) Execute(args []string) error {
 			approvedSubmission = true
 		}
 	}
-	fmt.Printf("  First submission %v was approved successfully\n", tokenFirst)
+	fmt.Printf("  First submission was approved successfully\n")
+	fmt.Printf(voteSummaryString(tokenFirst, "    ", vs))
 
 	// Fetch vote summary of rejected proposal
 	cvs = cmdVoteSummaries{}
@@ -336,8 +343,13 @@ func (c *cmdRFPTest) Execute(args []string) error {
 				tkv1.VoteStatuses[s.Status])
 		}
 	}
-	fmt.Printf("  The other two submissions %v were rejected successfully\n",
-		tokens)
+	fmt.Printf("  The other two submissions were rejected successfully\n")
+	for i, t := range tokens {
+		fmt.Printf(voteSummaryString(t, "    ", summaries[t]))
+		if i != len(tokens)-1 {
+			fmt.Printf("    -----\n")
+		}
+	}
 
 	ts := timestampFromUnix(time.Now().Unix())
 	fmt.Printf("Done!\n")
