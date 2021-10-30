@@ -5,7 +5,9 @@
 package main
 
 import (
+	"fmt"
 	"sort"
+	"strings"
 
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 )
@@ -63,14 +65,18 @@ func printVoteResults(votes []tkv1.CastVoteDetails) {
 	}
 }
 
-func printVoteSummary(token string, s tkv1.Summary) {
-	printf("Token             : %v\n", token)
-	printf("Status            : %v\n", tkv1.VoteStatuses[s.Status])
+// voteSummaryString returns a string that contains the pretty printed vote
+// summary.
+func voteSummaryString(token, indent string, s tkv1.Summary) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%vToken             : %v\n", indent, token))
+	sb.WriteString(fmt.Sprintf("%vStatus            : %v\n",
+		indent, tkv1.VoteStatuses[s.Status]))
 	switch s.Status {
 	case tkv1.VoteStatusUnauthorized, tkv1.VoteStatusAuthorized,
 		tkv1.VoteStatusIneligible:
 		// Nothing else to print
-		return
+		return sb.String()
 	}
 	var total uint64
 	for _, v := range s.Results {
@@ -78,19 +84,29 @@ func printVoteSummary(token string, s tkv1.Summary) {
 	}
 	quorum := int(float64(s.QuorumPercentage) / 100 * float64(s.EligibleTickets))
 	pass := int(float64(s.PassPercentage) / 100 * float64(total))
-	printf("Type              : %v\n", tkv1.VoteTypes[s.Type])
-	printf("Quorum Percentage : %v%% of eligible votes (%v votes)\n",
-		s.QuorumPercentage, quorum)
-	printf("Pass Percentage   : %v%% of cast votes (%v votes)\n",
-		s.PassPercentage, pass)
-	printf("Duration          : %v blocks\n", s.Duration)
-	printf("Start Block Hash  : %v\n", s.StartBlockHash)
-	printf("Start Block Height: %v\n", s.StartBlockHeight)
-	printf("End Block Height  : %v\n", s.EndBlockHeight)
-	printf("Eligible Tickets  : %v tickets\n", s.EligibleTickets)
-	printf("Best Block        : %v\n", s.BestBlock)
-	printf("Results\n")
+	sb.WriteString(fmt.Sprintf("%vType              : %v\n",
+		indent, tkv1.VoteTypes[s.Type]))
+	sb.WriteString(fmt.Sprintf("%vQuorum Percentage : %v%% of eligible votes "+
+		"(%v votes)\n", indent, s.QuorumPercentage, quorum))
+	sb.WriteString(fmt.Sprintf("%vPass Percentage   : %v%% of cast votes "+
+		" (%v votes)\n", indent, s.PassPercentage, pass))
+	sb.WriteString(fmt.Sprintf("%vDuration          : %v blocks\n",
+		indent, s.Duration))
+	sb.WriteString(fmt.Sprintf("%vStart Block Hash  : %v\n",
+		indent, s.StartBlockHash))
+	sb.WriteString(fmt.Sprintf("%vStart Block Height: %v\n",
+		indent, s.StartBlockHeight))
+	sb.WriteString(fmt.Sprintf("%vEnd Block Height  : %v\n",
+		indent, s.EndBlockHeight))
+	sb.WriteString(fmt.Sprintf("%vEligible Tickets  : %v tickets\n",
+		indent, s.EligibleTickets))
+	sb.WriteString(fmt.Sprintf("%vBest Block        : %v\n", indent,
+		s.BestBlock))
+	sb.WriteString(fmt.Sprintf("%vResults\n", indent))
 	for _, v := range s.Results {
-		printf(" %v %-3v %v votes\n", v.VoteBit, v.ID, v.Votes)
+		sb.WriteString(fmt.Sprintf("%v %v %-3v %v votes\n", indent, v.VoteBit,
+			v.ID, v.Votes))
 	}
+
+	return sb.String()
 }

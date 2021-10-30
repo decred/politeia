@@ -169,7 +169,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		}
 	}
 	fmt.Printf("  RFP approved successfully\n")
-	printVoteSummary(tokenRFP, vs)
+	fmt.Printf(voteSummaryString(tokenRFP, "    ", vs))
 
 	// Create 1 unvetted censored RFP submission
 	fmt.Printf("  Create 1 unvetted censored RFP submission\n")
@@ -324,7 +324,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		}
 	}
 	fmt.Printf("  First submission was approved successfully\n")
-	printVoteSummary(tokenFirst, vs)
+	fmt.Printf(voteSummaryString(tokenFirst, "    ", vs))
 
 	// Fetch vote summary of rejected proposal
 	cvs = cmdVoteSummaries{}
@@ -345,7 +345,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	}
 	fmt.Printf("  The other two submissions were rejected successfully\n")
 	for i, t := range tokens {
-		printVoteSummary(t, summaries[t])
+		fmt.Printf(voteSummaryString(t, "    ", summaries[t]))
 		if i != len(tokens)-1 {
 			fmt.Printf("    -----\n")
 		}
