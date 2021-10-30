@@ -146,7 +146,10 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	}
 
 	// Wait to RFP to finish voting
-	var approvedRFP bool
+	var (
+		approvedRFP bool
+		vs          tkv1.Summary
+	)
 	for !approvedRFP {
 		// Fetch vote summary
 		var cvs cmdVoteSummaries
@@ -155,7 +158,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		vs := summaries[tokenRFP]
+		vs = summaries[tokenRFP]
 
 		if vs.Status != tkv1.VoteStatusApproved {
 			fmt.Printf("  RFP voting still going on, block %v/%v \n",
@@ -166,6 +169,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		}
 	}
 	fmt.Printf("  RFP approved successfully\n")
+	printVoteSummaryResults(tokenRFP, vs)
 
 	// Create 1 unvetted censored RFP submission
 	fmt.Printf("  Create 1 unvetted censored RFP submission\n")
@@ -309,7 +313,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		vs := summaries[tokenFirst]
+		vs = summaries[tokenFirst]
 
 		if vs.Status != tkv1.VoteStatusApproved {
 			fmt.Printf("  Runoff voting still going on, block %v/%v \n",
@@ -319,7 +323,8 @@ func (c *cmdRFPTest) Execute(args []string) error {
 			approvedSubmission = true
 		}
 	}
-	fmt.Printf("  First submission %v was approved successfully\n", tokenFirst)
+	fmt.Printf("  First submission was approved successfully\n")
+	printVoteSummaryResults(tokenFirst, vs)
 
 	// Fetch vote summary of rejected proposal
 	cvs = cmdVoteSummaries{}
@@ -338,14 +343,38 @@ func (c *cmdRFPTest) Execute(args []string) error {
 				tkv1.VoteStatuses[s.Status])
 		}
 	}
-	fmt.Printf("  The other two submissions %v were rejected successfully\n",
-		tokens)
+	fmt.Printf("  The other two submissions were rejected successfully\n")
+	for i, t := range tokens {
+		printVoteSummaryResults(t, summaries[t])
+		if i != len(tokens)-1 {
+			fmt.Printf("    -----\n")
+		}
+	}
 
 	ts := timestampFromUnix(time.Now().Unix())
 	fmt.Printf("Done!\n")
 	fmt.Printf("Stop time: %v\n", ts)
 
 	return nil
+}
+
+func printVoteSummaryResults(token string, vs tkv1.Summary) {
+	fmt.Printf("    Token   : %v\n", token)
+	quorumVotes := vs.QuorumPercentage * vs.EligibleTickets
+	fmt.Printf("    Quorum  : %v votes\n", quorumVotes)
+	fmt.Printf("    Approval: %v votes\n", vs.PassPercentage*quorumVotes)
+	var yesVotes, noVotes, allVotes uint64
+	for _, r := range vs.Results {
+		switch r.ID {
+		case "yes":
+			yesVotes = r.Votes
+		case "no":
+			noVotes = r.Votes
+		}
+	}
+	allVotes = noVotes + yesVotes
+	fmt.Printf("    Results : %v/%v yes, %v/%v no\n", yesVotes, allVotes, noVotes,
+		allVotes)
 }
 
 // RFPTestHelpMsg is the printed to stdout by the help command.
