@@ -77,7 +77,7 @@ func (c *cmdLegacyTest) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		err = voteStart(admin, v, 1000, 1, 50)
+		err = voteStart(admin, v, 1000, 1, 50, false)
 		if err != nil {
 			return err
 		}

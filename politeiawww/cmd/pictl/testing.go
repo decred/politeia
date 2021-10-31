@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
-	pclient "github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
 )
@@ -410,71 +409,28 @@ func voteAuthorize(author user, token string) error {
 	return nil
 }
 
-// voteStart starts the voting period on a record.
+// voteStart starts the voting period on a record. The runoff param can be
+// used to start a runoff vote on a RFP.
 //
 // This function returns with the admin logged out.
-func voteStart(admin user, token string, duration, quorum, pass uint32) error {
+func voteStart(admin user, token string, duration, quorum, pass uint32, runoff bool) error {
 	// Login admin
 	err := userLogin(admin)
-	if err != nil {
-		return err
-	}
-
-	// Setup client
-	opts := pclient.Opts{
-		HTTPSCert:  cfg.HTTPSCert,
-		Cookies:    cfg.Cookies,
-		HeaderCSRF: cfg.CSRF,
-		Verbose:    cfg.Verbose,
-		RawJSON:    cfg.RawJSON,
-	}
-	pc, err := pclient.New(cfg.Host, opts)
 	if err != nil {
 		return err
 	}
 
 	// Start the voting period
-	_, err = voteStartStandard(token, duration, quorum, pass, pc)
-	if err != nil {
-		return err
+	c := cmdVoteStart{
+		Runoff:   runoff,
+		Duration: duration,
+		Quorum:   &quorum,
+		Passing:  pass,
 	}
-
-	// Logout admin
-	err = userLogout()
+	c.Args.Token = token
+	err = c.Execute(nil)
 	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// voteStartRunoff starts the runoff voting period on a RFP.
-//
-// This function returns with the admin logged out.
-func voteRunoff(admin user, token string, duration, quorum, pass uint32) error {
-	// Login admin
-	err := userLogin(admin)
-	if err != nil {
-		return err
-	}
-
-	// Setup client
-	opts := pclient.Opts{
-		HTTPSCert:  cfg.HTTPSCert,
-		Cookies:    cfg.Cookies,
-		HeaderCSRF: cfg.CSRF,
-		Verbose:    cfg.Verbose,
-		RawJSON:    cfg.RawJSON,
-	}
-	pc, err := pclient.New(cfg.Host, opts)
-	if err != nil {
-		return err
-	}
-
-	// Start the runoff voting period
-	_, err = voteStartRunoff(token, duration, quorum, pass, pc)
-	if err != nil {
-		return err
+		return fmt.Errorf("cmdVoteStart: %v", err)
 	}
 
 	// Logout admin

@@ -109,7 +109,7 @@ func (c *cmdVoteTestSetup) Execute(args []string) error {
 		}
 
 		// Start vote
-		err = voteStart(admin, token, duration, quorum, passing)
+		err = voteStart(admin, token, duration, quorum, passing, false)
 		if err != nil {
 			return err
 		}
