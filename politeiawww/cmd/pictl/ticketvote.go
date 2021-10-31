@@ -67,46 +67,88 @@ func printVoteResults(votes []tkv1.CastVoteDetails) {
 
 // voteSummaryString returns a string that contains the pretty printed vote
 // summary.
-func voteSummaryString(token, indent string, s tkv1.Summary) string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("%vToken             : %v\n", indent, token))
-	sb.WriteString(fmt.Sprintf("%vStatus            : %v\n",
-		indent, tkv1.VoteStatuses[s.Status]))
+//
+// Example output:
+// Token             : db9b06f36c21991c
+// Status            : rejected
+// Type              : standard
+// Quorum Percentage : 1% of eligible votes (46 votes)
+// Pass Percentage   : 50% of cast votes (30 votes)
+// Duration          : 1 blocks
+// Start Block Hash  : 000000007f1cacdef29710d0f95457364a9e4649904a0655d6ae9cec
+// Start Block Height: 800034
+// End Block Height  : 800051
+// Eligible Tickets  : 4638 tickets
+// Best Block        : 800051
+// Results
+//   1 yes 0 votes
+//   2 no  60 votes
+//
+// The indent argument can be used to add indentation to each line of the
+// string. An empty string will result in no indentation.
+func voteSummaryString(token string, s tkv1.Summary, indent string) string {
+	// Declare here to prevent goto errors
+	var (
+		sb strings.Builder
+
+		total  uint64 // Total votes cast
+		quorum int    // Votes required to reach a quorum
+		pass   int    // Votes required to pass
+	)
+
+	sb.WriteString(fmt.Sprintf("Token             : %v\n",
+		token))
+	sb.WriteString(fmt.Sprintf("Status            : %v\n",
+		tkv1.VoteStatuses[s.Status]))
 	switch s.Status {
 	case tkv1.VoteStatusUnauthorized, tkv1.VoteStatusAuthorized,
 		tkv1.VoteStatusIneligible:
 		// Nothing else to print
-		return sb.String()
+		goto addIndent
 	}
-	var total uint64
+
 	for _, v := range s.Results {
 		total += v.Votes
 	}
-	quorum := int(float64(s.QuorumPercentage) / 100 * float64(s.EligibleTickets))
-	pass := int(float64(s.PassPercentage) / 100 * float64(total))
-	sb.WriteString(fmt.Sprintf("%vType              : %v\n",
-		indent, tkv1.VoteTypes[s.Type]))
-	sb.WriteString(fmt.Sprintf("%vQuorum Percentage : %v%% of eligible votes "+
-		"(%v votes)\n", indent, s.QuorumPercentage, quorum))
-	sb.WriteString(fmt.Sprintf("%vPass Percentage   : %v%% of cast votes "+
-		" (%v votes)\n", indent, s.PassPercentage, pass))
-	sb.WriteString(fmt.Sprintf("%vDuration          : %v blocks\n",
-		indent, s.Duration))
-	sb.WriteString(fmt.Sprintf("%vStart Block Hash  : %v\n",
-		indent, s.StartBlockHash))
-	sb.WriteString(fmt.Sprintf("%vStart Block Height: %v\n",
-		indent, s.StartBlockHeight))
-	sb.WriteString(fmt.Sprintf("%vEnd Block Height  : %v\n",
-		indent, s.EndBlockHeight))
-	sb.WriteString(fmt.Sprintf("%vEligible Tickets  : %v tickets\n",
-		indent, s.EligibleTickets))
-	sb.WriteString(fmt.Sprintf("%vBest Block        : %v\n", indent,
+	quorum = int(float64(s.QuorumPercentage) / 100 * float64(s.EligibleTickets))
+	pass = int(float64(s.PassPercentage) / 100 * float64(total))
+
+	sb.WriteString(fmt.Sprintf("Type              : %v\n",
+		tkv1.VoteTypes[s.Type]))
+	sb.WriteString(fmt.Sprintf("Quorum Percentage : %v%% of eligible votes "+
+		"(%v votes)\n",
+		s.QuorumPercentage, quorum))
+	sb.WriteString(fmt.Sprintf("Pass Percentage   : %v%% of cast votes "+
+		"(%v votes)\n",
+		s.PassPercentage, pass))
+	sb.WriteString(fmt.Sprintf("Duration          : %v blocks\n",
+		s.Duration))
+	sb.WriteString(fmt.Sprintf("Start Block Hash  : %v\n",
+		s.StartBlockHash))
+	sb.WriteString(fmt.Sprintf("Start Block Height: %v\n",
+		s.StartBlockHeight))
+	sb.WriteString(fmt.Sprintf("End Block Height  : %v\n",
+		s.EndBlockHeight))
+	sb.WriteString(fmt.Sprintf("Eligible Tickets  : %v tickets\n",
+		s.EligibleTickets))
+	sb.WriteString(fmt.Sprintf("Best Block        : %v\n",
 		s.BestBlock))
-	sb.WriteString(fmt.Sprintf("%vResults\n", indent))
+	sb.WriteString(fmt.Sprintf("Results\n"))
 	for _, v := range s.Results {
-		sb.WriteString(fmt.Sprintf("%v %v %-3v %v votes\n", indent, v.VoteBit,
-			v.ID, v.Votes))
+		sb.WriteString(fmt.Sprintf("  %v %-3v %v votes\n",
+			v.VoteBit, v.ID, v.Votes))
 	}
 
-	return sb.String()
+addIndent:
+	// Add in indentation after each new line
+	r := strings.NewReplacer("\n", "\n"+indent)
+	ss := r.Replace(sb.String())
+
+	// Remove trailing spaces
+	ss = strings.TrimSpace(ss)
+
+	// Add indent to the first line
+	ss = indent + ss
+
+	return ss
 }

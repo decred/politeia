@@ -19,7 +19,9 @@ type cmdRFPTest struct {
 		AdminEmail    string `positional-arg-name:"adminemail" required:"true"`
 		AdminPassword string `positional-arg-name:"adminpassword" required:"true"`
 	} `positional-args:"true" required:"true"`
-	Password string `long:"password" optional:"true"`
+	Password         string `long:"password" optional:"true"`
+	QuorumPercentage uint32 `long:"quorumpercentage" optional:"true"`
+	PassPercentage   uint32 `long:"passpercentage" optional:"true"`
 }
 
 // Execute executes the cmdRFPTest command.
@@ -32,6 +34,16 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		// waiting for the RFP linkby deadline to expire before
 		// starting the runoff vote.
 		sleepInterval = 15 * time.Second
+
+		// quorumPerc is the percent of total votes required for a quorum.
+		quorumPerc uint32 = 0
+
+		// passPerc is the percent of cast votes required for approval.
+		passPerc uint32 = 1
+
+		// Vote options
+		voteOptionYes = "yes"
+		voteOptionNo  = "no"
 	)
 
 	// We don't want the output of individual commands printed.
@@ -118,7 +130,8 @@ func (c *cmdRFPTest) Execute(args []string) error {
 
 	// Start RFP vote
 	fmt.Printf("  Start vote on RFP\n")
-	err = voteStart(admin, tokenRFP, pr.VoteDurationMin, 0, 0)
+	err = voteStart(admin, tokenRFP, pr.VoteDurationMin,
+		quorumPerc, passPerc)
 	if err != nil {
 		return err
 	}
@@ -140,7 +153,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		cfg.Silent = true
 	}
 
-	err = castBallot(tokenRFP, "yes", password)
+	err = castBallot(tokenRFP, voteOptionYes, password)
 	if err != nil {
 		return err
 	}
@@ -169,7 +182,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		}
 	}
 	fmt.Printf("  RFP approved successfully\n")
-	fmt.Printf(voteSummaryString(tokenRFP, "    ", vs))
+	fmt.Printf("%v\n", voteSummaryString(tokenRFP, vs, "    "))
 
 	// Create 1 unvetted censored RFP submission
 	fmt.Printf("  Create 1 unvetted censored RFP submission\n")
@@ -241,7 +254,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 
 	// Start runoff vote for the submissions
 	fmt.Printf("  Start runoff vote for the submissions\n")
-	err = voteRunoff(admin, tokenRFP, pr.VoteDurationMin, 0, 0)
+	err = voteRunoff(admin, tokenRFP, pr.VoteDurationMin, quorumPerc, passPerc)
 	if err != nil {
 		return err
 	}
@@ -292,13 +305,13 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		" don't vote on third\n")
 
 	tokenFirst := tokensPublic[0]
-	err = castBallot(tokenFirst, "yes", password)
+	err = castBallot(tokenFirst, voteOptionYes, password)
 	if err != nil {
 		return err
 	}
 
 	tokenSecond := tokensPublic[1]
-	err = castBallot(tokenSecond, "no", password)
+	err = castBallot(tokenSecond, voteOptionNo, password)
 	if err != nil {
 		return err
 	}
@@ -324,7 +337,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		}
 	}
 	fmt.Printf("  First submission was approved successfully\n")
-	fmt.Printf(voteSummaryString(tokenFirst, "    ", vs))
+	fmt.Printf("%v\n", voteSummaryString(tokenFirst, vs, "    "))
 
 	// Fetch vote summary of rejected proposal
 	cvs = cmdVoteSummaries{}
@@ -345,7 +358,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	}
 	fmt.Printf("  The other two submissions were rejected successfully\n")
 	for i, t := range tokens {
-		fmt.Printf(voteSummaryString(t, "    ", summaries[t]))
+		fmt.Printf("%v\n", voteSummaryString(t, summaries[t], "    "))
 		if i != len(tokens)-1 {
 			fmt.Printf("    -----\n")
 		}
