@@ -145,7 +145,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	// Start RFP vote
 	fmt.Printf("  Start vote on RFP\n")
 	err = voteStart(admin, tokenRFP, pr.VoteDurationMin,
-		quorum, passing)
+		quorum, passing, false)
 	if err != nil {
 		return err
 	}
@@ -268,7 +268,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 
 	// Start runoff vote for the submissions
 	fmt.Printf("  Start runoff vote for the submissions\n")
-	err = voteRunoff(admin, tokenRFP, pr.VoteDurationMin, quorum, passing)
+	err = voteStart(admin, tokenRFP, pr.VoteDurationMin, quorum, passing, true)
 	if err != nil {
 		return err
 	}
