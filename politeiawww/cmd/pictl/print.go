@@ -33,6 +33,37 @@ func printJSON(v interface{}) {
 	printf("%v\n", util.FormatJSON(v))
 }
 
+// printInPlace prints the provided text to stdout in a way that overwrites the
+// existing stdout text. This function can be called multiple times. Each
+// subsequent call will overwrite the existing text that was printed to stdout.
+func printInPlace(s string) {
+	fmt.Printf("\033[2K\r%s", s)
+}
+
+// addIndent adds indentation to the beginning of each line of the provided
+// string. The indentInSpaces argument is the number of spaces that will be
+// inserted into each line.
+//
+// Example: addIndent("hello,\nworld!\n", 2) -> "  hello,\n  world!\n"
+func addIndent(s string, indentInSpaces uint) string {
+	// Setup indent string
+	var b strings.Builder
+	for i := 0; i < int(indentInSpaces); i++ {
+		b.WriteString(" ")
+	}
+	indent := b.String()
+
+	// Add indentation after each new line
+	r := strings.NewReplacer("\n", "\n"+indent)
+	ss := r.Replace(s)
+
+	// Remove trailing spaces
+	ss = strings.TrimSpace(ss)
+
+	// Add indent to the first line
+	return indent + ss
+}
+
 // byteCountSI converts the provided bytes to a string representation of the
 // closest SI unit (kB, MB, GB, etc).
 func byteCountSI(b int64) string {
@@ -47,13 +78,6 @@ func byteCountSI(b int64) string {
 	}
 	return fmt.Sprintf("%.1f %cB",
 		float64(b)/float64(div), "kMGTPE"[exp])
-}
-
-// printInPlace prints the provided text to stdout in a way that overwrites the
-// existing stdout text. This function can be called multiple times. Each
-// subsequent call will overwrite the existing text that was printed to stdout.
-func printInPlace(s string) {
-	fmt.Printf("\033[2K\r%s", s)
 }
 
 // dollars converts an int64 price in cents into a human readable dollar

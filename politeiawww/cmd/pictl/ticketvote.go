@@ -12,6 +12,18 @@ import (
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 )
 
+const (
+	// defaultDuration is the default duration, in blocks, of a DCR ticket vote.
+	defaultDuration uint32 = 6
+
+	// defaultQuorum is the default percent of total votes required for a quorum.
+	defaultQuorum uint32 = 0
+
+	// defaultPassing is the default percent of cast votes required for a vote
+	// option to be considered as passing.
+	defaultPassing uint32 = 60
+)
+
 func printAuthDetails(a tkv1.AuthDetails) {
 	printf("Token    : %v\n", a.Token)
 	printf("Action   : %v\n", a.Action)
@@ -85,16 +97,10 @@ func printVoteResults(votes []tkv1.CastVoteDetails) {
 //   2 no  60 votes
 //
 // The indent argument can be used to add indentation to each line of the
-// string. An empty string will result in no indentation.
-func voteSummaryString(token string, s tkv1.Summary, indent string) string {
-	// Declare here to prevent goto errors
-	var (
-		sb strings.Builder
-
-		total  uint64 // Total votes cast
-		quorum int    // Votes required to reach a quorum
-		pass   int    // Votes required to pass
-	)
+// string. The provided number of spaces will be inserted into the beginning
+// of each line.
+func voteSummaryString(token string, s tkv1.Summary, indentInSpaces uint) string {
+	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("Token             : %v\n",
 		token))
@@ -104,9 +110,14 @@ func voteSummaryString(token string, s tkv1.Summary, indent string) string {
 	case tkv1.VoteStatusUnauthorized, tkv1.VoteStatusAuthorized,
 		tkv1.VoteStatusIneligible:
 		// Nothing else to print
-		goto addIndent
+		return addIndent(sb.String(), indentInSpaces)
 	}
 
+	var (
+		total  uint64 // Total votes cast
+		quorum int    // Votes required to reach a quorum
+		pass   int    // Votes required to pass
+	)
 	for _, v := range s.Results {
 		total += v.Votes
 	}
@@ -139,16 +150,5 @@ func voteSummaryString(token string, s tkv1.Summary, indent string) string {
 			v.VoteBit, v.ID, v.Votes))
 	}
 
-addIndent:
-	// Add in indentation after each new line
-	r := strings.NewReplacer("\n", "\n"+indent)
-	ss := r.Replace(sb.String())
-
-	// Remove trailing spaces
-	ss = strings.TrimSpace(ss)
-
-	// Add indent to the first line
-	ss = indent + ss
-
-	return ss
+	return addIndent(sb.String(), indentInSpaces)
 }

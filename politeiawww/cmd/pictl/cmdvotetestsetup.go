@@ -8,34 +8,39 @@ import (
 	"fmt"
 )
 
-// cmdVoteTestSetup sets up a batch of proposal votes.
+// cmdVoteTestSetup starts a batch of proposal votes.
 type cmdVoteTestSetup struct {
 	Args struct {
-		AdminEmail    string `positional-arg-name:"adminemail" required:"true"`
-		AdminPassword string `positional-arg-name:"adminpassword" required:"true"`
-	} `positional-args:"true"`
+		AdminEmail    string `positional-arg-name:"adminemail"`
+		AdminPassword string `positional-arg-name:"adminpassword"`
+	} `positional-args:"true" required:"true"`
 
-	// Options to adjust the vote params.
-	Votes            uint32 `long:"votes" optional:"true"`
-	Duration         uint32 `long:"duration" optional:"true"`
-	QuorumPercentage uint32 `long:"quorumpercentage" optional:"true"`
-	PassPercentage   uint32 `long:"passpercentage" optional:"true"`
+	// Votes is the number of DCR ticket votes that will be started.
+	Votes uint32 `long:"votes"`
 
-	// IncludeImages is used to include a random number of images when
-	// submitting proposals.
-	IncludeImages bool `long:"includeimages"`
+	// Duration is the duration, in blocks of the DCR ticket votes.
+	Duration uint32 `long:"duration"`
+
+	// Quorum is the percent of total votes required for a quorum. This is a
+	// pointer so that a value of 0 can be provided. A quorum of zero allows
+	// for the vote to be approved or rejected using a single DCR ticket.
+	Quorum *uint32 `long:"quorum"`
+
+	// Passing is the percent of cast votes required for a vote options to be
+	// considered as passing.
+	Passing uint32 `long:"passing"`
 }
 
 // Execute executes the cmdVoteTestSetup command.
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdVoteTestSetup) Execute(args []string) error {
-	// Setup test parameters
+	// Setup vote parameters
 	var (
 		votes    uint32 = 10
-		duration uint32 = 6  // In blocks
-		quorum   uint32 = 1  // Percentage of total tickets
-		pass     uint32 = 50 // Percentage of votes cast
+		duration        = defaultDuration
+		quorum          = defaultQuorum
+		passing         = defaultPassing
 	)
 	if c.Votes > 0 {
 		votes = c.Votes
@@ -43,11 +48,11 @@ func (c *cmdVoteTestSetup) Execute(args []string) error {
 	if c.Duration > 0 {
 		duration = c.Duration
 	}
-	if c.QuorumPercentage > 0 {
-		quorum = c.QuorumPercentage
+	if c.Quorum != nil {
+		quorum = *c.Quorum
 	}
-	if c.PassPercentage > 0 {
-		pass = c.PassPercentage
+	if c.Passing != 0 {
+		passing = c.Passing
 	}
 
 	// We don't want the output of individual commands printed.
@@ -104,7 +109,7 @@ func (c *cmdVoteTestSetup) Execute(args []string) error {
 		}
 
 		// Start vote
-		err = voteStart(admin, token, duration, quorum, pass)
+		err = voteStart(admin, token, duration, quorum, passing)
 		if err != nil {
 			return err
 		}
@@ -117,7 +122,7 @@ func (c *cmdVoteTestSetup) Execute(args []string) error {
 // voteTestSetupHelpMsg is the printed to stdout by the help command.
 const voteTestSetupHelpMsg = `votetestsetup [flags] "adminemail" "adminpassword"
 
-Setup a batch of proposal votes. This command submits the specified number of
+Start batch of proposal votes. This command submits the specified number of
 proposals, makes them public, then starts the voting period on each one.
 
 Arguments:
@@ -125,13 +130,15 @@ Arguments:
 2. adminpassword  (string, required)  Password for admin account.
 
 Flags
- --votes         (uint32) Number of votes to start. (default: 10)
- --duration      (uint32) Duration of each vote in blocks. (default: 6)
- --quorum        (uint32) Percent of total votes required to reach a quorum.
-                          (default: 1)
- --pass          (uint32) Percent of votes cast required for the vote to be
-                          approved. (default: 50)
- --includeimages (bool)   Include images in proposal submissions. This will
-                          substantially increase the size of the proposal
-                          payload.
+ --votes    (uint32) Number of votes to start.
+                     (default: 10)
+ --duration (uint32) Duration, in blocks, of the vote.
+                     (default: 6)
+ --quorum   (uint32) Percent of total votes required to reach a quorum. A
+                     quorum of 0 means that the vote can be approved or
+                     rejected using a single DCR ticket.
+                     (default: 0)
+ --passing  (uint32) Percent of cast votes required for a vote option to be
+                     considered as passing.
+                     (default: 60)
 `
