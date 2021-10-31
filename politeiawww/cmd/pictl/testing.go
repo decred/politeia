@@ -410,7 +410,7 @@ func voteAuthorize(author user, token string) error {
 }
 
 // voteStart starts the voting period on a record. The runoff param can be
-// used to start the a runoff vote on a RFP.
+// used to start a runoff vote on a RFP.
 //
 // This function returns with the admin logged out.
 func voteStart(admin user, token string, duration, quorum, pass uint32, runoff bool) error {
