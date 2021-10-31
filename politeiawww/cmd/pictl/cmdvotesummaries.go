@@ -53,7 +53,7 @@ func voteSummaries(c *cmdVoteSummaries) (map[string]tkv1.Summary, error) {
 
 	// Print summaries
 	for k, v := range sr.Summaries {
-		printf(voteSummaryString(k, "", v))
+		printf("%v\n", voteSummaryString(k, v, 0))
 		printf("-----\n")
 	}
 

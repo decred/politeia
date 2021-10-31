@@ -16,10 +16,21 @@ import (
 // cmdRFPTest runs tests to ensure the RFP workflow works as expected.
 type cmdRFPTest struct {
 	Args struct {
-		AdminEmail    string `positional-arg-name:"adminemail" required:"true"`
-		AdminPassword string `positional-arg-name:"adminpassword" required:"true"`
+		AdminEmail    string `positional-arg-name:"adminemail"`
+		AdminPassword string `positional-arg-name:"adminpassword"`
 	} `positional-args:"true" required:"true"`
-	Password string `long:"password" optional:"true"`
+
+	// Password is the user's dcrwallet password.
+	Password string `long:"password"`
+
+	// Quorum is the percent of total votes required for a quorum. This is a
+	// pointer so that a value of 0 can be provided. A quorum of zero allows
+	// for the vote to be approved or rejected using a single DCR ticket.
+	Quorum *uint32 `long:"quorum"`
+
+	// Passing is the percent of cast votes required for a vote options to be
+	// considered as passing.
+	Passing uint32 `long:"passing"`
 }
 
 // Execute executes the cmdRFPTest command.
@@ -33,6 +44,21 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		// starting the runoff vote.
 		sleepInterval = 15 * time.Second
 	)
+
+	// Setup vote parameters
+	var (
+		quorum  = defaultQuorum
+		passing = defaultPassing
+	)
+	if c.Quorum != nil {
+		quorum = *c.Quorum
+	}
+	if c.Passing != 0 {
+		passing = c.Passing
+	}
+
+	fmt.Printf("Quorum : %v%%\n", quorum)
+	fmt.Printf("Passing: %v%%\n", passing)
 
 	// We don't want the output of individual commands printed.
 	cfg.Verbose = false
@@ -118,7 +144,8 @@ func (c *cmdRFPTest) Execute(args []string) error {
 
 	// Start RFP vote
 	fmt.Printf("  Start vote on RFP\n")
-	err = voteStart(admin, tokenRFP, pr.VoteDurationMin, 0, 0)
+	err = voteStart(admin, tokenRFP, pr.VoteDurationMin,
+		quorum, passing)
 	if err != nil {
 		return err
 	}
@@ -140,7 +167,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		cfg.Silent = true
 	}
 
-	err = castBallot(tokenRFP, "yes", password)
+	err = castBallot(tokenRFP, tkv1.VoteOptionIDApprove, password)
 	if err != nil {
 		return err
 	}
@@ -169,7 +196,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		}
 	}
 	fmt.Printf("  RFP approved successfully\n")
-	fmt.Printf(voteSummaryString(tokenRFP, "    ", vs))
+	fmt.Printf("%v\n", voteSummaryString(tokenRFP, vs, 4))
 
 	// Create 1 unvetted censored RFP submission
 	fmt.Printf("  Create 1 unvetted censored RFP submission\n")
@@ -233,7 +260,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	tokensPublic[2] = r.CensorshipRecord.Token
 
 	// Wait for the rfp deadline to expire
-	for linkByTime.Unix() > time.Now().Unix() {
+	for linkByTime.Unix() >= time.Now().Unix() {
 		fmt.Printf("  Waiting for the RFP deadline to expire, remaining: %v\n",
 			time.Until(linkByTime).Round(time.Second))
 		time.Sleep(sleepInterval)
@@ -241,7 +268,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 
 	// Start runoff vote for the submissions
 	fmt.Printf("  Start runoff vote for the submissions\n")
-	err = voteRunoff(admin, tokenRFP, pr.VoteDurationMin, 0, 0)
+	err = voteRunoff(admin, tokenRFP, pr.VoteDurationMin, quorum, passing)
 	if err != nil {
 		return err
 	}
@@ -292,13 +319,13 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		" don't vote on third\n")
 
 	tokenFirst := tokensPublic[0]
-	err = castBallot(tokenFirst, "yes", password)
+	err = castBallot(tokenFirst, tkv1.VoteOptionIDApprove, password)
 	if err != nil {
 		return err
 	}
 
 	tokenSecond := tokensPublic[1]
-	err = castBallot(tokenSecond, "no", password)
+	err = castBallot(tokenSecond, tkv1.VoteOptionIDReject, password)
 	if err != nil {
 		return err
 	}
@@ -324,7 +351,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		}
 	}
 	fmt.Printf("  First submission was approved successfully\n")
-	fmt.Printf(voteSummaryString(tokenFirst, "    ", vs))
+	fmt.Printf("%v\n", voteSummaryString(tokenFirst, vs, 4))
 
 	// Fetch vote summary of rejected proposal
 	cvs = cmdVoteSummaries{}
@@ -345,7 +372,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 	}
 	fmt.Printf("  The other two submissions were rejected successfully\n")
 	for i, t := range tokens {
-		fmt.Printf(voteSummaryString(t, "    ", summaries[t]))
+		fmt.Printf("%v\n", voteSummaryString(t, summaries[t], 4))
 		if i != len(tokens)-1 {
 			fmt.Printf("    -----\n")
 		}
@@ -368,7 +395,13 @@ Arguments:
 2. adminpassword  (string, required)  Password for admin account.
 
 Flags:
- --password (string, optional) dcrwallet password. The user will be prompted
-                               for their password if one is not provided using
-                               this flag.
+ --password (string) dcrwallet password. The user will be prompted for their
+                     password if one is not provided using this flag.
+ --quorum   (uint32) Percent of total votes required to reach a quorum. A
+                     quorum of 0 means that the vote can be approved or
+                     rejected using a single DCR ticket.
+                     (default: 0)
+ --passing  (uint32) Percent of cast votes required for a vote option to be
+                     considered as passing.
+                     (default: 60)
 `

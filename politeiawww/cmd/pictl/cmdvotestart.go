@@ -18,21 +18,26 @@ import (
 )
 
 // cmdVoteStart starts the voting period on a record.
-//
-// QuorumPercentage and PassPercentage are strings and not uint32 so that a
-// value of 0 can be passed in and not be overwritten by the defaults. This is
-// sometimes desirable when testing.
 type cmdVoteStart struct {
 	Args struct {
-		Token            string `positional-arg-name:"token" required:"true"`
-		Duration         uint32 `positional-arg-name:"duration"`
-		QuorumPercentage uint32 `positional-arg-name:"quorumpercentage"`
-		PassPercentage   uint32 `positional-arg-name:"passpercentage"`
-	} `positional-args:"true"`
+		Token string `positional-arg-name:"token"`
+	} `positional-args:"true"  required:"true"`
+
+	// Duration is the duration, in blocks of the DCR ticket vote.
+	Duration uint32 `long:"duration"`
+
+	// Quorum is the percent of total votes required for a quorum. This is a
+	// pointer so that a value of 0 can be provided. A quorum of zero allows
+	// for the vote to be approved or rejected using a single DCR ticket.
+	Quorum *uint32 `long:"quorum"`
+
+	// Passing is the percent of cast votes required for a vote options to be
+	// considered as passing.
+	Passing uint32 `long:"passing"`
 
 	// Runoff is used to indicate the vote is a runoff vote and the
 	// provided token is the parent token of the runoff vote.
-	Runoff bool `long:"runoff" optional:"true"`
+	Runoff bool `long:"runoff"`
 }
 
 // Execute executes the cmdVoteStart command.
@@ -45,6 +50,23 @@ func (c *cmdVoteStart) Execute(args []string) error {
 	// start.
 	if cfg.Identity == nil {
 		return shared.ErrUserIdentityNotFound
+	}
+
+	// Setup the vote params. The default values
+	// are overridden if CLI flags are provided.
+	var (
+		duration = defaultDuration
+		quorum   = defaultQuorum
+		passing  = defaultPassing
+	)
+	if c.Duration > 0 {
+		duration = c.Duration
+	}
+	if c.Quorum != nil {
+		quorum = *c.Quorum
+	}
+	if c.Passing != 0 {
+		passing = c.Passing
 	}
 
 	// Setup client
@@ -60,31 +82,15 @@ func (c *cmdVoteStart) Execute(args []string) error {
 		return err
 	}
 
-	// Setup vote params
-	var (
-		// Default values
-		duration uint32 = 2016
-		quorum   uint32 = 20
-		pass     uint32 = 60
-	)
-	if c.Args.Duration != 0 {
-		duration = c.Args.Duration
-	}
-	if c.Args.QuorumPercentage != 0 {
-		quorum = c.Args.QuorumPercentage
-	}
-	if c.Args.PassPercentage != 0 {
-		pass = c.Args.PassPercentage
-	}
-
+	// Start the voting period
 	var sr *tkv1.StartReply
 	if c.Runoff {
-		sr, err = voteStartRunoff(token, duration, quorum, pass, pc)
+		sr, err = voteStartRunoff(token, duration, quorum, passing, pc)
 		if err != nil {
 			return err
 		}
 	} else {
-		sr, err = voteStartStandard(token, duration, quorum, pass, pc)
+		sr, err = voteStartStandard(token, duration, quorum, passing, pc)
 		if err != nil {
 			return err
 		}
@@ -223,21 +229,26 @@ func voteStartRunoff(parentToken string, duration, quorum, pass uint32, pc *pcli
 }
 
 // voteStartHelpMsg is printed to stdout by the help command.
-var voteStartHelpMsg = `votestart <token> <duration> <quorumpercentage> <passpercentage>
+var voteStartHelpMsg = `votestart <token>
 
-Start the voting period for a proposal. Requires admin privileges.
+Start a DCR ticket vote for a record. Requires admin privileges.
 
 If the vote is a runoff vote then the --runoff flag must be used. The provided
 token should be the parent token of the runoff vote.
 
 Arguments:
-1. token             (string, required)  Proposal censorship token
-2. duration          (uint32, optional)  Duration of vote in blocks
-                                         (default: 2016)
-3. quorumpercentage  (uint32, optional)  Percent of total votes required to
-                                         reach a quorum (default: 20)
-4. passpercentage    (uint32, optional)  Percent of cast votes required for
-                                         vote to be approved (default: 60)
+1. token (string, required) Record censorship token.
+
 Flags:
- --runoff  (bool, optional)  Start a runoff vote.
+ --duration (uint32) Duration, in blocks, of the vote.
+                     (default: 6)
+ --quorum   (uint32) Percent of total votes required to reach a quorum. A
+                     quorum of 0 means that the vote can be approved or
+                     rejected using a single DCR ticket.
+                     (default: 0)
+ --passing  (uint32) Percent of cast votes required for a vote option to be
+                     considered as passing.
+                     (default: 60)
+ --runoff  (bool)    The vote being started is a runoff vote.
+                     (default: false)
 `

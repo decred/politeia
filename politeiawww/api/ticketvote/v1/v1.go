@@ -336,8 +336,8 @@ type VoteParams struct {
 	// the vote to meet a quorum.
 	QuorumPercentage uint32 `json:"quorumpercentage"`
 
-	// PassPercentage is the percent of total votes that are required
-	// to consider a vote option as passed.
+	// PassPercentage is the percent of cast votes required for a vote
+	// option to be considered as passing.
 	PassPercentage uint32 `json:"passpercentage"`
 
 	Options []VoteOption `json:"options"`
@@ -554,8 +554,8 @@ type Summary struct {
 	// vote in order to have a quorum.
 	QuorumPercentage uint32 `json:"quorumpercentage"`
 
-	// PassPercentage is the percent of total votes required to approve
-	// the vote in order for the vote to pass.
+	// PassPercentage is the percent of cast votes required for a vote
+	// option to be considered as passing.
 	PassPercentage uint32 `json:"passpercentage"`
 
 	Results []VoteResult `json:"results"`
