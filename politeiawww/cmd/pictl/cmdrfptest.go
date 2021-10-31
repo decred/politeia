@@ -43,10 +43,6 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		// waiting for the RFP linkby deadline to expire before
 		// starting the runoff vote.
 		sleepInterval = 15 * time.Second
-
-		// Vote options
-		voteOptionYes = "yes"
-		voteOptionNo  = "no"
 	)
 
 	// Setup vote parameters
@@ -171,7 +167,7 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		cfg.Silent = true
 	}
 
-	err = castBallot(tokenRFP, voteOptionYes, password)
+	err = castBallot(tokenRFP, tkv1.VoteOptionIDApprove, password)
 	if err != nil {
 		return err
 	}
@@ -323,13 +319,13 @@ func (c *cmdRFPTest) Execute(args []string) error {
 		" don't vote on third\n")
 
 	tokenFirst := tokensPublic[0]
-	err = castBallot(tokenFirst, voteOptionYes, password)
+	err = castBallot(tokenFirst, tkv1.VoteOptionIDApprove, password)
 	if err != nil {
 		return err
 	}
 
 	tokenSecond := tokensPublic[1]
-	err = castBallot(tokenSecond, voteOptionNo, password)
+	err = castBallot(tokenSecond, tkv1.VoteOptionIDReject, password)
 	if err != nil {
 		return err
 	}
