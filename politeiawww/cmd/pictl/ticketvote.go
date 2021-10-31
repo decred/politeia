@@ -96,9 +96,9 @@ func printVoteResults(votes []tkv1.CastVoteDetails) {
 //   1 yes 0 votes
 //   2 no  60 votes
 //
-// The indent argument can be used to add indentation to each line of the
-// string. The provided number of spaces will be inserted into the beginning
-// of each line.
+// indentInSpaces can be used to add indentation to each line of the string.
+// The provided number of spaces will be inserted at the beginning of each
+// line.
 func voteSummaryString(token string, s tkv1.Summary, indentInSpaces uint) string {
 	var sb strings.Builder
 
