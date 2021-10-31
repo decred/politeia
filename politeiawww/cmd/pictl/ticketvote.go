@@ -133,7 +133,7 @@ func voteSummaryString(token string, s tkv1.Summary, indent string) string {
 		s.EligibleTickets))
 	sb.WriteString(fmt.Sprintf("Best Block        : %v\n",
 		s.BestBlock))
-	sb.WriteString(fmt.Sprintf("Results\n"))
+	sb.WriteString("Results\n")
 	for _, v := range s.Results {
 		sb.WriteString(fmt.Sprintf("  %v %-3v %v votes\n",
 			v.VoteBit, v.ID, v.Votes))
