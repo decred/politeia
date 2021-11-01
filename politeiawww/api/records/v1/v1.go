@@ -481,6 +481,9 @@ type Records struct {
 
 // RecordsReply is the reply to the Records command. Any tokens that did not
 // correspond to a record will not be included in the reply.
+//
+// **Note** partial record's merkle root is not verifiable - when generating
+// the record's merkle all files must be present.
 type RecordsReply struct {
 	Records map[string]Record `json:"records"` // [token]Record
 }

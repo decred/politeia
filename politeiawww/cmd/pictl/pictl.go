@@ -112,6 +112,7 @@ type pictl struct {
 	SeedProposals cmdSeedProposals `command:"seedproposals"`
 	VoteTestSetup cmdVoteTestSetup `command:"votetestsetup"`
 	VoteTest      cmdVoteTest      `command:"votetest"`
+	RFPTest       cmdRFPTest       `command:"rfptest"`
 	LegacyTest    cmdLegacyTest    `command:"legacytest"`
 
 	// Legacy www routes (deprecated)
@@ -206,6 +207,7 @@ Dev commands
   seedproposals                Seed the backend with proposals
   votetestsetup                Setup a vote test
   votetest                     Execute a vote test
+  rfptest                      Test RFP workflow
   legacytest                   Test legacy routes that do not have a command
 `
 

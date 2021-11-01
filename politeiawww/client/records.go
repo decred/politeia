@@ -269,6 +269,9 @@ func CensorshipRecordVerify(r rcv1.Record, serverPubKey string) error {
 // RecordVerify verfifies the contents of a record. This includes verifying
 // the censorship record, the user metadata, and any status changes that are
 // present.
+//
+// **Note** partial record's merkle root is not verifiable - when generating
+// the record's merkle all files must be present.
 func RecordVerify(r rcv1.Record, serverPubKey string) error {
 	// Verify censorship record
 	err := CensorshipRecordVerify(r, serverPubKey)

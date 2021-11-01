@@ -13,7 +13,6 @@ import (
 
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
-	"github.com/decred/politeia/politeiawww/cmd/shared"
 	"github.com/decred/politeia/util"
 )
 
@@ -171,34 +170,38 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 		printInPlace(log)
 
 		// Create proposal
+		opts := &proposalOpts{
+			Random:       true,
+			RandomImages: includeImages,
+		}
 		switch s {
 		case statusUnreviewed:
-			_, err = proposalUnreviewed(u, includeImages)
+			_, err = proposalUnreviewed(u, opts)
 			if err != nil {
 				return err
 			}
 			countUnreviewed++
 		case statusUnvettedCensored:
-			_, err = proposalUnvettedCensored(u, admin, includeImages)
+			_, err = proposalUnvettedCensored(u, admin, opts)
 			if err != nil {
 				return err
 			}
 			countUnvettedCensored++
 		case statusPublic:
-			r, err := proposalPublic(u, admin, includeImages)
+			r, err := proposalPublic(u, admin, opts)
 			if err != nil {
 				return err
 			}
 			countPublic++
 			public = append(public, r.CensorshipRecord.Token)
 		case statusVettedCensored:
-			_, err = proposalVettedCensored(u, admin, includeImages)
+			_, err = proposalVettedCensored(u, admin, opts)
 			if err != nil {
 				return err
 			}
 			countVettedCensored++
 		case statusAbandoned:
-			_, err = proposalAbandoned(u, admin, includeImages)
+			_, err = proposalAbandoned(u, admin, opts)
 			if err != nil {
 				return err
 			}
@@ -430,291 +433,6 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 	return nil
 }
 
-type user struct {
-	Email    string
-	Password string
-	Username string
-}
-
-// userNew creates a new user.
-//
-// This function returns with the user logged out.
-func userNew(email, username, password string) (*user, error) {
-	// Create user
-	c := userNewCmd{
-		Verify: true,
-	}
-	c.Args.Email = email
-	c.Args.Username = username
-	c.Args.Password = password
-	err := c.Execute(nil)
-	if err != nil {
-		return nil, fmt.Errorf("userNewCmd: %v", err)
-	}
-
-	// Log out user
-	err = userLogout()
-	if err != nil {
-		return nil, err
-	}
-
-	return &user{
-		Email:    email,
-		Username: username,
-		Password: password,
-	}, nil
-}
-
-// userNewRandom creates a new user with random credentials.
-//
-// This function returns with the user logged out.
-func userNewRandom() (*user, error) {
-	// Hex encoding creates 2x the number of characters as bytes.
-	// Ex: 4 bytes will results in a 8 character hex string.
-	b, err := util.Random(5)
-	if err != nil {
-		return nil, err
-	}
-	var (
-		r        = hex.EncodeToString(b)
-		email    = r + "@example.com"
-		username = "user_" + r
-		password = r
-	)
-	return userNew(email, username, password)
-}
-
-// userLogin logs in the provided user.
-func userLogin(u user) error {
-	c := shared.LoginCmd{}
-	c.Args.Email = u.Email
-	c.Args.Password = u.Password
-	err := c.Execute(nil)
-	if err != nil {
-		return fmt.Errorf("LoginCmd: %v", err)
-	}
-	return nil
-}
-
-// userLogout logs out any logged in user.
-func userLogout() error {
-	c := shared.LogoutCmd{}
-	err := c.Execute(nil)
-	if err != nil {
-		return fmt.Errorf("LogoutCmd: %v", err)
-	}
-	return nil
-}
-
-// proposalUnreviewed creates a new proposal and leaves its status as
-// unreviewed.
-//
-// This function returns with the user logged out.
-func proposalUnreviewed(u user, includeImages bool) (*rcv1.Record, error) {
-	// Login user
-	err := userLogin(u)
-	if err != nil {
-		return nil, err
-	}
-
-	// Submit new proposal
-	cn := cmdProposalNew{
-		Random:       true,
-		RandomImages: includeImages,
-	}
-	r, err := proposalNew(&cn)
-	if err != nil {
-		return nil, fmt.Errorf("cmdProposalNew: %v", err)
-	}
-
-	// Edit the proposal
-	ce := cmdProposalEdit{
-		Random:       true,
-		RandomImages: includeImages,
-	}
-	ce.Args.Token = r.CensorshipRecord.Token
-	r, err = proposalEdit(&ce)
-	if err != nil {
-		return nil, fmt.Errorf("cmdProposalEdit: %v", err)
-	}
-
-	// Logout user
-	err = userLogout()
-	if err != nil {
-		return nil, err
-	}
-
-	return r, nil
-}
-
-// proposalUnvettedCensored creates a new proposal then censors the proposal.
-//
-// This function returns with all users logged out.
-func proposalUnvettedCensored(author, admin user, includeImages bool) (*rcv1.Record, error) {
-	// Setup an unvetted proposal
-	r, err := proposalUnreviewed(author, includeImages)
-	if err != nil {
-		return nil, err
-	}
-
-	// Login admin
-	err = userLogin(admin)
-	if err != nil {
-		return nil, err
-	}
-
-	// Censor the proposal
-	cs := cmdProposalSetStatus{}
-	cs.Args.Token = r.CensorshipRecord.Token
-	cs.Args.Status = strconv.Itoa(int(rcv1.RecordStatusCensored))
-	cs.Args.Reason = "Violates proposal rules."
-	cs.Args.Version = r.Version
-	r, err = proposalSetStatus(&cs)
-	if err != nil {
-		return nil, fmt.Errorf("cmdProposalSetStatus: %v", err)
-	}
-
-	// Logout admin
-	err = userLogout()
-	if err != nil {
-		return nil, err
-	}
-
-	return r, nil
-}
-
-// proposalPublic creates and new proposal then makes the proposal public.
-//
-// This function returns with all users logged out.
-func proposalPublic(author, admin user, includeImages bool) (*rcv1.Record, error) {
-	// Setup an unvetted proposal
-	r, err := proposalUnreviewed(author, includeImages)
-	if err != nil {
-		return nil, err
-	}
-
-	// Login admin
-	err = userLogin(admin)
-	if err != nil {
-		return nil, err
-	}
-
-	// Make the proposal public
-	cs := cmdProposalSetStatus{}
-	cs.Args.Token = r.CensorshipRecord.Token
-	cs.Args.Status = strconv.Itoa(int(rcv1.RecordStatusPublic))
-	cs.Args.Version = r.Version
-	r, err = proposalSetStatus(&cs)
-	if err != nil {
-		return nil, fmt.Errorf("cmdProposalSetStatus: %v", err)
-	}
-
-	// Logout admin
-	err = userLogout()
-	if err != nil {
-		return nil, err
-	}
-
-	// Login author
-	err = userLogin(author)
-	if err != nil {
-		return nil, err
-	}
-
-	// Edit the proposal
-	ce := cmdProposalEdit{
-		Random:       true,
-		RandomImages: includeImages,
-	}
-	ce.Args.Token = r.CensorshipRecord.Token
-	r, err = proposalEdit(&ce)
-	if err != nil {
-		return nil, fmt.Errorf("cmdProposalEdit: %v", err)
-	}
-
-	// Logout author
-	err = userLogout()
-	if err != nil {
-		return nil, err
-	}
-
-	return r, nil
-}
-
-// proposalVettedCensored creates a new proposal, makes the proposal public,
-// then censors the proposal.
-//
-// This function returns with all users logged out.
-func proposalVettedCensored(author, admin user, includeImages bool) (*rcv1.Record, error) {
-	// Create a public proposal
-	r, err := proposalPublic(author, admin, includeImages)
-	if err != nil {
-		return nil, err
-	}
-
-	// Login admin
-	err = userLogin(admin)
-	if err != nil {
-		return nil, err
-	}
-
-	// Censor the proposal
-	cs := cmdProposalSetStatus{}
-	cs.Args.Token = r.CensorshipRecord.Token
-	cs.Args.Status = strconv.Itoa(int(rcv1.RecordStatusCensored))
-	cs.Args.Reason = "Violates proposal rules."
-	cs.Args.Version = r.Version
-	r, err = proposalSetStatus(&cs)
-	if err != nil {
-		return nil, fmt.Errorf("cmdProposalSetStatus: %v", err)
-	}
-
-	// Logout admin
-	err = userLogout()
-	if err != nil {
-		return nil, err
-	}
-
-	return r, nil
-}
-
-// proposalAbandoned creates a new proposal, makes the proposal public,
-// then abandones the proposal.
-//
-// This function returns with all users logged out.
-func proposalAbandoned(author, admin user, includeImages bool) (*rcv1.Record, error) {
-	// Create a public proposal
-	r, err := proposalPublic(author, admin, includeImages)
-	if err != nil {
-		return nil, err
-	}
-
-	// Login admin
-	err = userLogin(admin)
-	if err != nil {
-		return nil, err
-	}
-
-	// Abandone the proposal
-	cs := cmdProposalSetStatus{}
-	cs.Args.Token = r.CensorshipRecord.Token
-	cs.Args.Status = strconv.Itoa(int(rcv1.RecordStatusArchived))
-	cs.Args.Reason = "No activity from author in 3 weeks."
-	cs.Args.Version = r.Version
-	r, err = proposalSetStatus(&cs)
-	if err != nil {
-		return nil, fmt.Errorf("cmdProposalSetStatus: %v", err)
-	}
-
-	// Logout admin
-	err = userLogout()
-	if err != nil {
-		return nil, err
-	}
-
-	return r, nil
-}
-
 // inv returns a page of tokens for a record status.
 func inv(state rcv1.RecordStateT, status rcv1.RecordStatusT, page uint32) ([]string, error) {
 	// Setup command
@@ -810,34 +528,6 @@ func commentCountForRecord(token string) (uint32, error) {
 		return 0, fmt.Errorf("cmdCommentCount: record not found %v", token)
 	}
 	return count, nil
-}
-
-// commentVoteCasts a comment upvote/downvote.
-//
-// This function returns with the user logged out.
-func commentVote(u user, token string, commentID uint32, vote string) error {
-	// Login user
-	err := userLogin(u)
-	if err != nil {
-		return err
-	}
-
-	c := cmdCommentVote{}
-	c.Args.Token = token
-	c.Args.CommentID = commentID
-	c.Args.Vote = vote
-	err = c.Execute(nil)
-	if err != nil {
-		return err
-	}
-
-	// Logout user
-	err = userLogout()
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // seedProposalsHelpMsg is the printed to stdout by the help command.

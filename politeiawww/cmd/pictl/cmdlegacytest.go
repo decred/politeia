@@ -57,7 +57,10 @@ func (c *cmdLegacyTest) Execute(args []string) error {
 		s := fmt.Sprintf("Creating proposal %v/%v", i+1, proposalCount)
 		printInPlace(s)
 
-		r, err := proposalPublic(admin, admin, false)
+		r, err := proposalPublic(admin, admin, &proposalOpts{
+			Random:       true,
+			RandomImages: false,
+		})
 		if err != nil {
 			return err
 		}
@@ -74,7 +77,7 @@ func (c *cmdLegacyTest) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		err = voteStart(admin, v, 1000, 1, 50)
+		err = voteStart(admin, v, 1000, 1, 50, false)
 		if err != nil {
 			return err
 		}
