@@ -9,12 +9,12 @@ import "github.com/google/uuid"
 type User struct {
 	ID          uuid.UUID // Unique ID
 	Deactivated bool
-	PluginData  PluginData
+	Plugins     map[string]PluginData // [pluginID]PluginData
 }
 
 type PluginData struct {
-	ClearText map[string][]byte // [pluginID]dataBlob
-	Encrypted map[string][]byte // [pluginID]dataBlob
+	ClearText []byte
+	Encrypted []byte
 }
 
 type DB interface {

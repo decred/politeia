@@ -16,10 +16,12 @@ import (
 	v1 "github.com/decred/politeia/politeiawww/api/http/v1"
 	"github.com/decred/politeia/politeiawww/logger"
 	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
+	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 )
 
 // setupRoutes sets up the routes for the politeia http API.
@@ -88,7 +90,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Extract the session data from the request cookies
-	s, usr, err := p.extractSession(r)
+	s, u, err := p.extractSession(r)
 	if err != nil {
 		respondWithError(w, r,
 			"handleWrite: extractSession: %v", err)
@@ -97,21 +99,22 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 	// Execute the plugin command
 	var (
-		session = convertSession(*s)
-		command = convertCmdFromHTTP(cmd)
+		// session = convertSession(*s)
+		pluginID = cmd.PluginID
+		usr      = convertUser(u, s, cmd.PluginID)
+		command  = convertCmdFromHTTP(cmd)
 	)
-	pluginReply, err := p.execWrite(r.Context(),
-		cmd.PluginID, command, usr, &session)
+	pluginReply, err := p.execWrite(r.Context(), pluginID, command, usr)
 	if err != nil {
 		respondWithError(w, r,
 			"handleWrite: execWrite: %v", err)
 		return
 	}
 
-	reply := convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
+	reply := convertReplyToHTTP(pluginID, cmd.Cmd, *pluginReply)
 
 	// Save the updated session
-	err = p.saveSession(r, w, s, session)
+	err = p.saveUserSession(r, w, s, usr, pluginID)
 	if err != nil {
 		// The database transaction for the plugin write has
 		// already been committed and can't be rolled back.
@@ -121,29 +124,6 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 	// Send the response
 	util.RespondWithJSON(w, http.StatusOK, reply)
-}
-
-// addRoute adds a route to the provided router.
-func addRoute(router *mux.Router, method string, routePrefix, route string, handler http.HandlerFunc) {
-	router.HandleFunc(routePrefix+route, handler).Methods(method)
-}
-
-// handleNotFound handles all invalid routes and returns a 404 to the client.
-func handleNotFound(w http.ResponseWriter, r *http.Request) {
-	// Log incoming connection
-	log.Debugf("Invalid route: %v %v %v %v",
-		util.RemoteAddr(r), r.Method, r.URL, r.Proto)
-
-	// Trace incoming request
-	log.Tracef("%v", logger.NewLogClosure(func() string {
-		trace, err := httputil.DumpRequest(r, true)
-		if err != nil {
-			trace = []byte(fmt.Sprintf("handleNotFound: DumpRequest %v", err))
-		}
-		return string(trace)
-	}))
-
-	util.RespondWithJSON(w, http.StatusNotFound, nil)
 }
 
 // responseWithError checks the error type and responds with the appropriate
@@ -182,6 +162,29 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 	return
 }
 
+// addRoute adds a route to the provided router.
+func addRoute(router *mux.Router, method string, routePrefix, route string, handler http.HandlerFunc) {
+	router.HandleFunc(routePrefix+route, handler).Methods(method)
+}
+
+// handleNotFound handles all invalid routes and returns a 404 to the client.
+func handleNotFound(w http.ResponseWriter, r *http.Request) {
+	// Log incoming connection
+	log.Debugf("Invalid route: %v %v %v %v",
+		util.RemoteAddr(r), r.Method, r.URL, r.Proto)
+
+	// Trace incoming request
+	log.Tracef("%v", logger.NewLogClosure(func() string {
+		trace, err := httputil.DumpRequest(r, true)
+		if err != nil {
+			trace = []byte(fmt.Sprintf("handleNotFound: DumpRequest %v", err))
+		}
+		return string(trace)
+	}))
+
+	util.RespondWithJSON(w, http.StatusNotFound, nil)
+}
+
 func convertCmdFromHTTP(c v1.PluginCmd) plugin.Cmd {
 	return plugin.Cmd{
 		Cmd:     c.Cmd,
@@ -195,5 +198,25 @@ func convertReplyToHTTP(pluginID, cmd string, r plugin.Reply) v1.PluginReply {
 		Cmd:      cmd,
 		Payload:  r.Payload,
 		Error:    r.Error,
+	}
+}
+
+func convertUser(u *user.User, s *sessions.Session, pluginID string) *plugin.User {
+	// Get the user data and session value for the plugin.
+	var (
+		data  = u.Plugins[pluginID]
+		value = s.Values[pluginID]
+	)
+
+	// The session value is a interface{}. Convert it to a string.
+	var sessionValue string
+	if value != nil {
+		sessionValue = value.(string)
+	}
+
+	return &plugin.User{
+		ID:         u.ID,
+		Session:    plugin.NewSession(sessionValue),
+		PluginData: plugin.NewPluginData(data.ClearText, data.Encrypted),
 	}
 }

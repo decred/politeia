@@ -32,7 +32,7 @@ func (p *politeiawww) extractSession(r *http.Request) (*sessions.Session, *user.
 		return s, nil, nil
 	}
 
-	// Get the user the session
+	// Get the user from the database
 	u, err := p.userDB.Get(userID)
 	if err != nil {
 		return nil, nil, err
@@ -41,32 +41,19 @@ func (p *politeiawww) extractSession(r *http.Request) (*sessions.Session, *user.
 	return s, u, nil
 }
 
-// saveSession saves the encoded session values to the database and the encoded
-// session ID to the response cookie. This is only performed if there are
-// session values that need to be saved.
-func (p *politeiawww) saveSession(r *http.Request, w http.ResponseWriter, s *sessions.Session, updatedSession plugin.Session) error {
-	if !updatedSession.Updated {
+// saveUserSession saves the encoded session values to the database and the
+// encoded session ID to the response cookie if the provided plugin made an
+// update to the user's session.
+func (p *politeiawww) saveUserSession(r *http.Request, w http.ResponseWriter, s *sessions.Session, usr *plugin.User, pluginID string) error {
+	if !usr.Session.Updated() {
 		// No session values were updated.
 		// Nothing needs to be saved.
 		return nil
 	}
 
 	// Update the orignal session object with
-	// the changes made by the plugins.
-	for k, v := range updatedSession.Values {
-		s.Values[k] = v
-	}
+	// the changes made by the plugin.
+	s.Values[pluginID] = usr.Session.Value()
 
 	return p.sessions.Save(r, w, s)
-}
-
-func convertSession(s sessions.Session) plugin.Session {
-	values := make(map[string]interface{}, len(s.Values))
-	for k, v := range s.Values {
-		// Type cast the interface{} key to a string
-		values[k.(string)] = v
-	}
-	return plugin.Session{
-		Values: values,
-	}
 }

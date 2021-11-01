@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
 )
 
@@ -23,19 +22,19 @@ import (
 // persisted by the caller. Updates made during any other method are ignored.
 type Plugin interface {
 	// Hook executes a plugin hook.
-	Hook(h HookT, cmd Cmd, s *Session, usr *user.User) error
+	Hook(HookT, Cmd, *User) error
 
 	// Read executes a read plugin command.
-	Read(cmd Cmd, s *Session, usr *user.User) (*Reply, error)
+	Read(Cmd, *User) (*Reply, error)
 
 	// TxHook executes a plugin hook using a database transaction.
-	TxHook(tx *sql.Tx, h HookT, cmd Cmd, s *Session, usr *user.User) error
+	TxHook(*sql.Tx, HookT, Cmd, *User) error
 
 	// TxWrite executes a write plugin command using a database transaction.
-	TxWrite(tx *sql.Tx, cmd Cmd, s *Session, usr *user.User) (*Reply, error)
+	TxWrite(*sql.Tx, Cmd, *User) (*Reply, error)
 
 	// TxRead executes a read plugin command using a database transaction.
-	TxRead(tx *sql.Tx, cmd Cmd, s *Session, usr *user.User) (*Reply, error)
+	TxRead(*sql.Tx, Cmd, *User) (*Reply, error)
 }
 
 type Cmd struct {
@@ -48,46 +47,76 @@ type Reply struct {
 	Error   error
 }
 
-type Session struct {
-	Values  map[string]interface{}
-	Updated bool
-}
-
-func (s *Session) SetValue(key string, value interface{}) {
-	s.Values[key] = value
-	s.Updated = true
-}
-
 type User struct {
-	ID          uuid.UUID // Unique ID
-	Deactivated bool
-	PluginData  PluginData
+	ID         uuid.UUID // Unique ID
+	Session    Session
+	PluginData PluginData
 }
 
-// PluginData contains the data that is owned by the plugin. These fields can
-// be updated by the plugin during execution of the plugin Write method using
-// the SetClearText() and SetEncrypted() methods. Changes made using these
-// methods will be persisted by the caller. Any updates made to these fields
-// during execution of all other methods will be ignored.
+type Session struct {
+	value   string // JSON encoded
+	updated bool
+}
+
+func NewSession(value string) Session {
+	return Session{
+		value: value,
+	}
+}
+
+func (s *Session) Value() string {
+	return s.value
+}
+
+func (s *Session) SetValue(value string) {
+	s.value = value
+	s.updated = true
+}
+
+func (s *Session) Updated() bool {
+	return s.updated
+}
+
+// PluginData contains the data that is owned by the plugin.
+//
+// These fields can be updated by the plugin during execution of a write
+// command. The PluginData methods MUST be used if the plugin wants the changes
+// persisted. Updates made using the PluginData methods will be persisted by
+// the caller. Any updates made during the execution of a read-only command
+// will be ignored.
 //
 // The encrypted data blob will be provided to the plugin as clear text, but
 // will be saved to the database by the caller as encrypted. The plugin does
-// not need to worry about encrypting/decrypting any data.
+// not need to worry about encrypting/decrypting the data.
 type PluginData struct {
-	ClearText        []byte
-	ClearTextUpdated bool
-	Encrypted        []byte
-	EncryptedUpdated bool
+	clearText []byte
+	encrypted []byte
+	updated   bool
+}
+
+func NewPluginData(clearText, encrypted []byte) PluginData {
+	return PluginData{
+		clearText: clearText,
+		encrypted: encrypted,
+	}
+}
+
+func (d *PluginData) ClearText() []byte {
+	return d.clearText
 }
 
 func (d *PluginData) SetClearText(b []byte) {
-	d.ClearText = b
-	d.ClearTextUpdated = true
+	d.clearText = b
+	d.updated = true
+}
+
+func (d *PluginData) Encrypted() []byte {
+	return d.encrypted
 }
 
 func (d *PluginData) SetEncrypted(b []byte) {
-	d.Encrypted = b
-	d.EncryptedUpdated = true
+	d.encrypted = b
+	d.updated = true
 }
 
 type HookT string
