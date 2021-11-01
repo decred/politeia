@@ -159,7 +159,6 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 		v1.InternalError{
 			ErrorCode: t,
 		})
-	return
 }
 
 // addRoute adds a route to the provided router.

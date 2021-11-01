@@ -67,7 +67,7 @@ type politeiawww struct {
 }
 
 func _main() error {
-	// Load configuration and parse command line.  This function also
+	// Load configuration and parse command line. This function also
 	// initializes logging and configures it accordingly.
 	cfg, _, err := config.Load()
 	if err != nil {
@@ -171,15 +171,14 @@ func _main() error {
 	// all of the middleware that has already been registered.
 	auth := router.NewRoute().Subrouter()
 
-	// The CSRF middleware uses the double submit cookie method. The
-	// server provides clients with two CSRF tokens: a cookie token and
-	// a header token. The cookie token is set automatically by the CSRF
-	// protected subrouter anytime one of the protected routes it hit.
-	// The header token must be set manually by a request handler.
-	// Clients MUST provide both tokens in their request if they want
-	// to access a CSRF protected route. The CSRF protected subrouter
-	// returns a 403 HTTP status code if a client attempts to accesss
-	// a protected route without providing the proper CSRF tokens.
+	// The CSRF middleware uses the double submit cookie method. The server
+	// provides clients with two CSRF tokens: a cookie token and a header token.
+	// The cookie token is set automatically by the CSRF protected subrouter
+	// anytime one of the protected routes it hit.  The header token must be set
+	// manually by a request handler. Clients MUST provide both tokens in their
+	// request if they want to access a CSRF protected route. The CSRF protected
+	// subrouter returns a 403 HTTP status code if a client attempts to access a
+	// protected route without providing the proper CSRF tokens.
 	csrfMiddleware := csrf.Protect(
 		csrfKey,
 		csrf.Path("/"),
