@@ -462,7 +462,7 @@ func (m *mysql) UserUpdate(u user.User) error {
 func upsertIdentities(ctx context.Context, tx *sql.Tx, ids []mysqlIdentity) error {
 	var sb strings.Builder
 	sb.WriteString("INSERT INTO " +
-		"identities(public_key, user_id, activated, deactivated) VALUES ")
+		"identities (public_key, user_id, activated, deactivated) VALUES ")
 
 	vals := make([]interface{}, 0, len(ids))
 	for i, id := range ids {

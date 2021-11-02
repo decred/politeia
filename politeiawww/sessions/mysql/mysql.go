@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/politeiawww/sessions"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -81,10 +82,12 @@ func (m *mysql) Save(sessionID string, s sessions.EncodedSession) error {
 
 	// Save session to database
 	_, err = m.db.ExecContext(ctx,
-		"INSERT INTO "+m.opts.TableName+" (id, encoded_session) VALUES (?, ?)",
-		sessionID, es)
+		"INSERT INTO "+m.opts.TableName+
+			` (id, encoded_session) VALUES (?, ?)
+        ON DUPLICATE KEY UPDATE
+        encoded_session = VALUES(encoded_session)`, sessionID, es)
 	if err != nil {
-		return fmt.Errorf("insert session: %v", err)
+		return errors.WithStack(err)
 	}
 
 	return nil
@@ -150,8 +153,12 @@ func New(db *sql.DB, opts *Opts) (*mysql, error) {
 	opTimeout := defaultOpTimeout
 	// Override defaults if options are provided
 	if opts != nil {
-		tableName = opts.TableName
-		opTimeout = opts.OpTimeout
+		if opts.TableName != "" {
+			tableName = opts.TableName
+		}
+		if opts.OpTimeout != 0 {
+			opTimeout = opts.OpTimeout
+		}
 	}
 
 	// Create mysql context
@@ -171,7 +178,7 @@ func New(db *sql.DB, opts *Opts) (*mysql, error) {
 		m.opts.TableName, tableSessions)
 	_, err := db.ExecContext(ctx, q)
 	if err != nil {
-		return nil, fmt.Errorf("create %v table: %v", tableSessions, err)
+		errors.WithStack(err)
 	}
 
 	return &m, nil
