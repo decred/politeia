@@ -49,16 +49,15 @@ type politeiawww struct {
 	// plugins contains all registered plugins.
 	plugins map[string]plugin.Plugin // [pluginID]plugin
 
-	// authPlugins contains the plugin IDs of the plugins that handle user
-	// authentication and authorization. The hooks for these plugins are run
-	// first to allow user permissions to be layered on top of other plugin
-	// commands. The order of the plugin IDs is the order that the hooks are
-	// executed in.
-	authPlugins []string
+	// pluginIDs contains the plugin IDs of all registered plugins, ordered
+	// alphabetically. This is the order that plugin hooks are executed in.
+	pluginIDs []string
 
-	// standardPlugins contains the plugin IDs from all non-auth plugins. The
-	// order of the plugin IDs is the order that the hooks are executed in.
-	standardPlugins []string
+	// authPlugin handles user authentication and authorization. An auth plugin
+	// MUST be specified in the configuration if the user layer is enabled. User
+	// authorization is verified prior to the execution of any plugin hooks and
+	// commands.
+	authPlugin plugin.AuthPlugin
 
 	// Legacy fields
 	politeiad *pdclient.Client
@@ -148,9 +147,15 @@ func _main() error {
 	}
 	fCSRF.Close()
 
-	// Setup the router. Middleware is executed in
-	// the same order that they are registered in.
+	// Setup the router
 	router := mux.NewRouter()
+	router.StrictSlash(true) // Ignore trailing slashes
+
+	// Add a 404 handler
+	router.NotFoundHandler = http.HandlerFunc(handleNotFound)
+
+	// Add router middleware. Middleware is executed
+	// in the same order that they are registered in.
 	m := middleware{
 		reqBodySizeLimit: cfg.ReqBodySizeLimit,
 	}
@@ -159,12 +164,6 @@ func _main() error {
 	router.Use(loggingMiddleware)
 	router.Use(recoverMiddleware)
 
-	// Setup 404 handler
-	router.NotFoundHandler = http.HandlerFunc(handleNotFound)
-
-	// Ignore trailing slashes on routes
-	router.StrictSlash(true)
-
 	// Setup a subrouter that is CSRF protected. Authenticated routes
 	// are required to use the auth router. The subrouter takes on the
 	// configuration of the router that it was spawned from, including
@@ -172,15 +171,17 @@ func _main() error {
 	auth := router.NewRoute().Subrouter()
 
 	// The CSRF middleware uses the double submit cookie method. The server
-	// provides clients with two CSRF tokens: a cookie token and a header token.
-	// The cookie token is set automatically by the CSRF protected subrouter
-	// anytime one of the protected routes it hit.  The header token must be set
-	// manually by a request handler. Clients MUST provide both tokens in their
-	// request if they want to access a CSRF protected route. The CSRF protected
-	// subrouter returns a 403 HTTP status code if a client attempts to access a
-	// protected route without providing the proper CSRF tokens.
+	// provides clients with two CSRF tokens: a cookie token and a header
+	// token. The cookie token is set automatically by the CSRF protected
+	// subrouter anytime one of the protected routes it hit. The header token
+	// must be set manually by a request handler. Clients MUST provide both
+	// tokens in their request if they want to access a CSRF protected route.
+	// The CSRF protected subrouter returns a 403 HTTP status code if a client
+	// attempts to access a protected route without providing the proper CSRF
+	// tokens.
 	csrfMiddleware := csrf.Protect(
 		csrfKey,
+		// Set the CSRF cookie on all auth router paths and subpaths.
 		csrf.Path("/"),
 		csrf.MaxAge(csrfCookieMaxAge),
 	)

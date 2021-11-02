@@ -16,7 +16,6 @@ import (
 	v1 "github.com/decred/politeia/politeiawww/api/http/v1"
 	"github.com/decred/politeia/politeiawww/logger"
 	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
-	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
@@ -90,7 +89,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Extract the session data from the request cookies
-	s, u, err := p.extractSession(r)
+	s, userID, err := p.extractSession(r)
 	if err != nil {
 		respondWithError(w, r,
 			"handleWrite: extractSession: %v", err)
@@ -99,22 +98,22 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 	// Execute the plugin command
 	var (
-		// session = convertSession(*s)
-		pluginID = cmd.PluginID
-		usr      = convertUser(u, s, cmd.PluginID)
-		command  = convertCmdFromHTTP(cmd)
+		pluginID      = cmd.PluginID
+		pluginSession = convertSession(s, cmd.PluginID)
+		pluginCmd     = convertCmdFromHTTP(cmd)
 	)
-	pluginReply, err := p.execWrite(r.Context(), pluginID, command, usr)
+	pluginReply, err := p.execWrite(r.Context(),
+		userID, pluginSession, pluginID, pluginCmd)
 	if err != nil {
 		respondWithError(w, r,
 			"handleWrite: execWrite: %v", err)
 		return
 	}
 
-	reply := convertReplyToHTTP(pluginID, cmd.Cmd, *pluginReply)
+	reply := convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
 
 	// Save the updated session
-	err = p.saveUserSession(r, w, s, usr, pluginID)
+	err = p.saveUserSession(r, w, s, pluginID, pluginSession)
 	if err != nil {
 		// The database transaction for the plugin write has
 		// already been committed and can't be rolled back.
@@ -200,22 +199,16 @@ func convertReplyToHTTP(pluginID, cmd string, r plugin.Reply) v1.PluginReply {
 	}
 }
 
-func convertUser(u *user.User, s *sessions.Session, pluginID string) *plugin.User {
-	// Get the user data and session value for the plugin.
+func convertSession(s *sessions.Session, pluginID string) *plugin.Session {
+	// The session value is a interface{}.
+	// Type cast it to a string.
 	var (
-		data  = u.Plugins[pluginID]
-		value = s.Values[pluginID]
+		value        = s.Values[pluginID]
+		sessionValue string
 	)
-
-	// The session value is a interface{}. Convert it to a string.
-	var sessionValue string
 	if value != nil {
 		sessionValue = value.(string)
 	}
 
-	return &plugin.User{
-		ID:         u.ID,
-		Session:    plugin.NewSession(sessionValue),
-		PluginData: plugin.NewPluginData(data.ClearText, data.Encrypted),
-	}
+	return plugin.NewSession(sessionValue)
 }

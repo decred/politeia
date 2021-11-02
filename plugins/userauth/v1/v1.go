@@ -5,15 +5,14 @@
 package v1
 
 const (
-	PluginID = "auth"
+	PluginID = "userauth"
 )
 
 type Permission uint64
 
 const (
 	PermissionInvalid Permission = 0
-	PermissionRoot    Permission = 1
-	PermissionAdmin   Permission = 2
-	PermissionUser    Permission = 3
-	PermissionPublic  Permission = 4
+	PermissionAdmin   Permission = 1
+	PermissionUser    Permission = 2
+	PermissionPublic  Permission = 3
 )

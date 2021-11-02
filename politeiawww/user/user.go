@@ -4,12 +4,15 @@
 
 package user
 
-import "github.com/google/uuid"
+import (
+	"database/sql"
+
+	"github.com/google/uuid"
+)
 
 type User struct {
-	ID          uuid.UUID // Unique ID
-	Deactivated bool
-	Plugins     map[string]PluginData // [pluginID]PluginData
+	ID      uuid.UUID             // Unique ID
+	Plugins map[string]PluginData // [pluginID]PluginData
 }
 
 type PluginData struct {
@@ -19,6 +22,7 @@ type PluginData struct {
 
 type DB interface {
 	Insert(u User) error
-	Update(u User) error
-	Get(uuid string) (*User, error)
+	Get(userID string) (*User, error)
+	TxUpdate(tx *sql.Tx, pluginID string, clearText, encrypted []byte) error
+	TxGet(tx *sql.Tx, userID string) (*User, error)
 }

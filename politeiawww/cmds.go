@@ -10,15 +10,18 @@ import (
 	"fmt"
 
 	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
+	"github.com/decred/politeia/politeiawww/user"
 	"github.com/pkg/errors"
 )
 
 // execWrite executes a plugin command that writes data.
 //
+// Any updates made to the session will be persisted by the caller.
+//
 // This function assumes the caller has verified that the plugin exists for
 // the plugin command.
-func (p *politeiawww) execWrite(ctx context.Context, pluginID string, cmd plugin.Cmd, usr *plugin.User) (*plugin.Reply, error) {
-	log.Tracef("execWrite: %v %v %v", pluginID, cmd.Cmd, usr.ID)
+func (p *politeiawww) execWrite(ctx context.Context, userID string, session *plugin.Session, pluginID string, cmd plugin.Cmd) (*plugin.Reply, error) {
+	log.Tracef("execWrite: %v %v %v", pluginID, cmd.Cmd, userID)
 
 	// Setup the database transaction
 	tx, cancel, err := p.beginTx()
@@ -26,6 +29,19 @@ func (p *politeiawww) execWrite(ctx context.Context, pluginID string, cmd plugin
 		return nil, err
 	}
 	defer cancel()
+
+	// Get the user. A user ID should always exist
+	// for writes if the user layer has been enabled.
+	// If politeia is being run with the user layer
+	// disabled, the user ID will be empty.
+	var usr *plugin.User
+	if userID != "" {
+		u, err := p.userDB.TxGet(tx, userID)
+		if err != nil {
+			return nil, err
+		}
+		usr = convertUser(u, pluginID, session)
+	}
 
 	// Execute the pre plugin hooks
 	reply, err := p.execPreHooks(tx, plugin.HookPreWrite, cmd, usr)
@@ -39,8 +55,7 @@ func (p *politeiawww) execWrite(ctx context.Context, pluginID string, cmd plugin
 	// Execute the plugin command
 	plug, ok := p.plugins[pluginID]
 	if !ok {
-		return nil, errors.Errorf("plugin not found: %v",
-			pluginID)
+		return nil, errors.Errorf("plugin not found: %v", pluginID)
 	}
 	reply, err = plug.TxWrite(tx, cmd, usr)
 	if err != nil {
@@ -56,6 +71,16 @@ func (p *politeiawww) execWrite(ctx context.Context, pluginID string, cmd plugin
 	err = p.execPostHooks(tx, plugin.HookPostWrite, cmd, usr)
 	if err != nil {
 		return nil, err
+	}
+
+	// Save any updated user plugin data
+	if usr.PluginData.Updated() {
+		err = p.userDB.TxUpdate(tx, pluginID,
+			usr.PluginData.ClearText(),
+			usr.PluginData.Encrypted())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Commit the database transaction
@@ -156,4 +181,14 @@ func (p *politeiawww) execHooks(pluginIDs []string, tx *sql.Tx, h plugin.HookT, 
 	}
 
 	return nil
+}
+
+func convertUser(u *user.User, pluginID string, session *plugin.Session) *plugin.User {
+	pluginData := u.Plugins[pluginID]
+	return &plugin.User{
+		ID:      u.ID,
+		Session: session,
+		PluginData: plugin.NewPluginData(pluginData.ClearText,
+			pluginData.Encrypted),
+	}
 }

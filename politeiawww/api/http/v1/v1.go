@@ -25,11 +25,24 @@ const (
 	// use CSRF protected routes.
 	RouteVersion = "/version"
 
+	// RouteAuth is a POST request route that executes a plugin command that
+	// authenticates a user. Commands that update session state (login and logout
+	// commands) MUST use this route.
+	//
+	// This route is CSRF protected. Clients must obtain CSRF tokens from the
+	// Version route before they'll be able to use this route. A 403 is returned
+	// if the client attempts to use this route without the proper CSRF tokens.
+	//
+	// This route accepts a PluginCmd and returns a PluginReply.
+	RouteAuth = "/auth"
+
 	// RouteWrite is a POST request route that executes a plugin write command.
 	//
 	// This route is CSRF protected. Clients must obtain CSRF tokens from the
 	// Version route before they'll be able to use this route. A 403 is returned
 	// if the client attempts to use this route without the proper CSRF tokens.
+	//
+	// This route accepts a PluginCmd and returns a PluginReply.
 	RouteWrite = "/write"
 
 	// RouteRead is a POST request route that executes an individual plugin read
@@ -37,12 +50,16 @@ const (
 	// commands that should not be batched due to their memory or performance
 	// requirements. This allows the sysadmin to set different rate limiting
 	// constrains for these expensive commands.
+	//
+	// This route accepts a PluginCmd and returns a PluginReply.
 	RouteRead = "/read"
 
 	// RouteReadBatch is a POST request route that executes a batch of plugin
 	// read commands. This route is intended to be used for inexpensive plugin
 	// commands that will not cause performance issues during the execution of
 	// large batches.
+	//
+	// This route accepts a Batch and returns a BatchReply.
 	RouteReadBatch = "/readbatch"
 )
 
@@ -91,11 +108,11 @@ type PluginReply struct {
 	Error    error  `json:"error,omitempty"`
 }
 
-type ReadBatch struct {
+type Batch struct {
 	Cmds []PluginCmd `json:"cmds"`
 }
 
-type ReadBatchReply struct {
+type BatchReply struct {
 	Replies []PluginReply `json:"replies"`
 }
 

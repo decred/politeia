@@ -15,12 +15,13 @@ import (
 
 // Plugin represents a politeia user plugin.
 //
-// Plugins are allowed to update the session values. Updated values will be
-// persisted by the caller.
-//
 // Updates to the user object plugin data during Write method execution will be
 // persisted by the caller. Updates made during any other method are ignored.
 type Plugin interface {
+	// Permissions returns the user permissions for each plugin commands. These
+	// are provided to the auth plugin on startup.
+	Permissions() map[string]string // [cmd]permissionLevel
+
 	// Hook executes a plugin hook.
 	Hook(HookT, Cmd, *User) error
 
@@ -37,6 +38,11 @@ type Plugin interface {
 	TxRead(*sql.Tx, Cmd, *User) (*Reply, error)
 }
 
+type AuthPlugin interface {
+	IsAuthorized(s Session, pluginID, cmd string) bool
+	TxWrite(*sql.Tx, Cmd, *User) (*Reply, *Session, error)
+}
+
 type Cmd struct {
 	Cmd     string
 	Payload string // JSON encoded
@@ -49,32 +55,7 @@ type Reply struct {
 
 type User struct {
 	ID         uuid.UUID // Unique ID
-	Session    Session
-	PluginData PluginData
-}
-
-type Session struct {
-	value   string // JSON encoded
-	updated bool
-}
-
-func NewSession(value string) Session {
-	return Session{
-		value: value,
-	}
-}
-
-func (s *Session) Value() string {
-	return s.value
-}
-
-func (s *Session) SetValue(value string) {
-	s.value = value
-	s.updated = true
-}
-
-func (s *Session) Updated() bool {
-	return s.updated
+	PluginData *PluginData
 }
 
 // PluginData contains the data that is owned by the plugin.
@@ -94,8 +75,8 @@ type PluginData struct {
 	updated   bool
 }
 
-func NewPluginData(clearText, encrypted []byte) PluginData {
-	return PluginData{
+func NewPluginData(clearText, encrypted []byte) *PluginData {
+	return &PluginData{
 		clearText: clearText,
 		encrypted: encrypted,
 	}
@@ -119,12 +100,22 @@ func (d *PluginData) SetEncrypted(b []byte) {
 	d.updated = true
 }
 
+func (d *PluginData) Updated() bool {
+	return d.updated
+}
+
+type Session struct {
+	UserID    string
+	CreatedAt int64
+}
+
 type HookT string
 
 const (
 	HookInvalid   HookT = "invalid"
 	HookPreWrite  HookT = "pre-write"
 	HookPostWrite HookT = "post-write"
+	HookPreRead   HookT = "pre-read"
 )
 
 // UserError is the reply that is returned when a plugin command encounters an
@@ -137,5 +128,5 @@ type UserError struct {
 
 // Error satisfies the error interface.
 func (e UserError) Error() string {
-	return fmt.Sprintf("plugin user error: %v", e.ErrorCode)
+	return fmt.Sprintf("%v plugin user error: %v", e.PluginID, e.ErrorCode)
 }
