@@ -81,11 +81,11 @@ func (m *mysql) Save(sessionID string, s sessions.EncodedSession) error {
 	defer cancel()
 
 	// Save session to database
-	_, err = m.db.ExecContext(ctx,
-		"INSERT INTO "+m.opts.TableName+
-			` (id, encoded_session) VALUES (?, ?)
-        ON DUPLICATE KEY UPDATE
-        encoded_session = VALUES(encoded_session)`, sessionID, es)
+	q := fmt.Sprintf(`INSERT INTO %v 
+  (id, encoded_session) VALUES (?, ?)
+  ON DUPLICATE KEY UPDATE
+  encoded_session = VALUES(encoded_session)`, m.opts.TableName)
+	_, err = m.db.ExecContext(ctx, q, sessionID, es)
 	if err != nil {
 		return errors.WithStack(err)
 	}
