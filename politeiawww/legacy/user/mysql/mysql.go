@@ -57,9 +57,9 @@ const tableKeyValue = `
 
 // tableUsers defines the users table.
 const tableUsers = `
-  id VARCHAR(36) NOT NULL PRIMARY KEY,
-  username VARCHAR(64) NOT NULL,
-  u_blob LONGBLOB NOT NULL,
+  id         VARCHAR(36) NOT NULL PRIMARY KEY,
+  username   VARCHAR(64) NOT NULL,
+  u_blob     LONGBLOB NOT NULL,
   created_at INT(11) NOT NULL,
   updated_at INT(11),
   UNIQUE (username)
@@ -67,25 +67,25 @@ const tableUsers = `
 
 // tableIdentities defines the identities table.
 const tableIdentities = `
-  public_key CHAR(64) NOT NULL PRIMARY KEY,
-  user_id    VARCHAR(36) NOT NULL,
-  activated INT(11) NOT NULL,
+  public_key  CHAR(64) NOT NULL PRIMARY KEY,
+  user_id     VARCHAR(36) NOT NULL,
+  activated   INT(11) NOT NULL,
   deactivated INT(11) NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id)
 `
 
 // tableSessions defines the sessions table.
 const tableSessions = `
-  k CHAR(64) NOT NULL PRIMARY KEY,
-  user_id VARCHAR(36) NOT NULL,
+  k          CHAR(64) NOT NULL PRIMARY KEY,
+  user_id    VARCHAR(36) NOT NULL,
   created_at INT(11) NOT NULL,
-  s_blob BLOB NOT NULL
+  s_blob     BLOB NOT NULL
 `
 
 // tableEmailHistories defines the email_histories table.
 const tableEmailHistories = `
   user_id VARCHAR(36) NOT NULL PRIMARY KEY,
-  h_blob BLOB NOT NULL
+  h_blob  BLOB NOT NULL
 `
 
 var (
@@ -683,7 +683,7 @@ func (m *mysql) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error)
 //
 // InsertUser satisfies the Database interface.
 func (m *mysql) InsertUser(u user.User) error {
-	log.Tracef("UserInsert: %v", u.Username)
+	log.Tracef("InsertUser: %v", u.Username)
 
 	if m.isShutdown() {
 		return user.ErrShutdown
@@ -1290,7 +1290,7 @@ func (m *mysql) Close() error {
 }
 
 // New connects to a mysql instance using the given connection params,
-// and returns pointer to the created mysql struct.
+// and returns a pointer to the created mysql struct.
 func New(host, password, network, encryptionKey string) (*mysql, error) {
 	// Connect to database.
 	dbname := databaseID + "_" + network
