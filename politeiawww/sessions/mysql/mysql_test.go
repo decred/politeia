@@ -90,7 +90,7 @@ func TestDel(t *testing.T) {
 		Values: "dummy-session",
 	}
 
-	// Query
+	// Queries
 	sqlDel := "DELETE FROM " + mdb.opts.TableName + " WHERE id = ?"
 	sqlUpsert := fmt.Sprintf(`INSERT INTO %v 
   (id, encoded_session) VALUES (?, ?)
@@ -151,7 +151,7 @@ func TestGet(t *testing.T) {
 		t.Fatalf("%s", err)
 	}
 
-	// Query
+	// Queries
 	sqlSelect := "SELECT encoded_session FROM " +
 		mdb.opts.TableName + " WHERE id = ?"
 	sqlUpsert := fmt.Sprintf(`INSERT INTO %v
