@@ -16,11 +16,11 @@ import (
 )
 
 const (
-	// defaultOpTimeout is the default timeout for a single database operation.
-	defaultOpTimeout = 1 * time.Minute
-
 	// defaultTableName is the default table name for the sessions table.
 	defaultTableName = "sessions"
+
+	// defaultOpTimeout is the default timeout for a single database operation.
+	defaultOpTimeout = 1 * time.Minute
 )
 
 // tableSessions defines the sessions table.
