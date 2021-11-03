@@ -55,8 +55,7 @@ type politeiawww struct {
 
 	// authPlugin handles user authentication and authorization. An auth plugin
 	// MUST be specified in the configuration if the user layer is enabled. User
-	// authorization is verified prior to the execution of any plugin hooks and
-	// commands.
+	// authorization is verified prior to the execution of all plugin commands.
 	authPlugin plugin.AuthPlugin
 
 	// Legacy fields

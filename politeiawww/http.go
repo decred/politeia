@@ -50,6 +50,9 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		APIVersion:   v1.APIVersion,
 		BuildVersion: version.String(),
 		Plugins:      append(p.authPlugins, p.standardPlugins...),
+		Auth: map[string][]string{
+			p.authPlugin.ID(): p.authPlugin.Cmds(),
+		},
 	}
 
 	// Set the CSRF header. This is the only route
@@ -57,6 +60,72 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(v1.CSRFTokenHeader, csrf.Token(r))
 
 	util.RespondWithJSON(w, http.StatusOK, vr)
+}
+
+// handleAuth is the request handler for the http v1 Auth command.
+func (p *politeiawww) handleAuth(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleAuth")
+
+	// Decode the request body
+	var cmd v1.PluginCmd
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cmd); err != nil {
+		util.RespondWithJSON(w, http.StatusOK,
+			v1.PluginReply{
+				Error: v1.UserError{
+					ErrorCode: v1.ErrorCodeInvalidInput,
+				},
+			})
+		return
+	}
+
+	// Verify plugin exists and it an auth plugin
+	_, ok := p.plugins[cmd.PluginID]
+	if !ok {
+		util.RespondWithJSON(w, http.StatusOK,
+			v1.PluginReply{
+				Error: v1.UserError{
+					ErrorCode: v1.ErrorCodePluginNotFound,
+				},
+			})
+		return
+	}
+
+	// Extract the session data from the request cookies
+	s, userID, err := p.extractSession(r)
+	if err != nil {
+		respondWithError(w, r,
+			"handleAuth: extractSession: %v", err)
+		return
+	}
+
+	// Execute the plugin command
+	var (
+		pluginID      = cmd.PluginID
+		pluginSession = convertSession(s, cmd.PluginID)
+		pluginCmd     = convertCmdFromHTTP(cmd)
+	)
+	pluginReply, err := p.execAuth(r.Context(),
+		userID, pluginSession, pluginID, pluginCmd)
+	if err != nil {
+		respondWithError(w, r,
+			"handleAuth: execAuth: %v", err)
+		return
+	}
+
+	reply := convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
+
+	// Save the updated session
+	err = p.saveUserSession(r, w, s, pluginID, pluginSession)
+	if err != nil {
+		// The database transaction for the plugin write has
+		// already been committed and can't be rolled back.
+		// Handled the error gracefully. Log it and continue.
+		log.Errorf("handleAuth: saveSession %v: %v", s.ID, err)
+	}
+
+	// Send the response
+	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 // handleWrite is the request handler for the http v1 Write command.
@@ -200,8 +269,8 @@ func convertReplyToHTTP(pluginID, cmd string, r plugin.Reply) v1.PluginReply {
 }
 
 func convertSession(s *sessions.Session, pluginID string) *plugin.Session {
-	// The session value is a interface{}.
-	// Type cast it to a string.
+	// The interface{} session value needs
+	// to be type casted to a string.
 	var (
 		value        = s.Values[pluginID]
 		sessionValue string

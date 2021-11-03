@@ -23,11 +23,13 @@ const (
 	// technique. A token is set in a cookie and a token is set in a header.
 	// Clients MUST make a successful Version call before they'll be able to
 	// use CSRF protected routes.
+	//
+	// This route returns a VersionReply.
 	RouteVersion = "/version"
 
 	// RouteAuth is a POST request route that executes a plugin command that
-	// authenticates a user. Commands that update session state (login and logout
-	// commands) MUST use this route.
+	// authenticates a user. Commands that update session state MUST use this
+	// route. Example, login and logout commands.
 	//
 	// This route is CSRF protected. Clients must obtain CSRF tokens from the
 	// Version route before they'll be able to use this route. A 403 is returned
@@ -67,9 +69,8 @@ const (
 	// CSRFTokenHeader is the header that will contain a CSRF token.
 	CSRFTokenHeader = "X-CSRF-Token"
 
-	// SessionCookieName is the cookie name for the session cookie. A client will
-	// have the session cookie set the first time one of the read or write routes
-	// is hit.
+	// SessionCookieName is the cookie name for the session cookie. Clients will
+	// have the session cookie set the first time a plugin command routes it hit.
 	SessionCookieName = "session"
 )
 
@@ -91,8 +92,13 @@ type VersionReply struct {
 	// BuildVersion is the sematic version of the server build.
 	BuildVersion string `json:"buildversion"`
 
-	// Plugins contains the plugin IDs of the server plugins.
-	Plugins []string `json:"plugins"`
+	// Plugins contains the plugin ID and lowest supported plugin verison for
+	// all registered plugins.
+	Plugins map[string]uint32 `json:"plugins"` // [pluginID]version
+
+	// Auth contains the plugin commands that must use the auth route. These
+	// are the only commands that are allowed to use the auth route.
+	Auth map[string][]string `json:"auth"` // [pluginID][]cmd
 }
 
 type PluginCmd struct {
@@ -145,6 +151,18 @@ const (
 	// ErrorCodePluginNotFound is returned when a plugin ID is provided that
 	// does not correspond to a registered plugin.
 	ErrorCodePluginNotFound ErrorCodeT = 2
+
+	// ErrorCodeNotAuthPlugin is returned when a plugin ID is provided to the
+	// auth route that is not an auth plugin. Only auth plugins can use the auth
+	// route. The list of auth plugins and commands can be found in the version
+	// reply.
+	ErrorCodeNotAuthPlugin ErrorCodeT = 3
+
+	// ErrorCodeNotAuthCmd is returned when a plugin ID is provided to the auth
+	// route that is an auth plugin, but the provided command is not one of the
+	// commands allowed to be executed using the auth route. The list of auth
+	// plugins and commands can be found in the version reply.
+	ErrorCodeNotAuthCmd ErrorCodeT = 4
 )
 
 var (
@@ -153,6 +171,8 @@ var (
 		ErrorCodeInvalid:        "invalid error",
 		ErrorCodeInvalidInput:   "invalid input",
 		ErrorCodePluginNotFound: "plugin not found",
+		ErrorCodeNotAuthPlugin:  "not an auth plugin",
+		ErrorCodeNotAuthCmd:     "not an auth command",
 	}
 )
 

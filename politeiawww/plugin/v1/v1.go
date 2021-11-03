@@ -13,13 +13,23 @@ import (
 
 // NOTE: this plugin API is not stable and may be subject to breaking changes.
 
-// Plugin represents a politeia user plugin.
+type AuthPlugin interface {
+	ID() string
+	Cmds() []string
+	AuthCmd(*sql.Tx, Cmd, *User) (*Reply, *Session, error)
+	IsAuthorized(s Session, pluginID, cmd string) bool
+}
+
+// StandardPlugin represents a standard politeia plugin.
 //
 // Updates to the user object plugin data during Write method execution will be
 // persisted by the caller. Updates made during any other method are ignored.
-type Plugin interface {
+type StandardPlugin interface {
+	ID() string
+
 	// Permissions returns the user permissions for each plugin commands. These
-	// are provided to the auth plugin on startup.
+	// are provided to the AuthPlugin on startup. The AuthPlugin handles user
+	// authorization at runtime.
 	Permissions() map[string]string // [cmd]permissionLevel
 
 	// Hook executes a plugin hook.
@@ -36,11 +46,6 @@ type Plugin interface {
 
 	// TxRead executes a read plugin command using a database transaction.
 	TxRead(*sql.Tx, Cmd, *User) (*Reply, error)
-}
-
-type AuthPlugin interface {
-	IsAuthorized(s Session, pluginID, cmd string) bool
-	TxWrite(*sql.Tx, Cmd, *User) (*Reply, *Session, error)
 }
 
 type Cmd struct {

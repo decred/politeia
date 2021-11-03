@@ -20,7 +20,7 @@ import (
 //
 // This function assumes the caller has verified that the plugin exists for
 // the plugin command.
-func (p *politeiawww) execWrite(ctx context.Context, userID string, session *plugin.Session, pluginID string, cmd plugin.Cmd) (*plugin.Reply, error) {
+func (p *politeiawww) execWrite(ctx context.Context, pluginID string, cmd plugin.Cmd, userID string) (*plugin.Reply, error) {
 	log.Tracef("execWrite: %v %v %v", pluginID, cmd.Cmd, userID)
 
 	// Setup the database transaction
