@@ -19,9 +19,10 @@ type parsedData struct {
 	Files          []backend.File               `json:"files"`
 	Metadata       []backend.MetadataStream     `json:"metadata"`
 	RecordMd       *backend.RecordMetadata      `json:"recordmd"`
-	StatusChangeMd *usermd.StatusChangeMetadata `json:"statuschangemd"`
+	VoteMd         ticketvote.VoteMetadata      `json:"votemd"`
 	AuthDetailsMd  *ticketvote.AuthDetails      `json:"authdetailsmd"`
 	VoteDetailsMd  *ticketvote.VoteDetails      `json:"votedetailsmd"`
+	StatusChangeMd *usermd.StatusChangeMetadata `json:"statuschangemd"`
 
 	// ballot journal data
 	Votes    []*tv.CastVoteDetails `json:"votes"`
@@ -31,7 +32,6 @@ type parsedData struct {
 	CommentsPath string `json:"commentspath"`
 	BallotPath   string `json:"ballotpath"`
 	LegacyToken  string `json:"legacytoken"`
-	ParentToken  string `json:"parenttoken"`
 }
 
 type parsedComments struct {

@@ -141,7 +141,7 @@ func (l *legacy) convertUserMetadata(path string) (*usermd.UserMetadata, string,
 	}, pgv1.Name, nil
 }
 
-// Convertion methods
+// Conversion methods
 
 // convertAuthDetailsMetadata converts the 13.metadata.txt file to the
 // auth details structure from tlog backend.

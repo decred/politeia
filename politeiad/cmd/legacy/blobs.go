@@ -11,6 +11,8 @@ import (
 )
 
 // Ticketvote blobs
+
+// saveVotesBlobs saves all cast vote blobs into tstore.
 func (l *legacy) saveVotesBlobs(votes []*tv.CastVoteDetails, newToken []byte) error {
 
 	for _, vote := range votes {
@@ -166,7 +168,7 @@ func (l *legacy) blobSaveStartRunoff(srr startRunoffRecord, newToken []byte) err
 
 // Comments Blobs
 
-// saveCommentsBlobs ...
+// saveCommentsBlobs saves all comment blobs from a record into tstore.
 func (l *legacy) saveCommentsBlobs(comments parsedComments, newToken []byte) error {
 	// Save add comments blob to tstore.
 	for _, add := range comments.Adds {

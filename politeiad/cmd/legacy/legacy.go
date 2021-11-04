@@ -67,9 +67,9 @@ type legacy struct {
 	// comment del metadata payload.
 	comments map[string]map[string]decredplugin.Comment // [newToken][commentid]comment
 
-	// queue holds the RFP submission records data that needs to be parsed
-	// last, when their respective RFP parent has already been inserted.
-	queue []parsedData
+	// // queue holds the RFP submission records data that needs to be parsed
+	// // last, when their respective RFP parent has already been inserted.
+	// queue []parsedData
 
 	// tokens is a cache that maps legacy tokens to new tlog tokens, and
 	// is used to get the new token from a legacy RFP proposal for their

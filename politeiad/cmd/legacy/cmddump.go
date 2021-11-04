@@ -27,8 +27,13 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-// cmdDump receives the git repository path for the legacy records and dumps
-// .
+// cmdDump receives the path that contains legacy records and dumps a json file
+// for each record that contains all data needed by tstore. If running on test
+// mode, this command will not parse the cast vote timestamps, which is parsed
+// through the git cmd. For that to succeed, that git path must be the cloned
+// repository path for the mainnet proposals. When testing, the tool assumes
+// the path provided is a random folder containing a few legacy records for
+// testing.
 func (l *legacy) cmdDump(gitPath string) error {
 
 	paths, err := l.parsePaths(gitPath)
@@ -36,15 +41,6 @@ func (l *legacy) cmdDump(gitPath string) error {
 		return err
 	}
 
-	// IMPORTANT !!
-	// Parse vote timestamps before dumping data
-	// ts, err := parseVoteTimestamps(path)
-	// if err != nil {
-	// 	return err
-	// }
-	// l.Lock()
-	// l.timestamps = ts
-	// l.Unlock()
 	if !*cmdDumpTest {
 		timestamps, err := parseVoteTimestamps(gitPath)
 		if err != nil {
@@ -214,7 +210,6 @@ func (l *legacy) parseRecordData(recordpath string) (*parsedData, error) {
 		voteDetailsMd  *ticketvote.VoteDetails
 		commentsPath   string
 		ballotPath     string
-		parentToken    string
 	)
 	err := filepath.Walk(recordpath,
 		func(path string, info os.FileInfo, err error) error {
@@ -308,7 +303,6 @@ func (l *legacy) parseRecordData(recordpath string) (*parsedData, error) {
 				// Parse vote metadata.
 				if pm.LinkTo != "" {
 					voteMd.LinkTo = pm.LinkTo
-					parentToken = pm.LinkTo // TODO: revisit. not needed
 				}
 				if pm.LinkBy != 0 {
 					voteMd.LinkBy = pm.LinkBy
@@ -354,45 +348,6 @@ func (l *legacy) parseRecordData(recordpath string) (*parsedData, error) {
 	}
 	files = append(files, *pmd)
 
-	// Setup vote metadata file if needed.
-	if voteMd.LinkBy != 0 || voteMd.LinkTo != "" {
-		b, err := json.Marshal(voteMd)
-		if err != nil {
-			return nil, err
-		}
-		vmd := &backend.File{
-			Name:    "votemetadata.json",
-			MIME:    mime.DetectMimeType(b),
-			Digest:  hex.EncodeToString(util.Digest(b)),
-			Payload: base64.StdEncoding.EncodeToString(b),
-		}
-		files = append(files, *vmd)
-	}
-
-	// Check if record is a RFP Parent. If so, save the start runoff blob
-	// to be saved later on.
-	if voteMd.LinkBy != 0 {
-		l.Lock()
-		l.rfpParents[proposalMd.LegacyToken] = &startRunoffRecord{
-			// Submissions:   Will be set when all records have been parsed
-			// 				  and inserted to tstore.
-			Mask:             voteDetailsMd.Params.Mask,
-			Duration:         voteDetailsMd.Params.Duration,
-			QuorumPercentage: voteDetailsMd.Params.QuorumPercentage,
-			PassPercentage:   voteDetailsMd.Params.PassPercentage,
-			StartBlockHeight: voteDetailsMd.StartBlockHeight,
-			StartBlockHash:   voteDetailsMd.StartBlockHash,
-			EndBlockHeight:   voteDetailsMd.EndBlockHeight,
-			EligibleTickets:  voteDetailsMd.EligibleTickets,
-		}
-		l.Unlock()
-	}
-
-	// Set parent token on vote details metadata, if needed.
-	if parentToken != "" {
-		voteDetailsMd.Params.Parent = parentToken
-	}
-
 	// This marks the end of the parsing process for the specified git
 	// record path, and returns all data needed by tstore on the parsedData
 	// struct.
@@ -400,13 +355,13 @@ func (l *legacy) parseRecordData(recordpath string) (*parsedData, error) {
 		Files:          files,
 		Metadata:       metadata,
 		RecordMd:       recordMd,
+		VoteMd:         voteMd,
 		StatusChangeMd: statusChangeMd,
 		AuthDetailsMd:  authDetailsMd,
 		VoteDetailsMd:  voteDetailsMd,
 		CommentsPath:   commentsPath,
 		BallotPath:     ballotPath,
 		LegacyToken:    proposalMd.LegacyToken,
-		ParentToken:    parentToken,
 	}, nil
 }
 

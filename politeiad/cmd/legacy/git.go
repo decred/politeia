@@ -36,7 +36,7 @@ func parseVoteTimestamps(path string) (map[string]map[string]int64, error) {
 			return nil, fmt.Errorf("CustomUnmashaller failed: %v", err)
 		}
 
-		// Do not store any empty history data, which may occurr with the custom
+		// Do not store any empty history data, which may occur with the custom
 		// unmarshaller.
 		if len(h.Patch) == 0 || h.Author == "" || h.CommitSHA == "" {
 			continue
@@ -80,7 +80,7 @@ type File struct {
 
 type Votes []CastVoteData
 
-// CastVoteData defines the struct of a cast vote and the reciept response.
+// CastVoteData defines the struct of a cast vote and the receipt response.
 type CastVoteData struct {
 	*PiVote `json:"castvote"`
 	// Receipt string `json:"receipt"`
@@ -312,8 +312,8 @@ func ReplaceJournalSelection(parent, with string) string {
 	return journalSelection().exp().ReplaceAllLiteralString(parent, with)
 }
 
-// ReplaceAny replaces the all occurence of "regex" in string "parent" with
-// replacement "with" for all the possible occurences.
+// ReplaceAny replaces the all occurrence of "regex" in string "parent" with
+// replacement "with" for all the possible occurrences.
 func ReplaceAny(parent, regex, with string) string {
 	r := regexp.MustCompile(regex)
 	return r.ReplaceAllLiteralString(parent, with)

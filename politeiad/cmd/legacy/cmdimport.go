@@ -18,10 +18,17 @@ import (
 	"github.com/subosito/gozaru"
 )
 
-// cmdImport ...
+// cmdImport imports the dumped data contained in the provided import path.
+// The command first walks through the path and pre parses data to help with
+// the import. It handles RFP proposals by building the start runoff metadata,
+// and by sorting which recrods will be imported first. RFP submissions need
+// to reference their new tstore parent token, so they need to be inserted
+// after their respective parents.
 func (l *legacy) cmdImport(importPath string) error {
-
-	var wg sync.WaitGroup
+	var (
+		records []*parsedData
+		queue   []*parsedData
+	)
 	err := filepath.Walk(importPath,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -47,44 +54,70 @@ func (l *legacy) cmdImport(importPath string) error {
 				return err
 			}
 
-			// First, check if record in question is an RFP submission. If so,
-			// add it to the submissions list of its parent, and add it to
-			// queue to be parsed later on. No need to spin up a thread now,
-			// since RFP submissions need to be parsed when their respective
-			// parent has been inserted already.
-			if data.ParentToken != "" {
+			// First, check if record is a RFP Parent. If so, save the start
+			// runoff blob to be saved later on.
+			if data.VoteMd.LinkBy != 0 {
 				l.Lock()
-				l.rfpParents[data.ParentToken].Submissions = append(
-					l.rfpParents[data.ParentToken].Submissions, data.RecordMd.Token)
-
-				l.queue = append(l.queue, data)
+				if _, ok := l.rfpParents[data.LegacyToken]; ok {
+					l.rfpParents[data.LegacyToken].Mask = data.VoteDetailsMd.Params.Mask
+					l.rfpParents[data.LegacyToken].Duration = data.VoteDetailsMd.Params.Duration
+					l.rfpParents[data.LegacyToken].QuorumPercentage = data.VoteDetailsMd.Params.QuorumPercentage
+					l.rfpParents[data.LegacyToken].PassPercentage = data.VoteDetailsMd.Params.PassPercentage
+					l.rfpParents[data.LegacyToken].StartBlockHeight = data.VoteDetailsMd.StartBlockHeight
+					l.rfpParents[data.LegacyToken].StartBlockHash = data.VoteDetailsMd.StartBlockHash
+					l.rfpParents[data.LegacyToken].EndBlockHeight = data.VoteDetailsMd.EndBlockHeight
+					l.rfpParents[data.LegacyToken].EligibleTickets = data.VoteDetailsMd.EligibleTickets
+				} else {
+					l.rfpParents[data.LegacyToken] = &startRunoffRecord{
+						// Submissions:   Will be set when all records have been parsed
+						// 				  and inserted to tstore.
+						Mask:             data.VoteDetailsMd.Params.Mask,
+						Duration:         data.VoteDetailsMd.Params.Duration,
+						QuorumPercentage: data.VoteDetailsMd.Params.QuorumPercentage,
+						PassPercentage:   data.VoteDetailsMd.Params.PassPercentage,
+						StartBlockHeight: data.VoteDetailsMd.StartBlockHeight,
+						StartBlockHash:   data.VoteDetailsMd.StartBlockHash,
+						EndBlockHeight:   data.VoteDetailsMd.EndBlockHeight,
+						EligibleTickets:  data.VoteDetailsMd.EligibleTickets,
+					}
+				}
 				l.Unlock()
+			}
+
+			// Second, check if record is an RFP submission. If so, add it to
+			// the submissions list of its parent, and add it to queue to be
+			// parsed later on. No need to spin up a thread now, since RFP
+			// submissions need to be parsed when their respective parent has
+			// already been inserted.
+			if data.VoteMd.LinkTo != "" {
+				l.Lock()
+				if _, ok := l.rfpParents[data.VoteMd.LinkTo]; ok {
+					l.rfpParents[data.VoteMd.LinkTo].Submissions = append(
+						l.rfpParents[data.VoteMd.LinkTo].Submissions, data.RecordMd.Token)
+				} else {
+					l.rfpParents[data.VoteMd.LinkTo] = &startRunoffRecord{
+						Submissions: []string{data.RecordMd.Token},
+					}
+				}
+				l.Unlock()
+
+				queue = append(queue, &data)
 				return nil
 			}
 
-			// Spin thread to save record and their respective blobs to tstore.
-			wg.Add(1)
-			go func(data parsedData) error {
-				defer wg.Done()
-
-				// Save legacy record on tstore.
-				err := l.saveRecordParsedData(data)
-				if err != nil {
-					panic(err)
-				}
-
-				return nil
-			}(data)
+			records = append(records, &data)
 
 			return nil
 		})
 	if err != nil {
 		return err
 	}
-	wg.Wait()
 
-	// Now, save RFP submissions records that are on queue.
-	for _, record := range l.queue {
+	fmt.Printf("legacy: Importing %v records to tstore\n", len(records))
+
+	var wg sync.WaitGroup
+	for _, r := range records {
+		// Spin thread to save record and their respective blobs to tstore.
 		wg.Add(1)
 		go func(data parsedData) error {
 			defer wg.Done()
@@ -96,7 +129,26 @@ func (l *legacy) cmdImport(importPath string) error {
 			}
 
 			return nil
-		}(record)
+		}(*r)
+	}
+	wg.Wait()
+
+	fmt.Printf("legacy: Importing %v records on queue to tstore\n", len(queue))
+
+	// Now, save RFP submissions records that are on queue.
+	for _, record := range queue {
+		wg.Add(1)
+		go func(data parsedData) error {
+			defer wg.Done()
+
+			// Save legacy record on tstore.
+			err := l.saveRecordParsedData(data)
+			if err != nil {
+				panic(err)
+			}
+
+			return nil
+		}(*record)
 	}
 	wg.Wait()
 
@@ -104,10 +156,18 @@ func (l *legacy) cmdImport(importPath string) error {
 	// the submissions list has been built.
 	l.RLock()
 	for token, startRunoffRecord := range l.rfpParents {
+		// Update submissions tokens with their new tlog tokens.
+		var subs []string
+		for _, s := range startRunoffRecord.Submissions {
+			subs = append(subs, l.tokens[s])
+		}
+		startRunoffRecord.Submissions = subs
+
 		b, err := hex.DecodeString(token)
 		if err != nil {
 			return err
 		}
+
 		err = l.blobSaveStartRunoff(*startRunoffRecord, b)
 		if err != nil {
 			return err
@@ -123,7 +183,7 @@ func (l *legacy) cmdImport(importPath string) error {
 //  2.
 //  3. sabe blu
 func (l *legacy) saveRecordParsedData(data parsedData) error {
-	fmt.Printf("legacy: %v being inserted to tstore\n",
+	fmt.Printf("legacy: %v record being inserted to tstore\n",
 		data.LegacyToken[:7])
 
 	// Create a new tlog tree for the legacy record.
@@ -142,6 +202,15 @@ func (l *legacy) saveRecordParsedData(data parsedData) error {
 	if data.VoteDetailsMd != nil {
 		data.VoteDetailsMd.Params.Token = hex.EncodeToString(newToken)
 	}
+	// Save new tstore parent token to vote md and voteparams, if applicable.
+	if data.VoteMd.LinkTo != "" {
+		// Replace legacy parent token for new tlog token.
+		l.RLock()
+		data.VoteMd.LinkTo = l.tokens[data.VoteMd.LinkTo]
+		l.RUnlock()
+		data.VoteDetailsMd.Params.Parent = data.VoteMd.LinkTo
+	}
+	// Save new tstore token to vote md, if applicable.
 
 	// Check to see if record is RFP parent. If so, update the RFP parents
 	// cache with the new tlog token. This will make it easier to save the
@@ -153,6 +222,21 @@ func (l *legacy) saveRecordParsedData(data parsedData) error {
 		delete(l.rfpParents, data.LegacyToken)
 	}
 	l.Unlock()
+
+	// Setup vote metadata file.
+	if data.VoteMd.LinkBy != 0 || data.VoteMd.LinkTo != "" {
+		b, err := json.Marshal(data.VoteMd)
+		if err != nil {
+			return err
+		}
+		vmd := &backend.File{
+			Name:    "votemetadata.json",
+			MIME:    mime.DetectMimeType(b),
+			Digest:  hex.EncodeToString(util.Digest(b)),
+			Payload: base64.StdEncoding.EncodeToString(b),
+		}
+		data.Files = append(data.Files, *vmd)
+	}
 
 	// Add status change metadata to metadata stream.
 	b, err := json.Marshal(data.StatusChangeMd)
