@@ -108,7 +108,7 @@ func TestDel(t *testing.T) {
 		t.Errorf("Del unwanted error: %s", err)
 	}
 
-	// Shouldn result in one effected row if session exists.
+	// Should result in one affected row if session exists.
 	mock.ExpectExec(regexp.QuoteMeta(sqlUpsert)).
 		WithArgs(sessionID, AnyBlob{}).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -183,8 +183,7 @@ func TestGet(t *testing.T) {
 	// Mock session data
 	rows := sqlmock.NewRows([]string{"encoded_session"}).AddRow(esByte)
 
-	// Save session into DB to test querying a session which exists
-	// on DB.
+	// Expect to get one row if session exists on DB
 	mock.ExpectExec(regexp.QuoteMeta(sqlUpsert)).
 		WithArgs(sessionID, AnyBlob{}).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -192,8 +191,7 @@ func TestGet(t *testing.T) {
 		WithArgs(sessionID).
 		WillReturnRows(rows)
 
-	// Store session in order to test deleting a session which exists on
-	// the database.
+	// Store session on DB before querying
 	err = mdb.Save(sessionID, es)
 	if err != nil {
 		t.Errorf("Save unwanted error: %s", err)
