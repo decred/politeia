@@ -470,7 +470,7 @@ func (l *legacy) parseBallotJournal(path, legacyToken, gitPath string, tickets [
 			return nil, fmt.Errorf("invalid ballot journal action")
 		}
 
-		if *cmdDumpTest {
+		if *cmdDumpTest && cmdDumpBallotCount != 0 {
 			if len(castVoteDetails) == cmdDumpBallotCount {
 				break
 			}
