@@ -164,7 +164,7 @@ func (l *legacy) handleDumpCmd() error {
 		fmt.Print("\n")
 
 		fmt.Println("legacy: Enter how many votes to parse from the ballot " +
-			"journal")
+			"journal (input 0 to parse all votes)")
 		fmt.Println("        (this is an expensive process that takes time, " +
 			"limit to a few while testing)")
 		fmt.Print(" > ")
