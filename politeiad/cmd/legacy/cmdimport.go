@@ -116,9 +116,14 @@ func (l *legacy) cmdImport(importPath string) error {
 	fmt.Printf("legacy: Importing %v records to tstore\n", len(records))
 
 	var wg sync.WaitGroup
+	i := 1
 	for _, r := range records {
-		// Spin thread to save record and their respective blobs to tstore.
+		fmt.Printf("legacy: %v record being inserted to tstore on thread %v\n",
+			r.LegacyToken[:7], i)
+
+		i++
 		wg.Add(1)
+		// Spin thread to save record and their respective blobs to tstore.
 		go func(data parsedData) error {
 			defer wg.Done()
 
@@ -133,10 +138,16 @@ func (l *legacy) cmdImport(importPath string) error {
 	}
 	wg.Wait()
 
-	fmt.Printf("legacy: Importing %v records on queue to tstore\n", len(queue))
+	if len(queue) > 0 {
+		fmt.Printf("legacy: Importing %v records on queue to tstore\n", len(queue))
+	}
 
 	// Now, save RFP submissions records that are on queue.
 	for _, record := range queue {
+		fmt.Printf("legacy: %v record being inserted to tstore on thread %v\n",
+			record.LegacyToken[:7], i)
+
+		i++
 		wg.Add(1)
 		go func(data parsedData) error {
 			defer wg.Done()
@@ -178,14 +189,8 @@ func (l *legacy) cmdImport(importPath string) error {
 	return nil
 }
 
-// saveRecordData saves the parsed data onto tstore. It will try to:
-//  1. First check if record is an RFP submission
-//  2.
-//  3. sabe blu
+// saveRecordData saves the parsed data onto tstore.
 func (l *legacy) saveRecordParsedData(data parsedData) error {
-	fmt.Printf("legacy: %v record being inserted to tstore\n",
-		data.LegacyToken[:7])
-
 	// Create a new tlog tree for the legacy record.
 	newToken, err := l.tstore.RecordNew()
 	if err != nil {
@@ -210,7 +215,6 @@ func (l *legacy) saveRecordParsedData(data parsedData) error {
 		l.RUnlock()
 		data.VoteDetailsMd.Params.Parent = data.VoteMd.LinkTo
 	}
-	// Save new tstore token to vote md, if applicable.
 
 	// Check to see if record is RFP parent. If so, update the RFP parents
 	// cache with the new tlog token. This will make it easier to save the
