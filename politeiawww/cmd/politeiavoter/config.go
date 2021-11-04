@@ -483,9 +483,9 @@ func loadConfig() (*config, []string, error) {
 		}
 	}
 	// Number of bunches
-	if cfg.Bunches < 1 || cfg.Bunches > 10 {
+	if cfg.Bunches < 1 || cfg.Bunches > 100 {
 		return nil, nil, fmt.Errorf("invalid number of bunches "+
-			"(1-10): %v", cfg.Bunches)
+			"(1-100): %v", cfg.Bunches)
 	}
 
 	if !cfg.BypassProxyCheck {
