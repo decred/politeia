@@ -1,8 +1,13 @@
-## legacyimport
+## legacy
 
 `legacyimport` is a tool that will be used to import the legacy records from
 the git backend into tlog. It opens a connection with tstore and inserts the
 records and blobs manually, bypassing backend validations.
+
+The tool has two commands:
+
+- `dump`
+- `import`
 
 ### Flags
 
@@ -95,6 +100,3 @@ ones we are not:
   - vote details 
   - comment
   - comment del
-
-
-

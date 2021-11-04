@@ -3,27 +3,42 @@ package main
 import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	tv "github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
+// serverPubkey is the former politeia public key from when it ran the git
+// backend.
 const serverPubkey = "a70134196c3cdf3f85f8af6abaa38c15feb7bccf5e6d3db6212358363465e502"
 
 // parsedData holds the data needed by tlog to insert the legacy
 // records on tstore.
 type parsedData struct {
-	files          []backend.File
-	metadata       []backend.MetadataStream
-	recordMd       *backend.RecordMetadata
-	statusChangeMd *usermd.StatusChangeMetadata
-	authDetailsMd  *ticketvote.AuthDetails
-	voteDetailsMd  *ticketvote.VoteDetails
-	commentsPath   string
-	ballotPath     string
-	legacyToken    string
-	parentToken    string
+	Files          []backend.File               `json:"files"`
+	Metadata       []backend.MetadataStream     `json:"metadata"`
+	RecordMd       *backend.RecordMetadata      `json:"recordmd"`
+	StatusChangeMd *usermd.StatusChangeMetadata `json:"statuschangemd"`
+	AuthDetailsMd  *ticketvote.AuthDetails      `json:"authdetailsmd"`
+	VoteDetailsMd  *ticketvote.VoteDetails      `json:"votedetailsmd"`
+
+	// ballot journal data
+	Votes    []*tv.CastVoteDetails `json:"votes"`
+	Comments *parsedComments       `json:"comments"`
+
+	// comments and ballot parsing will handle failure themselves
+	CommentsPath string `json:"commentspath"`
+	BallotPath   string `json:"ballotpath"`
+	LegacyToken  string `json:"legacytoken"`
+	ParentToken  string `json:"parenttoken"`
 }
 
+type parsedComments struct {
+	Adds  []comments.CommentAdd  `json:"adds"`
+	Dels  []comments.CommentDel  `json:"dels"`
+	Votes []comments.CommentVote `json:"votes"`
+}
 type voteCollider struct {
 	Token  string `json:"token"`
 	Ticket string `json:"ticket"`
@@ -42,10 +57,12 @@ type startRunoffRecord struct {
 }
 
 type proposalMetadata struct {
-	Name   string
-	LinkTo string
-	LinkBy int64
+	Name   string `json:"name"`
+	LinkTo string `json:"linkto"`
+	LinkBy int64  `json:"linkby"`
 }
+
+// Legacy v1 data
 
 // likeCommentV1 unmarshals the like action data from the gitbe's comments
 // journal.
@@ -145,10 +162,4 @@ type usersReply struct {
 	TotalUsers   uint64 `json:"totalusers,omitempty"`
 	TotalMatches uint64 `json:"totalmatches"`
 	Users        []user `json:"users"`
-}
-
-// largestCommitmentResult returns the largest commitment address or an error.
-type largestCommitmentResult struct {
-	bestAddr string
-	err      error
 }
