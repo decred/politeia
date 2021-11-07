@@ -47,20 +47,17 @@ type politeiawww struct {
 	sessions sessions.Store
 	userDB   user.DB
 
-	// pluginIDs contains the plugin IDs of all registered plugins, standard
-	// plugins and the auth plugin, ordered alphabetically. This is the order
-	// that the plugin hooks are executed in.
+	// pluginIDs contains the plugin IDs of all registered plugins, ordered
+	// alphabetically. This is the order that the plugin hooks are executed in.
 	pluginIDs []string
 
-	// standard contains all registered standard plugins.
-	standard map[string]plugin.StandardPlugin // [pluginID]plugin
+	// plugins contains all registered plugins.
+	plugins map[string]plugin.Plugin // [pluginID]plugin
 
-	// auth is the plugin that handles user authentication and authorization. An
-	// auth plugin MUST be specified in the configuration if the user layer is
-	// enabled. User authorization is verified prior to the execution of all
-	// plugin commands.
-	auth     plugin.AuthPlugin
-	authCmds map[string]map[string]interface{} // [pluginID][cmd]interface{}
+	// auth is the plugin that handles user authorization. An auth plugin MUST
+	// be specified in the configuration if the user layer is enabled. User
+	// authorization is verified prior to the execution of all plugin commands.
+	auth plugin.Authorizer
 
 	// Legacy fields
 	politeiad *pdclient.Client
@@ -216,8 +213,7 @@ func _main() error {
 		events:    events.NewManager(),
 		legacy:    legacywww,
 		pluginIDs: make([]string, 0, 64),
-		standard:  make(map[string]plugin.StandardPlugin, 64),
-		authCmds:  make(map[string]map[string]interface{}, 64),
+		plugins:   make(map[string]plugin.Plugin, 64),
 	}
 
 	// Setup API routes. For now, only set these up

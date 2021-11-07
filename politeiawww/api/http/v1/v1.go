@@ -27,17 +27,6 @@ const (
 	// This route returns a VersionReply.
 	RouteVersion = "/version"
 
-	// RouteAuth is a POST request route that executes a plugin command that
-	// authenticates a user. Commands that update session state MUST use this
-	// route. Example, login and logout commands.
-	//
-	// This route is CSRF protected. Clients must obtain CSRF tokens from the
-	// Version route before they'll be able to use this route. A 403 is returned
-	// if the client attempts to use this route without the proper CSRF tokens.
-	//
-	// This route accepts a PluginCmd and returns a PluginReply.
-	RouteAuth = "/auth"
-
 	// RouteWrite is a POST request route that executes a plugin write command.
 	//
 	// This route is CSRF protected. Clients must obtain CSRF tokens from the
@@ -95,10 +84,6 @@ type VersionReply struct {
 	// Plugins contains the plugin ID and lowest supported plugin verison for
 	// all registered plugins.
 	Plugins map[string]uint32 `json:"plugins"` // [pluginID]version
-
-	// Auth contains the plugin commands that must use the auth route. These
-	// are the only commands that are allowed to use the auth route.
-	Auth map[string][]string `json:"auth"` // [pluginID][]cmd
 }
 
 type PluginCmd struct {

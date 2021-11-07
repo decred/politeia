@@ -45,19 +45,15 @@ func (p *politeiawww) setupRoutes() {
 func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
-	plugins := make(map[string]uint32, len(p.pluginIDs))
-	for _, plugin := range p.standard {
+	plugins := make(map[string]uint32, len(p.plugins))
+	for _, plugin := range p.plugins {
 		plugins[plugin.ID()] = plugin.Version()
 	}
-	plugins[p.auth.ID()] = p.auth.Version()
 
 	vr := v1.VersionReply{
 		APIVersion:   v1.APIVersion,
 		BuildVersion: version.String(),
 		Plugins:      plugins,
-		Auth: map[string][]string{
-			p.auth.ID(): p.auth.Cmds(),
-		},
 	}
 
 	// Set the CSRF header. This is the only route
@@ -65,11 +61,6 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(v1.CSRFTokenHeader, csrf.Token(r))
 
 	util.RespondWithJSON(w, http.StatusOK, vr)
-}
-
-// handleAuth is the request handler for the http v1 Auth command.
-func (p *politeiawww) handleAuth(w http.ResponseWriter, r *http.Request) {
-	// TODO
 }
 
 // handleWrite is the request handler for the http v1 Write command.
@@ -90,7 +81,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify plugin exists
-	_, ok := p.standard[cmd.PluginID]
+	_, ok := p.plugins[cmd.PluginID]
 	if !ok {
 		util.RespondWithJSON(w, http.StatusOK,
 			v1.PluginReply{

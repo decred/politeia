@@ -11,32 +11,16 @@ import (
 	"github.com/google/uuid"
 )
 
-// NOTE: this plugin API is not stable and may be subject to breaking changes.
-
-// AuthPlugin...
+// Plugin represents a politeia plugin.
 //
-// Changes made to the Session or User will be persisted by the caller.
-type AuthPlugin interface {
+// Updates to the plugin data in the User object will only be persisted by the
+// caller for operations that are part of a write command. Updates made during
+// read commands are ignored.
+type Plugin interface {
+	// ID returns the plugin ID.
 	ID() string
 
-	Version() uint32
-
-	Cmds() []string
-
-	Authorized(tx *sql.Tx, s *Session, u *User,
-		pluginID, cmd string) (*Reply, error)
-
-	Cmd(*sql.Tx, *Session, *User, Cmd) (*Reply, error)
-}
-
-// StandardPlugin represents a standard politeia plugin.
-//
-// Updates to the user object plugin data during TxWrite method execution will
-// be persisted by the caller. Updates made during any other method are
-// ignored.
-type StandardPlugin interface {
-	ID() string
-
+	// Version returns the lowest supported plugin API version.
 	Version() uint32
 
 	// Permissions returns the user permissions for each plugin commands. These
@@ -45,19 +29,26 @@ type StandardPlugin interface {
 	Permissions() map[string]string // [cmd]permissionLevel
 
 	// Hook executes a plugin hook.
-	Hook(HookT, User, Cmd) error
+	Hook(HookT, Cmd, *User) error
 
 	// Read executes a read plugin command.
-	Read(User, Cmd) (*Reply, error)
+	Read(Cmd, *User) (*Reply, error)
 
 	// TxHook executes a plugin hook using a database transaction.
-	TxHook(*sql.Tx, HookT, User, Cmd) error
+	TxHook(*sql.Tx, HookT, Cmd, *User) error
 
 	// TxWrite executes a write plugin command using a database transaction.
-	TxWrite(*sql.Tx, *User, Cmd) (*Reply, error)
+	TxWrite(*sql.Tx, Cmd, *User) (*Reply, error)
 
 	// TxRead executes a read plugin command using a database transaction.
-	TxRead(*sql.Tx, User, Cmd) (*Reply, error)
+	TxRead(*sql.Tx, Cmd, *User) (*Reply, error)
+}
+
+// Authorizer provides user authorization for plugin commands.
+//
+// Changes made to the Session and User will be persisted by the caller.
+type Authorizer interface {
+	Authorize(s *Session, u *User, pluginID, cmd string) error
 }
 
 type Cmd struct {
@@ -133,7 +124,6 @@ const (
 	HookInvalid   HookT = "invalid"
 	HookPreWrite  HookT = "pre-write"
 	HookPostWrite HookT = "post-write"
-	HookPreRead   HookT = "pre-read"
 )
 
 // UserError is the reply that is returned when a plugin command encounters an
