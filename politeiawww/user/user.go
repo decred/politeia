@@ -22,7 +22,11 @@ type PluginData struct {
 
 type DB interface {
 	Insert(u User) error
+
+	UpdateTx(tx *sql.Tx, userID, pluginID string,
+		clearText, encrypted []byte) error
+
 	Get(userID string) (*User, error)
-	TxUpdate(tx *sql.Tx, pluginID string, clearText, encrypted []byte) error
-	TxGet(tx *sql.Tx, userID string) (*User, error)
+
+	GetTx(tx *sql.Tx, userID string) (*User, error)
 }

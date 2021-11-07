@@ -31,17 +31,17 @@ type Plugin interface {
 	// Hook executes a plugin hook.
 	Hook(HookT, Cmd, *User) error
 
+	// HookTx executes a plugin hook using a database transaction.
+	HookTx(*sql.Tx, HookT, Cmd, *User) error
+
+	// WriteTx executes a write plugin command using a database transaction.
+	WriteTx(*sql.Tx, Cmd, *User) (*Reply, error)
+
 	// Read executes a read plugin command.
 	Read(Cmd, *User) (*Reply, error)
 
-	// TxHook executes a plugin hook using a database transaction.
-	TxHook(*sql.Tx, HookT, Cmd, *User) error
-
-	// TxWrite executes a write plugin command using a database transaction.
-	TxWrite(*sql.Tx, Cmd, *User) (*Reply, error)
-
-	// TxRead executes a read plugin command using a database transaction.
-	TxRead(*sql.Tx, Cmd, *User) (*Reply, error)
+	// ReadTx executes a read plugin command using a database transaction.
+	ReadTx(*sql.Tx, Cmd, *User) (*Reply, error)
 }
 
 // Authorizer provides user authorization for plugin commands.

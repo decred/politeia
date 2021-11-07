@@ -36,7 +36,7 @@ func (p *politeiawww) execWrite(ctx context.Context, session *plugin.Session, pl
 	// be empty.
 	var usr *plugin.User
 	if session.UserID != "" {
-		u, err := p.userDB.TxGet(tx, session.UserID)
+		u, err := p.userDB.GetTx(tx, session.UserID)
 		if err != nil {
 			return nil, err
 		}
@@ -68,7 +68,7 @@ func (p *politeiawww) execWrite(ctx context.Context, session *plugin.Session, pl
 		// Should not happen
 		return nil, errors.Errorf("plugin not found: %v", pluginID)
 	}
-	reply, err = plug.TxWrite(tx, cmd, usr)
+	reply, err = plug.WriteTx(tx, cmd, usr)
 	if err != nil {
 		return nil, err
 	}
@@ -85,10 +85,9 @@ func (p *politeiawww) execWrite(ctx context.Context, session *plugin.Session, pl
 	}
 
 	// Save any updated user plugin data
-	if usr.PluginData.Updated() {
-		err = p.userDB.TxUpdate(tx, pluginID,
-			usr.PluginData.ClearText(),
-			usr.PluginData.Encrypted())
+	if usr != nil && usr.PluginData.Updated() {
+		err = p.userDB.UpdateTx(tx, usr.ID.String(), pluginID,
+			usr.PluginData.ClearText(), usr.PluginData.Encrypted())
 		if err != nil {
 			return nil, err
 		}
@@ -215,7 +214,7 @@ func (p *politeiawww) execHooks(tx *sql.Tx, h plugin.HookT, cmd plugin.Cmd, usr 
 		// the hook using a database transaction (write
 		// commands) and some won't (read-only commands).
 		if tx != nil {
-			err := p.TxHook(tx, h, cmd, usr)
+			err := p.HookTx(tx, h, cmd, usr)
 			if err != nil {
 				return err
 			}
