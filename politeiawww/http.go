@@ -116,13 +116,78 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 	reply := convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
 
-	// Save the updated session
+	// Save any updates that were made to the user session
 	err = p.saveUserSession(r, w, s, pluginID, pluginSession)
 	if err != nil {
 		// The database transaction for the plugin write has
 		// already been committed and can't be rolled back.
 		// Handled the error gracefully. Log it and continue.
 		log.Errorf("handleWrite: saveSession %v: %v", s.ID, err)
+	}
+
+	// Send the response
+	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleRead is the request handler for the http v1 Read command.
+func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleRead")
+
+	// Decode the request body
+	var cmd v1.PluginCmd
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cmd); err != nil {
+		util.RespondWithJSON(w, http.StatusOK,
+			v1.PluginReply{
+				Error: v1.UserError{
+					ErrorCode: v1.ErrorCodeInvalidInput,
+				},
+			})
+		return
+	}
+
+	// Verify plugin exists
+	_, ok := p.plugins[cmd.PluginID]
+	if !ok {
+		util.RespondWithJSON(w, http.StatusOK,
+			v1.PluginReply{
+				Error: v1.UserError{
+					ErrorCode: v1.ErrorCodePluginNotFound,
+				},
+			})
+		return
+	}
+
+	// Extract the session data from the request cookies
+	s, err := p.extractSession(r)
+	if err != nil {
+		respondWithError(w, r,
+			"handleRead: extractSession: %v", err)
+		return
+	}
+
+	// Execute the plugin command
+	var (
+		pluginID      = cmd.PluginID
+		pluginSession = convertSession(s)
+		pluginCmd     = convertCmdFromHTTP(cmd)
+	)
+	pluginReply, err := p.execRead(r.Context(),
+		pluginSession, pluginID, pluginCmd)
+	if err != nil {
+		respondWithError(w, r,
+			"handleRead: execRead: %v", err)
+		return
+	}
+
+	reply := convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
+
+	// Save any updates that were made to the user session
+	err = p.saveUserSession(r, w, s, pluginID, pluginSession)
+	if err != nil {
+		// The plugin command has already been executed. Handle
+		// the error gracefully. Log it and continue.
+		log.Errorf("handleRead: saveSession %v: %v", s.ID, err)
 	}
 
 	// Send the response

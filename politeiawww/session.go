@@ -25,8 +25,8 @@ func (p *politeiawww) extractSession(r *http.Request) (*sessions.Session, error)
 
 // saveUserSession saves the encoded session values to the database and the
 // encoded session ID to the response cookie if there were any changes to the
-// session. The session is deleted from the database if the plugin sets the
-// Deleted field to true.
+// session. The session is deleted from the database if the auth plugin has
+// set the plugin session Delete field to true.
 func (p *politeiawww) saveUserSession(r *http.Request, w http.ResponseWriter, s *sessions.Session, pluginID string, pluginSession *plugin.Session) error {
 	// Check if the session should be deleted.
 	if pluginSession.Delete {

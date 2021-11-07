@@ -136,18 +136,6 @@ const (
 	// ErrorCodePluginNotFound is returned when a plugin ID is provided that
 	// does not correspond to a registered plugin.
 	ErrorCodePluginNotFound ErrorCodeT = 2
-
-	// ErrorCodeNotAuthPlugin is returned when a plugin ID is provided to the
-	// auth route that is not an auth plugin. Only auth plugins can use the auth
-	// route. The list of auth plugins and commands can be found in the version
-	// reply.
-	ErrorCodeNotAuthPlugin ErrorCodeT = 3
-
-	// ErrorCodeNotAuthCmd is returned when a plugin ID is provided to the auth
-	// route that is an auth plugin, but the provided command is not one of the
-	// commands allowed to be executed using the auth route. The list of auth
-	// plugins and commands can be found in the version reply.
-	ErrorCodeNotAuthCmd ErrorCodeT = 4
 )
 
 var (
@@ -156,8 +144,6 @@ var (
 		ErrorCodeInvalid:        "invalid error",
 		ErrorCodeInvalidInput:   "invalid input",
 		ErrorCodePluginNotFound: "plugin not found",
-		ErrorCodeNotAuthPlugin:  "not an auth plugin",
-		ErrorCodeNotAuthCmd:     "not an auth command",
 	}
 )
 

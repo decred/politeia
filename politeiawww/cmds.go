@@ -108,7 +108,8 @@ func (p *politeiawww) execWrite(ctx context.Context, session *plugin.Session, pl
 	return reply, nil
 }
 
-// execRead executes a plugin command that writes data.
+// execRead executes a read-only plugin command. The read operation is not
+// atomic.
 //
 // Any updates made to the session will be persisted by the caller.
 //
