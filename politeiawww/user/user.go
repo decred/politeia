@@ -13,6 +13,7 @@ import (
 type User struct {
 	ID      uuid.UUID             // Unique ID
 	Plugins map[string]PluginData // [pluginID]PluginData
+	Updated bool
 }
 
 type PluginData struct {
@@ -21,10 +22,9 @@ type PluginData struct {
 }
 
 type DB interface {
-	Insert(u User) error
+	Insert(User) error
 
-	UpdateTx(tx *sql.Tx, userID, pluginID string,
-		clearText, encrypted []byte) error
+	UpdateTx(*sql.Tx, User) error
 
 	Get(userID string) (*User, error)
 

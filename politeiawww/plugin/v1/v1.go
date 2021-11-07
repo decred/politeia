@@ -48,6 +48,12 @@ type Plugin interface {
 //
 // Changes made to the Session and User will be persisted by the caller.
 type Authorizer interface {
+	// ID returns the plugin ID.
+	ID() string
+
+	// Version returns the lowest supported plugin API version.
+	Version() uint32
+
 	Authorize(s *Session, u *User, pluginID, cmd string) error
 }
 
@@ -66,7 +72,7 @@ type User struct {
 	PluginData *PluginData
 }
 
-// PluginData contains the data that is owned by the plugin.
+// PluginData contains the user data that is owned by the plugin.
 //
 // These fields can be updated by the plugin during execution of a write
 // command. The PluginData methods MUST be used if the plugin wants the changes
