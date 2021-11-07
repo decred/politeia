@@ -117,12 +117,11 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	reply := convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
 
 	// Save any updates that were made to the user session
-	err = p.saveUserSession(r, w, s, pluginID, pluginSession)
+	err = p.saveUserSession(r, w, s, pluginSession)
 	if err != nil {
-		// The database transaction for the plugin write has
-		// already been committed and can't be rolled back.
+		// The plugin command has already been executed.
 		// Handled the error gracefully. Log it and continue.
-		log.Errorf("handleWrite: saveSession %v: %v", s.ID, err)
+		log.Errorf("handleWrite: saveSession: %v", err)
 	}
 
 	// Send the response
@@ -183,15 +182,83 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	reply := convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
 
 	// Save any updates that were made to the user session
-	err = p.saveUserSession(r, w, s, pluginID, pluginSession)
+	err = p.saveUserSession(r, w, s, pluginSession)
 	if err != nil {
 		// The plugin command has already been executed. Handle
 		// the error gracefully. Log it and continue.
-		log.Errorf("handleRead: saveSession %v: %v", s.ID, err)
+		log.Errorf("handleRead: saveSession: %v", err)
 	}
 
 	// Send the response
 	util.RespondWithJSON(w, http.StatusOK, reply)
+}
+
+// handleReadBatch is the request handler for the http v1 ReadBatch command.
+func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleReadBatch")
+
+	// Decode the request body
+	var batch v1.Batch
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&batch); err != nil {
+		util.RespondWithJSON(w, http.StatusOK,
+			v1.PluginReply{
+				Error: v1.UserError{
+					ErrorCode: v1.ErrorCodeInvalidInput,
+				},
+			})
+		return
+	}
+
+	// Extract the session data from the request cookies
+	s, err := p.extractSession(r)
+	if err != nil {
+		respondWithError(w, r,
+			"handleReadBatch: extractSession: %v", err)
+		return
+	}
+
+	var (
+		pluginSession = convertSession(s)
+		replies       = make([]v1.PluginReply, len(batch.Cmds))
+	)
+	for i, cmd := range batch.Cmds {
+		// Verify plugin exists
+		_, ok := p.plugins[cmd.PluginID]
+		if !ok {
+			replies[i] = v1.PluginReply{
+				Error: v1.UserError{
+					ErrorCode: v1.ErrorCodePluginNotFound,
+				},
+			}
+			continue
+		}
+
+		// Execute the plugin command
+		pluginReply, err := p.execRead(r.Context(), pluginSession,
+			cmd.PluginID, convertCmdFromHTTP(cmd))
+		if err != nil {
+			respondWithError(w, r,
+				"handleReadBatch: execRead: %v", err)
+			return
+		}
+
+		replies[i] = convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
+	}
+
+	// Save any updates that were made to the user session
+	err = p.saveUserSession(r, w, s, pluginSession)
+	if err != nil {
+		// The plugin command has already been executed. Handle
+		// the error gracefully. Log it and continue.
+		log.Errorf("handleReadBatch: saveSession: %v", err)
+	}
+
+	// Send the response
+	util.RespondWithJSON(w, http.StatusOK,
+		v1.BatchReply{
+			Replies: replies,
+		})
 }
 
 // responseWithError checks the error type and responds with the appropriate
