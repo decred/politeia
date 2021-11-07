@@ -20,8 +20,8 @@ import (
 //
 // This function assumes the caller has verified that the plugin exists for
 // the plugin command.
-func (p *politeiawww) execWrite(ctx context.Context, pluginID string, cmd plugin.Cmd, userID string) (*plugin.Reply, error) {
-	log.Tracef("execWrite: %v %v %v", pluginID, cmd.Cmd, userID)
+func (p *politeiawww) execWrite(ctx context.Context, session *plugin.Session, pluginID string, cmd plugin.Cmd) (*plugin.Reply, error) {
+	log.Tracef("execWrite: %v %v %v", pluginID, cmd.Cmd, session.UserID)
 
 	// Setup the database transaction
 	tx, cancel, err := p.beginTx()
@@ -30,21 +30,30 @@ func (p *politeiawww) execWrite(ctx context.Context, pluginID string, cmd plugin
 	}
 	defer cancel()
 
-	// Get the user. A user ID should always exist
-	// for writes if the user layer has been enabled.
-	// If politeia is being run with the user layer
-	// disabled, the user ID will be empty.
+	// Get the user. The session user ID should always
+	// exist for writes if the user layer is enabled.
+	// If the user layer is disabled, the user ID will
+	// be empty.
 	var usr *plugin.User
-	if userID != "" {
-		u, err := p.userDB.TxGet(tx, userID)
+	if session.UserID != "" {
+		u, err := p.userDB.TxGet(tx, session.UserID)
 		if err != nil {
 			return nil, err
 		}
-		usr = convertUser(u, pluginID, session)
+		usr = convertUser(u, pluginID)
+	}
+
+	// Verify that the user is authorized to execute this command.
+	reply, err := p.auth.Authorized(tx, session, usr, pluginID, cmd.Cmd)
+	if err != nil {
+		return nil, err
+	}
+	if reply != nil {
+		return reply, nil
 	}
 
 	// Execute the pre plugin hooks
-	reply, err := p.execPreHooks(tx, plugin.HookPreWrite, cmd, usr)
+	reply, err = p.execPreHooks(tx, plugin.HookPreWrite, *usr, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -53,11 +62,7 @@ func (p *politeiawww) execWrite(ctx context.Context, pluginID string, cmd plugin
 	}
 
 	// Execute the plugin command
-	plug, ok := p.plugins[pluginID]
-	if !ok {
-		return nil, errors.Errorf("plugin not found: %v", pluginID)
-	}
-	reply, err = plug.TxWrite(tx, cmd, usr)
+	reply, err = p.write(tx, session, usr, pluginID, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +73,7 @@ func (p *politeiawww) execWrite(ctx context.Context, pluginID string, cmd plugin
 	}
 
 	// Execute the post plugin hooks
-	err = p.execPostHooks(tx, plugin.HookPostWrite, cmd, usr)
+	err = p.execPostHooks(tx, plugin.HookPostWrite, *usr, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -97,15 +102,40 @@ func (p *politeiawww) execWrite(ctx context.Context, pluginID string, cmd plugin
 	return reply, nil
 }
 
+func (p *politeiawww) write(tx *sql.Tx, session *plugin.Session, usr *plugin.User, pluginID string, cmd plugin.Cmd) (*plugin.Reply, error) {
+	if p.isAuthCmd(pluginID, cmd.Cmd) {
+		// This is an auth command and needs to
+		// be executed using the auth plugin.
+		return p.auth.Cmd(tx, session, usr, cmd)
+	}
+	plug, ok := p.standard[pluginID]
+	if !ok {
+		// Should not happen
+		return nil, errors.Errorf("plugin not found: %v", pluginID)
+	}
+	return plug.TxWrite(tx, usr, cmd)
+}
+
+func (p *politeiawww) isAuthCmd(pluginID, cmd string) bool {
+	authCmds, ok := p.authCmds[pluginID]
+	if !ok {
+		return false
+	}
+	_, ok = authCmds[cmd]
+	if !ok {
+		return false
+	}
+	return true
+}
+
 // execPreHooks executes the provided pre hook for all plugins. Pre hooks are
 // used to perform validation on the plugin command.
 //
 // A plugin reply will be returned if one of the plugins throws a user error
 // during hook execution. The user error will be embedded in the plugin
 // reply. Unexpected errors result in a standard golang error being returned.
-func (p *politeiawww) execPreHooks(tx *sql.Tx, h plugin.HookT, cmd plugin.Cmd, usr *plugin.User) (*plugin.Reply, error) {
-	// Execute hooks for auth plugins
-	err := p.execHooks(p.authPlugins, tx, h, cmd, usr)
+func (p *politeiawww) execPreHooks(tx *sql.Tx, h plugin.HookT, usr plugin.User, cmd plugin.Cmd) (*plugin.Reply, error) {
+	err := p.execHooks(tx, h, usr, cmd)
 	if err != nil {
 		var ue plugin.UserError
 		if errors.As(err, &ue) {
@@ -115,19 +145,6 @@ func (p *politeiawww) execPreHooks(tx *sql.Tx, h plugin.HookT, cmd plugin.Cmd, u
 		}
 		return nil, err
 	}
-
-	// Execute hooks for standard plugins
-	err = p.execHooks(p.standardPlugins, tx, h, cmd, usr)
-	if err != nil {
-		var ue plugin.UserError
-		if errors.As(err, &ue) {
-			return &plugin.Reply{
-				Error: err,
-			}, nil
-		}
-		return nil, err
-	}
-
 	return nil, nil
 }
 
@@ -136,44 +153,31 @@ func (p *politeiawww) execPreHooks(tx *sql.Tx, h plugin.HookT, cmd plugin.Cmd, u
 // Post hooks are not able to throw plugin errors like the pre hooks are. Any
 // error returned by a plugin from a post hook will be treated as an unexpected
 // error.
-func (p *politeiawww) execPostHooks(tx *sql.Tx, h plugin.HookT, cmd plugin.Cmd, usr *plugin.User) error {
-	// Execute hooks for auth plugins
-	err := p.execHooks(p.authPlugins, tx, h, cmd, usr)
-	if err != nil {
-		return err
-	}
-
-	// Execute hooks for standard plugins
-	err = p.execHooks(p.standardPlugins, tx, h, cmd, usr)
-	if err != nil {
-		return err
-	}
-
-	return nil
+func (p *politeiawww) execPostHooks(tx *sql.Tx, h plugin.HookT, usr plugin.User, cmd plugin.Cmd) error {
+	return p.execHooks(tx, h, usr, cmd)
 }
 
 // execHooks executes a hook for list of plugins. A sql Tx may or may not exist
 // depending on the whether the caller is executing an atomic operation.
-func (p *politeiawww) execHooks(pluginIDs []string, tx *sql.Tx, h plugin.HookT, cmd plugin.Cmd, usr *plugin.User) error {
-	for _, pluginID := range pluginIDs {
+func (p *politeiawww) execHooks(tx *sql.Tx, h plugin.HookT, usr plugin.User, cmd plugin.Cmd) error {
+	for _, pluginID := range p.pluginIDs {
 		// Get the plugin
-		p, ok := p.plugins[pluginID]
+		p, ok := p.standard[pluginID]
 		if !ok {
 			// Should not happen
-			return errors.Errorf("plugin not found: %v",
-				pluginID)
+			return errors.Errorf("plugin not found: %v", pluginID)
 		}
 
 		// Execute the hook. Some commands will execute
-		// the hook using a database transaction (writes)
-		// and some won't (read-only commands).
+		// the hook using a database transaction (write
+		// commands) and some won't (read-only commands).
 		if tx != nil {
-			err := p.TxHook(tx, h, cmd, usr)
+			err := p.TxHook(tx, h, usr, cmd)
 			if err != nil {
 				return err
 			}
 		} else {
-			err := p.Hook(h, cmd, usr)
+			err := p.Hook(h, usr, cmd)
 			if err != nil {
 				return err
 			}
@@ -183,11 +187,10 @@ func (p *politeiawww) execHooks(pluginIDs []string, tx *sql.Tx, h plugin.HookT, 
 	return nil
 }
 
-func convertUser(u *user.User, pluginID string, session *plugin.Session) *plugin.User {
+func convertUser(u *user.User, pluginID string) *plugin.User {
 	pluginData := u.Plugins[pluginID]
 	return &plugin.User{
-		ID:      u.ID,
-		Session: session,
+		ID: u.ID,
 		PluginData: plugin.NewPluginData(pluginData.ClearText,
 			pluginData.Encrypted),
 	}

@@ -17,36 +17,53 @@ const (
 	sessionValueCreatedAt = "created-at"
 )
 
-// extractSession extracts the session from the http request. The session and
-// the user ID for the session, if one exists, is returned.
-func (p *politeiawww) extractSession(r *http.Request) (*sessions.Session, string, error) {
-	// Get the session from the request cookie
-	s, err := p.sessions.Get(r, v1.SessionCookieName)
-	if err != nil {
-		return nil, "", err
-	}
-
-	// Pull the user ID out of the session values. This
-	// will only exist if the client making the request
-	// is a logged in user.
-	userID := s.Values[sessionValueUserID].(string)
-	return s, userID, nil
+// extractSession extracts and returns the session from the http request
+// cookie.
+func (p *politeiawww) extractSession(r *http.Request) (*sessions.Session, error) {
+	return p.sessions.Get(r, v1.SessionCookieName)
 }
 
 // saveUserSession saves the encoded session values to the database and the
-// encoded session ID to the response cookie if the provided plugin made an
-// update to the user's session.
+// encoded session ID to the response cookie if there were any changes to the
+// session. The session is deleted from the database if the plugin sets the
+// Deleted field to true.
 func (p *politeiawww) saveUserSession(r *http.Request, w http.ResponseWriter, s *sessions.Session, pluginID string, pluginSession *plugin.Session) error {
-	if !pluginSession.Updated() {
-		// No session values were updated.
-		// Nothing needs to be saved.
+	// Check if the session should be deleted.
+	if pluginSession.Delete {
+		s.Options.MaxAge = 0
+		return p.sessions.Save(r, w, s)
+	}
+
+	// Check if any values were updated.
+	var (
+		userID    = s.Values[sessionValueUserID].(string)
+		createdAt = s.Values[sessionValueUserID].(int64)
+	)
+	if pluginSession.UserID == userID &&
+		pluginSession.CreatedAt == createdAt {
+		// No changes were made. There is no
+		// need to update the database.
 		return nil
 	}
 
-	// Update the orignal session object with
-	// the changes made by the plugin.
-	s.Values[pluginID] = pluginSession.Value()
+	// Update the orignal session object with the changes
+	// made by the plugin.
+	s.Values[sessionValueUserID] = pluginSession.UserID
+	s.Values[sessionValueCreatedAt] = pluginSession.CreatedAt
 
-	// Save the changes to the database
+	// Save the changes to the database.
 	return p.sessions.Save(r, w, s)
+}
+
+func convertSession(s *sessions.Session) *plugin.Session {
+	// The interface{} values need to be type casted.
+	var (
+		userID    = s.Values[sessionValueUserID].(string)
+		createdAt = s.Values[sessionValueUserID].(int64)
+	)
+	return &plugin.Session{
+		UserID:    userID,
+		CreatedAt: createdAt,
+		Delete:    false,
+	}
 }

@@ -13,19 +13,31 @@ import (
 
 // NOTE: this plugin API is not stable and may be subject to breaking changes.
 
+// AuthPlugin...
+//
+// Changes made to the Session or User will be persisted by the caller.
 type AuthPlugin interface {
 	ID() string
+
+	Version() uint32
+
 	Cmds() []string
-	AuthCmd(*sql.Tx, Cmd, *User) (*Reply, *Session, error)
-	IsAuthorized(s Session, pluginID, cmd string) bool
+
+	Authorized(tx *sql.Tx, s *Session, u *User,
+		pluginID, cmd string) (*Reply, error)
+
+	Cmd(*sql.Tx, *Session, *User, Cmd) (*Reply, error)
 }
 
 // StandardPlugin represents a standard politeia plugin.
 //
-// Updates to the user object plugin data during Write method execution will be
-// persisted by the caller. Updates made during any other method are ignored.
+// Updates to the user object plugin data during TxWrite method execution will
+// be persisted by the caller. Updates made during any other method are
+// ignored.
 type StandardPlugin interface {
 	ID() string
+
+	Version() uint32
 
 	// Permissions returns the user permissions for each plugin commands. These
 	// are provided to the AuthPlugin on startup. The AuthPlugin handles user
@@ -33,19 +45,19 @@ type StandardPlugin interface {
 	Permissions() map[string]string // [cmd]permissionLevel
 
 	// Hook executes a plugin hook.
-	Hook(HookT, Cmd, *User) error
+	Hook(HookT, User, Cmd) error
 
 	// Read executes a read plugin command.
-	Read(Cmd, *User) (*Reply, error)
+	Read(User, Cmd) (*Reply, error)
 
 	// TxHook executes a plugin hook using a database transaction.
-	TxHook(*sql.Tx, HookT, Cmd, *User) error
+	TxHook(*sql.Tx, HookT, User, Cmd) error
 
 	// TxWrite executes a write plugin command using a database transaction.
-	TxWrite(*sql.Tx, Cmd, *User) (*Reply, error)
+	TxWrite(*sql.Tx, *User, Cmd) (*Reply, error)
 
 	// TxRead executes a read plugin command using a database transaction.
-	TxRead(*sql.Tx, Cmd, *User) (*Reply, error)
+	TxRead(*sql.Tx, User, Cmd) (*Reply, error)
 }
 
 type Cmd struct {
@@ -112,6 +124,7 @@ func (d *PluginData) Updated() bool {
 type Session struct {
 	UserID    string
 	CreatedAt int64
+	Delete    bool
 }
 
 type HookT string

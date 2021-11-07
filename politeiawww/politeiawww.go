@@ -37,26 +37,30 @@ const (
 
 // politeiawww represents the politeiawww server.
 type politeiawww struct {
-	cfg    *config.Config
-	router *mux.Router
-	auth   *mux.Router // CSRF protected subrouter
-	db     *sql.DB
+	cfg       *config.Config
+	public    *mux.Router // Public router
+	protected *mux.Router // CSRF protected subrouter
 
-	// Database interfaces
+	// Database layer. The sql DB is used as the backing database for the
+	// following interfaces.
+	db       *sql.DB
 	sessions sessions.Store
 	userDB   user.DB
 
-	// plugins contains all registered plugins.
-	plugins map[string]plugin.Plugin // [pluginID]plugin
-
-	// pluginIDs contains the plugin IDs of all registered plugins, ordered
-	// alphabetically. This is the order that plugin hooks are executed in.
+	// pluginIDs contains the plugin IDs of all registered plugins, standard
+	// plugins and the auth plugin, ordered alphabetically. This is the order
+	// that the plugin hooks are executed in.
 	pluginIDs []string
 
-	// authPlugin handles user authentication and authorization. An auth plugin
-	// MUST be specified in the configuration if the user layer is enabled. User
-	// authorization is verified prior to the execution of all plugin commands.
-	authPlugin plugin.AuthPlugin
+	// standard contains all registered standard plugins.
+	standard map[string]plugin.StandardPlugin // [pluginID]plugin
+
+	// auth is the plugin that handles user authentication and authorization. An
+	// auth plugin MUST be specified in the configuration if the user layer is
+	// enabled. User authorization is verified prior to the execution of all
+	// plugin commands.
+	auth     plugin.AuthPlugin
+	authCmds map[string]map[string]interface{} // [pluginID][cmd]interface{}
 
 	// Legacy fields
 	politeiad *pdclient.Client
@@ -163,11 +167,11 @@ func _main() error {
 	router.Use(loggingMiddleware)
 	router.Use(recoverMiddleware)
 
-	// Setup a subrouter that is CSRF protected. Authenticated routes
-	// are required to use the auth router. The subrouter takes on the
-	// configuration of the router that it was spawned from, including
-	// all of the middleware that has already been registered.
-	auth := router.NewRoute().Subrouter()
+	// Setup a subrouter that is CSRF protected. Authenticated routes are
+	// required to use the protected router. The subrouter takes on the
+	// configuration of the router that it was spawned from, including all
+	// of the middleware that has already been registered.
+	protected := router.NewRoute().Subrouter()
 
 	// The CSRF middleware uses the double submit cookie method. The server
 	// provides clients with two CSRF tokens: a cookie token and a header
@@ -184,7 +188,7 @@ func _main() error {
 		csrf.Path("/"),
 		csrf.MaxAge(csrfCookieMaxAge),
 	)
-	auth.Use(csrfMiddleware)
+	protected.Use(csrfMiddleware)
 
 	// Setup the politeiad client
 	pdc, err := pdclient.New(cfg.RPCHost, cfg.RPCCert,
@@ -196,8 +200,8 @@ func _main() error {
 	// Setup the legacy politeiawww context
 	var legacywww *legacy.Politeiawww
 	if !cfg.DisableLegacy {
-		legacywww, err = legacy.NewPoliteiawww(cfg, router, auth,
-			cfg.ActiveNet.Params, pdc)
+		legacywww, err = legacy.NewPoliteiawww(cfg, router,
+			protected, cfg.ActiveNet.Params, pdc)
 		if err != nil {
 			return err
 		}
@@ -205,15 +209,15 @@ func _main() error {
 
 	// Setup application context
 	p := &politeiawww{
-		cfg:             cfg,
-		router:          router,
-		auth:            auth,
-		politeiad:       pdc,
-		events:          events.NewManager(),
-		legacy:          legacywww,
-		plugins:         make(map[string]plugin.Plugin, 64),
-		authPlugins:     make([]string, 0, 64),
-		standardPlugins: make([]string, 0, 64),
+		cfg:       cfg,
+		public:    router,
+		protected: protected,
+		politeiad: pdc,
+		events:    events.NewManager(),
+		legacy:    legacywww,
+		pluginIDs: make([]string, 0, 64),
+		standard:  make(map[string]plugin.StandardPlugin, 64),
+		authCmds:  make(map[string]map[string]interface{}, 64),
 	}
 
 	// Setup API routes. For now, only set these up
@@ -242,7 +246,7 @@ func _main() error {
 				},
 			}
 			srv := &http.Server{
-				Handler:      p.router,
+				Handler:      p.public,
 				Addr:         listen,
 				ReadTimeout:  time.Duration(cfg.ReadTimeout) * time.Second,
 				WriteTimeout: time.Duration(cfg.WriteTimeout) * time.Second,

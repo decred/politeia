@@ -20,7 +20,6 @@ import (
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 )
 
 // setupRoutes sets up the routes for the politeia http API.
@@ -33,12 +32,12 @@ func (p *politeiawww) setupRoutes() {
 		// to be part of the CSRF protected auth router so that the
 		// cookie CSRF is set too. The CSRF cookie is set on all auth
 		// routes. The header token is only set on the version route.
-		addRoute(p.auth, http.MethodGet, "", "/", p.handleVersion)
-		addRoute(p.auth, http.MethodGet, v1.APIRoute,
+		addRoute(p.protected, http.MethodGet, "", "/", p.handleVersion)
+		addRoute(p.protected, http.MethodGet, v1.APIRoute,
 		  v1.RouteVersion, p.handleVersion)
 	*/
 
-	addRoute(p.auth, http.MethodPost, v1.APIRoute,
+	addRoute(p.protected, http.MethodPost, v1.APIRoute,
 		v1.RouteWrite, p.handleWrite)
 }
 
@@ -46,12 +45,18 @@ func (p *politeiawww) setupRoutes() {
 func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
+	plugins := make(map[string]uint32, len(p.pluginIDs))
+	for _, plugin := range p.standard {
+		plugins[plugin.ID()] = plugin.Version()
+	}
+	plugins[p.auth.ID()] = p.auth.Version()
+
 	vr := v1.VersionReply{
 		APIVersion:   v1.APIVersion,
 		BuildVersion: version.String(),
-		Plugins:      append(p.authPlugins, p.standardPlugins...),
+		Plugins:      plugins,
 		Auth: map[string][]string{
-			p.authPlugin.ID(): p.authPlugin.Cmds(),
+			p.auth.ID(): p.auth.Cmds(),
 		},
 	}
 
@@ -64,68 +69,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 
 // handleAuth is the request handler for the http v1 Auth command.
 func (p *politeiawww) handleAuth(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleAuth")
-
-	// Decode the request body
-	var cmd v1.PluginCmd
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&cmd); err != nil {
-		util.RespondWithJSON(w, http.StatusOK,
-			v1.PluginReply{
-				Error: v1.UserError{
-					ErrorCode: v1.ErrorCodeInvalidInput,
-				},
-			})
-		return
-	}
-
-	// Verify plugin exists and it an auth plugin
-	_, ok := p.plugins[cmd.PluginID]
-	if !ok {
-		util.RespondWithJSON(w, http.StatusOK,
-			v1.PluginReply{
-				Error: v1.UserError{
-					ErrorCode: v1.ErrorCodePluginNotFound,
-				},
-			})
-		return
-	}
-
-	// Extract the session data from the request cookies
-	s, userID, err := p.extractSession(r)
-	if err != nil {
-		respondWithError(w, r,
-			"handleAuth: extractSession: %v", err)
-		return
-	}
-
-	// Execute the plugin command
-	var (
-		pluginID      = cmd.PluginID
-		pluginSession = convertSession(s, cmd.PluginID)
-		pluginCmd     = convertCmdFromHTTP(cmd)
-	)
-	pluginReply, err := p.execAuth(r.Context(),
-		userID, pluginSession, pluginID, pluginCmd)
-	if err != nil {
-		respondWithError(w, r,
-			"handleAuth: execAuth: %v", err)
-		return
-	}
-
-	reply := convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
-
-	// Save the updated session
-	err = p.saveUserSession(r, w, s, pluginID, pluginSession)
-	if err != nil {
-		// The database transaction for the plugin write has
-		// already been committed and can't be rolled back.
-		// Handled the error gracefully. Log it and continue.
-		log.Errorf("handleAuth: saveSession %v: %v", s.ID, err)
-	}
-
-	// Send the response
-	util.RespondWithJSON(w, http.StatusOK, reply)
+	// TODO
 }
 
 // handleWrite is the request handler for the http v1 Write command.
@@ -146,7 +90,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify plugin exists
-	_, ok := p.plugins[cmd.PluginID]
+	_, ok := p.standard[cmd.PluginID]
 	if !ok {
 		util.RespondWithJSON(w, http.StatusOK,
 			v1.PluginReply{
@@ -158,7 +102,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Extract the session data from the request cookies
-	s, userID, err := p.extractSession(r)
+	s, err := p.extractSession(r)
 	if err != nil {
 		respondWithError(w, r,
 			"handleWrite: extractSession: %v", err)
@@ -168,11 +112,11 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	// Execute the plugin command
 	var (
 		pluginID      = cmd.PluginID
-		pluginSession = convertSession(s, cmd.PluginID)
+		pluginSession = convertSession(s)
 		pluginCmd     = convertCmdFromHTTP(cmd)
 	)
 	pluginReply, err := p.execWrite(r.Context(),
-		userID, pluginSession, pluginID, pluginCmd)
+		pluginSession, pluginID, pluginCmd)
 	if err != nil {
 		respondWithError(w, r,
 			"handleWrite: execWrite: %v", err)
@@ -195,7 +139,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 }
 
 // responseWithError checks the error type and responds with the appropriate
-// HTTP status body and response body.
+// HTTP error response.
 func respondWithError(w http.ResponseWriter, r *http.Request, format string, err error) {
 	// Check if the client dropped the connection
 	if err := r.Context().Err(); err == context.Canceled {
@@ -266,18 +210,4 @@ func convertReplyToHTTP(pluginID, cmd string, r plugin.Reply) v1.PluginReply {
 		Payload:  r.Payload,
 		Error:    r.Error,
 	}
-}
-
-func convertSession(s *sessions.Session, pluginID string) *plugin.Session {
-	// The interface{} session value needs
-	// to be type casted to a string.
-	var (
-		value        = s.Values[pluginID]
-		sessionValue string
-	)
-	if value != nil {
-		sessionValue = value.(string)
-	}
-
-	return plugin.NewSession(sessionValue)
 }

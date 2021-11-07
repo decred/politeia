@@ -23,6 +23,9 @@ On future requests, the encoded session ID is provided by the client in the
 request cookie. The caller uses Get() to decode the session ID and to lookup
 the session values from the database.
 
+Session values can be deleted from the database by saving the session with a
+MaxAge of <= 0.
+
 The key used to encode/decode the session ID and the session values is provided
 to the session store on initialization. Keys can be rotated by providing
 multiple keys on initialization.
