@@ -34,14 +34,14 @@ func (p *politeiawww) setupRoutes() {
 		// routes. The header token is only set on the version route.
 		addRoute(p.protected, http.MethodGet, "", "/", p.handleVersion)
 		addRoute(p.protected, http.MethodGet, v1.APIRoute,
-		  v1.RouteVersion, p.handleVersion)
+		  v1.VersionRoute, p.handleVersion)
 	*/
 
 	addRoute(p.protected, http.MethodPost, v1.APIRoute,
-		v1.RouteWrite, p.handleWrite)
+		v1.WriteRoute, p.handleWrite)
 }
 
-// handleVersion is the request handler for the http v1 Version command.
+// handleVersion is the request handler for the http v1 VersionRoute.
 func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
@@ -63,7 +63,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
-// handleWrite is the request handler for the http v1 Write command.
+// handleWrite is the request handler for the http v1 WriteRoute.
 func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleWrite")
 
@@ -128,7 +128,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleRead is the request handler for the http v1 Read command.
+// handleRead is the request handler for the http v1 ReadRoute.
 func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleRead")
 
@@ -193,7 +193,7 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleReadBatch is the request handler for the http v1 ReadBatch command.
+// handleReadBatch is the request handler for the http v1 ReadBatchRoute.
 func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleReadBatch")
 

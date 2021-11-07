@@ -13,7 +13,7 @@ const (
 	// APIRoute is prefixed onto all routes defined in this package.
 	APIRoute = "/v1"
 
-	// RouteVersion is a GET request route that returns the server version
+	// VersionRoute is a GET request route that returns the server version
 	// information and sets CSRF tokens for the client. The VersionReply can be
 	// retrieved from both the "/" route and the "/v1/version" route. This allows
 	// clients to be able to determine version information without needing to
@@ -25,33 +25,38 @@ const (
 	// use CSRF protected routes.
 	//
 	// This route returns a VersionReply.
-	RouteVersion = "/version"
+	VersionRoute = "/version"
 
-	// RouteWrite is a POST request route that executes a plugin write command.
+	// PolicyRoute is a GET request route that returs API policy information.
+	//
+	// This route returns a PolicyReply.
+	PolicyRoute = "/policy"
+
+	// WriteRoute is a POST request route that executes a plugin write command.
 	//
 	// This route is CSRF protected. Clients must obtain CSRF tokens from the
 	// Version route before they'll be able to use this route. A 403 is returned
 	// if the client attempts to use this route without the proper CSRF tokens.
 	//
 	// This route accepts a PluginCmd and returns a PluginReply.
-	RouteWrite = "/write"
+	WriteRoute = "/write"
 
-	// RouteRead is a POST request route that executes an individual plugin read
+	// ReadRoute is a POST request route that executes an individual plugin read
 	// command. This route is intended to be used for expensive plugin read
 	// commands that should not be batched due to their memory or performance
 	// requirements. This allows the sysadmin to set different rate limiting
 	// constrains for these expensive commands.
 	//
 	// This route accepts a PluginCmd and returns a PluginReply.
-	RouteRead = "/read"
+	ReadRoute = "/read"
 
-	// RouteReadBatch is a POST request route that executes a batch of plugin
+	// ReadBatchRoute is a POST request route that executes a batch of plugin
 	// read commands. This route is intended to be used for inexpensive plugin
 	// commands that will not cause performance issues during the execution of
 	// large batches.
 	//
 	// This route accepts a Batch and returns a BatchReply.
-	RouteReadBatch = "/readbatch"
+	ReadBatchRoute = "/readbatch"
 )
 
 const (
@@ -63,17 +68,18 @@ const (
 	SessionCookieName = "session"
 )
 
-// Version returns the server version information and the list of plugins that
-// the server is running. The client should verify compatibility with the
-// server version and plugins.
+// Version contains the GET request parameters for the VersionRoute. The
+// VersionRoute returns a VersionReply.
 //
-// This also sets sets CSRF tokens for clients using the double submit cookie
+// This route sets CSRF tokens for clients using the double submit cookie
 // technique. A token is set in a cookie and a token is set in a header.
-// Clients MUST make a successful Version call before they'll be able to use
-// CSRF protected routes.
+// Clients MUST make a successful Version call before they'll be able to
+// use CSRF protected routes.
 type Version struct{}
 
-// VersionReply is the reply to the Version route.
+// VersionReply is the reply for the VersionRoute. It contains the server
+// version information and the list of plugins that the server is running. The
+// client should verify compatibility with the server version and plugins.
 type VersionReply struct {
 	// APIVersion is the lowest supported API version.
 	APIVersion uint32 `json:"apiversion"`
@@ -84,6 +90,18 @@ type VersionReply struct {
 	// Plugins contains the plugin ID and lowest supported plugin verison for
 	// all registered plugins.
 	Plugins map[string]uint32 `json:"plugins"` // [pluginID]version
+}
+
+// Policy contains the GET request parameters for the PolicyRoute. The
+// PolicyRoute returns a PolicyReply.
+type Policy struct{}
+
+// PolicyReply is the reply for the PolicyRoute. It contains API policy
+// information.
+type PolicyReply struct {
+	// MaxReadBatch contains the maximum number of read plugin commands allowed
+	// in a batch request.
+	MaxReadBatch uint32 `json:"maxreadbatch"`
 }
 
 type PluginCmd struct {
