@@ -38,7 +38,7 @@ const (
 // politeiawww represents the politeiawww server.
 type politeiawww struct {
 	cfg       *config.Config
-	public    *mux.Router // Public router
+	router    *mux.Router // Unprotected router
 	protected *mux.Router // CSRF protected subrouter
 
 	// Database layer. The sql DB is used as the backing database for the
@@ -207,7 +207,7 @@ func _main() error {
 	// Setup application context
 	p := &politeiawww{
 		cfg:       cfg,
-		public:    router,
+		router:    router,
 		protected: protected,
 		politeiad: pdc,
 		events:    events.NewManager(),
@@ -242,7 +242,7 @@ func _main() error {
 				},
 			}
 			srv := &http.Server{
-				Handler:      p.public,
+				Handler:      p.router,
 				Addr:         listen,
 				ReadTimeout:  time.Duration(cfg.ReadTimeout) * time.Second,
 				WriteTimeout: time.Duration(cfg.WriteTimeout) * time.Second,

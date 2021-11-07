@@ -74,10 +74,11 @@ const (
 	defaultHTTPSKeyFilename  = "https.key"
 	defaultCookieKeyFilename = "cookie.key"
 
-	defaultReadTimeout        int64 = 5               // In seconds
-	defaultWriteTimeout       int64 = 60              // In seconds
-	defaultReqBodySizeLimit   int64 = 3 * 1024 * 1024 // 3 MiB
-	defaultWebsocketReadLimit int64 = 4 * 1024 * 1024 // 4 KiB
+	defaultReadTimeout        int64  = 5               // In seconds
+	defaultWriteTimeout       int64  = 60              // In seconds
+	defaultReqBodySizeLimit   int64  = 3 * 1024 * 1024 // 3 MiB
+	defaultWebsocketReadLimit int64  = 4 * 1024 * 1024 // 4 KiB
+	defaultPluginBatchLimit   uint32 = 20
 
 	// politeiad RPC settings
 	defaultRPCHost          = "localhost"
@@ -128,6 +129,7 @@ type Config struct {
 	WriteTimeout       int64    `long:"writetimeout" description:"Maximum duration in seconds that a request connection is kept open"`
 	ReqBodySizeLimit   int64    `long:"reqbodysizelimit" description:"Maximum number of bytes allowed in a request body submitted by a client"`
 	WebsocketReadLimit int64    `long:"websocketreadlimit" description:"Maximum number of bytes allowed for a message read from a websocket client"`
+	PluginBatchLimit   uint32   `long:"pluginbatchlimit" description:"Maximum number of plugins command allowed in a batch request."`
 
 	// politeiad RPC settings
 	RPCHost         string `long:"rpchost" description:"politeiad host <host>:<port>"`
@@ -198,6 +200,7 @@ func Load() (*Config, []string, error) {
 		WriteTimeout:       defaultWriteTimeout,
 		ReqBodySizeLimit:   defaultReqBodySizeLimit,
 		WebsocketReadLimit: defaultWebsocketReadLimit,
+		PluginBatchLimit:   defaultPluginBatchLimit,
 
 		// User database settings
 		UserDB: LevelDB,

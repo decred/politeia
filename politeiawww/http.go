@@ -37,30 +37,48 @@ func (p *politeiawww) setupRoutes() {
 		  v1.VersionRoute, p.handleVersion)
 	*/
 
+	// CSRF protected routes
 	addRoute(p.protected, http.MethodPost, v1.APIRoute,
 		v1.WriteRoute, p.handleWrite)
+
+	// Unprotected routes
+	addRoute(p.router, http.MethodGet, v1.APIRoute,
+		v1.PolicyRoute, p.handlePolicy)
+	addRoute(p.router, http.MethodPost, v1.APIRoute,
+		v1.ReadRoute, p.handleRead)
+	addRoute(p.router, http.MethodPost, v1.APIRoute,
+		v1.ReadBatchRoute, p.handleReadBatch)
 }
 
 // handleVersion is the request handler for the http v1 VersionRoute.
 func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
+	// Set the CSRF header. This is the only route
+	// that sets the CSRF header.
+	w.Header().Set(v1.CSRFTokenHeader, csrf.Token(r))
+
 	plugins := make(map[string]uint32, len(p.plugins))
 	for _, plugin := range p.plugins {
 		plugins[plugin.ID()] = plugin.Version()
 	}
 
-	vr := v1.VersionReply{
-		APIVersion:   v1.APIVersion,
-		BuildVersion: version.String(),
-		Plugins:      plugins,
-	}
+	util.RespondWithJSON(w, http.StatusOK,
+		v1.VersionReply{
+			APIVersion:   v1.APIVersion,
+			BuildVersion: version.String(),
+			Plugins:      plugins,
+		})
+}
 
-	// Set the CSRF header. This is the only route
-	// that sets the CSRF header.
-	w.Header().Set(v1.CSRFTokenHeader, csrf.Token(r))
+// handlePolicy is the request handler for the http v1 PolicyRoute.
+func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handlePolicy")
 
-	util.RespondWithJSON(w, http.StatusOK, vr)
+	util.RespondWithJSON(w, http.StatusOK,
+		v1.PolicyReply{
+			ReadBatchLimit: p.cfg.PluginBatchLimit,
+		})
 }
 
 // handleWrite is the request handler for the http v1 WriteRoute.
@@ -120,7 +138,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	err = p.saveUserSession(r, w, s, pluginSession)
 	if err != nil {
 		// The plugin command has already been executed.
-		// Handled the error gracefully. Log it and continue.
+		// Handled the error gracefully.
 		log.Errorf("handleWrite: saveSession: %v", err)
 	}
 
@@ -184,8 +202,8 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	// Save any updates that were made to the user session
 	err = p.saveUserSession(r, w, s, pluginSession)
 	if err != nil {
-		// The plugin command has already been executed. Handle
-		// the error gracefully. Log it and continue.
+		// The plugin command has already been executed.
+		// Handle the error gracefully.
 		log.Errorf("handleRead: saveSession: %v", err)
 	}
 
@@ -250,7 +268,7 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 	err = p.saveUserSession(r, w, s, pluginSession)
 	if err != nil {
 		// The plugin command has already been executed. Handle
-		// the error gracefully. Log it and continue.
+		// the error gracefully.
 		log.Errorf("handleReadBatch: saveSession: %v", err)
 	}
 

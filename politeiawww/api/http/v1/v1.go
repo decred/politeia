@@ -27,7 +27,7 @@ const (
 	// This route returns a VersionReply.
 	VersionRoute = "/version"
 
-	// PolicyRoute is a GET request route that returs API policy information.
+	// PolicyRoute is a GET request route that returns API policy information.
 	//
 	// This route returns a PolicyReply.
 	PolicyRoute = "/policy"
@@ -99,9 +99,9 @@ type Policy struct{}
 // PolicyReply is the reply for the PolicyRoute. It contains API policy
 // information.
 type PolicyReply struct {
-	// MaxReadBatch contains the maximum number of read plugin commands allowed
-	// in a batch request.
-	MaxReadBatch uint32 `json:"maxreadbatch"`
+	// ReadBatchLimit contains the maximum number of plugin commands allowed in
+	// a read batch request.
+	ReadBatchLimit uint32 `json:"readbatchlimit"`
 }
 
 type PluginCmd struct {
