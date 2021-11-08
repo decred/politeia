@@ -53,10 +53,12 @@ const FileContents = `[Application Options]
 ;
 ; $ gencerts ~/.politeiavoter/client{,-key}.pem
 ;
-; The 'client.pem' must then be appened onto '~/.dcrwallet/clients.pem'.
-; NOTE: dcrwallet looks for the file called clients.pem (plural).
+; The 'client.pem' must then be appened onto '~/.dcrwallet/clients.pem'. This
+; can be done using the following command:
 ;
-: $ cat ~/.politeiavoter/client.pem >> ~/.dcrwallet/clients.pem
+; $ cat ~/.politeiavoter/client.pem >> ~/.dcrwallet/clients.pem
+;
+; NOTE: dcrwallet looks for the file called clients.pem (plural).
 clientcert=~/.politeiavoter/client.pem
 clientkey=~/.politeiavoter/client-key.pem
 
