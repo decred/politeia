@@ -43,10 +43,8 @@ const FileContents = `[Application Options]
 ; call are run over GRPC and require the wallet GRPC certificate and wallet
 ; password.
 ; wallethost=localhost
-; walletgrpccert=
+; walletgrpccert=~/.dcrwallet/rpc.cert
 ; walletpassphrase=
-; clientcert=client.pem
-; clientkey=client-key.pem
 
 ; Client certificates are required to communicate with dcrwallet. Generate a
 ; client certificate key using the gencerts utility that is provided by dcrd. For
@@ -55,8 +53,8 @@ const FileContents = `[Application Options]
 ; Then append 'client.pem' to '~.dcrwallet/clients.pem'. NOTE: the wallet looks
 ; for the file called clients (plural).
 
-clientcert=client.pem
-clientkey=client-key.pem
+clientcert=~/.politeiavoter/client.pem
+clientkey=~/.politeiavoter/client-key.pem
 
 
 ; ------------------------------------------------------------------------------
