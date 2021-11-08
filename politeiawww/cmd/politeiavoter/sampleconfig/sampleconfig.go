@@ -59,8 +59,8 @@ const FileContents = `[Application Options]
 ; $ cat ~/.politeiavoter/client.pem >> ~/.dcrwallet/clients.pem
 ;
 ; NOTE: dcrwallet looks for the file called clients.pem (plural).
-clientcert=~/.politeiavoter/client.pem
-clientkey=~/.politeiavoter/client-key.pem
+; clientcert=~/.politeiavoter/client.pem
+; clientkey=~/.politeiavoter/client-key.pem
 
 
 ; ------------------------------------------------------------------------------
