@@ -32,6 +32,17 @@ const (
 	// This route returns a PolicyReply.
 	PolicyRoute = "/policy"
 
+	// NewUserRoute is a POST request route that executes a plugin command that
+	// creates a new user. This is the only route that can be used for plugin
+	// commands that result in a new user being created.
+	//
+	// This route is CSRF protected. Clients must obtain CSRF tokens from the
+	// Version route before they'll be able to use this route. A 403 is returned
+	// if the client attempts to use this route without the proper CSRF tokens.
+	//
+	// This route accepts a PluginCmd and returns a PluginReply.
+	NewUserRoute = "/newuser"
+
 	// WriteRoute is a POST request route that executes a plugin write command.
 	//
 	// This route is CSRF protected. Clients must obtain CSRF tokens from the
@@ -87,8 +98,8 @@ type VersionReply struct {
 	// BuildVersion is the sematic version of the server build.
 	BuildVersion string `json:"buildversion"`
 
-	// Plugins contains the plugin ID and lowest supported plugin verison for
-	// all registered plugins.
+	// Plugins contains the plugin ID and lowest supported plugin API verison
+	// for all registered plugins.
 	Plugins map[string]uint32 `json:"plugins"` // [pluginID]version
 }
 
@@ -154,6 +165,10 @@ const (
 	// ErrorCodePluginNotFound is returned when a plugin ID is provided that
 	// does not correspond to a registered plugin.
 	ErrorCodePluginNotFound ErrorCodeT = 2
+
+	// ErrorCodePluginNotAuthorized is returned when a plugin is attempting to
+	// execute a command using a route that it is not authorized to use.
+	ErrorCodePluginNotAuthorized ErrorCodeT = 3
 )
 
 var (

@@ -54,10 +54,17 @@ type politeiawww struct {
 	// plugins contains all registered plugins.
 	plugins map[string]plugin.Plugin // [pluginID]plugin
 
-	// auth is the plugin that handles user authorization. An auth plugin MUST
-	// be specified in the configuration if the user layer is enabled. User
-	// authorization is verified prior to the execution of all plugin commands.
-	auth plugin.Authorizer
+	// userPlugin is the plugin that handles plugin commands that result in user
+	// database state changes that plugins do not normally have access to.
+	// Example, inserting a new user into the database. A user plugin MUST be
+	// specified in the config if the user layer is enabled.
+	userPlugin plugin.UserManager
+
+	// authPlugin is the plugin that handles user account creation and user
+	// authorization. An auth plugin MUST be specified in the config if the user
+	// layer is enabled. User authorization is verified prior to the execution of
+	// all plugin commands.
+	authPlugin plugin.Authorizer
 
 	// Legacy fields
 	politeiad *pdclient.Client

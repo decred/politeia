@@ -23,6 +23,9 @@ type Plugin interface {
 	// Version returns the lowest supported plugin API version.
 	Version() uint32
 
+	// SetPermission sets the permission level for a command.
+	SetPermission(cmd, permissionLevel string)
+
 	// Permissions returns the user permissions for each plugin commands. These
 	// are provided to the AuthPlugin on startup. The AuthPlugin handles user
 	// authorization at runtime.
@@ -32,6 +35,7 @@ type Plugin interface {
 	Hook(HookT, Cmd, *User) error
 
 	// HookTx executes a plugin hook using a database transaction.
+	// TODO this needs the plugin ID
 	HookTx(*sql.Tx, HookT, Cmd, *User) error
 
 	// WriteTx executes a write plugin command using a database transaction.
@@ -44,9 +48,35 @@ type Plugin interface {
 	ReadTx(*sql.Tx, Cmd, *User) (*Reply, error)
 }
 
+// UserManager provides methods that result in state changes to the user
+// database that cannot be done inside of plugins.
+//
+// For example, plugins do not have access to the user database methods that
+// insert or delete users from the database. These actions must be done by the
+// caller, but plugins may want to add plugin specific validation onto these
+// actions.
+//
+// Any changes made to the User during method execution will be persisted by
+// the caller.
+type UserManager interface {
+	// ID returns the plugin ID.
+	ID() string
+
+	// Version returns the lowest supported plugin API version.
+	Version() uint32
+
+	// NewUserCmd executes a command that results in a new user being added to
+	// the database. The user provided to this method is a newly created user
+	// that has not been inserted into the user database yet and will only be
+	// inserted if the command executes successfully without any user errors or
+	// unexpected errors.
+	NewUserCmd(*sql.Tx, Cmd, *User) (*Reply, error)
+}
+
 // Authorizer provides user authorization for plugin commands.
 //
-// Changes made to the Session and User will be persisted by the caller.
+// Any changes made to the Session or User during method execution will be
+// persisted by the caller.
 type Authorizer interface {
 	// ID returns the plugin ID.
 	ID() string
@@ -54,6 +84,8 @@ type Authorizer interface {
 	// Version returns the lowest supported plugin API version.
 	Version() uint32
 
+	// Authorize checks if the user is authorized to execute a plugin command.
+	// A UserError is returned if the user is not authorized.
 	Authorize(s *Session, u *User, pluginID, cmd string) error
 }
 
@@ -127,9 +159,11 @@ type Session struct {
 type HookT string
 
 const (
-	HookInvalid   HookT = "invalid"
-	HookPreWrite  HookT = "pre-write"
-	HookPostWrite HookT = "post-write"
+	HookInvalid     HookT = "invalid"
+	HookPreNewUser  HookT = "pre-new-user"
+	HookPostNewUser HookT = "post-new-user"
+	HookPreWrite    HookT = "pre-write"
+	HookPostWrite   HookT = "post-write"
 )
 
 // UserError is the reply that is returned when a plugin command encounters an

@@ -37,10 +37,6 @@ func (p *politeiawww) setupRoutes() {
 		  v1.VersionRoute, p.handleVersion)
 	*/
 
-	// CSRF protected routes
-	addRoute(p.protected, http.MethodPost, v1.APIRoute,
-		v1.WriteRoute, p.handleWrite)
-
 	// Unprotected routes
 	addRoute(p.router, http.MethodGet, v1.APIRoute,
 		v1.PolicyRoute, p.handlePolicy)
@@ -48,6 +44,12 @@ func (p *politeiawww) setupRoutes() {
 		v1.ReadRoute, p.handleRead)
 	addRoute(p.router, http.MethodPost, v1.APIRoute,
 		v1.ReadBatchRoute, p.handleReadBatch)
+
+	// CSRF protected routes
+	addRoute(p.protected, http.MethodPost, v1.APIRoute,
+		v1.NewUserRoute, p.handleNewUser)
+	addRoute(p.protected, http.MethodPost, v1.APIRoute,
+		v1.WriteRoute, p.handleWrite)
 }
 
 // handleVersion is the request handler for the http v1 VersionRoute.
@@ -79,6 +81,70 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		v1.PolicyReply{
 			ReadBatchLimit: p.cfg.PluginBatchLimit,
 		})
+}
+
+// handleNewUser is the request handler for the http v1 NewUserRoute.
+func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleNewUser")
+
+	// Decode the request body
+	var cmd v1.PluginCmd
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cmd); err != nil {
+		util.RespondWithJSON(w, http.StatusOK,
+			v1.PluginReply{
+				Error: v1.UserError{
+					ErrorCode: v1.ErrorCodeInvalidInput,
+				},
+			})
+		return
+	}
+
+	// Verify the plugin is the user plugin
+	if p.userPlugin.ID() != cmd.PluginID {
+		util.RespondWithJSON(w, http.StatusOK,
+			v1.PluginReply{
+				Error: v1.UserError{
+					ErrorCode: v1.ErrorCodePluginNotAuthorized,
+				},
+			})
+		return
+	}
+
+	// Extract the session data from the request cookies
+	s, err := p.extractSession(r)
+	if err != nil {
+		respondWithError(w, r,
+			"handleNewUser: extractSession: %v", err)
+		return
+	}
+
+	// Execute the plugin command
+	var (
+		pluginID      = cmd.PluginID
+		pluginSession = convertSession(s)
+		pluginCmd     = convertCmdFromHTTP(cmd)
+	)
+	pluginReply, err := p.execNewUser(r.Context(),
+		pluginSession, pluginID, pluginCmd)
+	if err != nil {
+		respondWithError(w, r,
+			"handleNewUser: execNewUser: %v", err)
+		return
+	}
+
+	reply := convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
+
+	// Save any updates that were made to the user session
+	err = p.saveUserSession(r, w, s, pluginSession)
+	if err != nil {
+		// The plugin command has already been executed.
+		// Handled the error gracefully.
+		log.Errorf("handleNewUser: saveSession: %v", err)
+	}
+
+	// Send the response
+	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
 // handleWrite is the request handler for the http v1 WriteRoute.

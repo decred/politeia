@@ -22,7 +22,7 @@ type PluginData struct {
 }
 
 type DB interface {
-	Insert(User) error
+	InsertTx(*sql.Tx, User) error
 
 	UpdateTx(*sql.Tx, User) error
 

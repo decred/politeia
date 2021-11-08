@@ -11,8 +11,89 @@ import (
 
 	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
 	"github.com/decred/politeia/politeiawww/user"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
+
+// execNewUser executes a plugin command that writes data.
+//
+// Any updates made to the session will be persisted by the caller.
+//
+// This function assumes the caller has verified that the plugin command is
+// for the user plugin.
+func (p *politeiawww) execNewUser(ctx context.Context, session *plugin.Session, pluginID string, cmd plugin.Cmd) (*plugin.Reply, error) {
+	log.Tracef("execNewUser: %v %v %v", pluginID, cmd.Cmd, session.UserID)
+
+	// Setup the database transaction
+	tx, cancel, err := p.beginTx()
+	if err != nil {
+		return nil, err
+	}
+	defer cancel()
+
+	// Setup a new user
+	usr := &user.User{
+		ID:      uuid.New(),
+		Plugins: make(map[string]user.PluginData, 64),
+	}
+
+	// Verify that the session user, if one exists, is authorized
+	// to execute this plugin command.
+	reply, err := p.authorize(session, usr, pluginID, cmd.Cmd)
+	if err != nil {
+		return nil, err
+	}
+	if reply != nil {
+		return reply, nil
+	}
+
+	// Execute the pre plugin hooks
+	reply, err = p.execPreHooks(tx, plugin.HookPreNewUser, cmd, usr)
+	if err != nil {
+		return nil, err
+	}
+	if reply != nil {
+		return reply, nil
+	}
+
+	// Execute the new user plugin command
+	pluginUser := convertUser(usr, pluginID)
+	reply, err = p.userPlugin.NewUserCmd(tx, cmd, pluginUser)
+	if err != nil {
+		return nil, err
+	}
+	if reply.Error != nil {
+		// The plugin command encountered
+		// a user error. Return it.
+		return reply, nil
+	}
+	updateUser(usr, pluginUser, pluginID)
+
+	// Execute the post plugin hooks
+	err = p.execPostHooks(tx, plugin.HookPostNewUser, cmd, usr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Insert the user into the database
+	err = p.userDB.InsertTx(tx, *usr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Commit the database transaction
+	err = tx.Commit()
+	if err != nil {
+		// Attempt to roll back the transaction
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Sprintf("commit err: %v, rollback err: %v", err, err2))
+		}
+		return nil, err
+	}
+
+	return reply, nil
+}
 
 // execWrite executes a plugin command that writes data.
 //
@@ -161,8 +242,8 @@ func (p *politeiawww) execRead(ctx context.Context, session *plugin.Session, plu
 }
 
 func (p *politeiawww) authorize(s *plugin.Session, u *user.User, pluginID, cmd string) (*plugin.Reply, error) {
-	pluginUser := convertUser(u, p.auth.ID())
-	err := p.auth.Authorize(s, pluginUser, pluginID, cmd)
+	pluginUser := convertUser(u, p.authPlugin.ID())
+	err := p.authPlugin.Authorize(s, pluginUser, pluginID, cmd)
 	if err != nil {
 		var ue plugin.UserError
 		if errors.As(err, &ue) {
