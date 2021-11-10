@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	// Import command default flag values
+	// Default command settings
 	defaultTlogHost = "localhost:8090"
 	defaultTlogPass = "tlogpass"
 	defaultDBType   = "mysql"
@@ -155,8 +155,3 @@ func fsckProposal() {}
 func updateProposalWithTstoreToken(p *proposal, tstoreToken string) {}
 
 func updateRFPSubmissionWithRFPTstoreToken(submission *proposal, tstoreRFPToken string) {}
-
-// proposalPath returns the file path for a proposal in the legacy directory.
-func proposalPath(legacyDir, gitToken string) string {
-	return filepath.Join(legacyDir, gitToken+".json")
-}

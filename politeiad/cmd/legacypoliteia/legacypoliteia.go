@@ -14,6 +14,10 @@ const (
 	// Command names. See the usage.go file for details on command usage.
 	convertCmdName = "convert"
 	importCmdName  = "import"
+
+	// filePermissions is the file permissions that are used for all directory
+	// and file creation in this tool.
+	filePermissions = 0644
 )
 
 func _main() error {

@@ -35,7 +35,7 @@ func saveRFPTokens(legacyDir string, r rfpTokens) error {
 		return err
 	}
 	fp := rfpTokensPath(legacyDir)
-	return ioutil.WriteFile(fp, b, 0644)
+	return ioutil.WriteFile(fp, b, filePermissions)
 }
 
 // loadRFPTokens loads the rfpTokens from disk.

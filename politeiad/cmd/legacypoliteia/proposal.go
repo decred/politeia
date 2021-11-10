@@ -5,6 +5,10 @@
 package main
 
 import (
+	"encoding/json"
+	"io/ioutil"
+	"path/filepath"
+
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
@@ -34,6 +38,36 @@ type proposal struct {
 	CommentAdds  []comments.CommentAdd
 	CommentDels  []comments.CommentDel
 	CommentVotes []comments.CommentVote
+}
+
+// saveProposal saves the provided proposal to disk.
+func saveProposal(legacyDir string, p *proposal) error {
+	fp := proposalPath(legacyDir, p.ProposalMetadata.LegacyToken)
+	b, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(fp, b, filePermissions)
+}
+
+// loadProposal loads a proposal from disk.
+func loadProposal(legacyDir, gitToken string) (*proposal, error) {
+	fp := proposalPath(legacyDir, gitToken)
+	b, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return nil, err
+	}
+	var p proposal
+	err = json.Unmarshal(b, &p)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+// proposalPath returns the file path for a proposal in the legacy directory.
+func proposalPath(legacyDir, gitToken string) string {
+	return filepath.Join(legacyDir, gitToken+".json")
 }
 
 // voteCollider is an internal ticketvote plugin type that is not exported, so
