@@ -283,6 +283,9 @@ type ProposalMetadata struct {
 	StartDate int64  `json:"startdate"` // Start date, Unix time
 	EndDate   int64  `json:"enddate"`   // Estimated end date, Unix time
 	Domain    string `json:"domain"`    // Proposal domain
+
+	// TODO this is temporary and should be done in a separate PR.
+	LegacyToken string `json:"legacytoken"`
 }
 
 // BillingStatusT represents the billing status of a proposal that has been

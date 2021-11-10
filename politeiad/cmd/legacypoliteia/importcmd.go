@@ -155,3 +155,8 @@ func fsckProposal() {}
 func updateProposalWithTstoreToken(p *proposal, tstoreToken string) {}
 
 func updateRFPSubmissionWithRFPTstoreToken(submission *proposal, tstoreRFPToken string) {}
+
+// proposalPath returns the file path for a proposal in the legacy directory.
+func proposalPath(legacyDir, gitToken string) string {
+	return filepath.Join(legacyDir, gitToken+".json")
+}

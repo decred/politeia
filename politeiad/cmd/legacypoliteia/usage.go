@@ -12,17 +12,17 @@ Commands
 
 Command Usage
 
-  $ legacypoliteia convert <legacyDir>
+  $ legacypoliteia convert <gitRepo>
 
     The convert command parses a legacy git repo, converts the data into types
     supported by the tstore backend, then writes the converted JSON data to
     disk. This data can be imported into tstore using the 'import' command.
 
     Arguments
-    1. legacyDir   (string) Path to the legacy git repo.
+    1. gitRepo     (string) Path to the legacy git repo.
 
     Flags
-    --writedir     (string) Path to direcory that the JSON data will be written
+    --legacydir    (string) Path to direcory that the JSON data will be written
                             to. The directory does not need to exist.
                             (default: ./legacy-politeia-data)
     --skipcomments (bool)   Skip parsing the comment journals. (default: false)

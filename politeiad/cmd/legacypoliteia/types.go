@@ -34,10 +34,6 @@ type proposal struct {
 	CommentAdds  []comments.CommentAdd
 	CommentDels  []comments.CommentDel
 	CommentVotes []comments.CommentVote
-
-	// LegacyToken is the git backend token for the proposal. The tstore backend
-	// will use it's own, different token.
-	LegacyToken string `json:"legacytoken"`
 }
 
 // voteCollider is an internal ticketvote plugin type that is not exported, so

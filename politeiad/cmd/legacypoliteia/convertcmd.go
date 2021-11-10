@@ -9,6 +9,10 @@ import (
 	"fmt"
 )
 
+const (
+	defaultLegacyDir = "./legacy-politeia-data"
+)
+
 func execConvertCmd(args []string) error {
 	return nil
 }
