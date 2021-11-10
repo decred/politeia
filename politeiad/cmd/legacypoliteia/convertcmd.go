@@ -5,14 +5,10 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 
-	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/plugins/pi"
-	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 )
@@ -62,10 +58,10 @@ func execConvertCmd(args []string) error {
 		return fmt.Errorf("git repo not found: %v", gitRepo)
 	}
 
-	// Clean legacy directory path
+	// Clean the legacy directory path
 	*legacyDir = util.CleanAndExpandPath(*legacyDir)
 
-	// Verify user ID
+	// Verify the user ID
 	if *userID != "" {
 		_, err = uuid.Parse(*userID)
 		if err != nil {
@@ -79,8 +75,8 @@ func execConvertCmd(args []string) error {
 		return err
 	}
 
-	// Setup cmd context
-	cmd := convertCmd{
+	// Setup the cmd context
+	c := convertCmd{
 		gitRepo:      gitRepo,
 		legacyDir:    *legacyDir,
 		skipComments: *skipComments,
@@ -90,7 +86,7 @@ func execConvertCmd(args []string) error {
 	}
 
 	// Convert the git proposals
-	return cmd.convertGitProposals()
+	return c.convertGitProposals()
 }
 
 // convertGitProposals converts the git proposals to tstore proposals, saving
@@ -109,22 +105,65 @@ func (c *convertCmd) convertGitProposals() error {
 	for token := range tokens {
 		fmt.Printf("Converting %v (%v/%v)\n", token, count, len(tokens))
 
-		// Setup proposal
-		p := proposal{
-			RecordMetadata:   backend.RecordMetadata{},
-			Files:            nil,
-			Metadata:         nil,
-			ProposalMetadata: pi.ProposalMetadata{},
-			StatusChanges:    nil,
-			VoteMetadata:     ticketvote.VoteMetadata{},
-			AuthDetails:      ticketvote.AuthDetails{},
-			VoteDetails:      ticketvote.VoteDetails{},
-			CommentAdds:      nil,
-			CommentDels:      nil,
-			CommentVotes:     nil,
+		// Convert git backend types to tstore backend types
+		recordMD, err := convertRecordMetadata(c.gitRepo, token)
+		if err != nil {
+			return err
+		}
+		files, err := convertFiles(c.gitRepo, token)
+		if err != nil {
+			return err
+		}
+		metadata, err := convertMetadataStreams(c.gitRepo, token)
+		if err != nil {
+			return err
+		}
+		proposalMD, err := convertProposalMetadata(c.gitRepo, token)
+		if err != nil {
+			return err
+		}
+		statusChanges, err := convertStatusChanges(c.gitRepo, token)
+		if err != nil {
+			return err
+		}
+		voteMD, err := convertVoteMetadata(c.gitRepo, token)
+		if err != nil {
+			return err
+		}
+		authDetails, err := convertAuthDetails(c.gitRepo, token)
+		if err != nil {
+			return err
+		}
+		voteDetails, err := convertVoteDetails(c.gitRepo, token)
+		if err != nil {
+			return err
+		}
+		castVotes, err := convertCastVotes(c.gitRepo, token)
+		if err != nil {
+			return err
+		}
+		commentData, err := convertComments(c.gitRepo, token)
+		if err != nil {
+			return err
 		}
 
-		// Save proposal
+		// Build the proposal
+		p := proposal{
+			RecordMetadata:   *recordMD,
+			Files:            files,
+			Metadata:         metadata,
+			ProposalMetadata: *proposalMD,
+			StatusChanges:    statusChanges,
+			VoteMetadata:     voteMD,
+			AuthDetails:      authDetails,
+			VoteDetails:      voteDetails,
+			CastVotes:        castVotes,
+			CommentAdds:      commentData.Adds,
+			CommentDels:      commentData.Dels,
+			CommentVotes:     commentData.Votes,
+		}
+
+		// Save the proposal to disk
 		err = saveProposal(c.legacyDir, &p)
 		if err != nil {
 			return err
@@ -134,20 +173,4 @@ func (c *convertCmd) convertGitProposals() error {
 	}
 
 	return nil
-}
-
-// decodeVersion returns the version field from the provided JSON payload. This
-// function should only be used when the payload contains a single struct with
-// a "version" field.
-func decodeVersion(payload []byte) (uint, error) {
-	data := make(map[string]interface{}, 32)
-	err := json.Unmarshal(payload, &data)
-	if err != nil {
-		return 0, err
-	}
-	version := uint(data["version"].(float64))
-	if version == 0 {
-		return 0, fmt.Errorf("version not found")
-	}
-	return version, nil
 }

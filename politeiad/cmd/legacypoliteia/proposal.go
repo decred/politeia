@@ -28,13 +28,14 @@ type proposal struct {
 	// usermd plugin
 	StatusChanges []usermd.StatusChangeMetadata
 
-	// ticketvote plugin
-	VoteMetadata ticketvote.VoteMetadata
-	AuthDetails  ticketvote.AuthDetails
-	VoteDetails  ticketvote.VoteDetails
+	// ticketvote plugin. These fields may be nil depending on the proposal,
+	// i.e. abandoned proposals will not have ticketvote data.
+	VoteMetadata *ticketvote.VoteMetadata
+	AuthDetails  *ticketvote.AuthDetails
+	VoteDetails  *ticketvote.VoteDetails
 	CastVotes    []ticketvote.CastVoteDetails
 
-	// comments plugin
+	// comments plugin. These fields may be nil depeneding on the proposal.
 	CommentAdds  []comments.CommentAdd
 	CommentDels  []comments.CommentDel
 	CommentVotes []comments.CommentVote
