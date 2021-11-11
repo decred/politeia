@@ -19,6 +19,7 @@ import (
 TODO
 -[ ] Handle standard proposal
 -[ ] Handle dup cast votes and comments
+-[ ] Pull user IDs from prod by pubkey and hardcode
 -[ ] Handle RFPs
 */
 

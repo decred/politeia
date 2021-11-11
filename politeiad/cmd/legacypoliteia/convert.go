@@ -107,15 +107,6 @@ func convertFiles(proposalDir string) ([]backend.File, error) {
 	return files, nil
 }
 
-func newFile(payload []byte, fileName string) backend.File {
-	return backend.File{
-		Name:    fileName,
-		MIME:    http.DetectContentType(payload),
-		Digest:  hex.EncodeToString(util.Digest(payload)),
-		Payload: base64.StdEncoding.EncodeToString(payload),
-	}
-}
-
 // convertProposalMetadata reads the git backend data from disk that is
 // required to build a pi plugin ProposalMetadata structure, then returns the
 // ProposalMetadata.
@@ -150,15 +141,43 @@ func convertProposalMetadata(proposalDir string) (*pi.ProposalMetadata, error) {
 	}, nil
 }
 
-func convertUserMetadata(proposalDir string) (*usermd.UserMetadata, error) {
-	return &usermd.UserMetadata{}, nil
-}
-
-func convertStatusChanges(proposalDir string) ([]usermd.StatusChangeMetadata, error) {
+// TODO skip for now. Add when we're ready to add RFP proposals and
+// submissions.
+func convertVoteMetadata(proposalDir string) (*ticketvote.VoteMetadata, error) {
 	return nil, nil
 }
 
-func convertVoteMetadata(proposalDir string) (*ticketvote.VoteMetadata, error) {
+func convertUserMetadata(proposalDir string) (*usermd.UserMetadata, error) {
+	fmt.Printf("  User metadata\n")
+
+	// Read the proposal general mdstrea from disk
+	fp := proposalGeneralPath(proposalDir)
+	b, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return nil, err
+	}
+
+	// We can decode both the v1 and v2 proposal general
+	// metadata stream into the ProposalGeneralV2 struct
+	// since the fields we need from it are present in
+	// both versions.
+	var p gitbe.ProposalGeneralV2
+	err = json.Unmarshal(b, &p)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("    PublicKey: %v\n", p.PublicKey)
+	fmt.Printf("    Signature: %v\n", p.Signature)
+
+	return &usermd.UserMetadata{
+		UserID:    "", // TODO pull user ID from prod using pubkey
+		PublicKey: p.PublicKey,
+		Signature: p.Signature,
+	}, nil
+}
+
+func convertStatusChanges(proposalDir string) ([]usermd.StatusChangeMetadata, error) {
 	return nil, nil
 }
 
@@ -217,6 +236,10 @@ func attachmentFilePath(proposalDir, attachmentFilename string) string {
 	return filepath.Join(payloadDirPath(proposalDir), attachmentFilename)
 }
 
+func proposalGeneralPath(proposalDir string) string {
+	return filepath.Join(proposalDir, gitbe.MDStreamProposalGeneral)
+}
+
 // parseProposalName parses and returns the proposal name from the proposal
 // index file.
 func parseProposalName(proposalDir string) (string, error) {
@@ -253,4 +276,14 @@ func decodeVersion(payload []byte) (uint, error) {
 		return 0, fmt.Errorf("version not found")
 	}
 	return version, nil
+}
+
+// newFile returns a new backend file.
+func newFile(payload []byte, fileName string) backend.File {
+	return backend.File{
+		Name:    fileName,
+		MIME:    http.DetectContentType(payload),
+		Digest:  hex.EncodeToString(util.Digest(payload)),
+		Payload: base64.StdEncoding.EncodeToString(payload),
+	}
 }
