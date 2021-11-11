@@ -56,34 +56,9 @@ func convertRecordMetadata(proposalDir string) (*backend.RecordMetadata, error) 
 	}, nil
 }
 
-func recordMetadataPath(proposalDir string) string {
-	return filepath.Join(proposalDir, gitbe.RecordMetadataFilename)
-}
-
-func convertMDStatus(s gitbe.MDStatusT) backend.StatusT {
-	switch s {
-	case gitbe.MDStatusUnvetted:
-		return backend.StatusUnreviewed
-	case gitbe.MDStatusVetted:
-		return backend.StatusPublic
-	case gitbe.MDStatusCensored:
-		return backend.StatusCensored
-	case gitbe.MDStatusIterationUnvetted:
-		return backend.StatusUnreviewed
-	case gitbe.MDStatusArchived:
-		return backend.StatusArchived
-	default:
-		panic(fmt.Sprintf("invalid md status %v", s))
-	}
-}
-
 // convertFiles reads all of the git backend files from disk for the provided
 // proposal and converts them to tstore backend files.
 func convertFiles(proposalDir string) ([]backend.File, error) {
-	return nil, nil
-}
-
-func convertMetadataStreams(proposalDir string) ([]backend.MetadataStream, error) {
 	return nil, nil
 }
 
@@ -102,7 +77,8 @@ func convertProposalMetadata(proposalDir string) (*pi.ProposalMetadata, error) {
 
 	fmt.Printf("  Name: %v\n", name)
 
-	// Get the legacy token from the proposal directory path
+	// Get the legacy token from the proposal
+	// directory path.
 	token, ok := gitProposalToken(proposalDir)
 	if !ok {
 		return nil, fmt.Errorf("token not found in path '%v'", proposalDir)
@@ -118,32 +94,8 @@ func convertProposalMetadata(proposalDir string) (*pi.ProposalMetadata, error) {
 	}, nil
 }
 
-// parseProposalName parses and returns the proposal name from the proposal
-// index file.
-func parseProposalName(proposalDir string) (string, error) {
-	// Read the index file from disk
-	fp := indexFilePath(proposalDir)
-	b, err := ioutil.ReadFile(fp)
-	if err != nil {
-		return "", err
-	}
-
-	// Parse the proposal name from the index file. The
-	// proposal name will always be the first line of the
-	// file.
-	r := bufio.NewReader(bytes.NewReader(b))
-	name, _, err := r.ReadLine()
-	if err != nil {
-		return "", err
-	}
-
-	return string(name), nil
-}
-
-// indexFilePath returns the path to the proposal index file.
-func indexFilePath(proposalDir string) string {
-	return filepath.Join(proposalDir,
-		gitbe.RecordPayloadPath, gitbe.IndexFilename)
+func convertUserMetadata(proposalDir string) (*usermd.UserMetadata, error) {
+	return &usermd.UserMetadata{}, nil
 }
 
 func convertStatusChanges(proposalDir string) ([]usermd.StatusChangeMetadata, error) {
@@ -174,6 +126,55 @@ type commentTypes struct {
 
 func convertComments(proposalDir string) (*commentTypes, error) {
 	return &commentTypes{}, nil
+}
+
+func convertMDStatus(s gitbe.MDStatusT) backend.StatusT {
+	switch s {
+	case gitbe.MDStatusUnvetted:
+		return backend.StatusUnreviewed
+	case gitbe.MDStatusVetted:
+		return backend.StatusPublic
+	case gitbe.MDStatusCensored:
+		return backend.StatusCensored
+	case gitbe.MDStatusIterationUnvetted:
+		return backend.StatusUnreviewed
+	case gitbe.MDStatusArchived:
+		return backend.StatusArchived
+	default:
+		panic(fmt.Sprintf("invalid md status %v", s))
+	}
+}
+
+func recordMetadataPath(proposalDir string) string {
+	return filepath.Join(proposalDir, gitbe.RecordMetadataFilename)
+}
+
+// indexFilePath returns the path to the proposal index file.
+func indexFilePath(proposalDir string) string {
+	return filepath.Join(proposalDir,
+		gitbe.RecordPayloadPath, gitbe.IndexFilename)
+}
+
+// parseProposalName parses and returns the proposal name from the proposal
+// index file.
+func parseProposalName(proposalDir string) (string, error) {
+	// Read the index file from disk
+	fp := indexFilePath(proposalDir)
+	b, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return "", err
+	}
+
+	// Parse the proposal name from the index file. The
+	// proposal name will always be the first line of the
+	// file.
+	r := bufio.NewReader(bytes.NewReader(b))
+	name, _, err := r.ReadLine()
+	if err != nil {
+		return "", err
+	}
+
+	return string(name), nil
 }
 
 // decodeVersion returns the version field from the provided JSON payload. This

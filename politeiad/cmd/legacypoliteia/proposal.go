@@ -19,23 +19,29 @@ import (
 // proposal contains the full contents of a tstore proposal.
 type proposal struct {
 	RecordMetadata backend.RecordMetadata
-	Files          []backend.File
-	Metadata       []backend.MetadataStream
 
-	// pi plugin
+	// Files includes the proposal index file and image attachments.
+	Files []backend.File
+
+	// The following fields are converted into backend files before being
+	// imported into tstore.
+	//
+	// The VoteMetadata will only exist for RFPs and RFP submissions.
 	ProposalMetadata pi.ProposalMetadata
+	VoteMetadata     *ticketvote.VoteMetadata
 
-	// usermd plugin
+	// The following fields converted into backend metadata streams before being
+	// imported into tstore.
+	UserMetadata  usermd.UserMetadata
 	StatusChanges []usermd.StatusChangeMetadata
 
-	// ticketvote plugin. These fields may be nil depending on the proposal,
+	// ticketvote plugin date. These fields may be nil depending on the proposal,
 	// i.e. abandoned proposals will not have ticketvote data.
-	VoteMetadata *ticketvote.VoteMetadata
-	AuthDetails  *ticketvote.AuthDetails
-	VoteDetails  *ticketvote.VoteDetails
-	CastVotes    []ticketvote.CastVoteDetails
+	AuthDetails *ticketvote.AuthDetails
+	VoteDetails *ticketvote.VoteDetails
+	CastVotes   []ticketvote.CastVoteDetails
 
-	// comments plugin. These fields may be nil depeneding on the proposal.
+	// comments plugin data. These fields may be nil depeneding on the proposal.
 	CommentAdds  []comments.CommentAdd
 	CommentDels  []comments.CommentDel
 	CommentVotes []comments.CommentVote

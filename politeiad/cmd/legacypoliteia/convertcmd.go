@@ -120,7 +120,8 @@ func (c *convertCmd) convertGitProposals() error {
 		// standard legacy proposal.
 		//
 		// https://proposals-archive.decred.org/proposals/95a1409
-		if token != "95a14094485c92ed3f578b650bd76c5f8c3fd6392650c16bd4ae37e6167c040d" {
+		if token !=
+			"95a14094485c92ed3f578b650bd76c5f8c3fd6392650c16bd4ae37e6167c040d" {
 			continue
 		}
 
@@ -149,19 +150,19 @@ func (c *convertCmd) convertGitProposals() error {
 		if err != nil {
 			return err
 		}
-		metadata, err := convertMetadataStreams(proposalDir)
-		if err != nil {
-			return err
-		}
 		proposalMD, err := convertProposalMetadata(proposalDir)
 		if err != nil {
 			return err
 		}
-		statusChanges, err := convertStatusChanges(proposalDir)
+		voteMD, err := convertVoteMetadata(proposalDir)
 		if err != nil {
 			return err
 		}
-		voteMD, err := convertVoteMetadata(proposalDir)
+		userMD, err := convertUserMetadata(proposalDir)
+		if err != nil {
+			return err
+		}
+		statusChanges, err := convertStatusChanges(proposalDir)
 		if err != nil {
 			return err
 		}
@@ -186,10 +187,10 @@ func (c *convertCmd) convertGitProposals() error {
 		p := proposal{
 			RecordMetadata:   *recordMD,
 			Files:            files,
-			Metadata:         metadata,
 			ProposalMetadata: *proposalMD,
-			StatusChanges:    statusChanges,
 			VoteMetadata:     voteMD,
+			UserMetadata:     *userMD,
+			StatusChanges:    statusChanges,
 			AuthDetails:      authDetails,
 			VoteDetails:      voteDetails,
 			CastVotes:        castVotes,
