@@ -25,6 +25,10 @@ TODO
 const (
 	// Default command settings
 	defaultLegacyDir = "./legacy-politeia-data"
+
+	// filePermissions is the file permissions that are used for all directory
+	// and file creation in this tool.
+	filePermissions = 0755
 )
 
 var (
@@ -112,6 +116,14 @@ func (c *convertCmd) convertGitProposals() error {
 	// Convert the data for each proposal into tstore supported types.
 	count := 1
 	for token := range tokens {
+		// TODO Remove this. It's hardcoded in for now to test a
+		// standard legacy proposal.
+		//
+		// https://proposals-archive.decred.org/proposals/95a1409
+		if token != "95a14094485c92ed3f578b650bd76c5f8c3fd6392650c16bd4ae37e6167c040d" {
+			continue
+		}
+
 		fmt.Printf("Converting %v (%v/%v)\n", token, count, len(tokens))
 
 		// Get the path to the most recent version of the

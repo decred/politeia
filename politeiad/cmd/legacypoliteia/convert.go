@@ -5,6 +5,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -75,6 +77,8 @@ func convertMDStatus(s gitbe.MDStatusT) backend.StatusT {
 	}
 }
 
+// convertFiles reads all of the git backend files from disk for the provided
+// proposal and converts them to tstore backend files.
 func convertFiles(proposalDir string) ([]backend.File, error) {
 	return nil, nil
 }
@@ -83,8 +87,63 @@ func convertMetadataStreams(proposalDir string) ([]backend.MetadataStream, error
 	return nil, nil
 }
 
+// convertProposalMetadata reads the git backend data from disk that is
+// required to build a pi plugin ProposalMetadata structure, then returns the
+// ProposalMetadata.
 func convertProposalMetadata(proposalDir string) (*pi.ProposalMetadata, error) {
-	return nil, nil
+	// The only data we need to pull from the legacy
+	// proposal is the proposal name. The name will
+	// always be the first line of the proposal index
+	// file.
+	name, err := parseProposalName(proposalDir)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("  Name: %v\n", name)
+
+	// Get the legacy token from the proposal directory path
+	token, ok := gitProposalToken(proposalDir)
+	if !ok {
+		return nil, fmt.Errorf("token not found in path '%v'", proposalDir)
+	}
+
+	return &pi.ProposalMetadata{
+		Name:        name,
+		Amount:      0,
+		StartDate:   0,
+		EndDate:     0,
+		Domain:      "",
+		LegacyToken: token,
+	}, nil
+}
+
+// parseProposalName parses and returns the proposal name from the proposal
+// index file.
+func parseProposalName(proposalDir string) (string, error) {
+	// Read the index file from disk
+	fp := indexFilePath(proposalDir)
+	b, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return "", err
+	}
+
+	// Parse the proposal name from the index file. The
+	// proposal name will always be the first line of the
+	// file.
+	r := bufio.NewReader(bytes.NewReader(b))
+	name, _, err := r.ReadLine()
+	if err != nil {
+		return "", err
+	}
+
+	return string(name), nil
+}
+
+// indexFilePath returns the path to the proposal index file.
+func indexFilePath(proposalDir string) string {
+	return filepath.Join(proposalDir,
+		gitbe.RecordPayloadPath, gitbe.IndexFilename)
 }
 
 func convertStatusChanges(proposalDir string) ([]usermd.StatusChangeMetadata, error) {
@@ -114,7 +173,7 @@ type commentTypes struct {
 }
 
 func convertComments(proposalDir string) (*commentTypes, error) {
-	return nil, nil
+	return &commentTypes{}, nil
 }
 
 // decodeVersion returns the version field from the provided JSON payload. This
