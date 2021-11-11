@@ -8,10 +8,19 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strconv"
 
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 )
+
+/*
+TODO
+-[ ] Handle standard proposal
+-[ ] Handle dup cast votes and comments
+-[ ] Handle RFPs
+*/
 
 const (
 	// Default command settings
@@ -105,44 +114,58 @@ func (c *convertCmd) convertGitProposals() error {
 	for token := range tokens {
 		fmt.Printf("Converting %v (%v/%v)\n", token, count, len(tokens))
 
+		// Get the path to the most recent version of the
+		// proposal. The version number is the directory
+		// name. We only import the most recent version of
+		// the proposal.
+		//
+		// Example path: [gitRepo]/[token]/[version]/
+		v, err := latestVersion(c.gitRepo, token)
+		if err != nil {
+			return err
+		}
+
+		version := strconv.FormatUint(v, 10)
+		proposalDir := filepath.Join(c.gitRepo, token, version)
+
 		// Convert git backend types to tstore backend types
-		recordMD, err := convertRecordMetadata(c.gitRepo, token)
+		recordMD, err := convertRecordMetadata(proposalDir)
 		if err != nil {
 			return err
 		}
-		files, err := convertFiles(c.gitRepo, token)
+		files, err := convertFiles(proposalDir)
 		if err != nil {
 			return err
 		}
-		metadata, err := convertMetadataStreams(c.gitRepo, token)
+		metadata, err := convertMetadataStreams(proposalDir)
 		if err != nil {
 			return err
 		}
-		proposalMD, err := convertProposalMetadata(c.gitRepo, token)
+		proposalMD, err := convertProposalMetadata(proposalDir)
 		if err != nil {
 			return err
 		}
-		statusChanges, err := convertStatusChanges(c.gitRepo, token)
+		statusChanges, err := convertStatusChanges(proposalDir)
 		if err != nil {
 			return err
 		}
-		voteMD, err := convertVoteMetadata(c.gitRepo, token)
+		voteMD, err := convertVoteMetadata(proposalDir)
 		if err != nil {
 			return err
 		}
-		authDetails, err := convertAuthDetails(c.gitRepo, token)
+		authDetails, err := convertAuthDetails(proposalDir)
 		if err != nil {
 			return err
 		}
-		voteDetails, err := convertVoteDetails(c.gitRepo, token)
+		voteDetails, err := convertVoteDetails(proposalDir)
 		if err != nil {
 			return err
 		}
-		castVotes, err := convertCastVotes(c.gitRepo, token)
+		castVotes, err := convertCastVotes(proposalDir)
 		if err != nil {
 			return err
 		}
-		commentData, err := convertComments(c.gitRepo, token)
+		commentData, err := convertComments(proposalDir)
 		if err != nil {
 			return err
 		}

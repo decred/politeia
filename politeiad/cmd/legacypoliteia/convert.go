@@ -7,53 +7,103 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
+	"strconv"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/cmd/legacypoliteia/gitbe"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 )
 
-const (
-	// Git repo directory names
-	payloadDirname      = "payload"
-	decredPluginDirname = "plugins/decred"
-)
+// convertRecordMetadata reads the git backend RecordMetadata from disk for
+// the provided proposal and converts it to a tstore backend RecordMetadata.
+func convertRecordMetadata(proposalDir string) (*backend.RecordMetadata, error) {
+	// Read the git backend record metadata from disk
+	fp := recordMetadataPath(proposalDir)
+	b, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return nil, err
+	}
 
-func convertRecordMetadata(gitRepo, token string) (*backend.RecordMetadata, error) {
+	var r gitbe.RecordMetadata
+	err = json.Unmarshal(b, &r)
+	if err != nil {
+		return nil, err
+	}
+
+	// The version number can be found in the proposal
+	// file path. It is the last directory in the path.
+	v := filepath.Base(proposalDir)
+	version, err := strconv.ParseUint(v, 10, 32)
+	if err != nil {
+		return nil, err
+	}
+
+	return &backend.RecordMetadata{
+		Token:     r.Token,
+		Version:   uint32(version),
+		Iteration: uint32(r.Iteration),
+		State:     backend.StateVetted,
+		Status:    convertMDStatus(r.Status),
+		Timestamp: r.Timestamp,
+		Merkle:    r.Merkle,
+	}, nil
+}
+
+func recordMetadataPath(proposalDir string) string {
+	return filepath.Join(proposalDir, gitbe.RecordMetadataFilename)
+}
+
+func convertMDStatus(s gitbe.MDStatusT) backend.StatusT {
+	switch s {
+	case gitbe.MDStatusUnvetted:
+		return backend.StatusUnreviewed
+	case gitbe.MDStatusVetted:
+		return backend.StatusPublic
+	case gitbe.MDStatusCensored:
+		return backend.StatusCensored
+	case gitbe.MDStatusIterationUnvetted:
+		return backend.StatusUnreviewed
+	case gitbe.MDStatusArchived:
+		return backend.StatusArchived
+	default:
+		panic(fmt.Sprintf("invalid md status %v", s))
+	}
+}
+
+func convertFiles(proposalDir string) ([]backend.File, error) {
 	return nil, nil
 }
 
-func convertFiles(gitRepo, token string) ([]backend.File, error) {
+func convertMetadataStreams(proposalDir string) ([]backend.MetadataStream, error) {
 	return nil, nil
 }
 
-func convertMetadataStreams(gitRepo, token string) ([]backend.MetadataStream, error) {
+func convertProposalMetadata(proposalDir string) (*pi.ProposalMetadata, error) {
 	return nil, nil
 }
 
-func convertProposalMetadata(gitRepo, token string) (*pi.ProposalMetadata, error) {
+func convertStatusChanges(proposalDir string) ([]usermd.StatusChangeMetadata, error) {
 	return nil, nil
 }
 
-func convertStatusChanges(gitRepo, token string) ([]usermd.StatusChangeMetadata, error) {
+func convertVoteMetadata(proposalDir string) (*ticketvote.VoteMetadata, error) {
 	return nil, nil
 }
 
-func convertVoteMetadata(gitRepo, token string) (*ticketvote.VoteMetadata, error) {
+func convertAuthDetails(proposalDir string) (*ticketvote.AuthDetails, error) {
 	return nil, nil
 }
 
-func convertAuthDetails(gitRepo, token string) (*ticketvote.AuthDetails, error) {
+func convertVoteDetails(proposalDir string) (*ticketvote.VoteDetails, error) {
 	return nil, nil
 }
 
-func convertVoteDetails(gitRepo, token string) (*ticketvote.VoteDetails, error) {
-	return nil, nil
-}
-
-func convertCastVotes(gitRepo, token string) ([]ticketvote.CastVoteDetails, error) {
+func convertCastVotes(proposalDir string) ([]ticketvote.CastVoteDetails, error) {
 	return nil, nil
 }
 
@@ -63,7 +113,7 @@ type commentTypes struct {
 	Votes []comments.CommentVote
 }
 
-func convertComments(gitRepo, token string) (*commentTypes, error) {
+func convertComments(proposalDir string) (*commentTypes, error) {
 	return nil, nil
 }
 

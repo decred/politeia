@@ -5,9 +5,11 @@
 package main
 
 import (
-	"os"
+	"fmt"
+	"io/fs"
 	"path/filepath"
 	"regexp"
+	"strconv"
 )
 
 var (
@@ -41,10 +43,10 @@ func gitProposalToken(path string) (string, bool) {
 // inventory of all git proposal tokens found in file paths.
 func gitProposalTokens(dirPath string) (map[string]interface{}, error) {
 	tokens := make(map[string]interface{}, 256)
-	err := filepath.Walk(dirPath,
-		func(path string, f os.FileInfo, err error) error {
+	err := filepath.WalkDir(dirPath,
+		func(path string, d fs.DirEntry, err error) error {
 			// We only care about directories
-			if !f.IsDir() {
+			if !d.IsDir() {
 				return nil
 			}
 
@@ -61,4 +63,47 @@ func gitProposalTokens(dirPath string) (map[string]interface{}, error) {
 		return nil, err
 	}
 	return tokens, nil
+}
+
+// latestVersion returns the latest version of a legacy git proposal. The
+// version number is parsed from the directory structure.
+func latestVersion(gitRepo, token string) (uint64, error) {
+	// Compile a list of all directories. The version numbers
+	// are the directory name.
+	dirs := make(map[string]interface{}, 64)
+	err := filepath.WalkDir(filepath.Join(gitRepo, token),
+		func(path string, d fs.DirEntry, err error) error {
+			if !d.IsDir() {
+				return nil
+			}
+			dirs[d.Name()] = struct{}{}
+			return nil
+		})
+
+	// Parse the version number from the directory name
+	versions := make(map[uint64]interface{}, 64)
+	for dirname := range dirs {
+		u, err := strconv.ParseUint(dirname, 10, 32)
+		if err != nil {
+			// Not a version directory
+			continue
+		}
+		versions[u] = struct{}{}
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	// Find the most recent version
+	var latest uint64
+	for version := range versions {
+		if version > latest {
+			latest = version
+		}
+	}
+	if latest == 0 {
+		return 0, fmt.Errorf("latest version not found for %v", token)
+	}
+
+	return latest, nil
 }
