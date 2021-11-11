@@ -102,6 +102,17 @@ func execConvertCmd(args []string) error {
 	return c.convertGitProposals()
 }
 
+var (
+	// TODO Remove this. It's hardcoded in for now to help with testing.
+	doNotSkip = map[string]struct{}{
+		// https://proposals-archive.decred.org/proposals/95a1409
+		"95a14094485c92ed3f578b650bd76c5f8c3fd6392650c16bd4ae37e6167c040d": {},
+
+		// https://proposals-archive.decred.org/proposals/0230918
+		"023091831f6434f743f3a317aacf8c73a123b30d758db854a2f294c0b3341bcc": {},
+	}
+)
+
 // convertGitProposals converts the git proposals to tstore proposals, saving
 // the tstore proposals to disk as the conversion is finished.
 func (c *convertCmd) convertGitProposals() error {
@@ -116,21 +127,16 @@ func (c *convertCmd) convertGitProposals() error {
 	// Convert the data for each proposal into tstore supported types.
 	count := 1
 	for token := range tokens {
-		// TODO Remove this. It's hardcoded in for now to test a
-		// standard legacy proposal.
-		//
-		// https://proposals-archive.decred.org/proposals/95a1409
-		if token !=
-			"95a14094485c92ed3f578b650bd76c5f8c3fd6392650c16bd4ae37e6167c040d" {
+		// TODO Remove this. It's hardcoded in for now to help with testing.
+		if _, ok := doNotSkip[token]; !ok {
 			continue
 		}
 
-		fmt.Printf("Converting %v (%v/%v)\n", token, count, len(tokens))
+		fmt.Printf("Converting proposal (%v/%v)\n", count, len(tokens))
 
-		// Get the path to the most recent version of the
-		// proposal. The version number is the directory
-		// name. We only import the most recent version of
-		// the proposal.
+		// Get the path to the most recent version of the proposal.
+		// The version number is the directory name. We only import
+		// the most recent version of the proposal.
 		//
 		// Example path: [gitRepo]/[token]/[version]/
 		v, err := latestVersion(c.gitRepo, token)

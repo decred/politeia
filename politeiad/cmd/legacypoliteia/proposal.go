@@ -30,12 +30,12 @@ type proposal struct {
 	ProposalMetadata pi.ProposalMetadata
 	VoteMetadata     *ticketvote.VoteMetadata
 
-	// The following fields converted into backend metadata streams before being
-	// imported into tstore.
+	// The following fields are converted into backend metadata streams before
+	// being imported into tstore.
 	UserMetadata  usermd.UserMetadata
 	StatusChanges []usermd.StatusChangeMetadata
 
-	// ticketvote plugin date. These fields may be nil depending on the proposal,
+	// ticketvote plugin data. These fields may be nil depending on the proposal,
 	// i.e. abandoned proposals will not have ticketvote data.
 	AuthDetails *ticketvote.AuthDetails
 	VoteDetails *ticketvote.VoteDetails

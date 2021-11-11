@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+
+	"github.com/decred/politeia/politeiad/cmd/legacypoliteia/gitbe"
 )
 
 var (
@@ -41,8 +43,8 @@ func gitProposalToken(path string) (string, bool) {
 
 // gitProposalTokens recursively walks the provided directory and returns an
 // inventory of all git proposal tokens found in file paths.
-func gitProposalTokens(dirPath string) (map[string]interface{}, error) {
-	tokens := make(map[string]interface{}, 256)
+func gitProposalTokens(dirPath string) (map[string]struct{}, error) {
+	tokens := make(map[string]struct{}, 256)
 	err := filepath.WalkDir(dirPath,
 		func(path string, d fs.DirEntry, err error) error {
 			// We only care about directories
@@ -70,7 +72,7 @@ func gitProposalTokens(dirPath string) (map[string]interface{}, error) {
 func latestVersion(gitRepo, token string) (uint64, error) {
 	// Compile a list of all directories. The version numbers
 	// are the directory name.
-	dirs := make(map[string]interface{}, 64)
+	dirs := make(map[string]struct{}, 64)
 	err := filepath.WalkDir(filepath.Join(gitRepo, token),
 		func(path string, d fs.DirEntry, err error) error {
 			if !d.IsDir() {
@@ -79,9 +81,12 @@ func latestVersion(gitRepo, token string) (uint64, error) {
 			dirs[d.Name()] = struct{}{}
 			return nil
 		})
+	if err != nil {
+		return 0, err
+	}
 
 	// Parse the version number from the directory name
-	versions := make(map[uint64]interface{}, 64)
+	versions := make(map[uint64]struct{}, 64)
 	for dirname := range dirs {
 		u, err := strconv.ParseUint(dirname, 10, 32)
 		if err != nil {
@@ -106,4 +111,46 @@ func latestVersion(gitRepo, token string) (uint64, error) {
 	}
 
 	return latest, nil
+}
+
+// proposalAttachmentFiles returns the filesnames of all proposal attachment
+// files. This function does NOT return the file path, just the file name. The
+// proposal index file and proposal metadata file are not considered to be
+// attachments.
+func proposalAttachmentFilenames(proposalDir string) ([]string, error) {
+	var (
+		notAnAttachmentFile = map[string]struct{}{
+			gitbe.IndexFilename:            {},
+			gitbe.ProposalMetadataFilename: {},
+		}
+
+		payloadDir = payloadDirPath(proposalDir)
+		filenames  = make([]string, 0, 64)
+	)
+
+	// Walk the payload directory
+	err := filepath.WalkDir(payloadDir,
+		func(path string, d fs.DirEntry, err error) error {
+			// There shouldn't be any nested directories
+			// in the payload directory, but check just
+			// in case.
+			if d.IsDir() {
+				return nil
+			}
+
+			if _, ok := notAnAttachmentFile[d.Name()]; ok {
+				// Not an attachment; skip
+				return nil
+			}
+
+			// This is an attachment file
+			filenames = append(filenames, d.Name())
+
+			return nil
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	return filenames, nil
 }

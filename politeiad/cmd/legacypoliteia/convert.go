@@ -7,9 +7,12 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"path/filepath"
 	"strconv"
 
@@ -19,11 +22,14 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
+	"github.com/decred/politeia/util"
 )
 
 // convertRecordMetadata reads the git backend RecordMetadata from disk for
 // the provided proposal and converts it to a tstore backend RecordMetadata.
 func convertRecordMetadata(proposalDir string) (*backend.RecordMetadata, error) {
+	fmt.Printf("  RecordMetadata\n")
+
 	// Read the git backend record metadata from disk
 	fp := recordMetadataPath(proposalDir)
 	b, err := ioutil.ReadFile(fp)
@@ -45,7 +51,8 @@ func convertRecordMetadata(proposalDir string) (*backend.RecordMetadata, error) 
 		return nil, err
 	}
 
-	return &backend.RecordMetadata{
+	// Build record metadata
+	rm := backend.RecordMetadata{
 		Token:     r.Token,
 		Version:   uint32(version),
 		Iteration: uint32(r.Iteration),
@@ -53,19 +60,68 @@ func convertRecordMetadata(proposalDir string) (*backend.RecordMetadata, error) 
 		Status:    convertMDStatus(r.Status),
 		Timestamp: r.Timestamp,
 		Merkle:    r.Merkle,
-	}, nil
+	}
+
+	fmt.Printf("    Token  : %v\n", rm.Token)
+	fmt.Printf("    Version: %v\n", rm.Version)
+	fmt.Printf("    Status : %v\n", backend.Statuses[rm.Status])
+
+	return &rm, nil
 }
 
-// convertFiles reads all of the git backend files from disk for the provided
-// proposal and converts them to tstore backend files.
+// convertFiles reads all of the git backend proposal index file and image
+// attachments from disk for the provided proposal and converts them to tstore
+// backend files.
 func convertFiles(proposalDir string) ([]backend.File, error) {
-	return nil, nil
+	fmt.Printf("  Files\n")
+
+	files := make([]backend.File, 0, 64)
+
+	// Read the index file from disk
+	fp := indexFilePath(proposalDir)
+	b, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return nil, err
+	}
+	files = append(files, newFile(b, pi.FileNameIndexFile))
+
+	fmt.Printf("    %v\n", pi.FileNameIndexFile)
+
+	// Read any image attachments from disk
+	attachments, err := proposalAttachmentFilenames(proposalDir)
+	if err != nil {
+		return nil, err
+	}
+	for _, fn := range attachments {
+		fp := attachmentFilePath(proposalDir, fn)
+		b, err := ioutil.ReadFile(fp)
+		if err != nil {
+			return nil, err
+		}
+
+		files = append(files, newFile(b, fn))
+
+		fmt.Printf("    %v\n", fn)
+	}
+
+	return files, nil
+}
+
+func newFile(payload []byte, fileName string) backend.File {
+	return backend.File{
+		Name:    fileName,
+		MIME:    http.DetectContentType(payload),
+		Digest:  hex.EncodeToString(util.Digest(payload)),
+		Payload: base64.StdEncoding.EncodeToString(payload),
+	}
 }
 
 // convertProposalMetadata reads the git backend data from disk that is
 // required to build a pi plugin ProposalMetadata structure, then returns the
 // ProposalMetadata.
 func convertProposalMetadata(proposalDir string) (*pi.ProposalMetadata, error) {
+	fmt.Printf("  Proposal metadata\n")
+
 	// The only data we need to pull from the legacy
 	// proposal is the proposal name. The name will
 	// always be the first line of the proposal index
@@ -75,7 +131,7 @@ func convertProposalMetadata(proposalDir string) (*pi.ProposalMetadata, error) {
 		return nil, err
 	}
 
-	fmt.Printf("  Name: %v\n", name)
+	fmt.Printf("    Name: %v\n", name)
 
 	// Get the legacy token from the proposal
 	// directory path.
@@ -149,10 +205,16 @@ func recordMetadataPath(proposalDir string) string {
 	return filepath.Join(proposalDir, gitbe.RecordMetadataFilename)
 }
 
-// indexFilePath returns the path to the proposal index file.
+func payloadDirPath(proposalDir string) string {
+	return filepath.Join(proposalDir, gitbe.RecordPayloadPath)
+}
+
 func indexFilePath(proposalDir string) string {
-	return filepath.Join(proposalDir,
-		gitbe.RecordPayloadPath, gitbe.IndexFilename)
+	return filepath.Join(payloadDirPath(proposalDir), gitbe.IndexFilename)
+}
+
+func attachmentFilePath(proposalDir, attachmentFilename string) string {
+	return filepath.Join(payloadDirPath(proposalDir), attachmentFilename)
 }
 
 // parseProposalName parses and returns the proposal name from the proposal
