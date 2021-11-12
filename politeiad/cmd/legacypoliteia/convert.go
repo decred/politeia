@@ -241,19 +241,20 @@ func convertStatusChanges(proposalDir string) ([]usermd.StatusChangeMetadata, er
 func convertAuthDetails(proposalDir string) (*ticketvote.AuthDetails, error) {
 	fmt.Printf("  AuthDetails\n")
 
-	// Read the authorize vote mdstream from disk.
-	// An authorize vote will not exist for some
-	// proposals, e.g. abandoned proposals.
+	// Verify that an authorize vote mdstream exists.
+	// This will not exist for some proposals, e.g.
+	// abandoned proposals.
 	fp := authorizeVotePath(proposalDir)
 	if _, err := os.Stat(fp); err != nil {
-		// Authorize vote mdstream doesn't exist
+		// Authorize vote doesn't exist
 		return nil, nil
 	}
+
+	// Read the authorize vote mdstream from disk
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
 		return nil, err
 	}
-
 	var av gitbe.AuthorizeVote
 	err = json.Unmarshal(b, &av)
 	if err != nil {
@@ -274,18 +275,7 @@ func convertAuthDetails(proposalDir string) (*ticketvote.AuthDetails, error) {
 		return nil, err
 	}
 
-	// Verify the action
-	switch av.Action {
-	case string(ticketvote.AuthActionAuthorize),
-		string(ticketvote.AuthActionRevoke):
-		// These are expected
-	default:
-		return nil, fmt.Errorf("invalid action %v", av.Action)
-	}
-
-	fmt.Printf("    Action: %v\n", av.Action)
-
-	// Build ticketvote AuthDetails
+	// Build the ticketvote AuthDetails
 	ad := ticketvote.AuthDetails{
 		Token:     av.Token,
 		Version:   version,
@@ -303,11 +293,72 @@ func convertAuthDetails(proposalDir string) (*ticketvote.AuthDetails, error) {
 		return nil, err
 	}
 
+	fmt.Printf("    Action: %v\n", ad.Action)
+
 	return &ad, nil
 }
 
 func convertVoteDetails(proposalDir string) (*ticketvote.VoteDetails, error) {
-	return nil, nil
+	// Verify that vote mdstreams exists. These will
+	/// not exist for some proposals, e.g. abandoned
+	// proposals.
+	fp := startVotePath(proposalDir)
+	if _, err := os.Stat(fp); err != nil {
+		// Vote mdstreams don't exist
+		return nil, nil
+	}
+
+	// Read the start vote mdstream from disk
+	b, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return nil, err
+	}
+	// TODO handle v1 vs v2
+
+	// Read the start vote reply from disk
+	fp = startVoteReplyPath(proposalDir)
+	b, err = ioutil.ReadFile(fp)
+	if err != nil {
+		return nil, err
+	}
+	var svr gitbe.StartVoteReply
+	err = json.Unmarshal(b, &svr)
+	if err != nil {
+		return nil, err
+	}
+
+	startHeight, err := strconv.ParseUint(svr.StartBlockHeight, 10, 32)
+	if err != nil {
+		return nil, err
+	}
+	endHeight, err := strconv.ParseUint(svr.EndHeight, 10, 32)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build the ticketvote VoteDetails
+	vd := ticketvote.VoteDetails{
+		Params: ticketvote.VoteParams{
+			Token:            "",
+			Version:          0,
+			Type:             ticketvote.VoteT(0),
+			Mask:             0,
+			Duration:         0,
+			QuorumPercentage: 0,
+			PassPercentage:   0,
+			Options:          nil,
+			Parent:           "",
+		},
+		PublicKey:        "", // Intentionally omitted
+		Signature:        "", // Intentionally omitted
+		Receipt:          "", // Intentionally omitted
+		StartBlockHeight: uint32(startHeight),
+		StartBlockHash:   svr.StartBlockHash,
+		EndBlockHeight:   uint32(endHeight),
+		EligibleTickets:  svr.EligibleTickets,
+	}
+
+	return &vd, nil
 }
 
 func convertCastVotes(proposalDir string) ([]ticketvote.CastVoteDetails, error) {
@@ -395,6 +446,14 @@ func statusChangesPath(proposalDir string) string {
 
 func authorizeVotePath(proposalDir string) string {
 	return filepath.Join(proposalDir, gitbe.MDStreamAuthorizeVote)
+}
+
+func startVotePath(proposalDir string) string {
+	return filepath.Join(proposalDir, gitbe.MDStreamStartVote)
+}
+
+func startVoteReplyPath(proposalDir string) string {
+	return filepath.Join(proposalDir, gitbe.MDStreamStartVoteReply)
 }
 
 // parseProposalName parses and returns the proposal name from the proposal

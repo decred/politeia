@@ -26,6 +26,8 @@ Check if signature is broken
 Signatures that are broken:
 - usermd StatusChangeMetadata signature (wrong message)
 - ticketvote AuthDetails receipt (wrong server pubkey)
+- ticketvote VoteDetails signature (wrong message)
+- ticketvote VoteDetails receipt (wrong message, wrong server pubkey)
 
 Fields that need to be updated:
 - ProposalMetadata
