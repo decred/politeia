@@ -113,6 +113,28 @@ func latestVersion(gitRepo, token string) (uint64, error) {
 	return latest, nil
 }
 
+var (
+	// Regular expersion that matches the token and version number from a
+	// proposal directory path.
+	expProposalVersion   = `[0-9a-f]{64}\/[0-9]{1,}`
+	regexProposalVersion = regexp.MustCompile(expProposalVersion)
+)
+
+// proposalVersion parses the version number for the proposal directory path
+// and returns it.
+func proposalVersion(proposalDir string) (uint32, error) {
+	var (
+		subPath    = regexProposalVersion.FindString(proposalDir)
+		versionStr = filepath.Base(subPath)
+	)
+	u, err := strconv.ParseUint(versionStr, 10, 32)
+	if err != nil {
+		return 0, err
+	}
+
+	return uint32(u), nil
+}
+
 // proposalAttachmentFiles returns the filesnames of all proposal attachment
 // files. This function does NOT return the file path, just the file name. The
 // proposal index file and proposal metadata file are not considered to be

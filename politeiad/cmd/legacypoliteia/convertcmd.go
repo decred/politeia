@@ -111,6 +111,9 @@ var (
 
 		// https://proposals-archive.decred.org/proposals/0230918
 		"023091831f6434f743f3a317aacf8c73a123b30d758db854a2f294c0b3341bcc": {},
+
+		// https://proposals-archive.decred.org/proposals/8a09324
+		"8a0932475eba2139df82f885fbdff9845e98551b47c44c378bf51840ae616334": {},
 	}
 )
 

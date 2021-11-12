@@ -74,7 +74,7 @@ type RecordStatusChangeV1 struct {
 //
 // Signature of is the signature of Token + NewStatus + StatusChangeMessage.
 type RecordStatusChangeV2 struct {
-	Version             uint          `json:"version"`
+	Version             uint          `json:"version"` // Version of this struct
 	NewStatus           RecordStatusT `json:"newstatus"`
 	StatusChangeMessage string        `json:"statuschangemessage,omitempty"`
 	Signature           string        `json:"signature"`

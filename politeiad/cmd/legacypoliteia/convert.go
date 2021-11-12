@@ -10,7 +10,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
@@ -150,7 +152,7 @@ func convertVoteMetadata(proposalDir string) (*ticketvote.VoteMetadata, error) {
 func convertUserMetadata(proposalDir string) (*usermd.UserMetadata, error) {
 	fmt.Printf("  User metadata\n")
 
-	// Read the proposal general mdstrea from disk
+	// Read the proposal general mdstream from disk
 	fp := proposalGeneralPath(proposalDir)
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
@@ -178,11 +180,87 @@ func convertUserMetadata(proposalDir string) (*usermd.UserMetadata, error) {
 }
 
 func convertStatusChanges(proposalDir string) ([]usermd.StatusChangeMetadata, error) {
-	return nil, nil
+	fmt.Printf("  Status changes\n")
+
+	// Read the status changes mdstream from disk
+	fp := statusChangesPath(proposalDir)
+	b, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse the token and version from the proposal dir path
+	token, ok := gitProposalToken(proposalDir)
+	if !ok {
+		return nil, fmt.Errorf("token not found in path '%v'", proposalDir)
+	}
+	version, err := proposalVersion(proposalDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// The git backend v1 status change struct does not have the
+	// signature included. This is the only difference between
+	// v1 and v2, so we decode all of them into the v2 structure.
+	var (
+		statuses = make([]usermd.StatusChangeMetadata, 0, 16)
+		decoder  = json.NewDecoder(bytes.NewReader(b))
+	)
+	for {
+		var sc gitbe.RecordStatusChangeV2
+		err := decoder.Decode(&sc)
+		if errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+
+		status := convertRecordStatus(sc.NewStatus)
+		scm := usermd.StatusChangeMetadata{
+			Token:     token,
+			Version:   version,
+			Status:    uint32(status),
+			Reason:    sc.StatusChangeMessage,
+			PublicKey: sc.AdminPubKey,
+			Signature: sc.Signature, // Only present on v2
+			Timestamp: sc.Timestamp,
+		}
+
+		fmt.Printf("    Status: %v\n", backend.Statuses[status])
+		fmt.Printf("    Reason: %v\n", scm.Reason)
+
+		statuses = append(statuses, scm)
+	}
+
+	return statuses, nil
+}
+
+func convertRecordStatus(r gitbe.RecordStatusT) backend.StatusT {
+	switch r {
+	case gitbe.RecordStatusNotReviewed:
+		return backend.StatusUnreviewed
+	case gitbe.RecordStatusCensored:
+		return backend.StatusCensored
+	case gitbe.RecordStatusPublic:
+		return backend.StatusPublic
+	case gitbe.RecordStatusUnreviewedChanges:
+		return backend.StatusUnreviewed
+	case gitbe.RecordStatusArchived:
+		return backend.StatusArchived
+	}
+	panic(fmt.Sprintf("invalid status %v", r))
 }
 
 func convertAuthDetails(proposalDir string) (*ticketvote.AuthDetails, error) {
-	return nil, nil
+	return &ticketvote.AuthDetails{
+		Token:     "",
+		Version:   0,
+		Action:    "",
+		PublicKey: "",
+		Signature: "",
+		Timestamp: 0,
+		Receipt:   "",
+	}, nil
 }
 
 func convertVoteDetails(proposalDir string) (*ticketvote.VoteDetails, error) {
@@ -238,6 +316,10 @@ func attachmentFilePath(proposalDir, attachmentFilename string) string {
 
 func proposalGeneralPath(proposalDir string) string {
 	return filepath.Join(proposalDir, gitbe.MDStreamProposalGeneral)
+}
+
+func statusChangesPath(proposalDir string) string {
+	return filepath.Join(proposalDir, gitbe.MDStreamStatusChanges)
 }
 
 // parseProposalName parses and returns the proposal name from the proposal

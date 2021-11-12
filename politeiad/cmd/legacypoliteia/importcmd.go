@@ -17,6 +17,19 @@ import (
 	"github.com/decred/politeia/util"
 )
 
+/*
+TODO
+
+Signatures that are broken:
+- usermd UserMetadata
+- usermd StatusChangeMetadata
+
+Fields that need to be updated:
+- ProposalMetadata
+  - Version and iteration may need to be hardcoded to 1
+
+*/
+
 const (
 	// Default command settings
 	defaultTlogHost = "localhost:8090"
