@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 )
@@ -208,6 +209,12 @@ func (c *convertCmd) convertGitProposals() error {
 			CommentDels:      commentData.Dels,
 			CommentVotes:     commentData.Votes,
 		}
+		/*
+			err = sanityChecks(p)
+			if err != nil {
+				return err
+			}
+		*/
 
 		// Save the proposal to disk
 		err = saveProposal(c.legacyDir, &p)
@@ -216,6 +223,59 @@ func (c *convertCmd) convertGitProposals() error {
 		}
 
 		count++
+	}
+
+	return nil
+}
+
+// sanityChecks performs some basic sanity checks on the proposal data.
+func sanityChecks(p *proposal) error {
+	switch {
+	case len(p.Files) == 0:
+		return fmt.Errorf("no files found")
+	case p.ProposalMetadata.Name == "":
+		return fmt.Errorf("proposal name missing")
+	case p.UserMetadata.UserID == "":
+		return fmt.Errorf("user id missing")
+	}
+
+	// Checks based on record status
+	switch p.RecordMetadata.Status {
+	case backend.StatusArchived:
+		// Archived proposals will have two status
+		// changes and no vote data.
+		if len(p.StatusChanges) != 2 {
+			return fmt.Errorf("invalid status changes")
+		}
+		if p.AuthDetails != nil {
+			return fmt.Errorf("auth details invalid")
+		}
+		if p.VoteDetails != nil {
+			return fmt.Errorf("vote details invalid")
+		}
+		if len(p.CastVotes) != 0 {
+			return fmt.Errorf("cast votes invalid")
+		}
+
+	case backend.StatusPublic:
+		// All non-archived proposals will be public,
+		// with a single status change, and will have
+		// the vote data populated.
+		if len(p.StatusChanges) != 1 {
+			return fmt.Errorf("invalid status changes")
+		}
+		if p.AuthDetails == nil {
+			return fmt.Errorf("auth details missing")
+		}
+		if p.VoteDetails == nil {
+			return fmt.Errorf("vote details missing")
+		}
+		if len(p.CastVotes) == 0 {
+			return fmt.Errorf("cast votes missing")
+		}
+
+	default:
+		return fmt.Errorf("unknown record status")
 	}
 
 	return nil

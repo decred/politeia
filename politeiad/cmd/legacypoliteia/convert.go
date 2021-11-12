@@ -15,6 +15,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 
@@ -24,6 +25,8 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
+	v1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
+	"github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/util"
 )
 
@@ -235,32 +238,72 @@ func convertStatusChanges(proposalDir string) ([]usermd.StatusChangeMetadata, er
 	return statuses, nil
 }
 
-func convertRecordStatus(r gitbe.RecordStatusT) backend.StatusT {
-	switch r {
-	case gitbe.RecordStatusNotReviewed:
-		return backend.StatusUnreviewed
-	case gitbe.RecordStatusCensored:
-		return backend.StatusCensored
-	case gitbe.RecordStatusPublic:
-		return backend.StatusPublic
-	case gitbe.RecordStatusUnreviewedChanges:
-		return backend.StatusUnreviewed
-	case gitbe.RecordStatusArchived:
-		return backend.StatusArchived
-	}
-	panic(fmt.Sprintf("invalid status %v", r))
-}
-
 func convertAuthDetails(proposalDir string) (*ticketvote.AuthDetails, error) {
-	return &ticketvote.AuthDetails{
-		Token:     "",
-		Version:   0,
-		Action:    "",
-		PublicKey: "",
-		Signature: "",
-		Timestamp: 0,
-		Receipt:   "",
-	}, nil
+	fmt.Printf("  AuthDetails\n")
+
+	// Read the authorize vote mdstream from disk.
+	// An authorize vote will not exist for some
+	// proposals, e.g. abandoned proposals.
+	fp := authorizeVotePath(proposalDir)
+	if _, err := os.Stat(fp); err != nil {
+		// Authorize vote mdstream doesn't exist
+		return nil, nil
+	}
+	b, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return nil, err
+	}
+
+	var av gitbe.AuthorizeVote
+	err = json.Unmarshal(b, &av)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse the token and version from the proposal dir path
+	token, ok := gitProposalToken(proposalDir)
+	if !ok {
+		return nil, fmt.Errorf("token not found in path '%v'", proposalDir)
+	}
+	if av.Token != token {
+		return nil, fmt.Errorf("auth vote token invalid: got %v, want %v",
+			av.Token, token)
+	}
+	version, err := proposalVersion(proposalDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify the action
+	switch av.Action {
+	case string(ticketvote.AuthActionAuthorize),
+		string(ticketvote.AuthActionRevoke):
+		// These are expected
+	default:
+		return nil, fmt.Errorf("invalid action %v", av.Action)
+	}
+
+	fmt.Printf("    Action: %v\n", av.Action)
+
+	// Build ticketvote AuthDetails
+	ad := ticketvote.AuthDetails{
+		Token:     av.Token,
+		Version:   version,
+		Action:    av.Action,
+		PublicKey: av.PublicKey,
+		Signature: av.Signature,
+		Timestamp: av.Timestamp,
+		Receipt:   av.Receipt,
+	}
+
+	// Verify signatures
+	adv1 := convertAuthDetailsToV1(ad)
+	err = client.AuthDetailsVerify(adv1, gitbe.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ad, nil
 }
 
 func convertVoteDetails(proposalDir string) (*ticketvote.VoteDetails, error) {
@@ -298,6 +341,34 @@ func convertMDStatus(s gitbe.MDStatusT) backend.StatusT {
 	}
 }
 
+func convertRecordStatus(r gitbe.RecordStatusT) backend.StatusT {
+	switch r {
+	case gitbe.RecordStatusNotReviewed:
+		return backend.StatusUnreviewed
+	case gitbe.RecordStatusCensored:
+		return backend.StatusCensored
+	case gitbe.RecordStatusPublic:
+		return backend.StatusPublic
+	case gitbe.RecordStatusUnreviewedChanges:
+		return backend.StatusUnreviewed
+	case gitbe.RecordStatusArchived:
+		return backend.StatusArchived
+	}
+	panic(fmt.Sprintf("invalid status %v", r))
+}
+
+func convertAuthDetailsToV1(a ticketvote.AuthDetails) v1.AuthDetails {
+	return v1.AuthDetails{
+		Token:     a.Token,
+		Version:   a.Version,
+		Action:    a.Action,
+		PublicKey: a.PublicKey,
+		Signature: a.Signature,
+		Timestamp: a.Timestamp,
+		Receipt:   a.Receipt,
+	}
+}
+
 func recordMetadataPath(proposalDir string) string {
 	return filepath.Join(proposalDir, gitbe.RecordMetadataFilename)
 }
@@ -320,6 +391,10 @@ func proposalGeneralPath(proposalDir string) string {
 
 func statusChangesPath(proposalDir string) string {
 	return filepath.Join(proposalDir, gitbe.MDStreamStatusChanges)
+}
+
+func authorizeVotePath(proposalDir string) string {
+	return filepath.Join(proposalDir, gitbe.MDStreamAuthorizeVote)
 }
 
 // parseProposalName parses and returns the proposal name from the proposal

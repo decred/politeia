@@ -20,9 +20,12 @@ import (
 /*
 TODO
 
+Check if signature is broken
+- usermd UserMetadata signature
+
 Signatures that are broken:
-- usermd UserMetadata
-- usermd StatusChangeMetadata
+- usermd StatusChangeMetadata signature (wrong message)
+- ticketvote AuthDetails receipt (wrong server pubkey)
 
 Fields that need to be updated:
 - ProposalMetadata
