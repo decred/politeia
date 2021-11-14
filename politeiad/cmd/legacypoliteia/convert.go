@@ -299,6 +299,8 @@ func convertAuthDetails(proposalDir string) (*ticketvote.AuthDetails, error) {
 }
 
 func convertVoteDetails(proposalDir string) (*ticketvote.VoteDetails, error) {
+	fmt.Printf("  Vote details\n")
+
 	// Verify that vote mdstreams exists. These will
 	/// not exist for some proposals, e.g. abandoned
 	// proposals.
@@ -308,12 +310,88 @@ func convertVoteDetails(proposalDir string) (*ticketvote.VoteDetails, error) {
 		return nil, nil
 	}
 
+	// Pull the proposal version from the proposal dir path
+	version, err := proposalVersion(proposalDir)
+	if err != nil {
+		return nil, err
+	}
+
 	// Read the start vote mdstream from disk
 	b, err := ioutil.ReadFile(fp)
 	if err != nil {
 		return nil, err
 	}
-	// TODO handle v1 vs v2
+
+	// The start vote structure has a v1 and v2. The fields
+	// that we need are pulled out of the specific structure.
+	var (
+		token           string
+		proposalVersion uint32
+		voteType        ticketvote.VoteT
+		mask            uint64
+		duration        uint32
+		quorum          uint32
+		pass            uint32
+		options         []ticketvote.VoteOption
+		parent          string
+		publicKey       string
+	)
+	structVersion, err := decodeVersion(b)
+	if err != nil {
+		return nil, err
+	}
+	switch structVersion {
+	case 1:
+		// Decode the start vote
+		var sv gitbe.StartVoteV1
+		err = json.Unmarshal(b, &sv)
+		if err != nil {
+			return nil, err
+		}
+
+		// Pull the fields that we need
+		token = sv.Vote.Token
+		proposalVersion = version
+		voteType = ticketvote.VoteTypeStandard
+		mask = sv.Vote.Mask
+		duration = sv.Vote.Duration
+		quorum = sv.Vote.QuorumPercentage
+		pass = sv.Vote.PassPercentage
+		options = convertVoteOptions(sv.Vote.Options)
+		parent = "" // Parent only exist on RFP submissions
+		publicKey = sv.PublicKey
+
+	case 2:
+		// Decode the start vote
+		var sv gitbe.StartVoteV2
+		err = json.Unmarshal(b, &sv)
+		if err != nil {
+			return nil, err
+		}
+
+		// Sanity check proposal version. The version in the start vote
+		// should be the same version from the proposal directory path.
+		if version != sv.Vote.ProposalVersion {
+			return nil, fmt.Errorf("start vote version mismatch: %v %v",
+				version, sv.Vote.ProposalVersion)
+		}
+
+		// Pull the fields that we need
+		token = sv.Vote.Token
+		proposalVersion = version
+		voteType = convertVoteType(sv.Vote.Type)
+		mask = sv.Vote.Mask
+		duration = sv.Vote.Duration
+		quorum = sv.Vote.QuorumPercentage
+		pass = sv.Vote.PassPercentage
+		options = convertVoteOptions(sv.Vote.Options)
+		parent = "" // TODO pull these from prod and hardcode them
+		publicKey = sv.PublicKey
+
+	default:
+		return nil, fmt.Errorf("invalid start vote version '%v'",
+			structVersion)
+	}
 
 	// Read the start vote reply from disk
 	fp = startVoteReplyPath(proposalDir)
@@ -339,17 +417,17 @@ func convertVoteDetails(proposalDir string) (*ticketvote.VoteDetails, error) {
 	// Build the ticketvote VoteDetails
 	vd := ticketvote.VoteDetails{
 		Params: ticketvote.VoteParams{
-			Token:            "",
-			Version:          0,
-			Type:             ticketvote.VoteT(0),
-			Mask:             0,
-			Duration:         0,
-			QuorumPercentage: 0,
-			PassPercentage:   0,
-			Options:          nil,
-			Parent:           "",
+			Token:            token,
+			Version:          proposalVersion,
+			Type:             voteType,
+			Mask:             mask,
+			Duration:         duration,
+			QuorumPercentage: quorum,
+			PassPercentage:   pass,
+			Options:          options,
+			Parent:           parent,
 		},
-		PublicKey:        "", // Intentionally omitted
+		PublicKey:        publicKey,
 		Signature:        "", // Intentionally omitted
 		Receipt:          "", // Intentionally omitted
 		StartBlockHeight: uint32(startHeight),
@@ -358,7 +436,38 @@ func convertVoteDetails(proposalDir string) (*ticketvote.VoteDetails, error) {
 		EligibleTickets:  svr.EligibleTickets,
 	}
 
+	fmt.Printf("    Start height: %v\n", vd.StartBlockHeight)
+	fmt.Printf("    Start hash  : %v\n", vd.StartBlockHash)
+	fmt.Printf("    End height  : %v\n", vd.EndBlockHeight)
+	fmt.Printf("    Duration    : %v\n", vd.Params.Duration)
+	fmt.Printf("    Quorum      : %v\n", vd.Params.QuorumPercentage)
+	fmt.Printf("    Pass        : %v\n", vd.Params.PassPercentage)
+	fmt.Printf("    Type        : %v\n", vd.Params.Type)
+	fmt.Printf("    Parent      : %v\n", vd.Params.Parent)
+
 	return &vd, nil
+}
+
+func convertVoteOptions(options []gitbe.VoteOption) []ticketvote.VoteOption {
+	opts := make([]ticketvote.VoteOption, 0, len(options))
+	for _, v := range options {
+		opts = append(opts, ticketvote.VoteOption{
+			ID:          v.Id,
+			Description: v.Description,
+			Bit:         v.Bits,
+		})
+	}
+	return opts
+}
+
+func convertVoteType(t gitbe.VoteT) ticketvote.VoteT {
+	switch t {
+	case gitbe.VoteTypeStandard:
+		return ticketvote.VoteTypeStandard
+	case gitbe.VoteTypeRunoff:
+		return ticketvote.VoteTypeRunoff
+	}
+	panic(fmt.Sprintf("invalid vote type %v", t))
 }
 
 func convertCastVotes(proposalDir string) ([]ticketvote.CastVoteDetails, error) {
