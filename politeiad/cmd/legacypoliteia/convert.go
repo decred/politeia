@@ -146,10 +146,39 @@ func convertProposalMetadata(proposalDir string) (*pi.ProposalMetadata, error) {
 	}, nil
 }
 
-// TODO skip for now. Add when we're ready to add RFP proposals and
-// submissions.
 func convertVoteMetadata(proposalDir string) (*ticketvote.VoteMetadata, error) {
-	return nil, nil
+	fmt.Printf("  Vote metadata\n")
+
+	// The vote metadata fields are in the gitbe
+	// proposal metadata payload file. This file
+	// will only exist for some gitbe proposals.
+	fp := proposalMetadataPath(proposalDir)
+	if _, err := os.Stat(fp); err != nil {
+		return nil, nil
+	}
+
+	// Read the proposal metadata file from disk
+	b, err := ioutil.ReadFile(fp)
+	if err != nil {
+		return nil, err
+	}
+
+	var pm gitbe.ProposalMetadata
+	err = json.Unmarshal(b, &pm)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build the vote metadata
+	vm := ticketvote.VoteMetadata{
+		LinkBy: pm.LinkBy,
+		LinkTo: pm.LinkTo,
+	}
+
+	fmt.Printf("    Link by: %v\n", vm.LinkBy)
+	fmt.Printf("    Link to: %v\n", vm.LinkTo)
+
+	return &vm, nil
 }
 
 func convertUserMetadata(proposalDir string) (*usermd.UserMetadata, error) {
@@ -543,6 +572,11 @@ func indexFilePath(proposalDir string) string {
 
 func attachmentFilePath(proposalDir, attachmentFilename string) string {
 	return filepath.Join(payloadDirPath(proposalDir), attachmentFilename)
+}
+
+func proposalMetadataPath(proposalDir string) string {
+	return filepath.Join(payloadDirPath(proposalDir),
+		gitbe.ProposalMetadataFilename)
 }
 
 func proposalGeneralPath(proposalDir string) string {

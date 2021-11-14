@@ -107,14 +107,20 @@ func execConvertCmd(args []string) error {
 var (
 	// TODO Remove this. It's hardcoded in for now to help with testing.
 	doNotSkip = map[string]struct{}{
-		// https://proposals-archive.decred.org/proposals/95a1409
-		"95a14094485c92ed3f578b650bd76c5f8c3fd6392650c16bd4ae37e6167c040d": {},
-
+		// Proposal with image attachments. Standard vote that was approved.
+		//
 		// https://proposals-archive.decred.org/proposals/0230918
 		"023091831f6434f743f3a317aacf8c73a123b30d758db854a2f294c0b3341bcc": {},
 
+		// Abandoned proposal
+		//
 		// https://proposals-archive.decred.org/proposals/8a09324
 		"8a0932475eba2139df82f885fbdff9845e98551b47c44c378bf51840ae616334": {},
+
+		// RFP parent proposal
+		//
+		// https://proposals-archive.decred.org/proposals/91becea
+		"91beceac460d9b790a01fb2e537320820bab66babfeb5eb49a022ea5952b5d73": {},
 	}
 )
 
