@@ -215,11 +215,11 @@ func (c *convertCmd) convertGitProposals() error {
 			CommentDels:      commentData.Dels,
 			CommentVotes:     commentData.Votes,
 		}
-		/*
-			err = sanityChecks(p)
-			if err != nil {
-				return err
-			}
+		/* TODO
+		err = sanityChecks(p)
+		if err != nil {
+			return err
+		}
 		*/
 
 		// Save the proposal to disk

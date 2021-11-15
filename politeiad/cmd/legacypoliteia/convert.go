@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
@@ -330,9 +331,9 @@ func convertAuthDetails(proposalDir string) (*ticketvote.AuthDetails, error) {
 func convertVoteDetails(proposalDir string) (*ticketvote.VoteDetails, error) {
 	fmt.Printf("  Vote details\n")
 
-	// Verify that vote mdstreams exists. These will
-	/// not exist for some proposals, e.g. abandoned
-	// proposals.
+	// Verify that vote mdstreams exists. These
+	// will not exist for some proposals, such
+	// as abandoned proposals.
 	fp := startVotePath(proposalDir)
 	if _, err := os.Stat(fp); err != nil {
 		// Vote mdstreams don't exist
@@ -500,7 +501,105 @@ func convertVoteType(t gitbe.VoteT) ticketvote.VoteT {
 }
 
 func convertCastVotes(proposalDir string) ([]ticketvote.CastVoteDetails, error) {
-	return nil, nil
+	fmt.Printf("  Cast votes\n")
+
+	// Verify that the ballots journal exists. This
+	/// will not exist for some proposals, such as
+	// abandoned proposals.
+	fp := ballotsJournalPath(proposalDir)
+	if _, err := os.Stat(fp); err != nil {
+		return nil, nil
+	}
+
+	// Open the ballots journal
+	f, err := os.Open(fp)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	// Read the journal line-by-line
+	var (
+		// There are some duplicate votes in early proposals due to
+		// a bug. Use a map here so that duplicate votes are removed.
+		//
+		// map[token]CastVoteDetails
+		votes = make(map[string]ticketvote.CastVoteDetails, 40960)
+
+		scanner = bufio.NewScanner(f)
+		count   int
+	)
+	for scanner.Scan() {
+		count++
+
+		// Decode the current line
+		cvj, err := decodeBallotJournalLine(scanner.Bytes())
+		if err != nil {
+			return nil, err
+		}
+
+		// Build the cast vote
+		cvd := ticketvote.CastVoteDetails{
+			Token:     cvj.CastVote.Token,
+			Ticket:    cvj.CastVote.Ticket,
+			VoteBit:   cvj.CastVote.VoteBit,
+			Signature: cvj.CastVote.Signature,
+			Address:   "", // TODO
+			Receipt:   "", // Intentionally omitted
+			Timestamp: 0,  // TODO
+		}
+
+		// TODO Verify the cast vote
+
+		// Save the cast vote
+		votes[cvd.Token] = cvd
+
+		printInPlace(fmt.Sprintf("    Vote %v", count))
+	}
+	err = scanner.Err()
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("\n")
+
+	// Put the votes into a slice and sort them by timestamp,
+	// from oldest to newest.
+	castVotes := make([]ticketvote.CastVoteDetails, 0, len(votes))
+	for _, vote := range votes {
+		castVotes = append(castVotes, vote)
+	}
+	sort.SliceStable(castVotes, func(i, j int) bool {
+		return castVotes[i].Timestamp < castVotes[j].Timestamp
+	})
+
+	return castVotes, nil
+}
+
+// decodeBallotJournalLine decodes a line from a proposal's ballot journal. The
+// line will contain two JSON structures. The JournalAction structure and the
+// CastVoteJournal structure.
+func decodeBallotJournalLine(line []byte) (*gitbe.CastVoteJournal, error) {
+	r := bytes.NewReader(line)
+	d := json.NewDecoder(r)
+
+	// Decode the action
+	var j gitbe.JournalAction
+	err := d.Decode(&j)
+	if err != nil {
+		return nil, err
+	}
+	if j.Action != gitbe.JournalActionAdd {
+		return nil, fmt.Errorf("invalid action '%v'", j.Action)
+	}
+
+	// Decode the cast vote
+	var cvj gitbe.CastVoteJournal
+	err = d.Decode(&cvj)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cvj, nil
 }
 
 type commentTypes struct {
@@ -597,6 +696,15 @@ func startVotePath(proposalDir string) string {
 
 func startVoteReplyPath(proposalDir string) string {
 	return filepath.Join(proposalDir, gitbe.MDStreamStartVoteReply)
+}
+
+func decredPluginPath(proposalDir string) string {
+	return filepath.Join(proposalDir, gitbe.DecredPluginPath)
+}
+
+func ballotsJournalPath(proposalDir string) string {
+	return filepath.Join(decredPluginPath(proposalDir),
+		gitbe.BallotJournalFilename)
 }
 
 // parseProposalName parses and returns the proposal name from the proposal
