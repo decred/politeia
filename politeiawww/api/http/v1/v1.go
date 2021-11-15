@@ -115,6 +115,9 @@ type PolicyReply struct {
 	ReadBatchLimit uint32 `json:"readbatchlimit"`
 }
 
+// TODO if we make signatures part of a identity plugin, how can you include
+// a signature along with the plugin command. Ex, command is for a generic
+// comment, signature is of the cmd payload. How do we pass the signature up?
 type PluginCmd struct {
 	PluginID string `json:"pluginid"`
 	Cmd      string `json:"cmd"`
