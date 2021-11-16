@@ -126,6 +126,9 @@ func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, er
 		Token:     token,
 		Filenames: []string{ticketvote.FileNameVoteMetadata},
 	})
+	if err != nil {
+		return "", err
+	}
 	vm, err := voteMetadataDecode(r.Files)
 	if err != nil {
 		return "", err
