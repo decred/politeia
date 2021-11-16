@@ -13,9 +13,9 @@ import (
 
 // Plugin represents a politeia plugin.
 //
-// Updates to the plugin data in the User object will only be persisted by the
-// caller for operations that are part of a write command. Updates made during
-// read commands are ignored.
+// Updates to the User object plugin data will only be persisted by the caller
+// for operations that are part of a write command. Updates made during read
+// commands are ignored.
 type Plugin interface {
 	// ID returns the plugin ID.
 	ID() string
@@ -35,7 +35,7 @@ type Plugin interface {
 	Hook(HookT, Cmd, *User) error
 
 	// HookTx executes a plugin hook using a database transaction.
-	// TODO this needs the plugin ID
+	// TODO this needs the plugin ID and the reply payload
 	HookTx(*sql.Tx, HookT, Cmd, *User) error
 
 	// WriteTx executes a write plugin command using a database transaction.
