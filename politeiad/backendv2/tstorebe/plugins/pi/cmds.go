@@ -117,12 +117,35 @@ func (p *piPlugin) cmdSetBillingStatus(token []byte, payload string) (string, er
 		}
 	}
 
+	// Ensure that this is not an RFP proposal. RFP proposals do not
+	// request funding and do not bill against the treasury, which
+	// means that they don't have a billing status. RFP submission
+	// proposals, however, do request funding and do have a billing
+	// status.
+	r, err := p.record(backend.RecordRequest{
+		Token:     token,
+		Filenames: []string{ticketvote.FileNameVoteMetadata},
+	})
+	if err != nil {
+		return "", err
+	}
+	vm, err := voteMetadataDecode(r.Files)
+	if err != nil {
+		return "", err
+	}
+	if isRFP(vm) {
+		return "", backend.PluginError{
+			PluginID:     pi.PluginID,
+			ErrorCode:    uint32(pi.ErrorCodeBillingStatusChangeNotAllowed),
+			ErrorContext: "rfp proposals do not have a billing status",
+		}
+	}
+
+	// Ensure number of billing status changes does not exceed the maximum
 	bscs, err := p.billingStatusChanges(token)
 	if err != nil {
 		return "", err
 	}
-
-	// Ensure number of billing status changes does not exceed the maximum
 	if uint32(len(bscs)+1) > p.billingStatusChangesMax {
 		return "", backend.PluginError{
 			PluginID:  pi.PluginID,
@@ -397,24 +420,34 @@ func proposalStatus(state backend.StateT, status backend.StatusT, voteStatus tic
 				"proposal status %v, vote status: %v", state, status, voteStatus)
 }
 
-// recordAbridged returns a record with all files omitted.
-func (p *piPlugin) recordAbridged(token []byte) (*backend.Record, error) {
-	reqs := []backend.RecordRequest{
-		{
-			Token:        token,
-			OmitAllFiles: true,
-		},
+// record returns a record from the backend with it's contents filtered
+// according to the provided record request.
+//
+// A backend ErrRecordNotFound error is returned if the record is not found.
+func (p *piPlugin) record(rr backend.RecordRequest) (*backend.Record, error) {
+	if rr.Token == nil {
+		return nil, errors.Errorf("token not provided")
 	}
-	rs, err := p.backend.Records(reqs)
+	reply, err := p.backend.Records([]backend.RecordRequest{rr})
 	if err != nil {
 		return nil, err
 	}
-	r, ok := rs[hex.EncodeToString(token)]
+	r, ok := reply[hex.EncodeToString(rr.Token)]
 	if !ok {
 		return nil, backend.ErrRecordNotFound
 	}
-
 	return &r, nil
+}
+
+// recordAbridged returns a record with all files omitted.
+//
+// A backend ErrRecordNotFound error is returned if the record is not found.
+func (p *piPlugin) recordAbridged(token []byte) (*backend.Record, error) {
+	rr := backend.RecordRequest{
+		Token:        token,
+		OmitAllFiles: true,
+	}
+	return p.record(rr)
 }
 
 // convertSignatureError converts a util SignatureError to a backend
