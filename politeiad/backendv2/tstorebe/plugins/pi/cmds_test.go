@@ -10,6 +10,7 @@ import (
 	"errors"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	backend "github.com/decred/politeia/politeiad/backendv2"
@@ -247,6 +248,7 @@ func TestProposalStatus(t *testing.T) {
 		state          backend.StateT
 		status         backend.StatusT
 		voteStatus     ticketvote.VoteStatusT
+		voteMD         *ticketvote.VoteMetadata
 		bscs           []pi.BillingStatusChange
 		proposalStatus pi.PropStatusT // Expected proposal status
 	}{
@@ -256,6 +258,7 @@ func TestProposalStatus(t *testing.T) {
 			backend.StatusUnreviewed,
 			ticketvote.VoteStatusInvalid,
 			nil,
+			nil,
 			pi.PropStatusUnvetted,
 		},
 		{
@@ -263,6 +266,7 @@ func TestProposalStatus(t *testing.T) {
 			backend.StateUnvetted,
 			backend.StatusCensored,
 			ticketvote.VoteStatusInvalid,
+			nil,
 			nil,
 			pi.PropStatusUnvettedCensored,
 		},
@@ -272,6 +276,7 @@ func TestProposalStatus(t *testing.T) {
 			backend.StatusArchived,
 			ticketvote.VoteStatusInvalid,
 			nil,
+			nil,
 			pi.PropStatusUnvettedAbandoned,
 		},
 		{
@@ -279,6 +284,7 @@ func TestProposalStatus(t *testing.T) {
 			backend.StateVetted,
 			backend.StatusArchived,
 			ticketvote.VoteStatusInvalid,
+			nil,
 			nil,
 			pi.PropStatusAbandoned,
 		},
@@ -288,6 +294,7 @@ func TestProposalStatus(t *testing.T) {
 			backend.StatusCensored,
 			ticketvote.VoteStatusInvalid,
 			nil,
+			nil,
 			pi.PropStatusCensored,
 		},
 		{
@@ -295,6 +302,7 @@ func TestProposalStatus(t *testing.T) {
 			backend.StateVetted,
 			backend.StatusPublic,
 			ticketvote.VoteStatusUnauthorized,
+			nil,
 			nil,
 			pi.PropStatusUnderReview,
 		},
@@ -304,6 +312,7 @@ func TestProposalStatus(t *testing.T) {
 			backend.StatusPublic,
 			ticketvote.VoteStatusAuthorized,
 			nil,
+			nil,
 			pi.PropStatusVoteAuthorized,
 		},
 		{
@@ -312,13 +321,26 @@ func TestProposalStatus(t *testing.T) {
 			backend.StatusPublic,
 			ticketvote.VoteStatusStarted,
 			nil,
+			nil,
 			pi.PropStatusVoteStarted,
+		},
+		{
+			"approved",
+			backend.StateVetted,
+			backend.StatusPublic,
+			ticketvote.VoteStatusApproved,
+			&ticketvote.VoteMetadata{
+				LinkBy: time.Now().Unix() + 600, // 10m in the future
+			},
+			nil,
+			pi.PropStatusApproved,
 		},
 		{
 			"closed",
 			backend.StateVetted,
 			backend.StatusPublic,
 			ticketvote.VoteStatusApproved,
+			nil,
 			[]pi.BillingStatusChange{
 				{
 					Status: pi.BillingStatusClosed,
@@ -331,6 +353,7 @@ func TestProposalStatus(t *testing.T) {
 			backend.StateVetted,
 			backend.StatusPublic,
 			ticketvote.VoteStatusApproved,
+			nil,
 			[]pi.BillingStatusChange{
 				{
 					Status: pi.BillingStatusCompleted,
@@ -343,6 +366,7 @@ func TestProposalStatus(t *testing.T) {
 			backend.StateVetted,
 			backend.StatusPublic,
 			ticketvote.VoteStatusApproved,
+			nil,
 			[]pi.BillingStatusChange{
 				{
 					Status: pi.BillingStatusCompleted,
@@ -359,6 +383,7 @@ func TestProposalStatus(t *testing.T) {
 			backend.StatusPublic,
 			ticketvote.VoteStatusApproved,
 			nil,
+			nil,
 			pi.PropStatusInvalid,
 		},
 	}
@@ -367,7 +392,9 @@ func TestProposalStatus(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Run test
-			status, _ := proposalStatus(tc.state, tc.status, tc.voteStatus, tc.bscs)
+			status, _ := proposalStatus(tc.state, tc.status,
+				tc.voteStatus, tc.voteMD, tc.bscs)
+
 			// Check if received proposal status euqal to the expected.
 			if tc.proposalStatus != status {
 				t.Errorf("want proposal status %v, got '%v'", tc.proposalStatus,
