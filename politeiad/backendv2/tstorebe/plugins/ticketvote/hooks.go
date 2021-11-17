@@ -366,6 +366,13 @@ func (p *ticketVotePlugin) voteMetadataVerifyOnEdits(r backend.Record, newFiles 
 // voteMetadataVerifyOnStatusChange runs vote metadata validation that is
 // specific to record status changes.
 func (p *ticketVotePlugin) voteMetadataVerifyOnStatusChange(status backend.StatusT, files []backend.File) error {
+	// If the record is being censored or archived then this
+	// vote metadata validation doesn't matter.
+	switch status {
+	case backend.StatusCensored, backend.StatusArchived:
+		return nil
+	}
+
 	// Decode vote metadata. Vote metadata is optional so one may not
 	// exist.
 	vm, err := voteMetadataDecode(files)
