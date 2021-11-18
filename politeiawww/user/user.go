@@ -26,7 +26,7 @@ type DB interface {
 
 	UpdateTx(*sql.Tx, User) error
 
-	Get(userID string) (*User, error)
-
 	GetTx(tx *sql.Tx, userID string) (*User, error)
+
+	Get(userID string) (*User, error)
 }

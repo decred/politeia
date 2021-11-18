@@ -142,8 +142,8 @@ func (p *politeiawww) execWrite(ctx context.Context, session *plugin.Session, cm
 		}
 	}
 
-	// Verify that the user is authorized to execute this
-	// plugin command.
+	// Verify that the user is authorized to
+	// execute this plugin command.
 	reply, err := p.authorize(session, usr, cmd)
 	if err != nil {
 		return nil, err
@@ -249,8 +249,8 @@ func (p *politeiawww) execRead(ctx context.Context, session *plugin.Session, cmd
 		}
 	}
 
-	// Verify that the user is authorized to execute this
-	// plugin command.
+	// Verify that the user is authorized to
+	// execute this plugin command.
 	reply, err := p.authorize(session, usr, cmd)
 	if err != nil {
 		return nil, err
@@ -394,7 +394,7 @@ func updateUser(u *user.User, p *plugin.User, pluginID string) {
 
 // convertUser converts a global user to a plugin user. Only the plugin data
 // for the provided plugin ID is included in the plugin user object. This
-// prevents plugins from accessing plugin data that they do not own.
+// prevents plugins from accessing data that they do not own.
 func convertUser(u *user.User, pluginID string) *plugin.User {
 	pluginData := u.Plugins[pluginID]
 	return &plugin.User{

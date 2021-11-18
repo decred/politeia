@@ -98,7 +98,7 @@ type VersionReply struct {
 	// BuildVersion is the sematic version of the server build.
 	BuildVersion string `json:"buildversion"`
 
-	// Plugins contains the plugin ID and lowest supported plugin API verison
+	// Plugins contains the plugin ID and lowest supported plugin API version
 	// for all registered plugins.
 	Plugins map[string]uint32 `json:"plugins"` // [pluginID]version
 }
@@ -115,14 +115,14 @@ type PolicyReply struct {
 	ReadBatchLimit uint32 `json:"readbatchlimit"`
 }
 
-type PluginCmd struct {
+type Cmd struct {
 	PluginID string `json:"pluginid"`
 	Version  uint32 `json:"version"` // Plugin API version
 	Cmd      string `json:"cmd"`
 	Payload  string `json:"payload"` // Cmd payload, JSON encoded
 }
 
-type PluginReply struct {
+type CmdReply struct {
 	PluginID string `json:"pluginid"`
 	Version  uint32 `json:"version"` // Plugin API version
 	Cmd      string `json:"cmd"`
@@ -131,12 +131,12 @@ type PluginReply struct {
 }
 
 type Batch struct {
-	// Cmds is a JSON encoded string that decodes to []PluginCmd.
+	// Cmds is a JSON encoded string that decodes to []Cmd.
 	Cmds string `json:"cmds"`
 }
 
 type BatchReply struct {
-	Replies []PluginReply `json:"replies"`
+	Replies []CmdReply `json:"replies"`
 }
 
 // PluginError is the reply that is returned when a plugin command encounters

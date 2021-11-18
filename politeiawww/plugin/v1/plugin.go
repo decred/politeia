@@ -45,16 +45,11 @@ type Plugin interface {
 	ReadTx(*sql.Tx, ReadArgs) (*Reply, error)
 }
 
-type Cmd struct {
-	PluginID string
-	Version  uint32 // Plugin API version
-	Cmd      string
-	Payload  string // JSON encoded
-}
-
-type Reply struct {
-	Payload string // JSON encoded
-	Error   error
+type HookArgs struct {
+	Type  HookT
+	Cmd   Cmd
+	Reply *Reply
+	User  *User
 }
 
 type WriteArgs struct {
@@ -67,11 +62,16 @@ type ReadArgs struct {
 	User *User
 }
 
-type HookArgs struct {
-	Type  HookT
-	Cmd   Cmd
-	Reply *Reply
-	User  *User
+type Cmd struct {
+	PluginID string
+	Version  uint32 // Plugin API version
+	Cmd      string
+	Payload  string // JSON encoded
+}
+
+type Reply struct {
+	Payload string // JSON encoded
+	Error   error
 }
 
 type HookT string
