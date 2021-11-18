@@ -117,20 +117,22 @@ type PolicyReply struct {
 
 type PluginCmd struct {
 	PluginID string `json:"pluginid"`
+	Version  uint32 `json:"version"` // Plugin API version
 	Cmd      string `json:"cmd"`
 	Payload  string `json:"payload"` // Cmd payload, JSON encoded
 }
 
 type PluginReply struct {
 	PluginID string `json:"pluginid"`
+	Version  uint32 `json:"version"` // Plugin API version
 	Cmd      string `json:"cmd"`
 	Payload  string `json:"payload"` // Reply payload, JSON encoded
 	Error    error  `json:"error,omitempty"`
 }
 
 type Batch struct {
-	// Cmds is a JSON encoded string of []PluginCmd.
-	Cmds string `json:"cmds"`
+	// TODO Cmds is a JSON encoded string of []PluginCmd.
+	Cmds []PluginCmd `json:"cmds"`
 }
 
 type BatchReply struct {

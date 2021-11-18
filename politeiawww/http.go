@@ -121,19 +121,17 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 
 	// Execute the plugin command
 	var (
-		pluginID      = cmd.PluginID
 		pluginSession = convertSession(s)
 		pluginCmd     = convertCmdFromHTTP(cmd)
 	)
-	pluginReply, err := p.execNewUser(r.Context(),
-		pluginSession, pluginID, pluginCmd)
+	pluginReply, err := p.execNewUser(r.Context(), pluginSession, pluginCmd)
 	if err != nil {
 		respondWithError(w, r,
 			"handleNewUser: execNewUser: %v", err)
 		return
 	}
 
-	reply := convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
+	reply := convertReplyToHTTP(pluginCmd, *pluginReply)
 
 	// Save any updates that were made to the user session
 	err = p.saveUserSession(r, w, s, pluginSession)
@@ -186,19 +184,17 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 	// Execute the plugin command
 	var (
-		pluginID      = cmd.PluginID
 		pluginSession = convertSession(s)
 		pluginCmd     = convertCmdFromHTTP(cmd)
 	)
-	pluginReply, err := p.execWrite(r.Context(),
-		pluginSession, pluginID, pluginCmd)
+	pluginReply, err := p.execWrite(r.Context(), pluginSession, pluginCmd)
 	if err != nil {
 		respondWithError(w, r,
 			"handleWrite: execWrite: %v", err)
 		return
 	}
 
-	reply := convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
+	reply := convertReplyToHTTP(pluginCmd, *pluginReply)
 
 	// Save any updates that were made to the user session
 	err = p.saveUserSession(r, w, s, pluginSession)
@@ -251,19 +247,17 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 
 	// Execute the plugin command
 	var (
-		pluginID      = cmd.PluginID
 		pluginSession = convertSession(s)
 		pluginCmd     = convertCmdFromHTTP(cmd)
 	)
-	pluginReply, err := p.execRead(r.Context(),
-		pluginSession, pluginID, pluginCmd)
+	pluginReply, err := p.execRead(r.Context(), pluginSession, pluginCmd)
 	if err != nil {
 		respondWithError(w, r,
 			"handleRead: execRead: %v", err)
 		return
 	}
 
-	reply := convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
+	reply := convertReplyToHTTP(pluginCmd, *pluginReply)
 
 	// Save any updates that were made to the user session
 	err = p.saveUserSession(r, w, s, pluginSession)
@@ -319,15 +313,15 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Execute the plugin command
-		pluginReply, err := p.execRead(r.Context(), pluginSession,
-			cmd.PluginID, convertCmdFromHTTP(cmd))
+		pluginCmd := convertCmdFromHTTP(cmd)
+		pluginReply, err := p.execRead(r.Context(), pluginSession, pluginCmd)
 		if err != nil {
 			respondWithError(w, r,
 				"handleReadBatch: execRead: %v", err)
 			return
 		}
 
-		replies[i] = convertReplyToHTTP(cmd.PluginID, cmd.Cmd, *pluginReply)
+		replies[i] = convertReplyToHTTP(pluginCmd, *pluginReply)
 	}
 
 	// Save any updates that were made to the user session
@@ -403,17 +397,22 @@ func handleNotFound(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusNotFound, nil)
 }
 
+// convertCmdFromHTTP converts a http v1 PluginCmd to a plugin Cmd.
 func convertCmdFromHTTP(c v1.PluginCmd) plugin.Cmd {
 	return plugin.Cmd{
-		Cmd:     c.Cmd,
-		Payload: c.Payload,
+		PluginID: c.PluginID,
+		Version:  c.Version,
+		Cmd:      c.Cmd,
+		Payload:  c.Payload,
 	}
 }
 
-func convertReplyToHTTP(pluginID, cmd string, r plugin.Reply) v1.PluginReply {
+// convertCmdFromHTTP converts a plugin Reply to a http v1 PluginReply.
+func convertReplyToHTTP(c plugin.Cmd, r plugin.Reply) v1.PluginReply {
 	return v1.PluginReply{
-		PluginID: pluginID,
-		Cmd:      cmd,
+		PluginID: c.PluginID,
+		Version:  c.Version,
+		Cmd:      c.Cmd,
 		Payload:  r.Payload,
 		Error:    r.Error,
 	}
