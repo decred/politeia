@@ -244,8 +244,12 @@ func (p *piPlugin) cmdBillingStatusChanges(token []byte) (string, error) {
 
 // cmdSummary returns the pi summary of a proposal.
 func (p *piPlugin) cmdSummary(token []byte) (string, error) {
-	// Get record metadata
-	r, err := p.recordAbridged(token)
+	// Get an abridged version of the record. We only
+	// need the record metadata and the vote metadata.
+	r, err := p.record(backend.RecordRequest{
+		Token:     token,
+		Filenames: []string{ticketvote.FileNameVoteMetadata},
+	})
 	if err != nil {
 		return "", err
 	}
@@ -254,8 +258,15 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		mdStatus   = r.RecordMetadata.Status
 		voteStatus = ticketvote.VoteStatusInvalid
 
-		bscs []pi.BillingStatusChange
+		voteMD *ticketvote.VoteMetadata
+		bscs   []pi.BillingStatusChange
 	)
+
+	// Pull the vote metadata out of the record files.
+	voteMD, err = voteMetadataDecode(r.Files)
+	if err != nil {
+		return "", err
+	}
 
 	// Fetch vote status & billing status change if they are needed in order
 	// to determine the proposal status.
@@ -277,7 +288,9 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		}
 	}
 
-	proposalStatus, err := proposalStatus(mdState, mdStatus, voteStatus, bscs)
+	// Determine the proposal status
+	proposalStatus, err := proposalStatus(mdState, mdStatus,
+		voteStatus, voteMD, bscs)
 	if err != nil {
 		return "", err
 	}
@@ -336,7 +349,16 @@ func statusChangesDecode(metadata []backend.MetadataStream) ([]usermd.StatusChan
 }
 
 // proposalStatusApproved returns the proposal status of an approved proposal.
-func proposalStatusApproved(bscs []pi.BillingStatusChange) (pi.PropStatusT, error) {
+func proposalStatusApproved(voteMD *ticketvote.VoteMetadata, bscs []pi.BillingStatusChange) (pi.PropStatusT, error) {
+	// If the proposal in an RFP then we don't need to
+	// check the billing status changes. RFP proposals
+	// do not bill against the treasury. This does not
+	// apply to RFP submission proposals.
+	if isRFP(voteMD) {
+		return pi.PropStatusApproved, nil
+	}
+
+	// Use the billing status to determine the proposal status.
 	bs := proposalBillingStatus(ticketvote.VoteStatusApproved, bscs)
 	switch bs {
 	case pi.BillingStatusClosed:
@@ -381,7 +403,7 @@ func proposalBillingStatus(vs ticketvote.VoteStatusT, bscs []pi.BillingStatusCha
 // proposalStatus combines record metadata and plugin metadata in order to
 // create a unified map of the various paths a proposal can take throughout
 // the proposal process.
-func proposalStatus(state backend.StateT, status backend.StatusT, voteStatus ticketvote.VoteStatusT, bscs []pi.BillingStatusChange) (pi.PropStatusT, error) {
+func proposalStatus(state backend.StateT, status backend.StatusT, voteStatus ticketvote.VoteStatusT, voteMD *ticketvote.VoteMetadata, bscs []pi.BillingStatusChange) (pi.PropStatusT, error) {
 	switch state {
 	case backend.StateUnvetted:
 		switch status {
@@ -409,7 +431,7 @@ func proposalStatus(state backend.StateT, status backend.StatusT, voteStatus tic
 			case ticketvote.VoteStatusRejected:
 				return pi.PropStatusRejected, nil
 			case ticketvote.VoteStatusApproved:
-				return proposalStatusApproved(bscs)
+				return proposalStatusApproved(voteMD, bscs)
 			}
 		}
 	}
