@@ -131,8 +131,8 @@ type PluginReply struct {
 }
 
 type Batch struct {
-	// TODO Cmds is a JSON encoded string of []PluginCmd.
-	Cmds []PluginCmd `json:"cmds"`
+	// Cmds is a JSON encoded string that decodes to []PluginCmd.
+	Cmds string `json:"cmds"`
 }
 
 type BatchReply struct {
@@ -172,14 +172,20 @@ const (
 	// ErrorCodePluginNotAuthorized is returned when a plugin is attempting to
 	// execute a command using a route that it is not authorized to use.
 	ErrorCodePluginNotAuthorized ErrorCodeT = 3
+
+	// ErrorCodeBatchLimitExceeded is return when the number of plugin commands
+	// that are allowed to be executed in a batch request is exceeded.
+	ErrorCodeBatchLimitExceeded ErrorCodeT = 4
 )
 
 var (
 	// ErrorCodes contains the human readable errors.
 	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid:        "invalid error",
-		ErrorCodeInvalidInput:   "invalid input",
-		ErrorCodePluginNotFound: "plugin not found",
+		ErrorCodeInvalid:             "invalid error",
+		ErrorCodeInvalidInput:        "invalid input",
+		ErrorCodePluginNotFound:      "plugin not found",
+		ErrorCodePluginNotAuthorized: "plugin not authorized",
+		ErrorCodeBatchLimitExceeded:  "batch limit exceeded",
 	}
 )
 

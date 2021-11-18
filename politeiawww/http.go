@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	v1 "github.com/decred/politeia/politeiawww/api/http/v1"
@@ -20,6 +21,7 @@ import (
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
+	"github.com/pkg/errors"
 )
 
 // setupRoutes sets up the routes for the politeia http API.
@@ -287,6 +289,12 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 			})
 		return
 	}
+	cmds, err := decodePluginCmds(batch.Cmds, p.cfg.PluginBatchLimit)
+	if err != nil {
+		respondWithError(w, r,
+			"handleReadBatch: decodePluginCmds: %v", err)
+		return
+	}
 
 	// Extract the session data from the request cookies
 	s, err := p.extractSession(r)
@@ -300,7 +308,7 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 		pluginSession = convertSession(s)
 		replies       = make([]v1.PluginReply, len(batch.Cmds))
 	)
-	for i, cmd := range batch.Cmds {
+	for i, cmd := range cmds {
 		// Verify plugin exists
 		_, ok := p.plugins[cmd.PluginID]
 		if !ok {
@@ -352,7 +360,24 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 		return
 	}
 
-	// Internal server error. Log it and return a 500.
+	// Check if this a user error
+	var ue v1.UserError
+	if errors.As(err, &ue) {
+		m := fmt.Sprintf("%v User error: %v %v",
+			util.RemoteAddr(r), ue.ErrorCode, v1.ErrorCodes[ue.ErrorCode])
+		if ue.ErrorContext != "" {
+			m += fmt.Sprintf(": %v", ue.ErrorContext)
+		}
+		log.Infof(m)
+
+		util.RespondWithJSON(w, http.StatusOK,
+			v1.PluginReply{
+				Error: ue,
+			})
+		return
+	}
+
+	// This is an internal server error. Log it and return a 500.
 	t := time.Now().Unix()
 	e := fmt.Sprintf(format, err)
 	log.Errorf("%v %v %v %v Internal error %v: %v",
@@ -395,6 +420,54 @@ func handleNotFound(w http.ResponseWriter, r *http.Request) {
 	}))
 
 	util.RespondWithJSON(w, http.StatusNotFound, nil)
+}
+
+func decodePluginCmds(payload string, batchLimit uint32) ([]v1.PluginCmd, error) {
+	var (
+		r    = strings.NewReader(payload)
+		d    = json.NewDecoder(r)
+		cmds = make([]v1.PluginCmd, 0, batchLimit)
+	)
+
+	// Read the opening bracket
+	_, err := d.Token()
+	if err != nil {
+		return nil, v1.UserError{
+			ErrorCode: v1.ErrorCodeInvalidInput,
+		}
+	}
+
+	// Decode the commands
+	var count uint32
+	for d.More() {
+		count++
+		if count > batchLimit {
+			return nil, v1.UserError{
+				ErrorCode:    v1.ErrorCodeBatchLimitExceeded,
+				ErrorContext: fmt.Sprintf("max number of cmds is %v", batchLimit),
+			}
+		}
+
+		var cmd v1.PluginCmd
+		err := d.Decode(&cmd)
+		if err != nil {
+			return nil, v1.UserError{
+				ErrorCode: v1.ErrorCodeInvalidInput,
+			}
+		}
+
+		cmds = append(cmds, cmd)
+	}
+
+	// Read the closing bracket
+	_, err = d.Token()
+	if err != nil {
+		return nil, v1.UserError{
+			ErrorCode: v1.ErrorCodeInvalidInput,
+		}
+	}
+
+	return cmds, nil
 }
 
 // convertCmdFromHTTP converts a http v1 PluginCmd to a plugin Cmd.
