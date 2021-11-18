@@ -455,6 +455,12 @@ const (
 	// still be added.
 	PropStatusVoteStarted PropStatusT = "vote-started"
 
+	// PropStatusApproved represents a proposal that was voted on by the Decred
+	// stakeholders, met the approval criteria, but is not being actively billed
+	// against. An example is an RFP proposal. RFP proposals do not request
+	// funding and are not billed against once approved.
+	PropStatusApproved PropStatusT = "approved"
+
 	// PropStatusRejected represents a proposal that was voted on by the Decred
 	// stakeholders and did not meet the approval criteria. A rejected proposal
 	// is locked against any additional proposal or plugin changes.
