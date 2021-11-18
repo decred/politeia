@@ -30,65 +30,19 @@ type Plugin interface {
 	Permissions() map[string]string // [cmd]permissionLevel
 
 	// Hook executes a plugin hook.
-	Hook(HookPayload) error
+	Hook(HookArgs) error
 
 	// HookTx executes a plugin hook using a database transaction.
-	HookTx(*sql.Tx, HookPayload) error
+	HookTx(*sql.Tx, HookArgs) error
 
 	// WriteTx executes a write plugin command using a database transaction.
-	// TODO put these args in an struct
-	WriteTx(*sql.Tx, Cmd, *User) (*Reply, error)
+	WriteTx(*sql.Tx, WriteArgs) (*Reply, error)
 
 	// Read executes a read plugin command.
-	// TODO put these args in an struct
-	Read(Cmd, *User) (*Reply, error)
+	Read(ReadArgs) (*Reply, error)
 
 	// ReadTx executes a read plugin command using a database transaction.
-	// TODO put these args in an struct
-	ReadTx(*sql.Tx, Cmd, *User) (*Reply, error)
-}
-
-// UserManager provides methods that result in state changes to the user
-// database that cannot be done inside of plugins.
-//
-// For example, plugins do not have access to the user database methods that
-// insert or delete users from the database. These actions must be done by the
-// caller. The UserManager interface allows plugins to add plugin specific
-// behavior onto these actions.
-//
-// Any changes made to the User during method execution will be persisted by
-// the caller.
-type UserManager interface {
-	// ID returns the plugin ID.
-	ID() string
-
-	// Version returns the lowest supported plugin API version.
-	Version() uint32
-
-	// NewUserCmd executes a command that results in a new user being added to
-	// the database. The user provided to this method is a newly created user
-	// that has not been inserted into the user database yet, but will be
-	// inserted if this command executes successfully without any user errors
-	// or unexpected errors.
-	NewUserCmd(*sql.Tx, Cmd, *User) (*Reply, error)
-}
-
-// Authorizer provides user authorization for plugin commands.
-//
-// Any changes made to the Session or User during method execution will be
-// persisted by the caller.
-type Authorizer interface {
-	// ID returns the plugin ID.
-	ID() string
-
-	// Version returns the lowest supported plugin API version.
-	Version() uint32
-
-	// Authorize checks if the user is authorized to execute a plugin command.
-	//
-	// A UserError is returned if the user is not authorized.
-	Authorize(s *Session, u *User, pluginID string,
-		version uint32, cmd string) error
+	ReadTx(*sql.Tx, ReadArgs) (*Reply, error)
 }
 
 type Cmd struct {
@@ -103,7 +57,17 @@ type Reply struct {
 	Error   error
 }
 
-type HookPayload struct {
+type WriteArgs struct {
+	Cmd  Cmd
+	User *User
+}
+
+type ReadArgs struct {
+	Cmd  Cmd
+	User *User
+}
+
+type HookArgs struct {
 	Type  HookT
 	Cmd   Cmd
 	Reply *Reply
@@ -119,12 +83,6 @@ const (
 	HookPreWrite    HookT = "pre-write"
 	HookPostWrite   HookT = "post-write"
 )
-
-type Session struct {
-	UserID    string
-	CreatedAt int64
-	Delete    bool
-}
 
 // UserError is the reply that is returned when a plugin command encounters an
 // error that was caused by the user.

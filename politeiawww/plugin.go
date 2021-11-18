@@ -48,13 +48,13 @@ func (p *politeiawww) execNewUser(ctx context.Context, session *plugin.Session, 
 	}
 
 	// Execute the pre plugin hooks
-	h := plugin.HookPayload{
-		Type:  plugin.HookPreNewUser,
-		Cmd:   cmd,
-		Reply: nil,
-		User:  nil, // User is set by execHooks
-	}
-	reply, err = p.execPreHooks(tx, h, usr)
+	reply, err = p.execPreHooks(tx, usr,
+		plugin.HookArgs{
+			Type:  plugin.HookPreNewUser,
+			Cmd:   cmd,
+			Reply: nil,
+			User:  nil, // User is set by execHooks
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,11 @@ func (p *politeiawww) execNewUser(ctx context.Context, session *plugin.Session, 
 
 	// Execute the new user plugin command
 	pluginUser := convertUser(usr, cmd.PluginID)
-	reply, err = p.userPlugin.NewUserCmd(tx, cmd, pluginUser)
+	reply, err = p.userPlugin.NewUser(tx,
+		plugin.WriteArgs{
+			Cmd:  cmd,
+			User: pluginUser,
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -79,13 +83,13 @@ func (p *politeiawww) execNewUser(ctx context.Context, session *plugin.Session, 
 	updateUser(usr, pluginUser, cmd.PluginID)
 
 	// Execute the post plugin hooks
-	h = plugin.HookPayload{
-		Type:  plugin.HookPostNewUser,
-		Cmd:   cmd,
-		Reply: reply,
-		User:  nil, // User is set by execHooks
-	}
-	err = p.execPostHooks(tx, h, usr)
+	err = p.execPostHooks(tx, usr,
+		plugin.HookArgs{
+			Type:  plugin.HookPostNewUser,
+			Cmd:   cmd,
+			Reply: reply,
+			User:  nil, // User is set by execHooks
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -149,13 +153,13 @@ func (p *politeiawww) execWrite(ctx context.Context, session *plugin.Session, cm
 	}
 
 	// Execute the pre plugin hooks
-	h := plugin.HookPayload{
-		Type:  plugin.HookPreWrite,
-		Cmd:   cmd,
-		Reply: nil,
-		User:  nil, // User is set by execHooks
-	}
-	reply, err = p.execPreHooks(tx, h, usr)
+	reply, err = p.execPreHooks(tx, usr,
+		plugin.HookArgs{
+			Type:  plugin.HookPreWrite,
+			Cmd:   cmd,
+			Reply: nil,
+			User:  nil, // User is set by execHooks
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +174,11 @@ func (p *politeiawww) execWrite(ctx context.Context, session *plugin.Session, cm
 		return nil, errors.Errorf("plugin not found: %v", cmd.PluginID)
 	}
 	pluginUser := convertUser(usr, cmd.PluginID)
-	reply, err = plug.WriteTx(tx, cmd, pluginUser)
+	reply, err = plug.WriteTx(tx,
+		plugin.WriteArgs{
+			Cmd:  cmd,
+			User: pluginUser,
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -185,13 +193,13 @@ func (p *politeiawww) execWrite(ctx context.Context, session *plugin.Session, cm
 	updateUser(usr, pluginUser, cmd.PluginID)
 
 	// Execute the post plugin hooks
-	h = plugin.HookPayload{
-		Type:  plugin.HookPostWrite,
-		Cmd:   cmd,
-		Reply: reply,
-		User:  nil, // User is set by execHooks
-	}
-	err = p.execPostHooks(tx, h, usr)
+	err = p.execPostHooks(tx, usr,
+		plugin.HookArgs{
+			Type:  plugin.HookPostWrite,
+			Cmd:   cmd,
+			Reply: reply,
+			User:  nil, // User is set by execHooks
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -257,8 +265,10 @@ func (p *politeiawww) execRead(ctx context.Context, session *plugin.Session, cmd
 		// Should not happen
 		return nil, errors.Errorf("plugin not found: %v", cmd.PluginID)
 	}
-	pluginUser := convertUser(usr, cmd.PluginID)
-	reply, err = plug.Read(cmd, pluginUser)
+	reply, err = plug.Read(plugin.ReadArgs{
+		Cmd:  cmd,
+		User: convertUser(usr, cmd.PluginID),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -271,13 +281,19 @@ func (p *politeiawww) execRead(ctx context.Context, session *plugin.Session, cmd
 	return reply, nil
 }
 
-func (p *politeiawww) authorize(s *plugin.Session, u *user.User, cmd plugin.Cmd) (*plugin.Reply, error) {
+func (p *politeiawww) authorize(s *plugin.Session, usr *user.User, cmd plugin.Cmd) (*plugin.Reply, error) {
 	// Setup the plugin user
-	pluginUser := convertUser(u, p.authPlugin.ID())
+	pluginUser := convertUser(usr, p.authPlugin.ID())
 
 	// Check user authorization
-	err := p.authPlugin.Authorize(s, pluginUser,
-		cmd.PluginID, cmd.Version, cmd.Cmd)
+	err := p.authPlugin.Authorize(
+		plugin.AuthorizeArgs{
+			Session:  s,
+			User:     pluginUser,
+			PluginID: cmd.PluginID,
+			Version:  cmd.Version,
+			Cmd:      cmd.Cmd,
+		})
 	if err != nil {
 		var ue plugin.UserError
 		if errors.As(err, &ue) {
@@ -290,7 +306,7 @@ func (p *politeiawww) authorize(s *plugin.Session, u *user.User, cmd plugin.Cmd)
 
 	// Update the global user object with any changes
 	// that the plugin made to the plugin user data.
-	updateUser(u, pluginUser, cmd.PluginID)
+	updateUser(usr, pluginUser, cmd.PluginID)
 
 	return nil, nil
 }
@@ -301,7 +317,7 @@ func (p *politeiawww) authorize(s *plugin.Session, u *user.User, cmd plugin.Cmd)
 // A plugin reply will be returned if one of the plugins throws a user error
 // during hook execution. The user error will be embedded in the plugin
 // reply. Unexpected errors result in a standard golang error being returned.
-func (p *politeiawww) execPreHooks(tx *sql.Tx, h plugin.HookPayload, usr *user.User) (*plugin.Reply, error) {
+func (p *politeiawww) execPreHooks(tx *sql.Tx, usr *user.User, h plugin.HookArgs) (*plugin.Reply, error) {
 	err := p.execHooks(tx, h, usr)
 	if err != nil {
 		var ue plugin.UserError
@@ -320,13 +336,13 @@ func (p *politeiawww) execPreHooks(tx *sql.Tx, h plugin.HookPayload, usr *user.U
 // Post hooks are not able to throw plugin errors like the pre hooks are. Any
 // error returned by a plugin from a post hook will be treated as an unexpected
 // error.
-func (p *politeiawww) execPostHooks(tx *sql.Tx, h plugin.HookPayload, usr *user.User) error {
+func (p *politeiawww) execPostHooks(tx *sql.Tx, usr *user.User, h plugin.HookArgs) error {
 	return p.execHooks(tx, h, usr)
 }
 
 // execHooks executes a hook for list of plugins. A sql Tx may or may not exist
 // depending on the whether the caller is executing an atomic operation.
-func (p *politeiawww) execHooks(tx *sql.Tx, h plugin.HookPayload, usr *user.User) error {
+func (p *politeiawww) execHooks(tx *sql.Tx, h plugin.HookArgs, usr *user.User) error {
 	for _, pluginID := range p.pluginIDs {
 		// Get the plugin
 		p, ok := p.plugins[pluginID]
