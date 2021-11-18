@@ -13,7 +13,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -65,20 +64,12 @@ func generateSeed() (int64, error) {
 	return new(big.Int).SetBytes(seedBytes[:]).Int64(), nil
 }
 
-func usage() {
-	fmt.Fprintf(os.Stderr, "usage: politeiavoter [flags] <action> [arguments]\n")
-	fmt.Fprintf(os.Stderr, " flags:\n")
-	flag.PrintDefaults()
-	fmt.Fprintf(os.Stderr, "\n actions:\n")
-	fmt.Fprintf(os.Stderr, "  inventory - Retrieve all proposals"+
-		" that are being voted on\n")
-	fmt.Fprintf(os.Stderr, "  vote      - Vote on a proposal\n")
-	fmt.Fprintf(os.Stderr, "  tally     - Tally votes on a proposal\n")
-	fmt.Fprintf(os.Stderr, "  verify    - Verify votes on a proposal\n")
-	//fmt.Fprintf(os.Stderr, "  startvote          - Instruct vote to start "+
-	//	"(admin only)\n")
-	fmt.Fprintf(os.Stderr, "\n")
-}
+const listCmdMessage = `Available commands:
+  inventory Retrieve all proposals that are being voted on
+  vote      Vote on a proposal
+  tally     Tally votes on a proposal
+  verify    Verify votes on a proposal
+`
 
 // walletPassphrase returns the wallet passphrase from the config if one was
 // provided or prompts the user for their wallet passphrase if one was not
@@ -1646,8 +1637,9 @@ func _main() error {
 		return err
 	}
 	if len(args) == 0 {
-		usage()
-		return fmt.Errorf("must provide action")
+		fmt.Fprintln(os.Stderr, "No command specified")
+		fmt.Fprintln(os.Stderr, listCmdMessage)
+		os.Exit(1)
 	}
 	action := args[0]
 
@@ -1664,6 +1656,16 @@ func _main() error {
 	// Close GRPC
 	defer c.conn.Close()
 
+	// Validate command
+	switch action {
+	case "inventory", "tally", "vote", "verify":
+		// valid command, continue
+	default:
+		fmt.Fprintf(os.Stderr, "Unrecognized command %q\n", action)
+		fmt.Fprintln(os.Stderr, listCmdMessage)
+		os.Exit(1)
+	}
+
 	// Get block height to validate GRPC creds
 	ar, err := c.wallet.Accounts(c.ctx, &pb.AccountsRequest{})
 	if err != nil {
@@ -1671,8 +1673,7 @@ func _main() error {
 	}
 	log.Debugf("Current wallet height: %v", ar.CurrentBlockHeight)
 
-	// Scan through command line arguments.
-
+	// Run command
 	switch action {
 	case "inventory":
 		err = c.inventory()
@@ -1682,8 +1683,6 @@ func _main() error {
 		err = c.vote(args[1:])
 	case "verify":
 		err = c.verify(args[1:])
-	default:
-		err = fmt.Errorf("invalid action: %v", action)
 	}
 
 	return err

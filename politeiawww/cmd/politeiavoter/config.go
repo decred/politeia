@@ -72,6 +72,7 @@ type config struct {
 	Profile          string `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
 	DebugLevel       string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
 	Version          string
+	ListCommands     bool   `short:"l" long:"listcommands" description:"List available commands"`
 	WalletHost       string `long:"wallethost" description:"Wallet host"`
 	WalletCert       string `long:"walletgrpccert" description:"Wallet GRPC certificate"`
 	WalletPassphrase string `long:"walletpassphrase" description:"Wallet decryption passphrase"`
@@ -262,6 +263,12 @@ func loadConfig() (*config, []string, error) {
 		os.Exit(0)
 	}
 
+	// Print available commands if listcommands flag is specified
+	if preCfg.ListCommands {
+		fmt.Fprintln(os.Stderr, listCmdMessage)
+		os.Exit(0)
+	}
+
 	// Perform service command and exit if specified.  Invalid service
 	// commands show an appropriate error.  Only runs on Windows since
 	// the runServiceCommand function will be nil when not on Windows.
@@ -311,6 +318,12 @@ func loadConfig() (*config, []string, error) {
 			return nil, nil, err
 		}
 		configFileError = err
+	}
+
+	// Print available commands if listcommands flag is specified
+	if cfg.ListCommands {
+		fmt.Fprintln(os.Stderr, listCmdMessage)
+		os.Exit(0)
 	}
 
 	// See if appdata was overridden
