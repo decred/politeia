@@ -115,6 +115,7 @@ type PolicyReply struct {
 	ReadBatchLimit uint32 `json:"readbatchlimit"`
 }
 
+// Cmd is used to execute a plugin command.
 type Cmd struct {
 	PluginID string `json:"pluginid"`
 	Version  uint32 `json:"version"` // Plugin API version
@@ -122,6 +123,7 @@ type Cmd struct {
 	Payload  string `json:"payload"` // Cmd payload, JSON encoded
 }
 
+// CmdReply is the reply to a Cmd request.
 type CmdReply struct {
 	PluginID string `json:"pluginid"`
 	Version  uint32 `json:"version"` // Plugin API version
@@ -130,11 +132,13 @@ type CmdReply struct {
 	Error    error  `json:"error,omitempty"`
 }
 
+// Batch is used to execute a batch of plugin commands.
 type Batch struct {
 	// Cmds is a JSON encoded string that decodes to []Cmd.
 	Cmds string `json:"cmds"`
 }
 
+// BatchReply is the reply to a Batch request.
 type BatchReply struct {
 	Replies []CmdReply `json:"replies"`
 }

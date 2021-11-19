@@ -38,7 +38,7 @@ var (
 	// '-ldflags "-X github.com/decred/politeia/util/version.PreRelease=foo"'
 	// if needed.  It MUST only contain characters from semanticAlphabet per
 	// the semantic versioning spec.
-	PreRelease = ""
+	PreRelease = "pre"
 
 	// BuildMetadata is defined as a variable so it can be overridden during the
 	// build process with:
