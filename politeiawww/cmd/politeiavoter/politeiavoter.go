@@ -50,6 +50,20 @@ import (
 )
 
 const (
+	cmdInventory = "inventory"
+	cmdVote      = "vote"
+	cmdTally     = "tally"
+	cmdVerify    = "verify"
+)
+
+const listCmdMessage = `Available commands:
+  inventory Retrieve all proposals that are being voted on
+  vote      Vote on a proposal
+  tally     Tally votes on a proposal
+  verify    Verify votes on a proposal
+`
+
+const (
 	failedJournal  = "failed.json"
 	successJournal = "success.json"
 	workJournal    = "work.json"
@@ -63,13 +77,6 @@ func generateSeed() (int64, error) {
 	}
 	return new(big.Int).SetBytes(seedBytes[:]).Int64(), nil
 }
-
-const listCmdMessage = `Available commands:
-  inventory Retrieve all proposals that are being voted on
-  vote      Vote on a proposal
-  tally     Tally votes on a proposal
-  verify    Verify votes on a proposal
-`
 
 // walletPassphrase returns the wallet passphrase from the config if one was
 // provided or prompts the user for their wallet passphrase if one was not
@@ -1658,7 +1665,7 @@ func _main() error {
 
 	// Validate command
 	switch action {
-	case "inventory", "tally", "vote", "verify":
+	case cmdInventory, cmdTally, cmdVote, cmdVerify:
 		// valid command, continue
 	default:
 		fmt.Fprintf(os.Stderr, "Unrecognized command %q\n", action)
@@ -1675,13 +1682,13 @@ func _main() error {
 
 	// Run command
 	switch action {
-	case "inventory":
+	case cmdInventory:
 		err = c.inventory()
-	case "tally":
+	case cmdTally:
 		err = c.tally(args[1:])
-	case "vote":
+	case cmdVote:
 		err = c.vote(args[1:])
-	case "verify":
+	case cmdVerify:
 		err = c.verify(args[1:])
 	}
 
