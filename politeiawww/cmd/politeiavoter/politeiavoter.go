@@ -57,13 +57,6 @@ const (
 	cmdHelp      = "help"
 )
 
-const listCmdMessage = `Available commands:
-  inventory Retrieve all proposals that are being voted on
-  vote      Vote on a proposal
-  tally     Tally votes on a proposal
-  verify    Verify votes on a proposal
-`
-
 const (
 	failedJournal  = "failed.json"
 	successJournal = "success.json"
@@ -1638,37 +1631,6 @@ func (p *piv) verify(args []string) error {
 
 	return nil
 }
-
-const inventoryHelpMsg = `inventory 
-
-Retrieve all proposals that are being voted on.
-`
-
-const voteHelpMsg = `vote "token" "voteid"
-
-Vote on a proposal.
-
-Arguments:
-1. token   (string, required)  Proposal censorship token
-2. voteid  (string, required)  Vote option ID (e.g. yes)
-`
-
-const tallyHelpMsg = `tally "token"
-
-Tally votes on a proposal.
-
-Arguments:
-1. token   (string, required)  Proposal censorship token
-`
-
-const verifyHelpMsg = `verify "tokens..."
-
-Verify votes on proposals. If no tokens are provided or 'ALL' string is 
-provided then it verifies all votes present in the vote dir.
-
-Arguments:
-1. tokens  ([]string, optional)  Proposal tokens.
-`
 
 func (p *piv) help(command string) {
 	switch command {
