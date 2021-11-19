@@ -21,6 +21,7 @@ type Authorizer interface {
 	Authorize(AuthorizeArgs) error
 }
 
+// AuthorizeArgs contains the arguments for the Authorize method.
 type AuthorizeArgs struct {
 	Session  *Session
 	User     *User
@@ -29,8 +30,16 @@ type AuthorizeArgs struct {
 	Cmd      string
 }
 
+// Session contains the data that is saved as part of a user session.
+//
+// Plugins do not have direct access to the sessions database, but the
+// Authorizer plugin is able to update fields on this session struct. Updates
+// are saved to the sessions database by the backend.
 type Session struct {
 	UserID    string
 	CreatedAt int64
-	Delete    bool
+
+	// Delete can be set by the Authorizer plugin to instruct the backend to
+	// delete the session.
+	Delete bool
 }

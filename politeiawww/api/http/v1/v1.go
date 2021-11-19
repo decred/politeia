@@ -115,7 +115,7 @@ type PolicyReply struct {
 	ReadBatchLimit uint32 `json:"readbatchlimit"`
 }
 
-// Cmd is used to execute a plugin command.
+// Cmd represents a plugin command.
 type Cmd struct {
 	PluginID string `json:"pluginid"`
 	Version  uint32 `json:"version"` // Plugin API version

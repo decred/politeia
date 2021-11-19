@@ -10,9 +10,9 @@ import "database/sql"
 // database that cannot be done inside of plugins.
 //
 // For example, plugins do not have access to the user database methods that
-// insert or delete users from the database. These actions must be done by the
-// caller. The UserManager interface allows plugins to add plugin specific
-// behavior onto these actions.
+// insert users into the database. These actions must be done by the backend.
+// The UserManager interface allows plugins to add plugin specific behavior
+// onto these actions.
 //
 // Any changes made to the User during method execution will be persisted by
 // the caller.

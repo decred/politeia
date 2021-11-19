@@ -90,11 +90,11 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewUser")
 
 	// Decode the request body
-	var cmd v1.PluginCmd
+	var cmd v1.Cmd
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cmd); err != nil {
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.PluginReply{
+			v1.CmdReply{
 				Error: v1.UserError{
 					ErrorCode: v1.ErrorCodeInvalidInput,
 				},
@@ -105,7 +105,7 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	// Verify the plugin is the user plugin
 	if p.userPlugin.ID() != cmd.PluginID {
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.PluginReply{
+			v1.CmdReply{
 				Error: v1.UserError{
 					ErrorCode: v1.ErrorCodePluginNotAuthorized,
 				},
@@ -152,11 +152,11 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleWrite")
 
 	// Decode the request body
-	var cmd v1.PluginCmd
+	var cmd v1.Cmd
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cmd); err != nil {
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.PluginReply{
+			v1.CmdReply{
 				Error: v1.UserError{
 					ErrorCode: v1.ErrorCodeInvalidInput,
 				},
@@ -168,7 +168,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	_, ok := p.plugins[cmd.PluginID]
 	if !ok {
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.PluginReply{
+			v1.CmdReply{
 				Error: v1.UserError{
 					ErrorCode: v1.ErrorCodePluginNotFound,
 				},
@@ -215,11 +215,11 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleRead")
 
 	// Decode the request body
-	var cmd v1.PluginCmd
+	var cmd v1.Cmd
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cmd); err != nil {
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.PluginReply{
+			v1.CmdReply{
 				Error: v1.UserError{
 					ErrorCode: v1.ErrorCodeInvalidInput,
 				},
@@ -231,7 +231,7 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	_, ok := p.plugins[cmd.PluginID]
 	if !ok {
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.PluginReply{
+			v1.CmdReply{
 				Error: v1.UserError{
 					ErrorCode: v1.ErrorCodePluginNotFound,
 				},
@@ -282,17 +282,17 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&batch); err != nil {
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.PluginReply{
+			v1.CmdReply{
 				Error: v1.UserError{
 					ErrorCode: v1.ErrorCodeInvalidInput,
 				},
 			})
 		return
 	}
-	cmds, err := decodePluginCmds(batch.Cmds, p.cfg.PluginBatchLimit)
+	cmds, err := decodeCmds(batch.Cmds, p.cfg.PluginBatchLimit)
 	if err != nil {
 		respondWithError(w, r,
-			"handleReadBatch: decodePluginCmds: %v", err)
+			"handleReadBatch: decodeCmds: %v", err)
 		return
 	}
 
@@ -306,13 +306,13 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 
 	var (
 		pluginSession = convertSession(s)
-		replies       = make([]v1.PluginReply, len(batch.Cmds))
+		replies       = make([]v1.CmdReply, len(batch.Cmds))
 	)
 	for i, cmd := range cmds {
 		// Verify plugin exists
 		_, ok := p.plugins[cmd.PluginID]
 		if !ok {
-			replies[i] = v1.PluginReply{
+			replies[i] = v1.CmdReply{
 				Error: v1.UserError{
 					ErrorCode: v1.ErrorCodePluginNotFound,
 				},
@@ -371,7 +371,7 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 		log.Infof(m)
 
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.PluginReply{
+			v1.CmdReply{
 				Error: ue,
 			})
 		return
@@ -422,11 +422,11 @@ func handleNotFound(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusNotFound, nil)
 }
 
-func decodePluginCmds(payload string, batchLimit uint32) ([]v1.PluginCmd, error) {
+func decodeCmds(payload string, batchLimit uint32) ([]v1.Cmd, error) {
 	var (
 		r    = strings.NewReader(payload)
 		d    = json.NewDecoder(r)
-		cmds = make([]v1.PluginCmd, 0, batchLimit)
+		cmds = make([]v1.Cmd, 0, batchLimit)
 	)
 
 	// Read the opening bracket
@@ -448,7 +448,7 @@ func decodePluginCmds(payload string, batchLimit uint32) ([]v1.PluginCmd, error)
 			}
 		}
 
-		var cmd v1.PluginCmd
+		var cmd v1.Cmd
 		err := d.Decode(&cmd)
 		if err != nil {
 			return nil, v1.UserError{
@@ -470,8 +470,8 @@ func decodePluginCmds(payload string, batchLimit uint32) ([]v1.PluginCmd, error)
 	return cmds, nil
 }
 
-// convertCmdFromHTTP converts a http v1 PluginCmd to a plugin Cmd.
-func convertCmdFromHTTP(c v1.PluginCmd) plugin.Cmd {
+// convertCmdFromHTTP converts a http v1 Cmd to a plugin Cmd.
+func convertCmdFromHTTP(c v1.Cmd) plugin.Cmd {
 	return plugin.Cmd{
 		PluginID: c.PluginID,
 		Version:  c.Version,
@@ -480,9 +480,9 @@ func convertCmdFromHTTP(c v1.PluginCmd) plugin.Cmd {
 	}
 }
 
-// convertCmdFromHTTP converts a plugin Reply to a http v1 PluginReply.
-func convertReplyToHTTP(c plugin.Cmd, r plugin.Reply) v1.PluginReply {
-	return v1.PluginReply{
+// convertCmdFromHTTP converts a plugin Reply to a http v1 CmdReply.
+func convertReplyToHTTP(c plugin.Cmd, r plugin.Reply) v1.CmdReply {
+	return v1.CmdReply{
 		PluginID: c.PluginID,
 		Version:  c.Version,
 		Cmd:      c.Cmd,
