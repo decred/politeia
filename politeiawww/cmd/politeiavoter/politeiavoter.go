@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020 The Decred developers
+// Copyright (c) 2018-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -54,6 +54,7 @@ const (
 	cmdVote      = "vote"
 	cmdTally     = "tally"
 	cmdVerify    = "verify"
+	cmdHelp      = "help"
 )
 
 const listCmdMessage = `Available commands:
@@ -1638,6 +1639,50 @@ func (p *piv) verify(args []string) error {
 	return nil
 }
 
+const inventoryHelpMsg = `inventory 
+
+Retrieve all proposals that are being voted on.
+`
+
+const voteHelpMsg = `vote "token" "voteid"
+
+Vote on a proposal.
+
+Arguments:
+1. token   (string, required)  Proposal censorship token
+2. voteid  (string, required)  Vote option ID (e.g. yes)
+`
+
+const tallyHelpMsg = `tally "token"
+
+Tally votes on a proposal.
+
+Arguments:
+1. token   (string, required)  Proposal censorship token
+`
+
+const verifyHelpMsg = `verify "tokens..."
+
+Verify votes on proposals. If no tokens are provided or 'ALL' string is 
+provided then it verifies all votes present in the vote dir.
+
+Arguments:
+1. tokens  ([]string, optional)  Proposal tokens.
+`
+
+func (p *piv) help(command string) {
+	switch command {
+	case cmdInventory:
+		fmt.Fprintf(os.Stdout, "%s\n", inventoryHelpMsg)
+	case cmdVote:
+		fmt.Fprintf(os.Stdout, "%s\n", voteHelpMsg)
+	case cmdTally:
+		fmt.Fprintf(os.Stdout, "%s\n", tallyHelpMsg)
+	case cmdVerify:
+		fmt.Fprintf(os.Stdout, "%s\n", verifyHelpMsg)
+	}
+}
+
 func _main() error {
 	cfg, args, err := loadConfig()
 	if err != nil {
@@ -1665,31 +1710,36 @@ func _main() error {
 
 	// Validate command
 	switch action {
-	case cmdInventory, cmdTally, cmdVote, cmdVerify:
+	case cmdInventory, cmdTally, cmdVote:
+		// These commands require a connection to a dcrwallet instance. Get
+		// block height to validate GPRC cerds.
+		ar, err := c.wallet.Accounts(c.ctx, &pb.AccountsRequest{})
+		if err != nil {
+			return err
+		}
+		log.Debugf("Current wallet height: %v", ar.CurrentBlockHeight)
+
+	case cmdVerify, cmdHelp:
 		// valid command, continue
+
 	default:
 		fmt.Fprintf(os.Stderr, "Unrecognized command %q\n", action)
 		fmt.Fprintln(os.Stderr, listCmdMessage)
 		os.Exit(1)
 	}
 
-	// Get block height to validate GRPC creds
-	ar, err := c.wallet.Accounts(c.ctx, &pb.AccountsRequest{})
-	if err != nil {
-		return err
-	}
-	log.Debugf("Current wallet height: %v", ar.CurrentBlockHeight)
-
 	// Run command
 	switch action {
 	case cmdInventory:
 		err = c.inventory()
-	case cmdTally:
-		err = c.tally(args[1:])
 	case cmdVote:
 		err = c.vote(args[1:])
+	case cmdTally:
+		err = c.tally(args[1:])
 	case cmdVerify:
 		err = c.verify(args[1:])
+	case cmdHelp:
+		c.help(args[1])
 	}
 
 	return err
