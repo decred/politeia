@@ -35,6 +35,7 @@ const (
 	defaultWalletMainnetPort = "9111"
 	defaultWalletTestnetPort = "19111"
 
+	walletCertFile = "rpc.cert"
 	clientCertFile = "client.pem"
 	clientKeyFile  = "client-key.pem"
 
@@ -47,12 +48,14 @@ const (
 )
 
 var (
-	defaultHomeDir        = dcrutil.AppDataDir("politeiavoter", false)
-	defaultConfigFile     = filepath.Join(defaultHomeDir, defaultConfigFilename)
-	defaultLogDir         = filepath.Join(defaultHomeDir, defaultLogDirname)
-	defaultVoteDir        = filepath.Join(defaultHomeDir, defaultVoteDirname)
-	dcrwalletHomeDir      = dcrutil.AppDataDir("dcrwallet", false)
-	defaultWalletCertFile = filepath.Join(dcrwalletHomeDir, "rpc.cert")
+	defaultHomeDir    = dcrutil.AppDataDir("politeiavoter", false)
+	defaultConfigFile = filepath.Join(defaultHomeDir, defaultConfigFilename)
+	defaultLogDir     = filepath.Join(defaultHomeDir, defaultLogDirname)
+	defaultVoteDir    = filepath.Join(defaultHomeDir, defaultVoteDirname)
+	dcrwalletHomeDir  = dcrutil.AppDataDir("dcrwallet", false)
+	defaultWalletCert = filepath.Join(dcrwalletHomeDir, walletCertFile)
+	defaultClientCert = filepath.Join(defaultHomeDir, clientCertFile)
+	defaultClientKey  = filepath.Join(defaultHomeDir, clientKeyFile)
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -91,8 +94,8 @@ type config struct {
 	// correct failures.
 	HoursPrior uint64 `long:"hoursprior" description:"Number of hours to subtract from available voting window."`
 
-	ClientCert string `long:"clientcert" description:"Path to TLS certificate for client authentication (default: client.pem)"`
-	ClientKey  string `long:"clientkey" description:"Path to TLS client authentication key (default: client-key.pem)"`
+	ClientCert string `long:"clientcert" description:"Path to TLS certificate for client authentication"`
+	ClientKey  string `long:"clientkey" description:"Path to TLS client authentication key"`
 
 	voteDir       string
 	dial          func(string, string) (net.Conn, error)
@@ -225,6 +228,9 @@ func loadConfig() (*config, []string, error) {
 		LogDir:     defaultLogDir,
 		voteDir:    defaultVoteDir,
 		Version:    version.String(),
+		WalletCert: defaultWalletCert,
+		ClientCert: defaultClientCert,
+		ClientKey:  defaultClientKey,
 		Bunches:    defaultBunches,
 		HoursPrior: defaultHoursPrior,
 	}
@@ -301,6 +307,18 @@ func loadConfig() (*config, []string, error) {
 			cfg.voteDir = filepath.Join(cfg.HomeDir, defaultVoteDirname)
 		} else {
 			cfg.voteDir = preCfg.voteDir
+		}
+
+		// dcrwallet client key-pair
+		if preCfg.ClientCert == defaultClientCert {
+			cfg.ClientCert = filepath.Join(cfg.HomeDir, clientCertFile)
+		} else {
+			cfg.ClientCert = preCfg.ClientCert
+		}
+		if preCfg.ClientKey == defaultClientKey {
+			cfg.ClientKey = filepath.Join(cfg.HomeDir, clientKeyFile)
+		} else {
+			cfg.ClientKey = preCfg.ClientKey
 		}
 	}
 
@@ -448,11 +466,10 @@ func loadConfig() (*config, []string, error) {
 		}
 	}
 
-	// Wallet cert
-	if cfg.WalletCert == "" {
-		cfg.WalletCert = defaultWalletCertFile
-	}
+	// Clean cert file paths
 	cfg.WalletCert = util.CleanAndExpandPath(cfg.WalletCert)
+	cfg.ClientCert = util.CleanAndExpandPath(cfg.ClientCert)
+	cfg.ClientKey = util.CleanAndExpandPath(cfg.ClientKey)
 
 	// Warn about missing config file only after all other configuration is
 	// done.  This prevents the warning on help messages and invalid
@@ -506,16 +523,6 @@ func loadConfig() (*config, []string, error) {
 			return nil, nil, fmt.Errorf("cannot use --trickle " +
 				"without --proxy")
 		}
-	}
-
-	// Set path for the client key/cert depending on if they are set in options
-	cfg.ClientCert = util.CleanAndExpandPath(cfg.ClientCert)
-	cfg.ClientKey = util.CleanAndExpandPath(cfg.ClientKey)
-	if cfg.ClientCert == "" {
-		cfg.ClientCert = filepath.Join(cfg.HomeDir, clientCertFile)
-	}
-	if cfg.ClientKey == "" {
-		cfg.ClientKey = filepath.Join(cfg.HomeDir, clientKeyFile)
 	}
 
 	return &cfg, remainingArgs, nil
