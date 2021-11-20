@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020 The Decred developers
+// Copyright (c) 2018-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,7 +13,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -51,6 +50,14 @@ import (
 )
 
 const (
+	cmdInventory = "inventory"
+	cmdVote      = "vote"
+	cmdTally     = "tally"
+	cmdVerify    = "verify"
+	cmdHelp      = "help"
+)
+
+const (
 	failedJournal  = "failed.json"
 	successJournal = "success.json"
 	workJournal    = "work.json"
@@ -63,21 +70,6 @@ func generateSeed() (int64, error) {
 		return 0, err
 	}
 	return new(big.Int).SetBytes(seedBytes[:]).Int64(), nil
-}
-
-func usage() {
-	fmt.Fprintf(os.Stderr, "usage: politeiavoter [flags] <action> [arguments]\n")
-	fmt.Fprintf(os.Stderr, " flags:\n")
-	flag.PrintDefaults()
-	fmt.Fprintf(os.Stderr, "\n actions:\n")
-	fmt.Fprintf(os.Stderr, "  inventory - Retrieve all proposals"+
-		" that are being voted on\n")
-	fmt.Fprintf(os.Stderr, "  vote      - Vote on a proposal\n")
-	fmt.Fprintf(os.Stderr, "  tally     - Tally votes on a proposal\n")
-	fmt.Fprintf(os.Stderr, "  verify    - Verify votes on a proposal\n")
-	//fmt.Fprintf(os.Stderr, "  startvote          - Instruct vote to start "+
-	//	"(admin only)\n")
-	fmt.Fprintf(os.Stderr, "\n")
 }
 
 // walletPassphrase returns the wallet passphrase from the config if one was
@@ -1640,14 +1632,28 @@ func (p *piv) verify(args []string) error {
 	return nil
 }
 
+func (p *piv) help(command string) {
+	switch command {
+	case cmdInventory:
+		fmt.Fprintf(os.Stdout, "%s\n", inventoryHelpMsg)
+	case cmdVote:
+		fmt.Fprintf(os.Stdout, "%s\n", voteHelpMsg)
+	case cmdTally:
+		fmt.Fprintf(os.Stdout, "%s\n", tallyHelpMsg)
+	case cmdVerify:
+		fmt.Fprintf(os.Stdout, "%s\n", verifyHelpMsg)
+	}
+}
+
 func _main() error {
 	cfg, args, err := loadConfig()
 	if err != nil {
 		return err
 	}
 	if len(args) == 0 {
-		usage()
-		return fmt.Errorf("must provide action")
+		fmt.Fprintln(os.Stderr, "No command specified")
+		fmt.Fprintln(os.Stderr, listCmdMessage)
+		os.Exit(1)
 	}
 	action := args[0]
 
@@ -1664,26 +1670,38 @@ func _main() error {
 	// Close GRPC
 	defer c.conn.Close()
 
-	// Get block height to validate GRPC creds
-	ar, err := c.wallet.Accounts(c.ctx, &pb.AccountsRequest{})
-	if err != nil {
-		return err
-	}
-	log.Debugf("Current wallet height: %v", ar.CurrentBlockHeight)
-
-	// Scan through command line arguments.
-
+	// Validate command
 	switch action {
-	case "inventory":
-		err = c.inventory()
-	case "tally":
-		err = c.tally(args[1:])
-	case "vote":
-		err = c.vote(args[1:])
-	case "verify":
-		err = c.verify(args[1:])
+	case cmdInventory, cmdTally, cmdVote:
+		// These commands require a connection to a dcrwallet instance. Get
+		// block height to validate GPRC cerds.
+		ar, err := c.wallet.Accounts(c.ctx, &pb.AccountsRequest{})
+		if err != nil {
+			return err
+		}
+		log.Debugf("Current wallet height: %v", ar.CurrentBlockHeight)
+
+	case cmdVerify, cmdHelp:
+		// valid command, continue
+
 	default:
-		err = fmt.Errorf("invalid action: %v", action)
+		fmt.Fprintf(os.Stderr, "Unrecognized command %q\n", action)
+		fmt.Fprintln(os.Stderr, listCmdMessage)
+		os.Exit(1)
+	}
+
+	// Run command
+	switch action {
+	case cmdInventory:
+		err = c.inventory()
+	case cmdVote:
+		err = c.vote(args[1:])
+	case cmdTally:
+		err = c.tally(args[1:])
+	case cmdVerify:
+		err = c.verify(args[1:])
+	case cmdHelp:
+		c.help(args[1])
 	}
 
 	return err
