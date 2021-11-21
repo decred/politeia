@@ -5,6 +5,7 @@
 package usermd
 
 import (
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"sync"
@@ -88,17 +89,132 @@ func (p *usermdPlugin) Hook(h plugins.HookT, payload string) error {
 func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 	log.Tracef("usermd Fsck")
 
-	// Verify the user cache using the following process:
-	//
-	// 1. For each record, get the user metadata file from the db.
-	//
-	// 2. Get the user cache for the record's author.
-	//
-	// 3. Verify that the record is listed in the user cache under the
-	//    correct category. The tokens listed in the user cache MUST be
-	//    ordered by the timestamp of their most recent status change
-	//    from newest to oldest. If the record is not found in the user
-	//    cache, add it.
+	// This map holds all fetched records to prevent duplicate fetching and is
+	// also used while inserting missing records to the user records cache
+	// sorted from newest to oldest.
+	var rs map[string]*backend.Record
+
+	// addMissingRecord adds the given record's token to a list of tokens sorted
+	// by the latest status change timestamp, from newest to oldest.
+	addMissingRecord := func(tokens []string, missingRecord *backend.Record) ([]string, error) {
+		newTokens := make([]string, 0, len(tokens)+1)
+		// Loop through tokens to find the record with a status change timestamp
+		// older than the timestamp of the record being added.
+		var indexOlderRecord int
+		for i, t := range tokens {
+			// Search in known records map
+			r := rs[t]
+
+			// Fetch record if not fetched yet
+			if r == nil {
+				// Decode string token
+				b, err := hex.DecodeString(t)
+				if err != nil {
+					return nil, err
+				}
+				r, err := p.tstore.RecordPartial(b, 0, nil, false)
+				if err != nil {
+					return nil, err
+				}
+
+				// Add record to the known records map
+				rs[t] = r
+			}
+
+			// If current record's status change timestamp is older than
+			// the timestamp of the record being added then the new record should
+			// be added right before the current record.
+			if r.RecordMetadata.Timestamp < missingRecord.RecordMetadata.Timestamp {
+				indexOlderRecord = i
+				break
+			}
+		}
+
+		// Add records with status change timestamp newer than new record
+		newTokens = append(newTokens, tokens[:indexOlderRecord]...)
+
+		// Add new record
+		newTokens = append(newTokens, missingRecord.RecordMetadata.Token)
+
+		// Add record with status change timestamp older than new record
+		newTokens = append(newTokens, tokens[indexOlderRecord:]...)
+
+		return newTokens, nil
+	}
+
+	for _, token := range tokens {
+		// Check if record was already fetched
+		tokenStr := hex.EncodeToString(token)
+		r := rs[tokenStr]
+
+		// Fetch record if not fetched yet
+		if r == nil {
+			r, err := p.tstore.RecordPartial(token, 0, nil, false)
+			if err != nil {
+				return err
+			}
+
+			// Add record to the known records map
+			rs[tokenStr] = r
+		}
+
+		// Decode user metadata
+		um, err := userMetadataDecode(r.Metadata)
+		if err != nil {
+			return err
+		}
+
+		// Get the user cache for the record's author
+		uc, err := p.userCache(um.UserID)
+		if err != nil {
+			return err
+		}
+
+		// Verify that the record is listed in the user cache under the
+		// correct category.
+		var found bool
+		switch r.RecordMetadata.State {
+		case backend.StateUnvetted:
+			for i, t := range uc.Unvetted {
+				if t == hex.EncodeToString(token) {
+					found = true
+				}
+				if i == len(uc.Unvetted) && !found {
+					// missing unvetted record, add it
+					uc.Unvetted, err = addMissingRecord(uc.Unvetted, r)
+					if err != nil {
+						return err
+					}
+				}
+			}
+
+		case backend.StateVetted:
+			for i, t := range uc.Vetted {
+				if t == hex.EncodeToString(token) {
+					found = true
+				}
+				if i == len(uc.Vetted) && !found {
+					// missing vetted record, add it
+					uc.Vetted, err = addMissingRecord(uc.Vetted, r)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		// If a missing token was added to the user cache, save new user cache
+		// to disk.
+		if !found {
+			p.Lock()
+			err = p.userCacheSaveLocked(um.UserID, *uc)
+			if err != nil {
+				p.Unlock()
+				return err
+			}
+			p.Unlock()
+		}
+	}
 
 	return nil
 }
