@@ -96,9 +96,9 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 	// addMissingRecord adds the given record's token to a list of tokens sorted
 	// by the latest status change timestamp, from newest to oldest.
 	addMissingRecord := func(tokens []string, missingRecord *backend.Record) ([]string, error) {
-		records := make([]*backend.Record, 0, len(tokens)+1)
 		// Make list of records to be able to sort by latest status change
 		// timestamp.
+		records := make([]*backend.Record, 0, len(tokens)+1)
 		for _, t := range tokens {
 			// Search in known records map
 			r := rs[t]
