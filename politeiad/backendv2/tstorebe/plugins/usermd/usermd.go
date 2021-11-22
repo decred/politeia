@@ -6,9 +6,9 @@ package usermd
 
 import (
 	"encoding/hex"
-	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
@@ -96,16 +96,12 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 	// addMissingRecord adds the given record's token to a list of tokens sorted
 	// by the latest status change timestamp, from newest to oldest.
 	addMissingRecord := func(tokens []string, missingRecord *backend.Record) ([]string, error) {
-		newTokens := make([]string, 0, len(tokens)+1)
-		// Loop through tokens to find the record with a status change timestamp
-		// older than the timestamp of the record being added.
-		var (
-			indexOlderRecord int
-			r                *backend.Record
-		)
-		for i, t := range tokens {
+		records := make([]*backend.Record, 0, len(tokens)+1)
+		// Make list of records to be able to sort by latest status change
+		// timestamp.
+		for _, t := range tokens {
 			// Search in known records map
-			r = rs[t]
+			r := rs[t]
 
 			// Fetch record if not fetched yet
 			if r == nil {
@@ -114,36 +110,33 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 				if err != nil {
 					return nil, err
 				}
-				record, err := p.tstore.RecordPartial(b, 0, nil, false)
+				r, err = p.tstore.RecordPartial(b, 0, nil, false)
 				if err != nil {
 					return nil, err
 				}
 
 				// Add record to the known records map
-				r = record
 				rs[t] = r
 			}
 
-			// If current record's status change timestamp is older than
-			// the timestamp of the record being added then the new record should
-			// be added right before the current record.
-			if r.RecordMetadata.Timestamp < missingRecord.RecordMetadata.Timestamp {
-				indexOlderRecord = i
-				break
-			}
+			records = append(records, r)
 		}
 
-		// Add records with status change timestamp newer than new record
-		newTokens = append(newTokens, tokens[:indexOlderRecord]...)
+		// Append new record then sort reocrds by latest status change timestamp
+		// from newest to oldest.
+		records = append(records, missingRecord)
 
-		// Add new record
-		newTokens = append(newTokens, missingRecord.RecordMetadata.Token)
+		// Sort records
+		sort.Slice(records, func(i, j int) bool {
+			return records[i].RecordMetadata.Timestamp >
+				records[j].RecordMetadata.Timestamp
+		})
 
-		// Add record with status change timestamp older than new record
-		newTokens = append(newTokens, tokens[indexOlderRecord:]...)
-
-		fmt.Printf("oldTokens: %v, newTokens: %v, recordToken: %v \n\n\n\n\n",
-			tokens, newTokens, missingRecord.RecordMetadata.Token)
+		// Return sorted tokens
+		newTokens := make([]string, 0, len(records))
+		for _, record := range records {
+			newTokens = append(newTokens, record.RecordMetadata.Token)
+		}
 
 		return newTokens, nil
 	}
