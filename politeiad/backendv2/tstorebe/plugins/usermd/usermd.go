@@ -6,6 +6,7 @@ package usermd
 
 import (
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -89,10 +90,8 @@ func (p *usermdPlugin) Hook(h plugins.HookT, payload string) error {
 func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 	log.Tracef("usermd Fsck")
 
-	// This map holds all fetched records to prevent duplicate fetching and is
-	// also used while inserting missing records to the user records cache
-	// sorted from newest to oldest.
-	var rs map[string]*backend.Record
+	// This map holds all fetched records
+	rs := make(map[string]*backend.Record, len(tokens))
 
 	// addMissingRecord adds the given record's token to a list of tokens sorted
 	// by the latest status change timestamp, from newest to oldest.
@@ -100,10 +99,13 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 		newTokens := make([]string, 0, len(tokens)+1)
 		// Loop through tokens to find the record with a status change timestamp
 		// older than the timestamp of the record being added.
-		var indexOlderRecord int
+		var (
+			indexOlderRecord int
+			r                *backend.Record
+		)
 		for i, t := range tokens {
 			// Search in known records map
-			r := rs[t]
+			r = rs[t]
 
 			// Fetch record if not fetched yet
 			if r == nil {
@@ -112,12 +114,13 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 				if err != nil {
 					return nil, err
 				}
-				r, err := p.tstore.RecordPartial(b, 0, nil, false)
+				record, err := p.tstore.RecordPartial(b, 0, nil, false)
 				if err != nil {
 					return nil, err
 				}
 
 				// Add record to the known records map
+				r = record
 				rs[t] = r
 			}
 
@@ -139,6 +142,9 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 		// Add record with status change timestamp older than new record
 		newTokens = append(newTokens, tokens[indexOlderRecord:]...)
 
+		fmt.Printf("oldTokens: %v, newTokens: %v, recordToken: %v \n\n\n\n\n",
+			tokens, newTokens, missingRecord.RecordMetadata.Token)
+
 		return newTokens, nil
 	}
 
@@ -149,12 +155,13 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 
 		// Fetch record if not fetched yet
 		if r == nil {
-			r, err := p.tstore.RecordPartial(token, 0, nil, false)
+			record, err := p.tstore.RecordPartial(token, 0, nil, false)
 			if err != nil {
 				return err
 			}
 
 			// Add record to the known records map
+			r = record
 			rs[tokenStr] = r
 		}
 
@@ -175,30 +182,30 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 		var found bool
 		switch r.RecordMetadata.State {
 		case backend.StateUnvetted:
-			for i, t := range uc.Unvetted {
+			for _, t := range uc.Unvetted {
 				if t == hex.EncodeToString(token) {
 					found = true
 				}
-				if i == len(uc.Unvetted) && !found {
-					// missing unvetted record, add it
-					uc.Unvetted, err = addMissingRecord(uc.Unvetted, r)
-					if err != nil {
-						return err
-					}
+			}
+			// Unvetted record is missing, add it
+			if !found {
+				uc.Unvetted, err = addMissingRecord(uc.Unvetted, r)
+				if err != nil {
+					return err
 				}
 			}
 
 		case backend.StateVetted:
-			for i, t := range uc.Vetted {
+			for _, t := range uc.Vetted {
 				if t == hex.EncodeToString(token) {
 					found = true
 				}
-				if i == len(uc.Vetted) && !found {
-					// missing vetted record, add it
-					uc.Vetted, err = addMissingRecord(uc.Vetted, r)
-					if err != nil {
-						return err
-					}
+			}
+			// Vetted record is missing, add it
+			if !found {
+				uc.Vetted, err = addMissingRecord(uc.Vetted, r)
+				if err != nil {
+					return err
 				}
 			}
 		}
