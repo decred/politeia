@@ -145,12 +145,11 @@ func waitRandom(min, max byte) time.Duration {
 
 func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteAlarm) error {
 	voteID++ // make human readable
-	//fmt.Printf("bunchID: %v voterID: %v at: %v\n", bunchID, voteID, va.At)
 
 	// Wait
 	err := WaitUntil(ectx, va.At)
 	if err != nil {
-		return fmt.Errorf("%v bunch %v vote %v failed: %v\n",
+		return fmt.Errorf("%v bunch %v vote %v failed: %v",
 			time.Now(), bunchID, voteID, err)
 	}
 
@@ -186,16 +185,9 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 			// Unrecoverable error
 			return fmt.Errorf("unrecoverable error: %v",
 				err)
-		} else {
-			// XXX TODO(lukebp) please make this a pointer and only
-			// evaluate these errors when it is set. For now we
-			// have to treat VoteErrorInvalid as valid because of
-			// this.
-			switch vr.ErrorCode {
-			// Success
-			case tkv1.VoteErrorInvalid:
-				// XXX treat as success for now
-
+		} else if vr.ErrorCode != nil {
+			// Evaluate errors when ErrorCode is set
+			switch *vr.ErrorCode {
 			// Silently ignore.
 			case tkv1.VoteErrorTicketAlreadyVoted:
 				// This happens during network errors. Since
@@ -257,7 +249,7 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 
 				return nil
 			}
-
+		} else {
 			// Success, log it and exit
 			err = p.jsonLog(successJournal, va.Vote.Token, vr)
 			if err != nil {
