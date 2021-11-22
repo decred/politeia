@@ -1315,7 +1315,7 @@ func (p *ticketVotePlugin) ballot(token []byte, votes []ticketvote.CastVote, br 
 					"found %v", t)
 				e := ticketvote.VoteErrorInternalError
 				cvr.Ticket = v.Ticket
-				cvr.ErrorCode = e
+				cvr.ErrorCode = &e
 				cvr.ErrorContext = fmt.Sprintf("%v: %v",
 					ticketvote.VoteErrors[e], t)
 				goto saveReply
@@ -1347,7 +1347,7 @@ func (p *ticketVotePlugin) ballot(token []byte, votes []ticketvote.CastVote, br 
 					"%v", t, err)
 				e := ticketvote.VoteErrorInternalError
 				cvr.Ticket = v.Ticket
-				cvr.ErrorCode = e
+				cvr.ErrorCode = &e
 				cvr.ErrorContext = fmt.Sprintf("%v: %v",
 					ticketvote.VoteErrors[e], t)
 				goto saveReply
@@ -1364,7 +1364,7 @@ func (p *ticketVotePlugin) ballot(token []byte, votes []ticketvote.CastVote, br 
 				log.Errorf("cmdCastBallot: voteColliderSave %v: %v", t, err)
 				e := ticketvote.VoteErrorInternalError
 				cvr.Ticket = v.Ticket
-				cvr.ErrorCode = e
+				cvr.ErrorCode = &e
 				cvr.ErrorContext = fmt.Sprintf("%v: %v",
 					ticketvote.VoteErrors[e], t)
 				goto saveReply
@@ -1429,7 +1429,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		if err != nil {
 			e := ticketvote.VoteErrorTokenInvalid
 			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
+			receipts[k].ErrorCode = &e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: not hex",
 				ticketvote.VoteErrors[e])
 			continue
@@ -1439,7 +1439,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		if !bytes.Equal(t, token) {
 			e := ticketvote.VoteErrorMultipleRecordVotes
 			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
+			receipts[k].ErrorCode = &e
 			receipts[k].ErrorContext = ticketvote.VoteErrors[e]
 			continue
 		}
@@ -1448,7 +1448,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		if voteDetails == nil {
 			e := ticketvote.VoteErrorVoteStatusInvalid
 			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
+			receipts[k].ErrorCode = &e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: vote is "+
 				"not active", ticketvote.VoteErrors[e])
 			continue
@@ -1456,7 +1456,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		if voteHasEnded(bestBlock, voteDetails.EndBlockHeight) {
 			e := ticketvote.VoteErrorVoteStatusInvalid
 			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
+			receipts[k].ErrorCode = &e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: vote has "+
 				"ended", ticketvote.VoteErrors[e])
 			continue
@@ -1467,7 +1467,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		if err != nil {
 			e := ticketvote.VoteErrorVoteBitInvalid
 			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
+			receipts[k].ErrorCode = &e
 			receipts[k].ErrorContext = ticketvote.VoteErrors[e]
 			continue
 		}
@@ -1476,7 +1476,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		if err != nil {
 			e := ticketvote.VoteErrorVoteBitInvalid
 			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
+			receipts[k].ErrorCode = &e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
 				ticketvote.VoteErrors[e], err)
 			continue
@@ -1487,7 +1487,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		if !ok {
 			e := ticketvote.VoteErrorTicketNotEligible
 			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
+			receipts[k].ErrorCode = &e
 			receipts[k].ErrorContext = ticketvote.VoteErrors[e]
 			continue
 		}
@@ -1497,14 +1497,14 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		if !isActive {
 			e := ticketvote.VoteErrorVoteStatusInvalid
 			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
+			receipts[k].ErrorCode = &e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: vote is "+
 				"not active", ticketvote.VoteErrors[e])
 		}
 		if isDup {
 			e := ticketvote.VoteErrorTicketAlreadyVoted
 			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
+			receipts[k].ErrorCode = &e
 			receipts[k].ErrorContext = ticketvote.VoteErrors[e]
 			continue
 		}
@@ -1521,7 +1521,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 	// that are not found in the cache are fetched manually.
 	tickets := make([]string, 0, len(cb.Ballot))
 	for k, v := range votes {
-		if receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
+		if receipts[k].ErrorCode != nil {
 			// Vote has an error. Skip it.
 			continue
 		}
@@ -1554,7 +1554,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 
 	// Verify the signatures
 	for k, v := range votes {
-		if receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
+		if receipts[k].ErrorCode != nil {
 			// Vote has an error. Skip it.
 			continue
 		}
@@ -1567,7 +1567,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 				"%v: %v", t, v.Ticket)
 			e := ticketvote.VoteErrorInternalError
 			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
+			receipts[k].ErrorCode = &e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
 				ticketvote.VoteErrors[e], t)
 			continue
@@ -1578,7 +1578,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 				"%v %v", t, v.Ticket, commitmentAddr.err)
 			e := ticketvote.VoteErrorInternalError
 			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
+			receipts[k].ErrorCode = &e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
 				ticketvote.VoteErrors[e], t)
 			continue
@@ -1587,7 +1587,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		if err != nil {
 			e := ticketvote.VoteErrorSignatureInvalid
 			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
+			receipts[k].ErrorCode = &e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
 				ticketvote.VoteErrors[e], err)
 			continue
@@ -1641,7 +1641,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 		ballotCount int
 	)
 	for k, v := range votes {
-		if receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
+		if receipts[k].ErrorCode != nil {
 			// Vote has an error. Skip it.
 			continue
 		}
@@ -1679,7 +1679,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 
 	// Fill in the receipts
 	for k, v := range votes {
-		if receipts[k].ErrorCode != ticketvote.VoteErrorInvalid {
+		if receipts[k].ErrorCode != nil {
 			// Vote has an error. Skip it.
 			continue
 		}
@@ -1690,7 +1690,7 @@ func (p *ticketVotePlugin) cmdCastBallot(token []byte, payload string) (string, 
 				"%v", t, v.Ticket)
 			e := ticketvote.VoteErrorInternalError
 			receipts[k].Ticket = v.Ticket
-			receipts[k].ErrorCode = e
+			receipts[k].ErrorCode = &e
 			receipts[k].ErrorContext = fmt.Sprintf("%v: %v",
 				ticketvote.VoteErrors[e], t)
 			continue

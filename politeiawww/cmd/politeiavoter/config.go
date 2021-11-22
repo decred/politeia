@@ -35,6 +35,7 @@ const (
 	defaultWalletMainnetPort = "9111"
 	defaultWalletTestnetPort = "19111"
 
+	walletCertFile = "rpc.cert"
 	clientCertFile = "client.pem"
 	clientKeyFile  = "client-key.pem"
 
@@ -47,12 +48,14 @@ const (
 )
 
 var (
-	defaultHomeDir        = dcrutil.AppDataDir("politeiavoter", false)
-	defaultConfigFile     = filepath.Join(defaultHomeDir, defaultConfigFilename)
-	defaultLogDir         = filepath.Join(defaultHomeDir, defaultLogDirname)
-	defaultVoteDir        = filepath.Join(defaultHomeDir, defaultVoteDirname)
-	dcrwalletHomeDir      = dcrutil.AppDataDir("dcrwallet", false)
-	defaultWalletCertFile = filepath.Join(dcrwalletHomeDir, "rpc.cert")
+	defaultHomeDir    = dcrutil.AppDataDir("politeiavoter", false)
+	defaultConfigFile = filepath.Join(defaultHomeDir, defaultConfigFilename)
+	defaultLogDir     = filepath.Join(defaultHomeDir, defaultLogDirname)
+	defaultVoteDir    = filepath.Join(defaultHomeDir, defaultVoteDirname)
+	dcrwalletHomeDir  = dcrutil.AppDataDir("dcrwallet", false)
+	defaultWalletCert = filepath.Join(dcrwalletHomeDir, walletCertFile)
+	defaultClientCert = filepath.Join(defaultHomeDir, clientCertFile)
+	defaultClientKey  = filepath.Join(defaultHomeDir, clientKeyFile)
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -63,15 +66,16 @@ var runServiceCommand func(string) error
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
+	ListCommands     bool `short:"l" long:"listcommands" description:"List available commands"`
+	ShowVersion      bool `short:"V" long:"version" description:"Display version information and exit"`
+	Version          string
 	HomeDir          string `short:"A" long:"appdata" description:"Path to application home directory"`
-	ShowVersion      bool   `short:"V" long:"version" description:"Display version information and exit"`
 	ConfigFile       string `short:"C" long:"configfile" description:"Path to configuration file"`
 	LogDir           string `long:"logdir" description:"Directory to log output."`
 	TestNet          bool   `long:"testnet" description:"Use the test network"`
 	PoliteiaWWW      string `long:"politeiawww" description:"Politeia WWW host"`
 	Profile          string `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
 	DebugLevel       string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	Version          string
 	WalletHost       string `long:"wallethost" description:"Wallet host"`
 	WalletCert       string `long:"walletgrpccert" description:"Wallet GRPC certificate"`
 	WalletPassphrase string `long:"walletpassphrase" description:"Wallet decryption passphrase"`
@@ -90,8 +94,8 @@ type config struct {
 	// correct failures.
 	HoursPrior uint64 `long:"hoursprior" description:"Number of hours to subtract from available voting window."`
 
-	ClientCert string `long:"clientcert" description:"Path to TLS certificate for client authentication (default: client.pem)"`
-	ClientKey  string `long:"clientkey" description:"Path to TLS client authentication key (default: client-key.pem)"`
+	ClientCert string `long:"clientcert" description:"Path to TLS certificate for client authentication"`
+	ClientKey  string `long:"clientkey" description:"Path to TLS client authentication key"`
 
 	voteDir       string
 	dial          func(string, string) (net.Conn, error)
@@ -224,6 +228,9 @@ func loadConfig() (*config, []string, error) {
 		LogDir:     defaultLogDir,
 		voteDir:    defaultVoteDir,
 		Version:    version.String(),
+		WalletCert: defaultWalletCert,
+		ClientCert: defaultClientCert,
+		ClientKey:  defaultClientKey,
 		Bunches:    defaultBunches,
 		HoursPrior: defaultHoursPrior,
 	}
@@ -262,6 +269,12 @@ func loadConfig() (*config, []string, error) {
 		os.Exit(0)
 	}
 
+	// Print available commands if listcommands flag is specified
+	if preCfg.ListCommands {
+		fmt.Fprintln(os.Stderr, listCmdMessage)
+		os.Exit(0)
+	}
+
 	// Perform service command and exit if specified.  Invalid service
 	// commands show an appropriate error.  Only runs on Windows since
 	// the runServiceCommand function will be nil when not on Windows.
@@ -295,6 +308,18 @@ func loadConfig() (*config, []string, error) {
 		} else {
 			cfg.voteDir = preCfg.voteDir
 		}
+
+		// dcrwallet client key-pair
+		if preCfg.ClientCert == defaultClientCert {
+			cfg.ClientCert = filepath.Join(cfg.HomeDir, clientCertFile)
+		} else {
+			cfg.ClientCert = preCfg.ClientCert
+		}
+		if preCfg.ClientKey == defaultClientKey {
+			cfg.ClientKey = filepath.Join(cfg.HomeDir, clientKeyFile)
+		} else {
+			cfg.ClientKey = preCfg.ClientKey
+		}
 	}
 
 	// Load additional config from file.
@@ -311,6 +336,12 @@ func loadConfig() (*config, []string, error) {
 			return nil, nil, err
 		}
 		configFileError = err
+	}
+
+	// Print available commands if listcommands flag is specified
+	if cfg.ListCommands {
+		fmt.Fprintln(os.Stderr, listCmdMessage)
+		os.Exit(0)
 	}
 
 	// See if appdata was overridden
@@ -435,11 +466,10 @@ func loadConfig() (*config, []string, error) {
 		}
 	}
 
-	// Wallet cert
-	if cfg.WalletCert == "" {
-		cfg.WalletCert = defaultWalletCertFile
-	}
+	// Clean cert file paths
 	cfg.WalletCert = util.CleanAndExpandPath(cfg.WalletCert)
+	cfg.ClientCert = util.CleanAndExpandPath(cfg.ClientCert)
+	cfg.ClientKey = util.CleanAndExpandPath(cfg.ClientKey)
 
 	// Warn about missing config file only after all other configuration is
 	// done.  This prevents the warning on help messages and invalid
@@ -493,16 +523,6 @@ func loadConfig() (*config, []string, error) {
 			return nil, nil, fmt.Errorf("cannot use --trickle " +
 				"without --proxy")
 		}
-	}
-
-	// Set path for the client key/cert depending on if they are set in options
-	cfg.ClientCert = util.CleanAndExpandPath(cfg.ClientCert)
-	cfg.ClientKey = util.CleanAndExpandPath(cfg.ClientKey)
-	if cfg.ClientCert == "" {
-		cfg.ClientCert = filepath.Join(cfg.HomeDir, clientCertFile)
-	}
-	if cfg.ClientKey == "" {
-		cfg.ClientKey = filepath.Join(cfg.HomeDir, clientKeyFile)
 	}
 
 	return &cfg, remainingArgs, nil
