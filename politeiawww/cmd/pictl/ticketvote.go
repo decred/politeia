@@ -27,7 +27,7 @@ const (
 func printAuthDetails(a tkv1.AuthDetails) {
 	printf("Token    : %v\n", a.Token)
 	printf("Action   : %v\n", a.Action)
-	printf("Timestamp: %v\n", timestampFromUnix(a.Timestamp))
+	printf("Timestamp: %v\n", dateAndTimeFromUnix(a.Timestamp))
 	printf("Receipt  : %v\n", a.Receipt)
 }
 

@@ -18,7 +18,7 @@ func printComment(c cmv1.Comment) {
 	printf("  Score        : %v %v\n", downvotes, c.Upvotes)
 	printf("  Username     : %v\n", c.Username)
 	printf("  Parent ID    : %v\n", c.ParentID)
-	printf("  Timestamp    : %v\n", timestampFromUnix(c.Timestamp))
+	printf("  Timestamp    : %v\n", dateAndTimeFromUnix(c.Timestamp))
 
 	// If the comment is an author update print extra data info
 	if c.ExtraDataHint != "" {
@@ -71,6 +71,6 @@ func printCommentVotes(votes []cmv1.CommentVote) {
 
 	for _, v := range votes {
 		printf("  %-22v comment %v vote %v\n",
-			timestampFromUnix(v.Timestamp), v.CommentID, v.Vote)
+			dateAndTimeFromUnix(v.Timestamp), v.CommentID, v.Vote)
 	}
 }

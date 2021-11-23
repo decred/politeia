@@ -116,7 +116,7 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 	}
 
 	// Log start time
-	fmt.Printf("Start time: %v\n", timestampFromUnix(time.Now().Unix()))
+	fmt.Printf("Start time: %v\n", dateAndTimeFromUnix(time.Now().Unix()))
 
 	// Setup users
 	users := make([]user, 0, userCount)
@@ -433,7 +433,7 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 	}
 	fmt.Printf("\n")
 
-	ts := timestampFromUnix(time.Now().Unix())
+	ts := dateAndTimeFromUnix(time.Now().Unix())
 	fmt.Printf("Done!\n")
 	fmt.Printf("Stop time                 : %v\n", ts)
 	fmt.Printf("Users                     : %v\n", userCount)
