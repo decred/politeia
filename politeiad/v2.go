@@ -548,7 +548,7 @@ func (p *politeia) handlePluginReads(w http.ResponseWriter, r *http.Request) {
 
 	// Execute the batch of read cmds
 	batch := newBatch(pr.Cmds)
-	batch.exec(p.backendv2.PluginRead)
+	batch.execConcurrently(p.backendv2.PluginRead)
 
 	// Prepare the replies
 	replies := make([]v2.PluginCmdReply, len(pr.Cmds))
