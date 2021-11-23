@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	pi "github.com/decred/politeia/politeiad/plugins/pi"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/util"
@@ -27,10 +28,11 @@ type cmdSeedProposals struct {
 	// Options to adjust the quantity being seeded. Default values are
 	// used when these flags are not provided. Pointers are used when
 	// a value of 0 is allowed.
-	Users        uint32  `long:"users" optional:"true"`
-	Proposals    uint32  `long:"proposals" optional:"true"`
-	Comments     *uint32 `long:"comments" optional:"true"`
-	CommentVotes *uint32 `long:"commentvotes" optional:"true"`
+	Users          uint32  `long:"users" optional:"true"`
+	Proposals      uint32  `long:"proposals" optional:"true"`
+	Comments       *uint32 `long:"comments" optional:"true"`
+	CommentVotes   *uint32 `long:"commentvotes" optional:"true"`
+	ProposalStatus string  `long:"proposalstatus" optional:"true"`
 
 	// IncludeImages is used to include image attachments in the
 	// proposal submissions. Each proposal will contain a random number
@@ -46,11 +48,13 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 	var (
 		userCount               uint32 = 10
 		proposalCount           uint32 = 25
-		commentsPerProposal     uint32 = 150
+		commentsPerProposal     uint32 = 10
 		commentSize             uint32 = 32 // In characters
-		commentVotesPerProposal uint32 = 500
+		commentVotesPerProposal uint32 = 25
 
 		includeImages = c.IncludeImages
+
+		proposalStatus *pi.PropStatusT
 	)
 	if c.Users != 0 {
 		userCount = c.Users
@@ -63,6 +67,13 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 	}
 	if c.CommentVotes != nil {
 		commentVotesPerProposal = *c.CommentVotes
+	}
+	if c.ProposalStatus != "" {
+		s := parseProposalStatus(c.ProposalStatus)
+		if s == pi.PropStatusInvalid {
+			return fmt.Errorf("invalid proposal status '%v'", c.ProposalStatus)
+		}
+		proposalStatus = &s
 	}
 
 	// We don't want the output of individual commands printed.
@@ -124,33 +135,27 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 
 	// Setup proposals
 	var (
-		statusUnreviewed       = "unreviewed"
-		statusUnvettedCensored = "unvetted-censored"
-		statusPublic           = "public"
-		statusVettedCensored   = "vetted-cesored"
-		statusAbandoned        = "abandoned"
-
 		// statuses specifies the statuses that are rotated through when
 		// proposals are being submitted. We can increase the proption of
 		// proposals that are a specific status by increasing the number
 		// of times the status occurs in this array.
-		statuses = []string{
-			statusPublic,
-			statusPublic,
-			statusPublic,
-			statusPublic,
-			statusUnreviewed,
-			statusUnvettedCensored,
-			statusVettedCensored,
-			statusAbandoned,
+		statuses = []pi.PropStatusT{
+			pi.PropStatusUnderReview,
+			pi.PropStatusUnderReview,
+			pi.PropStatusUnderReview,
+			pi.PropStatusUnderReview,
+			pi.PropStatusUnvetted,
+			pi.PropStatusUnvettedCensored,
+			pi.PropStatusCensored,
+			pi.PropStatusAbandoned,
 		}
 
 		// These are used to track the number of proposals that are
 		// created for each status.
-		countUnreviewed       int
+		countUnvetted         int
 		countUnvettedCensored int
-		countPublic           int
-		countVettedCensored   int
+		countUnderReview      int
+		countCensored         int
 		countAbandoned        int
 
 		// public is used to aggregate the tokens of public proposals.
@@ -165,6 +170,11 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 		// Rotate through the statuses
 		s := statuses[i%len(statuses)]
 
+		// Override the default proposal status if one was provided
+		if proposalStatus != nil {
+			s = *proposalStatus
+		}
+
 		log := fmt.Sprintf("Submitting proposal %v/%v: %v",
 			i+1, proposalCount, s)
 		printInPlace(log)
@@ -175,39 +185,40 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 			RandomImages: includeImages,
 		}
 		switch s {
-		case statusUnreviewed:
+		case pi.PropStatusUnvetted:
 			_, err = proposalUnreviewed(u, opts)
 			if err != nil {
 				return err
 			}
-			countUnreviewed++
-		case statusUnvettedCensored:
+			countUnvetted++
+		case pi.PropStatusUnvettedCensored:
 			_, err = proposalUnvettedCensored(u, admin, opts)
 			if err != nil {
 				return err
 			}
 			countUnvettedCensored++
-		case statusPublic:
+		case pi.PropStatusUnderReview:
 			r, err := proposalPublic(u, admin, opts)
 			if err != nil {
 				return err
 			}
-			countPublic++
+			countUnderReview++
 			public = append(public, r.CensorshipRecord.Token)
-		case statusVettedCensored:
+		case pi.PropStatusCensored:
 			_, err = proposalVettedCensored(u, admin, opts)
 			if err != nil {
 				return err
 			}
-			countVettedCensored++
-		case statusAbandoned:
+			countCensored++
+		case pi.PropStatusAbandoned:
 			_, err = proposalAbandoned(u, admin, opts)
 			if err != nil {
 				return err
 			}
 			countAbandoned++
 		default:
-			return fmt.Errorf("invalid status %v", s)
+			return fmt.Errorf("this command does not "+
+				"support the proposal status '%v'", s)
 		}
 	}
 	fmt.Printf("\n")
@@ -215,13 +226,13 @@ func (c *cmdSeedProposals) Execute(args []string) error {
 	// Verify proposal inventory
 	var (
 		statusesUnvetted = map[rcv1.RecordStatusT]int{
-			rcv1.RecordStatusUnreviewed: countUnreviewed,
+			rcv1.RecordStatusUnreviewed: countUnvetted,
 			rcv1.RecordStatusCensored:   countUnvettedCensored,
 		}
 
 		statusesVetted = map[rcv1.RecordStatusT]int{
-			rcv1.RecordStatusPublic:   countPublic,
-			rcv1.RecordStatusCensored: countVettedCensored,
+			rcv1.RecordStatusPublic:   countUnderReview,
+			rcv1.RecordStatusCensored: countCensored,
 			rcv1.RecordStatusArchived: countAbandoned,
 		}
 	)
@@ -541,15 +552,26 @@ Arguments:
 2. adminpassword  (string, required)  Password for admin account.
 
 Flags:
- --users         (uint32) Number of users to seed the backend with.
-                          (default: 10)
- --proposals     (uint32) Number of proposals to seed the backend with.
-                          (default: 25)
- --comments      (uint32) Number of comments that will be made on each
-                          proposal. (default: 150)
- --commentvotes  (uint32) Number of comment upvotes/downvotes that will be cast
-                          on each proposal. (default: 500)
- --includeimages (bool)   Include images in proposal submissions. This will
-                          substantially increase the size of the proposal
-                          payload.
+ --users          (uint32) Number of users to seed the backend with.
+                           (default: 10)
+
+ --proposals      (uint32) Number of proposals to seed the backend with.
+                           (default: 25)
+
+ --comments       (uint32) Number of comments that will be made on each
+                           proposal. (default: 10)
+ 
+ --commentvotes   (uint32) Number of comment upvotes/downvotes that will be
+                           cast on each proposal. (default: 25)
+
+ --proposalstatus (string) Proposal status that all of the seeded proposals
+                           will be set to.
+                           Valid options: unvetted, unvetted-censored,
+                           under-review, censored, or abandoned.
+                           By default, the seeded proposals will cycle through
+                           all of these statuses.
+
+ --includeimages  (bool)   Include images in proposal submissions. This will
+                           substantially increase the size of the proposal
+                           payload.
 `

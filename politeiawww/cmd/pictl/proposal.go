@@ -20,6 +20,7 @@ import (
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
+	pi "github.com/decred/politeia/politeiad/plugins/pi"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
@@ -274,4 +275,29 @@ func signedMerkleRoot(files []rcv1.File, fid *identity.FullIdentity) (string, er
 	mr := hex.EncodeToString(m[:])
 	sig := fid.SignMessage([]byte(mr))
 	return hex.EncodeToString(sig[:]), nil
+}
+
+// parseProposalStatus parses a pi PropStatusT from the provided string. A
+// PropStatusInvalid is returned if the provided string does not correspond to
+// a valid proposal status.
+func parseProposalStatus(status string) pi.PropStatusT {
+	switch pi.PropStatusT(status) {
+	// The following are valid proposal statuses
+	case pi.PropStatusUnvetted,
+		pi.PropStatusUnvettedAbandoned,
+		pi.PropStatusUnvettedCensored,
+		pi.PropStatusUnderReview,
+		pi.PropStatusAbandoned,
+		pi.PropStatusCensored,
+		pi.PropStatusVoteAuthorized,
+		pi.PropStatusVoteStarted,
+		pi.PropStatusApproved,
+		pi.PropStatusRejected,
+		pi.PropStatusActive,
+		pi.PropStatusCompleted,
+		pi.PropStatusClosed:
+	default:
+		return pi.PropStatusInvalid
+	}
+	return pi.PropStatusT(status)
 }
