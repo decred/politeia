@@ -103,6 +103,9 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 	// This map holds all fetched records
 	rs := make(map[string]*backend.Record, len(tokens))
 
+	// Number of records which were added to the user cache.
+	var c int64
+
 	// addMissingRecord adds the given record's token to a list of tokens sorted
 	// by the latest status change timestamp, from newest to oldest.
 	addMissingRecord := func(tokens []string, missingRecord *backend.Record) ([]string, error) {
@@ -135,6 +138,7 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 		// Append new record then sort reocrds by latest status change timestamp
 		// from newest to oldest.
 		records = append(records, missingRecord)
+		c++
 
 		// Sort records
 		sort.Slice(records, func(i, j int) bool {
@@ -186,7 +190,7 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 		switch r.RecordMetadata.State {
 		case backend.StateUnvetted:
 			for _, t := range uc.Unvetted {
-				if t == hex.EncodeToString(token) {
+				if t == tokenStr {
 					found = true
 				}
 			}
@@ -200,7 +204,7 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 
 		case backend.StateVetted:
 			for _, t := range uc.Vetted {
-				if t == hex.EncodeToString(token) {
+				if t == tokenStr {
 					found = true
 				}
 			}
@@ -223,8 +227,12 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 				return err
 			}
 			p.Unlock()
+			log.Debugf("missing %v record %v was added to %v user records cache",
+				backend.States[r.RecordMetadata.State], tokenStr, um.UserID)
 		}
 	}
+
+	log.Infof("%v missing records were added to the user records cache", c)
 
 	return nil
 }
