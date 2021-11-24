@@ -142,7 +142,6 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 	var c int64
 
 	for _, token := range tokens {
-		tokenStr := hex.EncodeToString(token)
 		r, err := p.tstore.RecordPartial(token, 0, nil, false)
 		if err != nil {
 			return err
@@ -163,6 +162,7 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 		// Verify that the record is listed in the user cache under the
 		// correct category.
 		var found bool
+		tokenStr := hex.EncodeToString(token)
 		switch r.RecordMetadata.State {
 		case backend.StateUnvetted:
 			for _, t := range uc.Unvetted {
