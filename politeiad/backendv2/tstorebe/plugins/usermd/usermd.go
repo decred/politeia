@@ -83,6 +83,44 @@ func (p *usermdPlugin) Hook(h plugins.HookT, payload string) error {
 	return nil
 }
 
+// addMissingRecord adds the given record's token to a list of tokens sorted
+// by the latest status change timestamp, from newest to oldest.
+func (p *usermdPlugin) addMissingRecord(tokens []string, missingRecord *backend.Record) ([]string, error) {
+	// Make list of records to be able to sort by latest status change
+	// timestamp.
+	records := make([]*backend.Record, 0, len(tokens)+1)
+	for _, t := range tokens {
+		// Decode string token
+		b, err := hex.DecodeString(t)
+		if err != nil {
+			return nil, err
+		}
+		r, err := p.tstore.RecordPartial(b, 0, nil, false)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, r)
+	}
+
+	// Append new record then sort reocrds by latest status change timestamp
+	// from newest to oldest.
+	records = append(records, missingRecord)
+
+	// Sort records
+	sort.Slice(records, func(i, j int) bool {
+		return records[i].RecordMetadata.Timestamp >
+			records[j].RecordMetadata.Timestamp
+	})
+
+	// Return sorted tokens
+	newTokens := make([]string, 0, len(records))
+	for _, record := range records {
+		newTokens = append(newTokens, record.RecordMetadata.Token)
+	}
+
+	return newTokens, nil
+}
+
 // Fsck performs a plugin file system check. The plugin is provided with the
 // tokens for all records in the backend.
 //
@@ -100,76 +138,14 @@ func (p *usermdPlugin) Hook(h plugins.HookT, payload string) error {
 func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 	log.Tracef("usermd Fsck")
 
-	// This map holds all fetched records
-	rs := make(map[string]*backend.Record, len(tokens))
-
 	// Number of records which were added to the user cache.
 	var c int64
 
-	// addMissingRecord adds the given record's token to a list of tokens sorted
-	// by the latest status change timestamp, from newest to oldest.
-	addMissingRecord := func(tokens []string, missingRecord *backend.Record) ([]string, error) {
-		// Make list of records to be able to sort by latest status change
-		// timestamp.
-		records := make([]*backend.Record, 0, len(tokens)+1)
-		for _, t := range tokens {
-			// Search in known records map
-			r := rs[t]
-
-			// Fetch record if not fetched yet
-			if r == nil {
-				// Decode string token
-				b, err := hex.DecodeString(t)
-				if err != nil {
-					return nil, err
-				}
-				r, err = p.tstore.RecordPartial(b, 0, nil, false)
-				if err != nil {
-					return nil, err
-				}
-
-				// Add record to the known records map
-				rs[t] = r
-			}
-
-			records = append(records, r)
-		}
-
-		// Append new record then sort reocrds by latest status change timestamp
-		// from newest to oldest.
-		records = append(records, missingRecord)
-		c++
-
-		// Sort records
-		sort.Slice(records, func(i, j int) bool {
-			return records[i].RecordMetadata.Timestamp >
-				records[j].RecordMetadata.Timestamp
-		})
-
-		// Return sorted tokens
-		newTokens := make([]string, 0, len(records))
-		for _, record := range records {
-			newTokens = append(newTokens, record.RecordMetadata.Token)
-		}
-
-		return newTokens, nil
-	}
-
 	for _, token := range tokens {
-		// Check if record was already fetched
 		tokenStr := hex.EncodeToString(token)
-		r := rs[tokenStr]
-
-		// Fetch record if not fetched yet
-		if r == nil {
-			record, err := p.tstore.RecordPartial(token, 0, nil, false)
-			if err != nil {
-				return err
-			}
-
-			// Add record to the known records map
-			r = record
-			rs[tokenStr] = r
+		r, err := p.tstore.RecordPartial(token, 0, nil, false)
+		if err != nil {
+			return err
 		}
 
 		// Decode user metadata
@@ -196,7 +172,7 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 			}
 			// Unvetted record is missing, add it
 			if !found {
-				uc.Unvetted, err = addMissingRecord(uc.Unvetted, r)
+				uc.Unvetted, err = p.addMissingRecord(uc.Unvetted, r)
 				if err != nil {
 					return err
 				}
@@ -210,7 +186,7 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 			}
 			// Vetted record is missing, add it
 			if !found {
-				uc.Vetted, err = addMissingRecord(uc.Vetted, r)
+				uc.Vetted, err = p.addMissingRecord(uc.Vetted, r)
 				if err != nil {
 					return err
 				}
@@ -227,6 +203,7 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 				return err
 			}
 			p.Unlock()
+			c++
 			log.Debugf("missing %v record %v was added to %v user records cache",
 				backend.States[r.RecordMetadata.State], tokenStr, um.UserID)
 		}

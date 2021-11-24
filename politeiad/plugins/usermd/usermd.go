@@ -10,10 +10,10 @@ const (
 	// PluginID is the unique identifier for this plugin.
 	PluginID = "usermd"
 
-	// CmdAuthor gets record author
+	// CmdAuthor command retrieves the record author.
 	CmdAuthor = "author"
 
-	// CmdUserRecords gets user submitted records
+	// CmdUserRecords command returns all records submitted by the given user.
 	CmdUserRecords = "userrecords"
 )
 
