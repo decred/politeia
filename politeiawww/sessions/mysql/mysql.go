@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/politeiawww/sessions"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -86,7 +87,7 @@ func (m *mysql) Save(sessionID string, s sessions.EncodedSession) error {
   encoded_session = VALUES(encoded_session)`, m.opts.TableName)
 	_, err = m.db.ExecContext(ctx, q, sessionID, es)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	return nil
@@ -177,7 +178,7 @@ func New(db *sql.DB, opts *Opts) (*mysql, error) {
 		m.opts.TableName, tableSessions)
 	_, err := db.ExecContext(ctx, q)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return &m, nil
