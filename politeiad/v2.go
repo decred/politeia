@@ -552,7 +552,7 @@ func (p *politeia) handlePluginReads(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare the replies
 	replies := make([]v2.PluginCmdReply, len(pr.Cmds))
-	for k, v := range batch.cmds {
+	for k, v := range batch.entries {
 		if v.err == nil {
 			// Command executed successfully
 			replies[k] = v2.PluginCmdReply{
