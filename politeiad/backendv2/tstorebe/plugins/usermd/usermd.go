@@ -95,14 +95,14 @@ func (p *usermdPlugin) addMissingRecord(tokens []string, missingRecord *backend.
 		if err != nil {
 			return nil, err
 		}
-		r, err := p.tstore.RecordPartial(b, 0, nil, false)
+		r, err := p.tstore.RecordPartial(b, 0, nil, true)
 		if err != nil {
 			return nil, err
 		}
 		records = append(records, r)
 	}
 
-	// Append new record then sort reocrds by latest status change timestamp
+	// Append new record then sort records by latest status change timestamp
 	// from newest to oldest.
 	records = append(records, missingRecord)
 
@@ -142,7 +142,7 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 	var c int64
 
 	for _, token := range tokens {
-		r, err := p.tstore.RecordPartial(token, 0, nil, false)
+		r, err := p.tstore.RecordPartial(token, 0, nil, true)
 		if err != nil {
 			return err
 		}
@@ -196,15 +196,12 @@ func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 		// If a missing token was added to the user cache, save new user cache
 		// to disk.
 		if !found {
-			p.Lock()
-			err = p.userCacheSaveLocked(um.UserID, *uc)
+			err = p.userCacheSave(um.UserID, *uc)
 			if err != nil {
-				p.Unlock()
 				return err
 			}
-			p.Unlock()
 			c++
-			log.Debugf("missing %v record %v was added to %v user records cache",
+			log.Debugf("Missing %v record %v was added to %v user records cache",
 				backend.States[r.RecordMetadata.State], tokenStr, um.UserID)
 		}
 	}
