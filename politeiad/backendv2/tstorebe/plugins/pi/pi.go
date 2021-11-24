@@ -5,11 +5,13 @@
 package pi
 
 import (
+	"container/list"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"sync"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	backend "github.com/decred/politeia/politeiad/backendv2"
@@ -23,6 +25,21 @@ var (
 	_ plugins.PluginClient = (*piPlugin)(nil)
 )
 
+// statusData includes
+type statusData struct {
+	status pi.PropStatusT
+}
+
+// piCache is used to cache proposals information that won't change in the
+// the future, and would require fetching the entire tlog tree in runtime.
+//
+// XXX mention limit
+type piCache struct {
+	sync.Mutex
+	statuses map[string]*statusData // [token]statusData
+	entries  list.List
+}
+
 // piPlugin is the tstore backend implementation of the pi plugin. The pi
 // plugin extends a record with functionality specific to the decred proposal
 // system.
@@ -31,6 +48,10 @@ var (
 type piPlugin struct {
 	backend backend.Backend
 	tstore  plugins.TstoreClient
+
+	// cache holds proposal information that won't change in memory to
+	// avoid retrieving the entire tlog tree in runtime.
+	cache piCache
 
 	// dataDir is the pi plugin data directory. The only data that is
 	// stored here is cached data that can be re-created at any time

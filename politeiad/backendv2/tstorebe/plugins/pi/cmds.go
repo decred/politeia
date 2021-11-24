@@ -242,25 +242,52 @@ func (p *piPlugin) cmdBillingStatusChanges(token []byte) (string, error) {
 	return string(reply), nil
 }
 
+// XXX
+func (p *piPlugin) cacheProposalStatus(token string) *pi.PropStatusT {
+	p.cache.Lock()
+	defer p.cache.Unlock()
+
+	cs := p.cache.statuses[token]
+	if cs != nil {
+		return &cs.status
+	}
+
+	return nil
+}
+
 // cmdSummary returns the pi summary of a proposal.
 func (p *piPlugin) cmdSummary(token []byte) (string, error) {
+	// Instead of retrieving the record first check if the proposal status
+	// information exists in cache.
+	var s pi.PropStatusT
+	var (
+		r          *backend.Record
+		mdState    backend.StateT
+		mdStatus   backend.StatusT
+		voteStatus = ticketvote.VoteStatusInvalid
+
+		voteMD *ticketvote.VoteMetadata
+		bscs   []pi.BillingStatusChange
+		err    error
+	)
+	status := p.cacheProposalStatus(hex.EncodeToString(token))
+	if status != nil {
+		s = *status
+		goto reply
+	}
+
 	// Get an abridged version of the record. We only
 	// need the record metadata and the vote metadata.
-	r, err := p.record(backend.RecordRequest{
+	r, err = p.record(backend.RecordRequest{
 		Token:     token,
 		Filenames: []string{ticketvote.FileNameVoteMetadata},
 	})
 	if err != nil {
 		return "", err
 	}
-	var (
-		mdState    = r.RecordMetadata.State
-		mdStatus   = r.RecordMetadata.Status
-		voteStatus = ticketvote.VoteStatusInvalid
-
-		voteMD *ticketvote.VoteMetadata
-		bscs   []pi.BillingStatusChange
-	)
+	mdState = r.RecordMetadata.State
+	mdStatus = r.RecordMetadata.Status
+	voteStatus = ticketvote.VoteStatusInvalid
 
 	// Pull the vote metadata out of the record files.
 	voteMD, err = voteMetadataDecode(r.Files)
@@ -289,18 +316,23 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 	}
 
 	// Determine the proposal status
-	proposalStatus, err := proposalStatus(mdState, mdStatus,
+	s, err = proposalStatus(mdState, mdStatus,
 		voteStatus, voteMD, bscs)
 	if err != nil {
 		return "", err
 	}
 
+	// If proposal status can't change in the future cache it to avoid
+	// re evaluating.
+
+reply:
 	// Prepare reply
 	sr := pi.SummaryReply{
 		Summary: pi.ProposalSummary{
-			Status: proposalStatus,
+			Status: s,
 		},
 	}
+
 	reply, err := json.Marshal(sr)
 	if err != nil {
 		return "", err
