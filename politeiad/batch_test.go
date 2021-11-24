@@ -32,7 +32,7 @@ func TestExecConcurrently(t *testing.T) {
 			Command: testCmdSuccess,
 			Payload: "0",
 		},
-		// Sucess without a token
+		// Success without a token
 		{
 			Token:   token,
 			ID:      testPluginID,
