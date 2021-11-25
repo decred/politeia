@@ -84,7 +84,7 @@ func (p *usermdPlugin) Hook(h plugins.HookT, payload string) error {
 }
 
 // addMissingRecord adds the given record's token to a list of tokens sorted
-// by the latest status change timestamp, from newest to oldest.
+// by the latest status change timestamp, from oldest to newest.
 func (p *usermdPlugin) addMissingRecord(tokens []string, missingRecord *backend.Record) ([]string, error) {
 	// Make list of records to be able to sort by latest status change
 	// timestamp.
@@ -103,12 +103,12 @@ func (p *usermdPlugin) addMissingRecord(tokens []string, missingRecord *backend.
 	}
 
 	// Append new record then sort records by latest status change timestamp
-	// from newest to oldest.
+	// from oldest to newest.
 	records = append(records, missingRecord)
 
 	// Sort records
 	sort.Slice(records, func(i, j int) bool {
-		return records[i].RecordMetadata.Timestamp >
+		return records[i].RecordMetadata.Timestamp <
 			records[j].RecordMetadata.Timestamp
 	})
 
@@ -132,7 +132,7 @@ func (p *usermdPlugin) addMissingRecord(tokens []string, missingRecord *backend.
 //    correct category.  If the record is not found in the user
 //    cache, add it.  The tokens listed in the user cache are
 //    ordered by the timestamp of their most recent status change
-//    from newest to oldest.
+//    from oldest to newest.
 //
 // This function satisfies the plugins PluginClient interface.
 func (p *usermdPlugin) Fsck(tokens [][]byte) error {
