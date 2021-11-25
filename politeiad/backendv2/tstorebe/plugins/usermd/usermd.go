@@ -5,8 +5,10 @@
 package usermd
 
 import (
+	"encoding/hex"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
@@ -81,24 +83,130 @@ func (p *usermdPlugin) Hook(h plugins.HookT, payload string) error {
 	return nil
 }
 
+// addMissingRecord adds the given record's token to a list of tokens sorted
+// by the latest status change timestamp, from oldest to newest.
+func (p *usermdPlugin) addMissingRecord(tokens []string, missingRecord *backend.Record) ([]string, error) {
+	// Make list of records to be able to sort by latest status change
+	// timestamp.
+	records := make([]*backend.Record, 0, len(tokens)+1)
+	for _, t := range tokens {
+		// Decode string token
+		b, err := hex.DecodeString(t)
+		if err != nil {
+			return nil, err
+		}
+		r, err := p.tstore.RecordPartial(b, 0, nil, true)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, r)
+	}
+
+	// Append new record then sort records by latest status change timestamp
+	// from oldest to newest.
+	records = append(records, missingRecord)
+
+	// Sort records
+	sort.Slice(records, func(i, j int) bool {
+		return records[i].RecordMetadata.Timestamp <
+			records[j].RecordMetadata.Timestamp
+	})
+
+	// Return sorted tokens
+	newTokens := make([]string, 0, len(records))
+	for _, record := range records {
+		newTokens = append(newTokens, record.RecordMetadata.Token)
+	}
+
+	return newTokens, nil
+}
+
 // Fsck performs a plugin file system check. The plugin is provided with the
 // tokens for all records in the backend.
+//
+// It verifies the user cache using the following process:
+//
+// 1. For each record, get the user metadata file from the db.
+// 2. Get the user cache for the record's author.
+// 3. Verify that the record is listed in the user cache under the
+//    correct category.  If the record is not found in the user
+//    cache, add it.  The tokens listed in the user cache are
+//    ordered by the timestamp of their most recent status change
+//    from oldest to newest.
 //
 // This function satisfies the plugins PluginClient interface.
 func (p *usermdPlugin) Fsck(tokens [][]byte) error {
 	log.Tracef("usermd Fsck")
 
-	// Verify the user cache using the following process:
-	//
-	// 1. For each record, get the user metadata file from the db.
-	//
-	// 2. Get the user cache for the record's author.
-	//
-	// 3. Verify that the record is listed in the user cache under the
-	//    correct category. The tokens listed in the user cache MUST be
-	//    ordered by the timestamp of their most recent status change
-	//    from newest to oldest. If the record is not found in the user
-	//    cache, add it.
+	// Number of records which were added to the user cache.
+	var c int64
+
+	for _, token := range tokens {
+		r, err := p.tstore.RecordPartial(token, 0, nil, true)
+		if err != nil {
+			return err
+		}
+
+		// Decode user metadata
+		um, err := userMetadataDecode(r.Metadata)
+		if err != nil {
+			return err
+		}
+
+		// Get the user cache for the record's author
+		uc, err := p.userCache(um.UserID)
+		if err != nil {
+			return err
+		}
+
+		// Verify that the record is listed in the user cache under the
+		// correct category.
+		var found bool
+		tokenStr := hex.EncodeToString(token)
+		switch r.RecordMetadata.State {
+		case backend.StateUnvetted:
+			for _, t := range uc.Unvetted {
+				if t == tokenStr {
+					found = true
+				}
+			}
+			// Unvetted record is missing, add it
+			if !found {
+				uc.Unvetted, err = p.addMissingRecord(uc.Unvetted, r)
+				if err != nil {
+					return err
+				}
+			}
+
+		case backend.StateVetted:
+			for _, t := range uc.Vetted {
+				if t == tokenStr {
+					found = true
+				}
+			}
+			// Vetted record is missing, add it
+			if !found {
+				uc.Vetted, err = p.addMissingRecord(uc.Vetted, r)
+				if err != nil {
+					return err
+				}
+			}
+		}
+
+		// If a missing token was added to the user cache, save new user cache
+		// to disk.
+		if !found {
+			err = p.userCacheSave(um.UserID, *uc)
+			if err != nil {
+				return err
+			}
+			c++
+			log.Debugf("Missing %v record %v was added to %v user records cache",
+				backend.States[r.RecordMetadata.State], tokenStr, um.UserID)
+		}
+	}
+
+	log.Infof("%v missing records were added to the user records cache", c)
 
 	return nil
 }

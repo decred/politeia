@@ -75,6 +75,16 @@ func (p *usermdPlugin) userCache(userID string) (*userCache, error) {
 	return p.userCacheLocked(userID)
 }
 
+// userCacheSave saves the provided userCache to the plugin data dir.
+//
+// This function must be called WITHOUT the lock held.
+func (p *usermdPlugin) userCacheSave(userID string, uc userCache) error {
+	p.Lock()
+	defer p.Unlock()
+
+	return p.userCacheSaveLocked(userID, uc)
+}
+
 // userCacheSaveLocked saves the provided userCache to the plugin data dir.
 //
 // This function must be called WITH the lock held.
