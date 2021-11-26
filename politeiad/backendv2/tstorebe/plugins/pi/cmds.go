@@ -257,19 +257,21 @@ func (p *piPlugin) cacheProposalStatus(token string) *pi.PropStatusT {
 
 // cmdSummary returns the pi summary of a proposal.
 func (p *piPlugin) cmdSummary(token []byte) (string, error) {
-	// Instead of retrieving the record first check if the proposal status
-	// information exists in cache.
-	var s pi.PropStatusT
 	var (
-		r          *backend.Record
-		mdState    backend.StateT
-		mdStatus   backend.StatusT
-		voteStatus = ticketvote.VoteStatusInvalid
+		r        *backend.Record
+		mdState  backend.StateT
+		mdStatus backend.StatusT
+
+		s          pi.PropStatusT
+		voteStatus ticketvote.VoteStatusT
 
 		voteMD *ticketvote.VoteMetadata
 		bscs   []pi.BillingStatusChange
 		err    error
 	)
+
+	// Instead of retrieving the record first check if the proposal status
+	// information exists in cache.
 	status := p.cacheProposalStatus(hex.EncodeToString(token))
 	if status != nil {
 		s = *status
