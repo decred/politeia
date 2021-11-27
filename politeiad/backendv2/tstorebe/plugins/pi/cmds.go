@@ -342,8 +342,7 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 	}
 
 	// Determine the proposal status
-	s, err = proposalStatus(mdState, mdStatus,
-		voteStatus, voteMD, bscs)
+	s, err = proposalStatus(mdState, mdStatus, voteStatus, voteMD, bscs)
 	if err != nil {
 		return "", err
 	}
@@ -352,10 +351,10 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 	// expensive re-evaluation.
 	switch s {
 	case pi.PropStatusUnvettedAbandoned, pi.PropStatusUnvettedCensored,
-		pi.PropStatusAbandoned, pi.PropStatusCensored, pi.PropStatusApproved,
-		pi.PropStatusRejected, pi.PropStatusActive, pi.PropStatusCompleted,
-		pi.PropStatusClosed:
+		pi.PropStatusAbandoned, pi.PropStatusCensored, pi.PropStatusRejected:
 		p.cacheProposalStatusSet(tokenStr, s)
+	case pi.PropStatusApproved:
+		// XXX if rfp cache proposal status
 	}
 
 reply:
