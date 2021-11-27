@@ -30,10 +30,15 @@ type statusData struct {
 	status pi.PropStatusT
 }
 
+// piCacheLimit limits the number of entries in the piCache context.
+const piCacheLimit = 100
+
 // piCache is used to cache proposals information that won't change in the
 // the future, and would require fetching the entire tlog tree in runtime.
 //
-// XXX mention limit
+// Number of entries stored in cache is limited. If the cache is full and a
+// new entry is being added, the oldest entry is removed from the `statuses`
+// map and the `entries` list.
 type piCache struct {
 	sync.Mutex
 	statuses map[string]*statusData // [token]statusData

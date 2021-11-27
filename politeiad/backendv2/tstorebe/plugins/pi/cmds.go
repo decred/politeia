@@ -242,8 +242,9 @@ func (p *piPlugin) cmdBillingStatusChanges(token []byte) (string, error) {
 	return string(reply), nil
 }
 
-// XXX
-func (p *piPlugin) cacheProposalStatus(token string) *pi.PropStatusT {
+// cacheProposalStatusGet retrieves the status of the given proposal from the
+// memory cache.  If proposal status doesn't exist in cache it returns nil.
+func (p *piPlugin) cacheProposalStatusGet(token string) *pi.PropStatusT {
 	p.cache.Lock()
 	defer p.cache.Unlock()
 
@@ -253,6 +254,28 @@ func (p *piPlugin) cacheProposalStatus(token string) *pi.PropStatusT {
 	}
 
 	return nil
+}
+
+// cacheProposalStatusSet stores the status of the proposal associated with
+// the given token in cache. If the cache is full and a new entry is being
+// added, the oldest entry is removed from the cache.
+func (p *piPlugin) cacheProposalStatusSet(token string, status pi.PropStatusT) {
+	p.cache.Lock()
+	defer p.cache.Unlock()
+
+	// If cache is full remove oldest entry
+	if p.cache.entries.Len() == piCacheLimit {
+		// Remove front - oldest entry.
+		t := p.cache.entries.Remove(p.cache.entries.Front()).(string)
+		// Remove oldest status from map.
+		delete(p.cache.statuses, t)
+	}
+
+	// Store new status.
+	p.cache.entries.PushBack(token)
+	p.cache.statuses[token] = &statusData{
+		status: status,
+	}
 }
 
 // cmdSummary returns the pi summary of a proposal.
@@ -272,7 +295,8 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 
 	// Instead of retrieving the record first check if the proposal status
 	// information exists in cache.
-	status := p.cacheProposalStatus(hex.EncodeToString(token))
+	tokenStr := hex.EncodeToString(token)
+	status := p.cacheProposalStatusGet(tokenStr)
 	if status != nil {
 		s = *status
 		goto reply
@@ -324,8 +348,15 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		return "", err
 	}
 
-	// If proposal status can't change in the future cache it to avoid
-	// re evaluating.
+	// If proposal status won't change in the future cache it to avoid
+	// expensive re-evaluation.
+	switch s {
+	case pi.PropStatusUnvettedAbandoned, pi.PropStatusUnvettedCensored,
+		pi.PropStatusAbandoned, pi.PropStatusCensored, pi.PropStatusApproved,
+		pi.PropStatusRejected, pi.PropStatusActive, pi.PropStatusCompleted,
+		pi.PropStatusClosed:
+		p.cacheProposalStatusSet(tokenStr, s)
+	}
 
 reply:
 	// Prepare reply
