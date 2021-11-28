@@ -5,6 +5,7 @@
 package pi
 
 import (
+	"container/list"
 	"encoding/json"
 	"io/ioutil"
 	"os"
@@ -74,6 +75,10 @@ func newTestPiPlugin(t *testing.T) (*piPlugin, func()) {
 		proposalDomainsEncoded:  domainsString,
 		proposalDomains:         domainsMap,
 		billingStatusChangesMax: pi.SettingBillingStatusChangesMax,
+		cache: piCache{
+			data:    make(map[string]*cacheData, piCacheLimit),
+			entries: list.New(),
+		},
 	}
 
 	return &p, func() {

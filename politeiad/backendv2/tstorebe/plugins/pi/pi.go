@@ -17,6 +17,7 @@ import (
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/pi"
+	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/util"
 	"github.com/pkg/errors"
 )
@@ -25,24 +26,33 @@ var (
 	_ plugins.PluginClient = (*piPlugin)(nil)
 )
 
-// statusData includes
-type statusData struct {
-	status pi.PropStatusT
+// statusData is stored in an in-memory cache, it includes metadata which
+// won't change in the future to avoid expensive real-time evaluations.
+//
+// proposalStatus is optional and will be populated only if the proposal
+// status is not expected to change.
+//
+// voteStatus is optional and will be populated only for proposals with
+// vote status 'approved' to improve performance of retrieving proposal
+// statuses of approved proposals.
+type cacheData struct {
+	proposalStatus *pi.PropStatusT
+	voteStatus     *ticketvote.VoteStatusT
 }
 
 // piCacheLimit limits the number of entries in the piCache context.
-const piCacheLimit = 100
+const piCacheLimit = 1000
 
 // piCache is used to cache proposals information that won't change in the
 // the future, and would require fetching the entire tlog tree in runtime.
 //
 // Number of entries stored in cache is limited. If the cache is full and a
-// new entry is being added, the oldest entry is removed from the `statuses`
+// new entry is being added, the oldest entry is removed from the `data`
 // map and the `entries` list.
 type piCache struct {
 	sync.Mutex
-	statuses map[string]*statusData // [token]statusData
-	entries  list.List
+	data    map[string]*cacheData // [token]cacheData
+	entries *list.List            // list of cache records tokens
 }
 
 // piPlugin is the tstore backend implementation of the pi plugin. The pi
@@ -365,5 +375,9 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		proposalDomainsEncoded:  domainsString,
 		proposalDomains:         domainsMap,
 		billingStatusChangesMax: billingStatusChangesMax,
+		cache: piCache{
+			data:    make(map[string]*cacheData, piCacheLimit),
+			entries: list.New(),
+		},
 	}, nil
 }

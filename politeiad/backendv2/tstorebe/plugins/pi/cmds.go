@@ -242,39 +242,70 @@ func (p *piPlugin) cmdBillingStatusChanges(token []byte) (string, error) {
 	return string(reply), nil
 }
 
-// cacheProposalStatusGet retrieves the status of the given proposal from the
-// memory cache.  If proposal status doesn't exist in cache it returns nil.
-func (p *piPlugin) cacheProposalStatusGet(token string) *pi.PropStatusT {
+// cacheDataGet retrieves the data associated with the given token from the
+// memory cache.  If data doesn't exist in cache it returns nil.
+func (p *piPlugin) cacheDataGet(token string) *cacheData {
 	p.cache.Lock()
 	defer p.cache.Unlock()
 
-	cs := p.cache.statuses[token]
-	if cs != nil {
-		return &cs.status
-	}
-
-	return nil
+	return p.cache.data[token]
 }
 
-// cacheProposalStatusSet stores the status of the proposal associated with
+// cacheVoteStatusSet stores the vote status associated with the given token
+// in cache. If the cache is full and a new entry is being added, the oldest
+// is removed from the cache.
+func (p *piPlugin) cacheVoteStatusSet(token string, status ticketvote.VoteStatusT) {
+	p.cache.Lock()
+	defer p.cache.Unlock()
+
+	// If an entry associated with the proposal already exists in cache
+	// overwrite the vote status.
+	if p.cache.data[token] != nil {
+		p.cache.data[token].voteStatus = &status
+		return
+	}
+
+	// If entry does not exist and cache is fulli, then remove oldest entry
+	if p.cache.entries.Len() == piCacheLimit {
+		// Remove front - oldest entry from entries list.
+		t := p.cache.entries.Remove(p.cache.entries.Front()).(string)
+		// Remove oldest status from map.
+		delete(p.cache.data, t)
+	}
+
+	// Store new status.
+	p.cache.entries.PushBack(token)
+	p.cache.data[token] = &cacheData{
+		voteStatus: &status,
+	}
+}
+
+// cacheProposalStatusSet stores the proposal status associated with
 // the given token in cache. If the cache is full and a new entry is being
 // added, the oldest entry is removed from the cache.
 func (p *piPlugin) cacheProposalStatusSet(token string, status pi.PropStatusT) {
 	p.cache.Lock()
 	defer p.cache.Unlock()
 
-	// If cache is full remove oldest entry
+	// If an entry associated with the proposal already exists in cache
+	// overwrite the proposal status.
+	if p.cache.data[token] != nil {
+		p.cache.data[token].proposalStatus = &status
+		return
+	}
+
+	// If entry does not exist and cache is fulli, then remove oldest entry
 	if p.cache.entries.Len() == piCacheLimit {
-		// Remove front - oldest entry.
+		// Remove front - oldest entry from entries list.
 		t := p.cache.entries.Remove(p.cache.entries.Front()).(string)
 		// Remove oldest status from map.
-		delete(p.cache.statuses, t)
+		delete(p.cache.data, t)
 	}
 
 	// Store new status.
 	p.cache.entries.PushBack(token)
-	p.cache.statuses[token] = &statusData{
-		status: status,
+	p.cache.data[token] = &cacheData{
+		proposalStatus: &status,
 	}
 }
 
@@ -293,17 +324,39 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		err    error
 	)
 
-	// Instead of retrieving the record first check if the proposal status
-	// information exists in cache.
+	// Check if any data associated with the token exists in the in-memory
+	// cache to avoid extra expensive full tlog tree reads.
 	tokenStr := hex.EncodeToString(token)
-	status := p.cacheProposalStatusGet(tokenStr)
-	if status != nil {
-		s = *status
-		goto reply
+	d := p.cacheDataGet(tokenStr)
+	if d != nil {
+		// If proposal status is cached in-memory jump to reply
+		if d.proposalStatus != nil {
+			s = *d.proposalStatus
+			goto reply
+		}
+
+		// If vote status is cached and proposal vote was approved get billing
+		// status to determine proposal status then jump to reply.
+		//
+		// **Note:** currently all cached vote statuses will be equal to 'approved'
+		// as we cache the vote status only for propsoals with active, closed or
+		// completed proposal statuses which are all approved.
+		if d.voteStatus != nil {
+			bscs, err = p.billingStatusChanges(token)
+			if err != nil {
+				return "", err
+			}
+			s, err = proposalStatusApproved(nil, bscs)
+			if err != nil {
+				return "", err
+			}
+			goto reply
+		}
 	}
 
-	// Get an abridged version of the record. We only
-	// need the record metadata and the vote metadata.
+	// If no data associated with the proposal cached in memory, get an abridged
+	// version of the record. We only need the record metadata and the vote
+	// metadata.
 	r, err = p.record(backend.RecordRequest{
 		Token:     token,
 		Filenames: []string{ticketvote.FileNameVoteMetadata},
@@ -347,14 +400,18 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		return "", err
 	}
 
+	switch s {
 	// If proposal status won't change in the future cache it to avoid
 	// expensive re-evaluation.
-	switch s {
 	case pi.PropStatusUnvettedAbandoned, pi.PropStatusUnvettedCensored,
-		pi.PropStatusAbandoned, pi.PropStatusCensored, pi.PropStatusRejected:
+		pi.PropStatusAbandoned, pi.PropStatusCensored, pi.PropStatusApproved,
+		pi.PropStatusRejected:
 		p.cacheProposalStatusSet(tokenStr, s)
-	case pi.PropStatusApproved:
-		// XXX if rfp cache proposal status
+
+	// If proposal vote was approved and proposal status is active, completed
+	// or closed we cache the vote status to aviod retrieving
+	case pi.PropStatusActive, pi.PropStatusCompleted, pi.PropStatusClosed:
+		p.cacheVoteStatusSet(tokenStr, voteStatus)
 	}
 
 reply:
