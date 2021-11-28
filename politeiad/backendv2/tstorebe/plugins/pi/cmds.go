@@ -265,7 +265,7 @@ func (p *piPlugin) cacheVoteStatusSet(token string, status ticketvote.VoteStatus
 		return
 	}
 
-	// If entry does not exist and cache is fulli, then remove oldest entry
+	// If entry does not exist and cache is full, then remove oldest entry
 	if p.cache.entries.Len() == piCacheLimit {
 		// Remove front - oldest entry from entries list.
 		t := p.cache.entries.Remove(p.cache.entries.Front()).(string)
@@ -294,7 +294,7 @@ func (p *piPlugin) cacheProposalStatusSet(token string, status pi.PropStatusT) {
 		return
 	}
 
-	// If entry does not exist and cache is fulli, then remove oldest entry
+	// If entry does not exist and cache is full, then remove oldest entry
 	if p.cache.entries.Len() == piCacheLimit {
 		// Remove front - oldest entry from entries list.
 		t := p.cache.entries.Remove(p.cache.entries.Front()).(string)
