@@ -285,24 +285,20 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 	// Check if any data associated with the token exists in the in-memory
 	// cache to avoid extra expensive full tlog tree reads.
 	tokenStr := hex.EncodeToString(token)
-	d := p.statuses.get(tokenStr)
+	cacheEntry := p.statuses.get(tokenStr)
+	hasCacheEntry := cacheEntry != nil
 
-	// If no entry found in cache jump to fetch the record
-	if d == nil {
-		goto fetchrecord
+	// If cache entry found and the cached proposal status is final, jump to
+	// reply.
+	if hasCacheEntry && isFinalStatus(cacheEntry.status) {
+		s = cacheEntry.status
+		goto reply
 	}
 
-	// Cache entry found, determine proposal status using the cached data
-	switch {
-	// If the cached proposal status is final, jump to reply
-	case isFinalStatus(d.status):
-		s = d.status
-		goto reply
-
-	// If the cached proposal status needs latest billing status changes
-	// fetch them and determine the proposal status on runtime. This still
-	// avoids reading the full tlog tree.
-	case needsOnlyBillingStatusChanges(d.status):
+	// If cache entry found and the cached proposal status needs latest billing
+	// status changes fetch them and determine the proposal status on runtime.
+	// This still avoids reading the full tlog tree.
+	if hasCacheEntry && needsOnlyBillingStatusChanges(cacheEntry.status) {
 		bscs, err = p.billingStatusChanges(token)
 		if err != nil {
 			return "", err
@@ -311,14 +307,9 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		// If runtime status different than cached status, cache the new status.
-		if s != d.status {
-			p.statuses.set(tokenStr, s)
-		}
 		goto reply
 	}
 
-fetchrecord:
 	// If no data associated with the proposal cached in memory, get an abridged
 	// version of the record. We only need the record metadata and the vote
 	// metadata.
@@ -365,13 +356,16 @@ fetchrecord:
 		return "", err
 	}
 
+reply:
 	// If proposal status is final or only needs the billing status changes
-	// to be determined on runtime, cache proposal status in-memory.
-	if isFinalStatus(s) || needsOnlyBillingStatusChanges(s) {
+	// to be determined on runtime and does not exist in cache yet, cache
+	// proposal status in-memory.
+	statusExistInCache := hasCacheEntry && s == cacheEntry.status
+	if !statusExistInCache &&
+		(isFinalStatus(s) || needsOnlyBillingStatusChanges(s)) {
 		p.statuses.set(tokenStr, s)
 	}
 
-reply:
 	// Prepare reply
 	sr := pi.SummaryReply{
 		Summary: pi.ProposalSummary{
