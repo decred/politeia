@@ -28,6 +28,7 @@ import (
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -47,8 +48,9 @@ type politeiawww struct {
 	sessions sessions.Store
 	userDB   user.DB
 
-	// pluginIDs contains the plugin IDs of all registered plugins, ordered
-	// alphabetically. This is the order that the plugin hooks are executed in.
+	// pluginIDs contains the plugin IDs of all registered plugins, ordered in
+	// the same order that they were provided to the config in. This is the order
+	// that the plugin hooks are executed in.
 	pluginIDs []string
 
 	// plugins contains all registered plugins.
@@ -200,6 +202,24 @@ func _main() error {
 		return err
 	}
 
+	// Setup the plugins
+	var (
+		plugins    = make(map[string]plugin.Plugin, 64)
+		userPlugin plugin.UserManager
+		authPlugin plugin.Authorizer
+	)
+	for _, pluginID := range cfg.Plugins {
+		p, err := plugin.NewPlugin(pluginID)
+		if err != nil {
+			return errors.Errorf("new '%v' plugin: %v", pluginID)
+		}
+		plugins[pluginID] = p
+	}
+	userPlugin, authPlugin, err = setupUserPlugins(cfg)
+	if err != nil {
+		return err
+	}
+
 	// Setup the legacy politeiawww context
 	var legacywww *legacy.Politeiawww
 	if !cfg.DisableLegacy {
@@ -212,14 +232,16 @@ func _main() error {
 
 	// Setup application context
 	p := &politeiawww{
-		cfg:       cfg,
-		router:    router,
-		protected: protected,
-		politeiad: pdc,
-		events:    events.NewManager(),
-		legacy:    legacywww,
-		pluginIDs: make([]string, 0, 64),
-		plugins:   make(map[string]plugin.Plugin, 64),
+		cfg:        cfg,
+		router:     router,
+		protected:  protected,
+		politeiad:  pdc,
+		events:     events.NewManager(),
+		legacy:     legacywww,
+		pluginIDs:  cfg.Plugins,
+		plugins:    plugins,
+		userPlugin: userPlugin,
+		authPlugin: authPlugin,
 	}
 
 	// Setup API routes. For now, only set these up
@@ -297,4 +319,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
+}
+
+func setupUserPlugins(cfg *config.Config) (plugin.UserManager, plugin.Authorizer, error) {
+	if cfg.DisableUsers {
+		return nil, nil, nil
+	}
+
+	return nil, nil, nil
 }
