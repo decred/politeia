@@ -62,7 +62,7 @@ func (s *proposalStatuses) set(token string, status pi.PropStatusT) {
 	}
 
 	// If entry does not exist and cache is full, then remove oldest entry
-	if s.entries.Len() == statusesLimit {
+	if s.entries.Len() == statusesCacheLimit {
 		// Remove front - oldest entry from entries list.
 		t := s.entries.Remove(s.entries.Front()).(string)
 		// Remove oldest status from map.
