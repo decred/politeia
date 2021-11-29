@@ -11,13 +11,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"sync"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/pi"
-	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/util"
 	"github.com/pkg/errors"
 )
@@ -25,35 +23,6 @@ import (
 var (
 	_ plugins.PluginClient = (*piPlugin)(nil)
 )
-
-// statusData is stored in an in-memory cache, it includes metadata which
-// won't change in the future to avoid expensive real-time evaluations.
-//
-// proposalStatus is optional and will be populated only if the proposal
-// status is not expected to change.
-//
-// voteStatus is optional and will be populated only for proposals with
-// vote status 'approved' to improve performance of retrieving proposal
-// statuses of approved proposals.
-type cacheData struct {
-	proposalStatus *pi.PropStatusT
-	voteStatus     *ticketvote.VoteStatusT
-}
-
-// piCacheLimit limits the number of entries in the piCache context.
-const piCacheLimit = 1000
-
-// piCache is used to cache proposals information that won't change in the
-// the future, and would require fetching the entire tlog tree in runtime.
-//
-// Number of entries stored in cache is limited. If the cache is full and a
-// new entry is being added, the oldest entry is removed from the `data`
-// map and the `entries` list.
-type piCache struct {
-	sync.Mutex
-	data    map[string]*cacheData // [token]cacheData
-	entries *list.List            // list of cache records tokens
-}
 
 // piPlugin is the tstore backend implementation of the pi plugin. The pi
 // plugin extends a record with functionality specific to the decred proposal
@@ -64,9 +33,9 @@ type piPlugin struct {
 	backend backend.Backend
 	tstore  plugins.TstoreClient
 
-	// cache holds proposal information that won't change in memory to
-	// avoid retrieving the entire tlog tree in runtime.
-	cache piCache
+	// statuses holds proposal statuses in memory to avoid extra expensive
+	// tlog tree reads in runtime.
+	statuses proposalStatuses
 
 	// dataDir is the pi plugin data directory. The only data that is
 	// stored here is cached data that can be re-created at any time
@@ -375,8 +344,8 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		proposalDomainsEncoded:  domainsString,
 		proposalDomains:         domainsMap,
 		billingStatusChangesMax: billingStatusChangesMax,
-		cache: piCache{
-			data:    make(map[string]*cacheData, piCacheLimit),
+		statuses: proposalStatuses{
+			data:    make(map[string]*statusEntry, statusesLimit),
 			entries: list.New(),
 		},
 	}, nil

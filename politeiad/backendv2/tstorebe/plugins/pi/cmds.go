@@ -242,70 +242,28 @@ func (p *piPlugin) cmdBillingStatusChanges(token []byte) (string, error) {
 	return string(reply), nil
 }
 
-// cacheDataGet retrieves the data associated with the given token from the
-// memory cache.  If data doesn't exist in cache it returns nil.
-func (p *piPlugin) cacheDataGet(token string) *cacheData {
-	p.cache.Lock()
-	defer p.cache.Unlock()
-
-	return p.cache.data[token]
-}
-
-// cacheVoteStatusSet stores the vote status associated with the given token
-// in cache. If the cache is full and a new entry is being added, the oldest
-// is removed from the cache.
-func (p *piPlugin) cacheVoteStatusSet(token string, status ticketvote.VoteStatusT) {
-	p.cache.Lock()
-	defer p.cache.Unlock()
-
-	// If an entry associated with the proposal already exists in cache
-	// overwrite the vote status.
-	if p.cache.data[token] != nil {
-		p.cache.data[token].voteStatus = &status
-		return
-	}
-
-	// If entry does not exist and cache is full, then remove oldest entry
-	if p.cache.entries.Len() == piCacheLimit {
-		// Remove front - oldest entry from entries list.
-		t := p.cache.entries.Remove(p.cache.entries.Front()).(string)
-		// Remove oldest status from map.
-		delete(p.cache.data, t)
-	}
-
-	// Store new status.
-	p.cache.entries.PushBack(token)
-	p.cache.data[token] = &cacheData{
-		voteStatus: &status,
+// isFinalStatus determines whether the given proposal status is final and
+// not expected to change in the future.
+func isFinalStatus(status pi.PropStatusT) bool {
+	switch status {
+	case pi.PropStatusUnvettedAbandoned, pi.PropStatusUnvettedCensored,
+		pi.PropStatusAbandoned, pi.PropStatusCensored, pi.PropStatusApproved,
+		pi.PropStatusRejected:
+		return true
+	default:
+		return false
 	}
 }
 
-// cacheProposalStatusSet stores the proposal status associated with
-// the given token in cache. If the cache is full and a new entry is being
-// added, the oldest entry is removed from the cache.
-func (p *piPlugin) cacheProposalStatusSet(token string, status pi.PropStatusT) {
-	p.cache.Lock()
-	defer p.cache.Unlock()
-
-	// If an entry associated with the proposal already exists in cache
-	// overwrite the proposal status.
-	if p.cache.data[token] != nil {
-		p.cache.data[token].proposalStatus = &status
-		return
-	}
-
-	// If entry does not exist and cache is full, then remove oldest entry
-	if p.cache.entries.Len() == piCacheLimit {
-		// Remove front - oldest entry from entries list.
-		t := p.cache.entries.Remove(p.cache.entries.Front()).(string)
-		// Remove oldest status from map.
-		delete(p.cache.data, t)
-	}
-
-	// Store new status.
-	p.cache.entries.PushBack(token)
-	p.cache.data[token] = &cacheData{
-		proposalStatus: &status,
+// needsBillingStatusChanges returns true if the given proposal status
+// is associated with approved proposal which needs only the latest billing
+// status metadata to detemine the proposal proposal status on runtime.
+func needsOnlyBillingStatusChanges(status pi.PropStatusT) bool {
+	switch status {
+	case pi.PropStatusActive, pi.PropStatusCompleted, pi.PropStatusClosed:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -327,33 +285,40 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 	// Check if any data associated with the token exists in the in-memory
 	// cache to avoid extra expensive full tlog tree reads.
 	tokenStr := hex.EncodeToString(token)
-	d := p.cacheDataGet(tokenStr)
-	if d != nil {
-		// If proposal status is cached in-memory jump to reply
-		if d.proposalStatus != nil {
-			s = *d.proposalStatus
-			goto reply
-		}
+	d := p.statuses.get(tokenStr)
 
-		// If vote status is cached and proposal vote was approved get billing
-		// status to determine proposal status then jump to reply.
-		//
-		// **Note:** currently all cached vote statuses will be equal to 'approved'
-		// as we cache the vote status only for propsoals with active, closed or
-		// completed proposal statuses which are all approved.
-		if d.voteStatus != nil {
-			bscs, err = p.billingStatusChanges(token)
-			if err != nil {
-				return "", err
-			}
-			s, err = proposalStatusApproved(nil, bscs)
-			if err != nil {
-				return "", err
-			}
-			goto reply
-		}
+	// If no entry found in cache jump to fetch the record
+	if d == nil {
+		goto fetchrecord
 	}
 
+	switch {
+	// If the cached proposal status is final, jump to reply
+	case isFinalStatus(d.status):
+		s = d.status
+		goto reply
+
+	// If the cached proposal status needs latest billing status changes
+	// fetch them and determine the proposal status on runtime. This still
+	// avoids reading the proposal's full tlog tree to determine the proposal
+	// status on runtime.
+	case needsOnlyBillingStatusChanges(d.status):
+		bscs, err = p.billingStatusChanges(token)
+		if err != nil {
+			return "", err
+		}
+		s, err = proposalStatusApproved(nil, bscs)
+		if err != nil {
+			return "", err
+		}
+		// If runtime status different than cached status, cache the new status.
+		if s != d.status {
+			p.statuses.set(tokenStr, s)
+		}
+		goto reply
+	}
+
+fetchrecord:
 	// If no data associated with the proposal cached in memory, get an abridged
 	// version of the record. We only need the record metadata and the vote
 	// metadata.
@@ -400,18 +365,10 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		return "", err
 	}
 
-	switch s {
-	// If proposal status won't change in the future cache it to avoid
-	// expensive re-evaluation.
-	case pi.PropStatusUnvettedAbandoned, pi.PropStatusUnvettedCensored,
-		pi.PropStatusAbandoned, pi.PropStatusCensored, pi.PropStatusApproved,
-		pi.PropStatusRejected:
-		p.cacheProposalStatusSet(tokenStr, s)
-
-	// If proposal vote was approved and proposal status is active, completed
-	// or closed we cache the vote status to aviod retrieving
-	case pi.PropStatusActive, pi.PropStatusCompleted, pi.PropStatusClosed:
-		p.cacheVoteStatusSet(tokenStr, voteStatus)
+	// If proposal status is final or only needs the billing status changes
+	// to be determined on runtime, cache proposal status in-memory.
+	if isFinalStatus(s) || needsOnlyBillingStatusChanges(s) {
+		p.statuses.set(tokenStr, s)
 	}
 
 reply:
