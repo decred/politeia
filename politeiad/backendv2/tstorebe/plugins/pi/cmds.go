@@ -274,8 +274,9 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		mdState  backend.StateT
 		mdStatus backend.StatusT
 
-		s          pi.PropStatusT
-		voteStatus ticketvote.VoteStatusT
+		s                  pi.PropStatusT
+		statusExistInCache bool
+		voteStatus         ticketvote.VoteStatusT
 
 		voteMD *ticketvote.VoteMetadata
 		bscs   []pi.BillingStatusChange
@@ -299,15 +300,16 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 	// status changes fetch them and determine the proposal status on runtime.
 	// This still avoids reading the full tlog tree.
 	if hasCacheEntry && needsOnlyBillingStatusChanges(cacheEntry.status) {
+		// All proposals in this category are public and their vote was approved,
+		// populate this useful information for determining the proposal status.
+		mdState = backend.StateVetted
+		mdStatus = backend.StatusPublic
+		voteStatus = ticketvote.VoteStatusApproved
 		bscs, err = p.billingStatusChanges(token)
 		if err != nil {
 			return "", err
 		}
-		s, err = proposalStatusApproved(nil, bscs)
-		if err != nil {
-			return "", err
-		}
-		goto reply
+		goto determinestatus
 	}
 
 	// If no data associated with the proposal cached in memory, get an abridged
@@ -350,22 +352,23 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		}
 	}
 
+determinestatus:
 	// Determine the proposal status
 	s, err = proposalStatus(mdState, mdStatus, voteStatus, voteMD, bscs)
 	if err != nil {
 		return "", err
 	}
 
-reply:
 	// If proposal status is final or only needs the billing status changes
 	// to be determined on runtime and does not exist in cache yet, cache
 	// proposal status in-memory.
-	statusExistInCache := hasCacheEntry && s == cacheEntry.status
+	statusExistInCache = hasCacheEntry && s == cacheEntry.status
 	if !statusExistInCache &&
 		(isFinalStatus(s) || needsOnlyBillingStatusChanges(s)) {
 		p.statuses.set(tokenStr, s)
 	}
 
+reply:
 	// Prepare reply
 	sr := pi.SummaryReply{
 		Summary: pi.ProposalSummary{
