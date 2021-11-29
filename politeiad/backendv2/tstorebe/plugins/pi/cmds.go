@@ -301,8 +301,7 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 
 	// If the cached proposal status needs latest billing status changes
 	// fetch them and determine the proposal status on runtime. This still
-	// avoids reading the proposal's full tlog tree to determine the proposal
-	// status on runtime.
+	// avoids reading the full tlog tree.
 	case needsOnlyBillingStatusChanges(d.status):
 		bscs, err = p.billingStatusChanges(token)
 		if err != nil {
