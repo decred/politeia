@@ -103,7 +103,7 @@ func (c *cmdCommentVote) Execute(args []string) error {
 	// Print receipt
 	printf("Downvotes: %v\n", int64(cvr.Downvotes)*-1)
 	printf("Upvotes  : %v\n", cvr.Upvotes)
-	printf("Timestamp: %v\n", timestampFromUnix(cvr.Timestamp))
+	printf("Timestamp: %v\n", dateAndTimeFromUnix(cvr.Timestamp))
 	printf("Receipt  : %v\n", cvr.Receipt)
 
 	return nil
