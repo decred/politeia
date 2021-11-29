@@ -16,17 +16,22 @@ type statusEntry struct {
 	status pi.PropStatusT
 }
 
-// statusesLimit limits the number of entries in the proposal statuses cache.
-const statusesLimit = 1000
+// statusesCacheLimit limits the number of entries in the proposal statuses
+// cache.
+const statusesCacheLimit = 1000
 
 // proposalStatuses is used to cache final proposal statuses which are not
 // expected to change in the future; or proposal statuses which only need
 // to fetch the latest billing status changes to determine the proposal status
 // on runtime.
 //
-// Number of entries stored in cache is limited. If the cache is full and a
-// new entry is being added, the oldest entry is removed from the `data`
-// map and the `entries` list.
+// Number of entries stored in cache is limited by statusesCacheLimit. If the
+// cache is full and a new entry is being added, the oldest entry is removed
+// from the `data` map and the `entries` list.
+// Currently the limit is set to 1000 as we don't really need more than that
+// as the goal of the cache is to speed up fetching the statuses of the
+// most recent proposals. Each cache entry size is ~25bytes so the cache total
+// size when full is expected to be ~25KB.
 type proposalStatuses struct {
 	sync.Mutex
 	data    map[string]*statusEntry // [token]statusEntry
