@@ -292,6 +292,7 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		goto fetchrecord
 	}
 
+	// Cache entry found, determine proposal status using the cached data
 	switch {
 	// If the cached proposal status is final, jump to reply
 	case isFinalStatus(d.status):
