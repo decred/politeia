@@ -19,9 +19,10 @@ type statusEntry struct {
 // statusesLimit limits the number of entries in the proposal statuses cache.
 const statusesLimit = 1000
 
-// proposalStatuses is used to cache proposals' statuses to decrease the
-// number of full tlog tree reads or to determine the proposal statuse
-// without reading the tlog tree at all.
+// proposalStatuses is used to cache final proposal statuses which are not
+// expected to change in the future; or proposal statuses which only need
+// to fetch the latest billing status changes to determine the proposal status
+// on runtime.
 //
 // Number of entries stored in cache is limited. If the cache is full and a
 // new entry is being added, the oldest entry is removed from the `data`
