@@ -8,12 +8,22 @@ import (
 	"container/list"
 	"sync"
 
+	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/plugins/pi"
+	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
 
-// statusEntry includes the cached proposal status.
+// statusEntry represents a cached proposal status and proposal data required
+// to determine the proposal status.
 type statusEntry struct {
-	status pi.PropStatusT
+	propStatus pi.PropStatusT
+
+	// The following fields cache data in order to reduce the number of backend
+	// calls required to determine the proposal status.
+	recordState  backend.StateT
+	recordStatus backend.StatusT
+	voteStatus   ticketvote.VoteStatusT
+	voteMetadata *ticketvote.VoteMetadata
 }
 
 // statusesCacheLimit limits the number of entries in the proposal statuses
@@ -53,14 +63,14 @@ func (s *proposalStatuses) get(token string) *statusEntry {
 // set stores the proposal status associated with the given token in cache.
 // If the cache is full and a new entry is being added, the oldest entry is
 // removed from the cache.
-func (s *proposalStatuses) set(token string, status pi.PropStatusT) {
+func (s *proposalStatuses) set(token string, entry statusEntry) {
 	s.Lock()
 	defer s.Unlock()
 
 	// If an entry associated with the proposal already exists in cache
 	// overwrite the proposal status.
 	if s.data[token] != nil {
-		s.data[token].status = status
+		s.data[token] = &entry
 		return
 	}
 
@@ -74,7 +84,5 @@ func (s *proposalStatuses) set(token string, status pi.PropStatusT) {
 
 	// Store new status.
 	s.entries.PushBack(token)
-	s.data[token] = &statusEntry{
-		status: status,
-	}
+	s.data[token] = &entry
 }

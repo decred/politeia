@@ -242,140 +242,18 @@ func (p *piPlugin) cmdBillingStatusChanges(token []byte) (string, error) {
 	return string(reply), nil
 }
 
-// isFinalStatus determines whether the given proposal status is final and
-// not expected to change in the future.
-func isFinalStatus(status pi.PropStatusT) bool {
-	switch status {
-	case pi.PropStatusUnvettedAbandoned, pi.PropStatusUnvettedCensored,
-		pi.PropStatusAbandoned, pi.PropStatusCensored, pi.PropStatusApproved,
-		pi.PropStatusRejected:
-		return true
-	default:
-		return false
-	}
-}
-
-// needsBillingStatusChanges returns true if the given proposal status
-// is associated with approved proposal which needs only the latest billing
-// status metadata to detemine the proposal proposal status on runtime.
-func needsOnlyBillingStatusChanges(status pi.PropStatusT) bool {
-	switch status {
-	case pi.PropStatusActive, pi.PropStatusCompleted, pi.PropStatusClosed:
-		return true
-	default:
-		return false
-	}
-}
-
 // cmdSummary returns the pi summary of a proposal.
 func (p *piPlugin) cmdSummary(token []byte) (string, error) {
-	var (
-		r        *backend.Record
-		mdState  backend.StateT
-		mdStatus backend.StatusT
-
-		s                  pi.PropStatusT
-		statusExistInCache bool
-		voteStatus         ticketvote.VoteStatusT
-
-		voteMD *ticketvote.VoteMetadata
-		bscs   []pi.BillingStatusChange
-		err    error
-	)
-
-	// Check if any data associated with the token exists in the in-memory
-	// cache to avoid extra expensive full tlog tree reads.
-	tokenStr := hex.EncodeToString(token)
-	cacheEntry := p.statuses.get(tokenStr)
-	hasCacheEntry := cacheEntry != nil
-
-	// If no data associated with the proposal cached in memory, get an abridged
-	// version of the record. We only need the record metadata and the vote
-	// metadata.
-	if !hasCacheEntry {
-		r, err = p.record(backend.RecordRequest{
-			Token:     token,
-			Filenames: []string{ticketvote.FileNameVoteMetadata},
-		})
-		if err != nil {
-			return "", err
-		}
-		mdState = r.RecordMetadata.State
-		mdStatus = r.RecordMetadata.Status
-		voteStatus = ticketvote.VoteStatusInvalid
-
-		// Pull the vote metadata out of the record files.
-		voteMD, err = voteMetadataDecode(r.Files)
-		if err != nil {
-			return "", err
-		}
-
-		// Fetch vote status & billing status change if they are needed in order
-		// to determine the proposal status.
-		if mdState == backend.StateVetted {
-			// If proposal status is public fetch vote status.
-			if mdStatus == backend.StatusPublic {
-				vs, err := p.voteSummary(token)
-				if err != nil {
-					return "", err
-				}
-				voteStatus = vs.Status
-				// If vote status is approved fetch billing status change.
-				if voteStatus == ticketvote.VoteStatusApproved {
-					bscs, err = p.billingStatusChanges(token)
-					if err != nil {
-						return "", err
-					}
-				}
-			}
-		}
-
-		goto determinestatus
-	}
-
-	// If cache entry found and the cached proposal status is final, jump to
-	// reply.
-	if isFinalStatus(cacheEntry.status) {
-		s = cacheEntry.status
-		goto reply
-	}
-
-	// If cache entry found and the cached proposal status needs latest billing
-	// status changes fetch them and determine the proposal status on runtime.
-	// This still avoids reading the full tlog tree.
-	if needsOnlyBillingStatusChanges(cacheEntry.status) {
-		// All proposals in this category are public and their vote was approved,
-		// populate this useful information for determining the proposal status.
-		mdState = backend.StateVetted
-		mdStatus = backend.StatusPublic
-		voteStatus = ticketvote.VoteStatusApproved
-		bscs, err = p.billingStatusChanges(token)
-		if err != nil {
-			return "", err
-		}
-	}
-
-determinestatus:
-	// Determine the proposal status
-	s, err = proposalStatus(mdState, mdStatus, voteStatus, voteMD, bscs)
+	// Get the proposal status
+	propStatus, err := p.getProposalStatus(token)
 	if err != nil {
 		return "", err
 	}
 
-	// If proposal status is final or only needs the billing status changes
-	// to be determined on runtime and does not exist in cache yet, cache
-	// proposal status in-memory.
-	statusExistInCache = hasCacheEntry && s == cacheEntry.status
-	if !statusExistInCache &&
-		(isFinalStatus(s) || needsOnlyBillingStatusChanges(s)) {
-		p.statuses.set(tokenStr, s)
-	}
-
-reply:
-	// Prepare reply
+	// Prepare the reply
 	sr := pi.SummaryReply{
 		Summary: pi.ProposalSummary{
-			Status: s,
+			Status: propStatus,
 		},
 	}
 
