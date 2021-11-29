@@ -11,7 +11,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/pi"
 )
 
-// statusEntry includes the cached proposal statuses.
+// statusEntry includes the cached proposal status.
 type statusEntry struct {
 	status pi.PropStatusT
 }
@@ -28,10 +28,13 @@ const statusesCacheLimit = 1000
 // Number of entries stored in cache is limited by statusesCacheLimit. If the
 // cache is full and a new entry is being added, the oldest entry is removed
 // from the `data` map and the `entries` list.
+//
 // Currently the limit is set to 1000 as we don't really need more than that
 // as the goal of the cache is to speed up fetching the statuses of the
 // most recent proposals. Each cache entry size is ~25bytes so the cache total
 // size when full is expected to be ~25KB.
+//
+// The cache entries are lazy loaded.
 type proposalStatuses struct {
 	sync.Mutex
 	data    map[string]*statusEntry // [token]statusEntry
