@@ -289,9 +289,53 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 	cacheEntry := p.statuses.get(tokenStr)
 	hasCacheEntry := cacheEntry != nil
 
+	// If no data associated with the proposal cached in memory, get an abridged
+	// version of the record. We only need the record metadata and the vote
+	// metadata.
+	if !hasCacheEntry {
+		r, err = p.record(backend.RecordRequest{
+			Token:     token,
+			Filenames: []string{ticketvote.FileNameVoteMetadata},
+		})
+		if err != nil {
+			return "", err
+		}
+		mdState = r.RecordMetadata.State
+		mdStatus = r.RecordMetadata.Status
+		voteStatus = ticketvote.VoteStatusInvalid
+
+		// Pull the vote metadata out of the record files.
+		voteMD, err = voteMetadataDecode(r.Files)
+		if err != nil {
+			return "", err
+		}
+
+		// Fetch vote status & billing status change if they are needed in order
+		// to determine the proposal status.
+		if mdState == backend.StateVetted {
+			// If proposal status is public fetch vote status.
+			if mdStatus == backend.StatusPublic {
+				vs, err := p.voteSummary(token)
+				if err != nil {
+					return "", err
+				}
+				voteStatus = vs.Status
+				// If vote status is approved fetch billing status change.
+				if voteStatus == ticketvote.VoteStatusApproved {
+					bscs, err = p.billingStatusChanges(token)
+					if err != nil {
+						return "", err
+					}
+				}
+			}
+		}
+
+		goto determinestatus
+	}
+
 	// If cache entry found and the cached proposal status is final, jump to
 	// reply.
-	if hasCacheEntry && isFinalStatus(cacheEntry.status) {
+	if isFinalStatus(cacheEntry.status) {
 		s = cacheEntry.status
 		goto reply
 	}
@@ -299,7 +343,7 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 	// If cache entry found and the cached proposal status needs latest billing
 	// status changes fetch them and determine the proposal status on runtime.
 	// This still avoids reading the full tlog tree.
-	if hasCacheEntry && needsOnlyBillingStatusChanges(cacheEntry.status) {
+	if needsOnlyBillingStatusChanges(cacheEntry.status) {
 		// All proposals in this category are public and their vote was approved,
 		// populate this useful information for determining the proposal status.
 		mdState = backend.StateVetted
@@ -308,47 +352,6 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 		bscs, err = p.billingStatusChanges(token)
 		if err != nil {
 			return "", err
-		}
-		goto determinestatus
-	}
-
-	// If no data associated with the proposal cached in memory, get an abridged
-	// version of the record. We only need the record metadata and the vote
-	// metadata.
-	r, err = p.record(backend.RecordRequest{
-		Token:     token,
-		Filenames: []string{ticketvote.FileNameVoteMetadata},
-	})
-	if err != nil {
-		return "", err
-	}
-	mdState = r.RecordMetadata.State
-	mdStatus = r.RecordMetadata.Status
-	voteStatus = ticketvote.VoteStatusInvalid
-
-	// Pull the vote metadata out of the record files.
-	voteMD, err = voteMetadataDecode(r.Files)
-	if err != nil {
-		return "", err
-	}
-
-	// Fetch vote status & billing status change if they are needed in order
-	// to determine the proposal status.
-	if mdState == backend.StateVetted {
-		// If proposal status is public fetch vote status.
-		if mdStatus == backend.StatusPublic {
-			vs, err := p.voteSummary(token)
-			if err != nil {
-				return "", err
-			}
-			voteStatus = vs.Status
-			// If vote status is approved fetch billing status change.
-			if voteStatus == ticketvote.VoteStatusApproved {
-				bscs, err = p.billingStatusChanges(token)
-				if err != nil {
-					return "", err
-				}
-			}
 		}
 	}
 
