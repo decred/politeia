@@ -41,8 +41,8 @@ const statusesCacheLimit = 1000
 //
 // Currently the limit is set to 1000 as we don't really need more than that
 // as the goal of the cache is to speed up fetching the statuses of the
-// most recent proposals. Each cache entry size is ~25bytes so the cache total
-// size when full is expected to be ~25KB.
+// most recent proposals. Each cache entry size is ~100bytes so the cache total
+// size when full is expected to be ~100KB.
 //
 // The cache entries are lazy loaded.
 type proposalStatuses struct {

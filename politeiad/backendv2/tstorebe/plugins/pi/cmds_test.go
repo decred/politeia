@@ -241,6 +241,75 @@ func TestCmdBillingStatus(t *testing.T) {
 	}
 }
 
+func TestCmdSummary(t *testing.T) {
+	// Setup pi plugin
+	p, cleanup := newTestPiPlugin(t)
+	defer cleanup()
+
+	// Setup test data
+	var tokens = [6]string{"45154fb45664714b", "45154fb45664714a",
+		"45154fb45664714c", "45154fb45664714d", "45154fb45664714e",
+		"45154fb45664714f"}
+	// List of all final proposal statuses
+	var statuses = [6]pi.PropStatusT{pi.PropStatusUnvettedAbandoned,
+		pi.PropStatusUnvettedCensored, pi.PropStatusAbandoned,
+		pi.PropStatusCensored, pi.PropStatusApproved, pi.PropStatusRejected}
+
+	// Setup tests and pre-load final statuses in cache
+	type test struct {
+		name       string // Test name
+		token      []byte
+		propStatus pi.PropStatusT // expected proposal status
+	}
+	var tests [6]test
+
+	for i, token := range tokens {
+		// Decode string token
+		b, err := hex.DecodeString(token)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Cache final status
+		p.statuses.set(token, statusEntry{
+			propStatus: statuses[i],
+		})
+
+		// Add test
+		tests[i] = test{
+			name:       string(statuses[i]),
+			token:      b,
+			propStatus: statuses[i],
+		}
+	}
+
+	// Run tests
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Run test
+			r, err := p.cmdSummary(tc.token)
+			if err != nil {
+				// Unexpected error
+				t.Fatal(err)
+			}
+
+			// Unmarshal command reply
+			var sr pi.SummaryReply
+			err = json.Unmarshal([]byte(r), &sr)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Check if received proposal status euqal to the expected.
+			if sr.Summary.Status != tc.propStatus {
+				t.Errorf("want proposal status %v, got '%v'", tc.propStatus,
+					sr.Summary.Status)
+			}
+		})
+	}
+
+}
+
 func TestProposalStatus(t *testing.T) {
 	// Setup tests
 	var tests = []struct {
