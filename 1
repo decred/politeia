@@ -1,0 +1,36 @@
+// Copyright (c) 2021 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
+package pi
+
+import (
+	"container/list"
+	"testing"
+
+	"github.com/decred/politeia/politeiad/plugins/pi"
+)
+
+func TestGet(t *testing.T) {
+	// Create a new cache
+	statuses := proposalStatuses{
+		data:    make(map[string]*statusEntry, statusesCacheLimit),
+		entries: list.New(),
+	}
+
+	// Setup a cache entry
+	token := "key"
+	entry := statusEntry{
+		propStatus: pi.PropStatusCompleted,
+	}
+
+	// Store entry in cache.
+	statuses.set(token, entry)
+
+	// Get entry from cache.
+	ce := statuses.get(token)
+
+	if entry.propStatus != ce.propStatus {
+
+	}
+}

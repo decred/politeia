@@ -31,9 +31,13 @@ type statusEntry struct {
 const statusesCacheLimit = 1000
 
 // proposalStatuses is used to cache final proposal statuses which are not
-// expected to change in the future; or proposal statuses which only need
-// to fetch the latest billing status changes to determine the proposal status
-// on runtime.
+// expected to change in the future and proposal data such as record or vote
+// metadata and proposal vote status which is required to determine the
+// proposal status on runtime. The cache is necessary to improve the
+// performance and to reduce the number of backend calls when determining a
+// status of a proposal on runtime and can be helpful when the cached data is
+// not expected to change, which means that once we store the data in cache we
+// don't need to fetch it again. The cache entries are lazy loaded.
 //
 // Number of entries stored in cache is limited by statusesCacheLimit. If the
 // cache is full and a new entry is being added, the oldest entry is removed
@@ -43,8 +47,6 @@ const statusesCacheLimit = 1000
 // as the goal of the cache is to speed up fetching the statuses of the
 // most recent proposals. Each cache entry size is ~100bytes so the cache total
 // size when full is expected to be ~100KB.
-//
-// The cache entries are lazy loaded.
 type proposalStatuses struct {
 	sync.Mutex
 	data    map[string]*statusEntry // [token]statusEntry
@@ -60,9 +62,9 @@ func (s *proposalStatuses) get(token string) *statusEntry {
 	return s.data[token]
 }
 
-// set stores the proposal status associated with the given token in cache.
-// If the cache is full and a new entry is being added, the oldest entry is
-// removed from the cache.
+// set stores the given entry in cache, if a cache entry associated with the
+// token already exists it overwrites the old entry. If the cache is full and
+// a new entry is being added, the oldest entry is removed from the cache.
 func (s *proposalStatuses) set(token string, entry statusEntry) {
 	s.Lock()
 	defer s.Unlock()
