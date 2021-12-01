@@ -287,6 +287,12 @@ func (c *cmsPlugin) invoiceFilesVerify(files []backend.File) error {
 	}
 
 	// Validate Payment Address
+	if im.PaymentAddress == "" {
+		return backend.PluginError{
+			PluginID:  cms.PluginID,
+			ErrorCode: uint32(cms.ErrorStatusMissingPaymentAddress),
+		}
+	}
 	_, err = dcrutil.DecodeAddress(strings.TrimSpace(im.PaymentAddress), c.activeNetParams)
 	if err != nil {
 		return backend.PluginError{
@@ -341,8 +347,7 @@ func (c *cmsPlugin) invoiceFilesVerify(files []backend.File) error {
 			ErrorCode: uint32(cms.ErrorStatusInvoiceMissingContact),
 		}
 	}
-	contact := formatField(im.ContractorContact)
-	if !c.contactIsValid(contact) {
+	if !c.contactIsValid(im.ContractorContact) {
 		return backend.PluginError{
 			PluginID:     cms.PluginID,
 			ErrorCode:    uint32(cms.ErrorStatusInvoiceMalformedContact),

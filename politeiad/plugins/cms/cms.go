@@ -395,9 +395,10 @@ const (
 	ErrorStatusDCCDuplicateVote               = 69
 	ErrorStatusMissingCodeStatsUsername       = 70
 	ErrorStatusTrackerNotStarted              = 71
+	ErrorStatusMissingPaymentAddress          = 72
 
 	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 72
+	ErrorCodeLast ErrorCodeT = 73
 )
 
 var (
@@ -476,6 +477,7 @@ var (
 		ErrorStatusDCCDuplicateVote:               "user has already submitted a vote for the given dcc",
 		ErrorStatusMissingCodeStatsUsername:       "codestats site username is required to receive code stats",
 		ErrorStatusTrackerNotStarted:              "code tracker required for attempted request, check token setting in config",
+		ErrorStatusMissingPaymentAddress:          "payment address for invoice is missing",
 	}
 )
 

@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
@@ -411,7 +412,12 @@ func invoiceFormatTests(t *testing.T) []invoiceFormatTest {
 	}
 
 	tests = append(tests, invoiceNameTests(t)...)
-	//tests = append(tests, invoiceDomainTests(t)...)
+	tests = append(tests, invoiceLocationTests(t)...)
+	tests = append(tests, invoiceContactTests(t)...)
+	tests = append(tests, invoiceRateTests(t)...)
+	tests = append(tests, invoicePaymentAddressTests(t)...)
+	tests = append(tests, invoiceMonthYearTests(t)...)
+	tests = append(tests, invoiceExchangeRateTests(t)...)
 	return tests
 }
 
@@ -597,27 +603,195 @@ func invoiceNameTests(t *testing.T) []invoiceFormatTest {
 	}
 }
 
-/*
-// invoiceAmountTests returns a list of tests that verify the invoice
-// amount requirements.
-func invoiceAmountTests(t *testing.T) []invoiceFormatTest {
+// invoiceLocationTests returns a list of tests that verify the invoice location
+// requirements.
+func invoiceLocationTests(t *testing.T) []invoiceFormatTest {
 	t.Helper()
 
-	// amount values to test min & max amount limits
+	// Create locations to test min and max lengths
 	var (
-		amountMin      = cms.SettingInvoiceAmountMin
-		amountMax      = cms.SettingInvoiceAmountMax
-		amountTooSmall = amountMin - 1
-		amountTooBig   = amountMax + 1
-	)
+		locationTooShort  string
+		locationTooLong   string
+		locationMinLength string
+		locationMaxLength string
 
-	// Setup files with a zero amount. This is done manually
+		b strings.Builder
+	)
+	for i := 0; i < int(cms.SettingLocationLengthMin)-1; i++ {
+		b.WriteString("a")
+	}
+	locationTooShort = b.String()
+	b.Reset()
+
+	for i := 0; i < int(cms.SettingLocationLengthMax)+1; i++ {
+		b.WriteString("a")
+	}
+	locationTooLong = b.String()
+	b.Reset()
+
+	for i := 0; i < int(cms.SettingLocationLengthMin); i++ {
+		b.WriteString("a")
+	}
+	locationMinLength = b.String()
+	b.Reset()
+
+	for i := 0; i < int(cms.SettingLocationLengthMax); i++ {
+		b.WriteString("a")
+	}
+	locationMaxLength = b.String()
+
+	// errLocationInvalid is returned when invoice location validation
+	// fails.
+	errLocationInvalid := backend.PluginError{
+		PluginID:  cms.PluginID,
+		ErrorCode: uint32(cms.ErrorStatusMalformedLocation),
+	}
+	return []invoiceFormatTest{
+		{
+			"contractor location is too short",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorLocation: locationTooShort,
+			}),
+			errLocationInvalid,
+		},
+		{
+			"contractor location is too long",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorLocation: locationTooLong,
+			}),
+			errLocationInvalid,
+		},
+		{
+			"contractor location is the min length",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorLocation: locationMinLength,
+			}),
+			nil,
+		},
+		{
+			"contractor location is the max length",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorLocation: locationMaxLength,
+			}),
+			nil,
+		},
+		{
+			"contractor location contains A to Z",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorLocation: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+			}),
+			nil,
+		},
+		{
+			"contractor location contains a to z",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorLocation: "abcdefghijklmnopqrstuvwxyz",
+			}),
+			nil,
+		},
+		{
+			"contractor location contains 0 to 9",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorLocation: "0123456789",
+			}),
+			nil,
+		},
+		{
+			"contractor location contains supported chars",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorLocation: ".a-b,a",
+			}),
+			nil,
+		},
+		{
+			"contractor location contains non-supported chars",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorLocation: "&.,:;- @+#/()!?\"'",
+			}),
+			errLocationInvalid,
+		},
+		{
+			"contractor location contains newline",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorLocation: "invoice location\n",
+			}),
+			errLocationInvalid,
+		},
+		{
+			"contractor location contains tab",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorLocation: "invoice location\t",
+			}),
+			errLocationInvalid,
+		},
+		{
+			"contractor location contains brackets",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorLocation: "{invoice location}",
+			}),
+			errLocationInvalid,
+		},
+		{
+			"contractor location is valid lowercase",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorLocation: "invoice location",
+			}),
+			nil,
+		},
+		{
+			"contractor location is valid mixed case",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorLocation: "Invoice Location",
+			}),
+			nil,
+		},
+	}
+}
+
+// invoiceContactTests returns a list of tests that verify the invoice contact
+// requirements.
+func invoiceContactTests(t *testing.T) []invoiceFormatTest {
+	t.Helper()
+
+	// Create contacts to test min and max lengths
+	var (
+		contactTooShort  string
+		contactTooLong   string
+		contactMinLength string
+		contactMaxLength string
+
+		b strings.Builder
+	)
+	for i := 0; i < int(cms.SettingContactLengthMin)-1; i++ {
+		b.WriteString("a")
+	}
+	contactTooShort = b.String()
+	b.Reset()
+
+	for i := 0; i < int(cms.SettingContactLengthMax)+1; i++ {
+		b.WriteString("a")
+	}
+	contactTooLong = b.String()
+	b.Reset()
+
+	for i := 0; i < int(cms.SettingContactLengthMin); i++ {
+		b.WriteString("a")
+	}
+	contactMinLength = b.String()
+	b.Reset()
+
+	for i := 0; i < int(cms.SettingContactLengthMax); i++ {
+		b.WriteString("a")
+	}
+	contactMaxLength = b.String()
+
+	// Setup files with an empty invoice contact. This is done manually
 	// because the function that creates the invoice metadata uses
-	// a default value when the amount is provided as zero.
-	filesZeroAmount := filesForInvoice(t, &cms.InvoiceMetadata{
-		Amount: 0,
+	// a default value when the contact is provided as an empty string.
+	filesEmptyContact := filesForInvoice(t, &cms.InvoiceMetadata{
+		ContractorContact: "",
 	})
-	for k, v := range filesZeroAmount {
+	for k, v := range filesEmptyContact {
 		if v.Name == cms.FileNameInvoiceMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
@@ -628,78 +802,157 @@ func invoiceAmountTests(t *testing.T) []invoiceFormatTest {
 			if err != nil {
 				t.Fatal(err)
 			}
-			pm.Amount = 0
+			pm.ContractorContact = ""
 			b, err = json.Marshal(pm)
 			if err != nil {
 				t.Fatal(err)
 			}
 			v.Payload = base64.StdEncoding.EncodeToString(b)
-			filesZeroAmount[k] = v
+			filesEmptyContact[k] = v
 		}
 	}
 
-	// errAmountInvalid is returned when invoice amount
-	// validation fails.
-	errAmountInvalid := backend.PluginError{
+	// errContactInvalid is returned when invoice contact validation
+	// fails.
+	errContactInvalid := backend.PluginError{
 		PluginID:  cms.PluginID,
-		ErrorCode: uint32(cms.ErrorCodeInvoiceAmountInvalid),
+		ErrorCode: uint32(cms.ErrorStatusInvoiceMalformedContact),
+	}
+	// errContactMissing is returned when invoice contact is missing
+	errContactMissing := backend.PluginError{
+		PluginID:  cms.PluginID,
+		ErrorCode: uint32(cms.ErrorStatusInvoiceMissingContact),
 	}
 
 	return []invoiceFormatTest{
 		{
-			"amount is zero",
-			filesZeroAmount,
-			errAmountInvalid,
+			"contractor contact is empty",
+			filesEmptyContact,
+			errContactMissing,
 		},
 		{
-			"amount too small",
+			"contractor contact is too short",
 			filesForInvoice(t, &cms.InvoiceMetadata{
-				Amount: amountTooSmall,
+				ContractorContact: contactTooShort,
 			}),
-			errAmountInvalid,
+			errContactInvalid,
 		},
 		{
-			"amount too big",
+			"contractor contact is too long",
 			filesForInvoice(t, &cms.InvoiceMetadata{
-				Amount: amountTooBig,
+				ContractorContact: contactTooLong,
 			}),
-			errAmountInvalid,
+			errContactInvalid,
 		},
 		{
-			"min amount",
+			"contractor contact is the min length",
 			filesForInvoice(t, &cms.InvoiceMetadata{
-				Amount: amountMin,
+				ContractorContact: contactMinLength,
 			}),
 			nil,
 		},
 		{
-			"max amount",
+			"contractor contact is the max length",
 			filesForInvoice(t, &cms.InvoiceMetadata{
-				Amount: amountMax,
+				ContractorContact: contactMaxLength,
+			}),
+			nil,
+		},
+		{
+			"contractor contact contains A to Z",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorContact: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+			}),
+			nil,
+		},
+		{
+			"contractor contact contains a to z",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorContact: "abcdefghijklmnopqrstuvwxyz",
+			}),
+			nil,
+		},
+		{
+			"contractor contact contains 0 to 9",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorContact: "0123456789",
+			}),
+			nil,
+		},
+		{
+			"contractor contact contains supported chars",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorContact: ".a-b,a",
+			}),
+			nil,
+		},
+		{
+			"contractor contact contains non-supported chars",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorContact: "&.,:;- @+#/()!?\"'",
+			}),
+			errContactInvalid,
+		},
+		{
+			"contractor contact contains newline",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorContact: "invoice contact\n",
+			}),
+			errContactInvalid,
+		},
+		{
+			"contractor contact contains tab",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorContact: "invoice contact\t",
+			}),
+			errContactInvalid,
+		},
+		{
+			"contractor contact contains brackets",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorContact: "{invoice contact}",
+			}),
+			errContactInvalid,
+		},
+		{
+			"contractor contact is valid lowercase",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorContact: "invoice contact",
+			}),
+			nil,
+		},
+		{
+			"contractor contact is valid mixed case",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorContact: "Invoice Contact",
 			}),
 			nil,
 		},
 	}
 }
 
-// invoiceStartDateTests returns a list of tests that verify the invoice
-// start date requirements.
-func invoiceStartDateTests(t *testing.T) []invoiceFormatTest {
+// invoiceRateTests returns a list of tests that verify the invoice rate
+// requirements.
+func invoiceRateTests(t *testing.T) []invoiceFormatTest {
 	t.Helper()
 
-	// Start date values to test min start date
+	// Create names to test min and max lengths
 	var (
-		sDateInPast      = time.Now().Unix() - 172800  // two days ago
-		sDateInTwoMonths = time.Now().Unix() + 5256000 // in 2 months
+		rateTooLow  uint32
+		rateTooHigh uint32
+		rateAverage uint32
 	)
+	rateTooLow = cms.SettingContractorRateMin - 1
+	rateTooHigh = cms.SettingContractorRateMax + 1
+	rateAverage = (cms.SettingContractorRateMax + cms.SettingContractorRateMin) / 2
 
-	// Setup files with a zero start date. This is done manually
+	// Setup files with an empty invoice rate. This is done manually
 	// because the function that creates the invoice metadata uses
-	// a default value when the start date is provided as zero.
-	filesZeroStartDate := filesForInvoice(t, &cms.InvoiceMetadata{
-		StartDate: 0,
+	// a default value when the rate is provided as an empty string.
+	filesEmptyRate := filesForInvoice(t, &cms.InvoiceMetadata{
+		ContractorRate: 0,
 	})
-	for k, v := range filesZeroStartDate {
+	for k, v := range filesEmptyRate {
 		if v.Name == cms.FileNameInvoiceMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
@@ -710,68 +963,80 @@ func invoiceStartDateTests(t *testing.T) []invoiceFormatTest {
 			if err != nil {
 				t.Fatal(err)
 			}
-			pm.StartDate = 0
+			pm.ContractorRate = 0
 			b, err = json.Marshal(pm)
 			if err != nil {
 				t.Fatal(err)
 			}
 			v.Payload = base64.StdEncoding.EncodeToString(b)
-			filesZeroStartDate[k] = v
+			filesEmptyRate[k] = v
 		}
 	}
 
-	// errStartDateInvalid is returned when invoice start date
-	// validation fails.
-	errStartDateInvalid := backend.PluginError{
+	// errContractorRateInvalid is returned when invoice rate validation
+	// fails.
+	errContractorRateMissing := backend.PluginError{
 		PluginID:  cms.PluginID,
-		ErrorCode: uint32(cms.ErrorCodeInvoiceStartDateInvalid),
+		ErrorCode: uint32(cms.ErrorStatusInvoiceMissingRate),
 	}
-
+	// errContractorRateInvalid is returned when invoice rate validation
+	// fails.
+	errContractorRateInvalid := backend.PluginError{
+		PluginID:  cms.PluginID,
+		ErrorCode: uint32(cms.ErrorStatusInvoiceInvalidRate),
+	}
 	return []invoiceFormatTest{
 		{
-			"start date in the past",
+			"contractor rate is empty",
+			filesEmptyRate,
+			errContractorRateMissing,
+		},
+		{
+			"contractor rate is too low",
 			filesForInvoice(t, &cms.InvoiceMetadata{
-				StartDate: sDateInPast,
+				ContractorRate: uint(rateTooLow),
 			}),
-			errStartDateInvalid,
+			errContractorRateInvalid,
 		},
 		{
-			"start date is zero",
-			filesZeroStartDate,
-			errStartDateInvalid,
-		},
-		{
-			"start date in two months",
+			"contractor rate is too high",
 			filesForInvoice(t, &cms.InvoiceMetadata{
-				StartDate: sDateInTwoMonths,
+				ContractorRate: uint(rateTooHigh),
+			}),
+			errContractorRateInvalid,
+		},
+		{
+			"contractor rate is acceptable",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				ContractorRate: uint(rateAverage),
 			}),
 			nil,
 		},
 	}
 }
 
-// invoiceEndDateTests returns a list of tests that verify the invoice
-// end date requirements.
-func invoiceEndDateTests(t *testing.T) []invoiceFormatTest {
+// invoicePaymentAddressTests returns a list of tests that verify the invoice
+// payment address requirements.
+func invoicePaymentAddressTests(t *testing.T) []invoiceFormatTest {
 	t.Helper()
 
-	// End date values to test end date validations.
 	var (
-		now                  = time.Now().Unix()
-		eDateInPast          = now - 172800 // two days ago
-		eDateBeforeStartDate = now + 172800 // in two days
-		eDateAfterMax        = now +
-			cms.SettingInvoiceEndDateMax + 60 // 1 minute after max
-		eDateInEightMonths = now + 21040000 // in 8 months
+		addressWrongNetwork   string
+		addressCorrectNetwork string
 	)
 
-	// Setup files with a zero end date. This is done manually
+	// MainNet Legacy Treasury Address
+	addressWrongNetwork = "Dcur2mcGjmENx4DhNqDctW5wJCVyT3Qeqkx"
+	// TestNet3 Legacy Treasury Address
+	addressCorrectNetwork = "TcrypGAcGCRVXrES7hWqVZb5oLJKCZEtoL1"
+
+	// Setup files with an empty invoice address. This is done manually
 	// because the function that creates the invoice metadata uses
-	// a default value when the end date is provided as zero.
-	filesZeroEndDate := filesForInvoice(t, &cms.InvoiceMetadata{
-		EndDate: 0,
+	// a default value when the address is provided as an empty string.
+	filesEmptyAddress := filesForInvoice(t, &cms.InvoiceMetadata{
+		PaymentAddress: "",
 	})
-	for k, v := range filesZeroEndDate {
+	for k, v := range filesEmptyAddress {
 		if v.Name == cms.FileNameInvoiceMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
@@ -782,77 +1047,75 @@ func invoiceEndDateTests(t *testing.T) []invoiceFormatTest {
 			if err != nil {
 				t.Fatal(err)
 			}
-			pm.EndDate = 0
+			pm.PaymentAddress = ""
 			b, err = json.Marshal(pm)
 			if err != nil {
 				t.Fatal(err)
 			}
 			v.Payload = base64.StdEncoding.EncodeToString(b)
-			filesZeroEndDate[k] = v
+			filesEmptyAddress[k] = v
 		}
 	}
 
-	// errEndDateInvalid is returned when invoice end date
-	// validation fails.
-	errEndDateInvalid := backend.PluginError{
+	// errPaymentAddressInvalid is returned when invoice address is missing
+	errPaymentAddressMissing := backend.PluginError{
 		PluginID:  cms.PluginID,
-		ErrorCode: uint32(cms.ErrorCodeInvoiceEndDateInvalid),
+		ErrorCode: uint32(cms.ErrorStatusMissingPaymentAddress),
 	}
-
+	// errPaymentAddressInvalid is returned when invoice address validation
+	// fails.
+	errPaymentAddressInvalid := backend.PluginError{
+		PluginID:  cms.PluginID,
+		ErrorCode: uint32(cms.ErrorStatusInvalidPaymentAddress),
+	}
 	return []invoiceFormatTest{
 		{
-			"end date in the past",
+			"payment address is empty",
+			filesEmptyAddress,
+			errPaymentAddressMissing,
+		},
+		{
+			"payment address is invalid",
 			filesForInvoice(t, &cms.InvoiceMetadata{
-				EndDate: eDateInPast,
+				PaymentAddress: "INVALID ADDRESS",
 			}),
-			errEndDateInvalid,
+			errPaymentAddressInvalid,
 		},
 		{
-			"start date is zero",
-			filesZeroEndDate,
-			errEndDateInvalid,
-		},
-		{
-			"end date is before default start date",
+			"payment address is wrong network",
 			filesForInvoice(t, &cms.InvoiceMetadata{
-				EndDate: eDateBeforeStartDate,
+				PaymentAddress: addressWrongNetwork,
 			}),
-			errEndDateInvalid,
+			errPaymentAddressInvalid,
 		},
 		{
-			"end date is after max",
+			"paytment address is acceptable",
 			filesForInvoice(t, &cms.InvoiceMetadata{
-				EndDate: eDateAfterMax,
-			}),
-			errEndDateInvalid,
-		},
-		{
-			"end date is in 8 months",
-			filesForInvoice(t, &cms.InvoiceMetadata{
-				EndDate: eDateInEightMonths,
+				PaymentAddress: addressCorrectNetwork,
 			}),
 			nil,
 		},
 	}
 }
-// invoiceDomainTests returns a list of tests that verify the invoice
-// domain requirements.
-func invoiceDomainTests(t *testing.T) []invoiceFormatTest {
+
+// invoiceMonthYearTests returns a list of tests that verify the invoice
+// month/year requirements.
+func invoiceMonthYearTests(t *testing.T) []invoiceFormatTest {
 	t.Helper()
 
-	// Domain values to test domain validations.
 	var (
-		validDomain   = cms.SettingInvoiceDomains[0]
-		invalidDomain = "invalid-domain"
+		monthTooHigh uint
+		monthTooSoon uint
+		yearTooSoon  uint
 	)
 
-	// Setup files with an empty domain. This is done manually
+	// Setup files with an empty invoice month. This is done manually
 	// because the function that creates the invoice metadata uses
-	// a default value when the domain is provided as empty string.
-	filesEmptyDomain := filesForInvoice(t, &cms.InvoiceMetadata{
-		Domain: "",
+	// a default value when the month is provided as an empty value.
+	filesEmptyMonth := filesForInvoice(t, &cms.InvoiceMetadata{
+		PaymentAddress: "",
 	})
-	for k, v := range filesEmptyDomain {
+	for k, v := range filesEmptyMonth {
 		if v.Name == cms.FileNameInvoiceMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
 			if err != nil {
@@ -863,47 +1126,72 @@ func invoiceDomainTests(t *testing.T) []invoiceFormatTest {
 			if err != nil {
 				t.Fatal(err)
 			}
-			pm.Domain = ""
+			pm.Month = 0
 			b, err = json.Marshal(pm)
 			if err != nil {
 				t.Fatal(err)
 			}
 			v.Payload = base64.StdEncoding.EncodeToString(b)
-			filesEmptyDomain[k] = v
+			filesEmptyMonth[k] = v
 		}
 	}
+	monthTooHigh = 13
 
-	// errDomainInvalid is returned when invoice domain
-	// validation fails.
-	errDomainInvalid := backend.PluginError{
+	// Calculate the month/year for a future month based on the current date.
+	futureMonth := int(time.Now().Month()) + 2
+	futureMonthDate := time.Date(time.Now().Year(), time.Month(futureMonth),
+		1, 0, 0, 0, 0, time.Local)
+	monthTooSoon = uint(futureMonthDate.Month())
+	yearTooSoon = uint(futureMonthDate.Year())
+
+	// errMonthYearInvalid is returned when invoice month/year validation
+	// fails.
+	errMonthYearInvalid := backend.PluginError{
 		PluginID:  cms.PluginID,
-		ErrorCode: uint32(cms.ErrorCodeInvoiceDomainInvalid),
+		ErrorCode: uint32(cms.ErrorStatusInvalidInvoiceMonthYear),
 	}
-
 	return []invoiceFormatTest{
 		{
-			"invalid domain",
+			"month is too low",
+			filesEmptyMonth,
+			errMonthYearInvalid,
+		},
+		{
+			"month is too high",
 			filesForInvoice(t, &cms.InvoiceMetadata{
-				Domain: invalidDomain,
+				Month: monthTooHigh,
+				Year:  2020,
 			}),
-			errDomainInvalid,
+			errMonthYearInvalid,
 		},
 		{
-			"empty domain",
-			filesEmptyDomain,
-			errDomainInvalid,
-		},
-		{
-			"valid domain",
+			"month is too soon",
 			filesForInvoice(t, &cms.InvoiceMetadata{
-				Domain: validDomain,
+				Month: monthTooSoon,
+				Year:  yearTooSoon,
+			}),
+			errMonthYearInvalid,
+		},
+		{
+			"month is acceptable",
+			filesForInvoice(t, &cms.InvoiceMetadata{
+				Month: 10,
+				Year:  2020,
 			}),
 			nil,
 		},
 	}
 }
 
-*/
+// invoiceExchangeTests returns a list of tests that verify the invoice
+// exchange requirements.
+func invoiceExchangeRateTests(t *testing.T) []invoiceFormatTest {
+	t.Helper()
+	// XXX Still need to figure out what we're doing here to verify
+	// exchange rate due to movement of the exchange rate db table
+	return []invoiceFormatTest{}
+}
+
 // file returns a backend file for the provided data.
 func file(name string, payload []byte) backend.File {
 	return backend.File{
@@ -991,6 +1279,12 @@ func fileInvoiceMetadata(t *testing.T, pm *cms.InvoiceMetadata) backend.File {
 	// values if they exist.
 	if pm == nil {
 		pm = &cms.InvoiceMetadata{}
+	}
+	if pm.Month != 0 {
+		pmd.Month = pm.Month
+	}
+	if pm.Year != 0 {
+		pmd.Year = pm.Year
 	}
 	if pm.ContractorName != "" {
 		pmd.ContractorName = pm.ContractorName
