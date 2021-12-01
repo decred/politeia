@@ -286,13 +286,9 @@ type invoiceFormatTest struct {
 func invoiceFormatTests(t *testing.T) []invoiceFormatTest {
 	t.Helper()
 
-	testInvoice, err := fileInvoiceIndex(t, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
 	// Setup test files
 	var (
-		index         = testInvoice
+		index         = fileInvoiceIndex(t, nil)
 		indexTooLarge backend.File
 		png           backend.File
 		pngTooLarge   backend.File
@@ -418,6 +414,7 @@ func invoiceFormatTests(t *testing.T) []invoiceFormatTest {
 	tests = append(tests, invoicePaymentAddressTests(t)...)
 	tests = append(tests, invoiceMonthYearTests(t)...)
 	tests = append(tests, invoiceExchangeRateTests(t)...)
+	tests = append(tests, lineItemTests(t)...)
 	return tests
 }
 
@@ -1192,6 +1189,324 @@ func invoiceExchangeRateTests(t *testing.T) []invoiceFormatTest {
 	return []invoiceFormatTest{}
 }
 
+// lineItemTests returns a list of tests that verify the line items
+// requirements.
+func lineItemTests(t *testing.T) []invoiceFormatTest {
+	t.Helper()
+
+	// Setup test files
+
+	var (
+		subdomainTooShort  string
+		subdomainTooLong   string
+		subdomainMinLength string
+		subdomainMaxLength string
+
+		descriptionTooShort  string
+		descriptionTooLong   string
+		descriptionMinLength string
+		descriptionMaxLength string
+
+		proposalTokenTooShort  string
+		proposalTokenTooLong   string
+		proposalTokenMinLength string
+		proposalTokenMaxLength string
+
+		invoiceMetaData = fileInvoiceMetadata(t, nil)
+		indexBadParse   backend.File
+		indexEmpty      backend.File
+
+		sb strings.Builder
+	)
+
+	// Create various subdomain strings
+	for i := 0; i < int(cms.SettingLineItemColLengthMin)-1; i++ {
+		sb.WriteString("a")
+	}
+	subdomainTooShort = sb.String()
+	sb.Reset()
+
+	for i := 0; i < int(cms.SettingLineItemColLengthMax)+1; i++ {
+		sb.WriteString("a")
+	}
+	subdomainTooLong = sb.String()
+	sb.Reset()
+
+	for i := 0; i < int(cms.SettingLineItemColLengthMin); i++ {
+		sb.WriteString("a")
+	}
+	subdomainMinLength = sb.String()
+	sb.Reset()
+
+	for i := 0; i < int(cms.SettingLineItemColLengthMax); i++ {
+		sb.WriteString("a")
+	}
+	subdomainMaxLength = sb.String()
+	sb.Reset()
+
+	// Create various description strings
+	for i := 0; i < int(cms.SettingLineItemColLengthMin)-1; i++ {
+		sb.WriteString("a")
+	}
+	descriptionTooShort = sb.String()
+	sb.Reset()
+
+	for i := 0; i < int(cms.SettingLineItemColLengthMax)+1; i++ {
+		sb.WriteString("a")
+	}
+	descriptionTooLong = sb.String()
+	sb.Reset()
+
+	for i := 0; i < int(cms.SettingLineItemColLengthMin); i++ {
+		sb.WriteString("a")
+	}
+	descriptionMinLength = sb.String()
+	sb.Reset()
+
+	for i := 0; i < int(cms.SettingLineItemColLengthMax); i++ {
+		sb.WriteString("a")
+	}
+	descriptionMaxLength = sb.String()
+	sb.Reset()
+
+	for i := 0; i < int(cms.SettingLineItemColLengthMin)-1; i++ {
+		sb.WriteString("a")
+	}
+
+	// Create various proposal strings
+	proposalTokenTooShort = sb.String()
+	sb.Reset()
+
+	for i := 0; i < int(cms.SettingLineItemColLengthMax)+1; i++ {
+		sb.WriteString("a")
+	}
+	proposalTokenTooLong = sb.String()
+	sb.Reset()
+
+	for i := 0; i < int(cms.SettingLineItemColLengthMin); i++ {
+		sb.WriteString("a")
+	}
+	proposalTokenMinLength = sb.String()
+	sb.Reset()
+
+	for i := 0; i < int(cms.SettingLineItemColLengthMax); i++ {
+		sb.WriteString("a")
+	}
+	proposalTokenMaxLength = sb.String()
+	sb.Reset()
+
+	// Create an index file that can't be parsed
+	for i := 0; i <= int(cms.SettingTextFileSizeMax)-1; i++ {
+		sb.WriteString("a")
+	}
+	indexBadParse = file(cms.FileNameIndexFile, []byte(sb.String()))
+	sb.Reset()
+
+	// Create an index file that is empty
+	emptyInvoice := cms.InvoiceInput{}
+
+	b, err := json.Marshal(emptyInvoice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexEmpty = file(cms.FileNameIndexFile, b)
+
+	// errInvalidIndexFile is returned when an invalid index file is given
+	errInvalidIndexFile := backend.PluginError{
+		PluginID:  cms.PluginID,
+		ErrorCode: uint32(cms.ErrorStatusMalformedInvoiceFile),
+	}
+	// errRequireLineItems is returned when an empty index file is given
+	errRequireLineItems := backend.PluginError{
+		PluginID:  cms.PluginID,
+		ErrorCode: uint32(cms.ErrorStatusInvoiceRequireLineItems),
+	}
+	// errInvalidDomain is returned when an invalid domain is given
+	errInvalidDomain := backend.PluginError{
+		PluginID:  cms.PluginID,
+		ErrorCode: uint32(cms.ErrorCodeInvoiceDomainInvalid),
+	}
+	// errInvalidDomain is returned when an invalid domain is given
+	errInvalidSubdomain := backend.PluginError{
+		PluginID:  cms.PluginID,
+		ErrorCode: uint32(cms.ErrorStatusMalformedSubdomain),
+	}
+
+	return []invoiceFormatTest{
+		{
+			"can't parse invoice input",
+			[]backend.File{
+				indexBadParse,
+				invoiceMetaData,
+			},
+			errInvalidIndexFile,
+		},
+		{
+			"must have at least 1 line item",
+			[]backend.File{
+				indexEmpty,
+				invoiceMetaData,
+			},
+			errRequireLineItems,
+		},
+		{
+			"invalid domain",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Domain: "baddomain",
+				}),
+				invoiceMetaData,
+			},
+			errInvalidDomain,
+		},
+		{
+			"valid domain",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Domain: "development",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"invalid subdomain too short",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: subdomainTooShort,
+				}),
+				invoiceMetaData,
+			},
+			errInvalidSubdomain,
+		},
+		{
+			"invalid subdomain too long",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: subdomainTooLong,
+				}),
+				invoiceMetaData,
+			},
+			errInvalidSubdomain,
+		},
+		{
+			"valid subdomain at min",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: subdomainMinLength,
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"valid subdomain at max",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: subdomainMaxLength,
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"invalid description too short",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: descriptionTooShort,
+				}),
+				invoiceMetaData,
+			},
+			errInvalidSubdomain,
+		},
+		{
+			"invalid description too long",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: descriptionTooLong,
+				}),
+				invoiceMetaData,
+			},
+			errInvalidSubdomain,
+		},
+		{
+			"valid description at min",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: descriptionMinLength,
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"valid description at max",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: descriptionMaxLength,
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"invalid proptoken too short",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: proposalTokenTooShort,
+				}),
+				invoiceMetaData,
+			},
+			errInvalidSubdomain,
+		},
+		{
+			"invalid proptoken too long",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: proposalTokenTooLong,
+				}),
+				invoiceMetaData,
+			},
+			errInvalidSubdomain,
+		},
+		{
+			"valid proptoken at min",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: proposalTokenMinLength,
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"valid proptoken at max",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: proposalTokenMaxLength,
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		// ErrorStatusMalformedSubdomain
+		// ErrorStatusMalformedDescription
+		// ErrorStatusMalformedProposalToken
+		// If labor type:
+		//   labor field is zero: ErrorStatusInvalidLaborExpense
+		//   expense field is non-zero: ErrorStatusInvalidLaborExpense
+		//   sub-rate field is non-zero: ErrorStatusInvoiceInvalidRate
+		//   sub-userid field is not empty: ErrorStatusInvalidSubUserIDLineItem
+		// If Expense of Misc:
+		//	 labor field is non-zero: ErrorStatusInvalidLaborExpense
+		// If Sub Hours:
+		//   labor field is zero: ErrorStatusInvalidLaborExpense
+		// 	 sub-rate is too high: ErrorStatusInvoiceInvalidRate
+		//   sub-rate is too low: ErrorStatusInvoiceInvalidRate
+		// ErrorStatusInvalidLineItemType
+	}
+}
+
 // file returns a backend file for the provided data.
 func file(name string, payload []byte) backend.File {
 	return backend.File{
@@ -1204,63 +1519,91 @@ func file(name string, payload []byte) backend.File {
 
 // fileInvoiceIndex returns a backend file that contains a invoice index
 // file.
-func fileInvoiceIndex(t *testing.T, li *cms.LineItemsInput) (backend.File, error) {
+func fileInvoiceIndex(t *testing.T, li *cms.LineItemsInput) backend.File {
 
 	testInvoice := cms.InvoiceInput{}
 
-	testLineItems := make([]cms.LineItemsInput, 2)
-	testLineItems[0] = cms.LineItemsInput{
-		Type:          cms.LineItemTypeLabor,
-		Domain:        "development",
-		Subdomain:     "",
-		Description:   "this is the first line description.",
-		ProposalToken: "",
-		SubUserID:     "",
-		SubRate:       0,
-		Labor:         1000,
-		Expenses:      0,
+	testLineItems := []cms.LineItemsInput{
+		{
+			Type:          cms.LineItemTypeLabor,
+			Domain:        "development",
+			Subdomain:     "sub-domain stuff",
+			Description:   "this is the first line description.",
+			ProposalToken: "6db3c4e9092bb94a",
+			SubUserID:     "",
+			SubRate:       0,
+			Labor:         1000,
+			Expenses:      0,
+		},
+		{
+			Type:          cms.LineItemTypeExpense,
+			Domain:        "development",
+			Subdomain:     "sub",
+			Description:   "this is the second line description.",
+			ProposalToken: "6db3c4e9092bb94a",
+			SubUserID:     "",
+			SubRate:       0,
+			Labor:         0,
+			Expenses:      1000,
+		},
+		{
+			Type:          cms.LineItemTypeSubHours,
+			Domain:        "development",
+			Subdomain:     "sub",
+			Description:   "this is the third line description.",
+			ProposalToken: "6db3c4e9092bb94a",
+			SubUserID:     "ff7f5740-6440-4b7e-8de4-f76a9cb6d98f",
+			SubRate:       1000,
+			Labor:         1000,
+			Expenses:      0,
+		}}
+	// Overwrite the default values with the caller provided
+	// values if they exist.
+	if li == nil {
+		li = &cms.LineItemsInput{}
 	}
-	testLineItems[1] = cms.LineItemsInput{
-		Type:          cms.LineItemTypeLabor,
-		Domain:        "development",
-		Subdomain:     "sub",
-		Description:   "this is the second line description.",
-		ProposalToken: "",
-		SubUserID:     "",
-		SubRate:       0,
-		Labor:         1000,
-		Expenses:      0,
+	// Use labor line item as default
+	var editIndex = 0
+	switch li.Type {
+	case cms.LineItemTypeExpense, cms.LineItemTypeMisc:
+		editIndex = 1
+	case cms.LineItemTypeSubHours:
+		editIndex = 2
 	}
-	testInvoice.LineItems = testLineItems
 
-	// Sanity check. Verify that the default domain we used is
-	// one of the default domains defined by the cms plugin API.
-	var found bool
-	for _, v := range cms.SettingInvoiceDomains {
-		if v == testLineItems[0].Domain {
-			found = true
-			break
-		}
+	if li.Domain != "" {
+		testLineItems[editIndex].Domain = li.Domain
 	}
-	if !found {
-		t.Fatalf("%v is not a default domain", testLineItems[0].Domain)
+	if li.Subdomain != "" {
+		testLineItems[editIndex].Subdomain = li.Subdomain
 	}
-	for _, v := range cms.SettingInvoiceDomains {
-		if v == testLineItems[1].Domain {
-			found = true
-			break
-		}
+	if li.Description != "" {
+		testLineItems[editIndex].Description = li.Description
 	}
-	if !found {
-		t.Fatalf("%v is not a default domain", testLineItems[1].Domain)
+	if li.ProposalToken != "" {
+		testLineItems[editIndex].ProposalToken = li.ProposalToken
 	}
+	if li.SubUserID != "" {
+		testLineItems[editIndex].SubUserID = li.SubUserID
+	}
+	if li.SubRate != 0 {
+		testLineItems[editIndex].SubRate = li.SubRate
+	}
+	if li.Labor != 0 {
+		testLineItems[editIndex].Labor = li.Labor
+	}
+	if li.Expenses != 0 {
+		testLineItems[editIndex].Expenses = li.Expenses
+	}
+
+	testInvoice.LineItems = testLineItems
 
 	// Create a raw json []byte from the above information
 	b, err := json.Marshal(testInvoice)
 	if err != nil {
-		return backend.File{}, err
+		t.Fatal(err)
 	}
-	return file(cms.FileNameIndexFile, b), nil
+	return file(cms.FileNameIndexFile, b)
 }
 
 // fileInvoiceMetadata returns a backend file that contains a invoice
@@ -1350,12 +1693,8 @@ func fileEmptyPNG(t *testing.T) backend.File {
 // will be included in the returned list.
 func filesForInvoice(t *testing.T, pm *cms.InvoiceMetadata, li *cms.LineItemsInput, files ...backend.File) []backend.File {
 	t.Helper()
-	index, err := fileInvoiceIndex(t, li)
-	if err != nil {
-		t.Fatal(err)
-	}
 	fs := []backend.File{
-		index,
+		fileInvoiceIndex(t, li),
 		fileInvoiceMetadata(t, pm),
 	}
 	fs = append(fs, files...)

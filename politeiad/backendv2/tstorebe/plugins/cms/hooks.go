@@ -384,16 +384,18 @@ func (c *cmsPlugin) validateIndexFile(files []backend.File) error {
 		data, err := base64.StdEncoding.DecodeString(v.Payload)
 		if err != nil {
 			return backend.PluginError{
-				PluginID:     cms.PluginID,
-				ErrorCode:    uint32(cms.ErrorStatusMalformedInvoiceFile),
-				ErrorContext: fmt.Sprintf("invoice input cannot be parsed %v ", err),
+				PluginID:  cms.PluginID,
+				ErrorCode: uint32(cms.ErrorStatusMalformedInvoiceFile),
+				ErrorContext: fmt.Sprintf("invoice input cannot be parsed %v ",
+					err),
 			}
 		}
 		if len(data) > int(cms.SettingMDSizeMax) {
 			return backend.PluginError{
-				PluginID:     cms.PluginID,
-				ErrorCode:    uint32(cms.ErrorCodeTextFileSizeInvalid),
-				ErrorContext: fmt.Sprintf("invoice input cannot be parsed %v ", err),
+				PluginID:  cms.PluginID,
+				ErrorCode: uint32(cms.ErrorCodeTextFileSizeInvalid),
+				ErrorContext: fmt.Sprintf("invoice input cannot be parsed %v ",
+					err),
 			}
 		}
 
@@ -402,9 +404,10 @@ func (c *cmsPlugin) validateIndexFile(files []backend.File) error {
 		var invInput cms.InvoiceInput
 		if err := json.Unmarshal([]byte(string(data)), &invInput); err != nil {
 			return backend.PluginError{
-				PluginID:     cms.PluginID,
-				ErrorCode:    uint32(cms.ErrorStatusMalformedInvoiceFile),
-				ErrorContext: fmt.Sprintf("invoice input cannot be parsed %v ", err),
+				PluginID:  cms.PluginID,
+				ErrorCode: uint32(cms.ErrorStatusMalformedInvoiceFile),
+				ErrorContext: fmt.Sprintf("invoice input cannot be parsed %v ",
+					err),
 			}
 		}
 
@@ -416,33 +419,25 @@ func (c *cmsPlugin) validateIndexFile(files []backend.File) error {
 			}
 		}
 		for _, lineInput := range invInput.LineItems {
-			domain := formatLineItemField(lineInput.Domain)
-			if !c.invoiceFieldIsValid(domain) {
-				return backend.PluginError{
-					PluginID:     cms.PluginID,
-					ErrorCode:    uint32(cms.ErrorStatusMalformedDomain),
-					ErrorContext: c.invoiceFieldRegexp.String(),
-				}
-			}
 			// Validate line item domain.
-			if !c.invoiceDomainIsValid(domain) {
+			if !c.invoiceDomainIsValid(lineInput.Domain) {
 				return backend.PluginError{
 					PluginID:  cms.PluginID,
 					ErrorCode: uint32(cms.ErrorCodeInvoiceDomainInvalid),
 					ErrorContext: fmt.Sprintf("got %v domain, "+
-						"supported domains are: %v", domain, c.invoiceDomains),
+						"supported domains are: %v",
+						lineInput.Domain, c.invoiceDomains),
 				}
 			}
-			subdomain := formatLineItemField(lineInput.Subdomain)
-			if subdomain != "" && !c.invoiceFieldIsValid(subdomain) {
+			if lineInput.Subdomain != "" &&
+				!c.invoiceFieldIsValid(lineInput.Subdomain) {
 				return backend.PluginError{
 					PluginID:     cms.PluginID,
 					ErrorCode:    uint32(cms.ErrorStatusMalformedSubdomain),
 					ErrorContext: c.invoiceFieldRegexp.String(),
 				}
 			}
-			description := formatLineItemField(lineInput.Description)
-			if !c.invoiceFieldIsValid(description) {
+			if !c.invoiceFieldIsValid(lineInput.Description) {
 				return backend.PluginError{
 					PluginID:     cms.PluginID,
 					ErrorCode:    uint32(cms.ErrorStatusMalformedDescription),
@@ -450,8 +445,8 @@ func (c *cmsPlugin) validateIndexFile(files []backend.File) error {
 				}
 			}
 
-			piToken := formatLineItemField(lineInput.ProposalToken)
-			if piToken != "" && !c.invoiceFieldIsValid(piToken) {
+			if lineInput.ProposalToken != "" &&
+				!c.invoiceFieldIsValid(lineInput.ProposalToken) {
 				return backend.PluginError{
 					PluginID:     cms.PluginID,
 					ErrorCode:    uint32(cms.ErrorStatusMalformedProposalToken),
@@ -461,6 +456,13 @@ func (c *cmsPlugin) validateIndexFile(files []backend.File) error {
 
 			switch lineInput.Type {
 			case cms.LineItemTypeLabor:
+				if lineInput.Labor == 0 {
+					return backend.PluginError{
+						PluginID:     cms.PluginID,
+						ErrorCode:    uint32(cms.ErrorStatusInvalidLaborExpense),
+						ErrorContext: "missing labor hours when labor line item",
+					}
+				}
 				if lineInput.Expenses != 0 {
 					return backend.PluginError{
 						PluginID:     cms.PluginID,
@@ -518,17 +520,22 @@ func (c *cmsPlugin) validateIndexFile(files []backend.File) error {
 						ErrorCode: cms.ErrorStatusInvalidSubUserIDLineItem,
 					}
 				}
-				if lineInput.Labor == 0 {
-					return www.UserError{
-						ErrorCode: cms.ErrorStatusInvalidLaborExpense,
-					}
-				}
-				if lineInput.SubRate < uint(minRate) || lineInput.SubRate > uint(maxRate) {
-					return www.UserError{
-						ErrorCode: cms.ErrorStatusInvoiceInvalidRate,
-					}
-				}
 				*/
+				if lineInput.Labor == 0 {
+					return backend.PluginError{
+						PluginID:     cms.PluginID,
+						ErrorCode:    uint32(cms.ErrorStatusInvalidLaborExpense),
+						ErrorContext: "missing labor when sub user line item",
+					}
+				}
+				if lineInput.SubRate < uint(cms.SettingContractorRateMin) ||
+					lineInput.SubRate > uint(cms.SettingContractorRateMax) {
+					return backend.PluginError{
+						PluginID:     cms.PluginID,
+						ErrorCode:    uint32(cms.ErrorStatusInvoiceInvalidRate),
+						ErrorContext: "invalid sub contractor rate",
+					}
+				}
 			default:
 				return backend.PluginError{
 					PluginID:     cms.PluginID,
