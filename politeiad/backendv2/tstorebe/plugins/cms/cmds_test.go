@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"strconv"
 	"testing"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -35,11 +34,11 @@ func TestCmdInvoiceStatus(t *testing.T) {
 		status    = cms.InvoiceStatusApproved
 		publicKey = fid.Public.String()
 
-		msg        = token + strconv.Itoa(int(status))
+		msg        = token + string(status)
 		signatureb = fid.SignMessage([]byte(msg))
 		signature  = hex.EncodeToString(signatureb[:])
 
-		msgWithClosed        = token + strconv.Itoa(int(cms.InvoiceStatusRejected))
+		msgWithClosed        = token + string(cms.InvoiceStatusRejected)
 		signaturebWithClosed = fid.SignMessage([]byte(msgWithClosed))
 		signatureWithClosed  = hex.EncodeToString(signaturebWithClosed[:])
 
@@ -89,7 +88,7 @@ func TestCmdInvoiceStatus(t *testing.T) {
 			tokenb,
 			cms.SetInvoiceStatus{
 				Token:     token,
-				Status:    cms.InvoiceStatusT(9),
+				Status:    cms.InvoiceStatusT(cms.InvoiceStatusInvalid),
 				Reason:    "",
 				PublicKey: publicKey,
 				Signature: signature,
@@ -364,7 +363,7 @@ func TestProposalStatus(t *testing.T) {
 func setInvoiceStatus(t *testing.T, fid *identity.FullIdentity, sbs cms.SetInvoiceStatus) cms.SetInvoiceStatus {
 	t.Helper()
 
-	msg := sbs.Token + strconv.Itoa(int(sbs.Status)) + sbs.Reason
+	msg := sbs.Token + string(sbs.Status) + sbs.Reason
 	sig := fid.SignMessage([]byte(msg))
 
 	return cms.SetInvoiceStatus{
