@@ -175,7 +175,6 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 			err := p.jsonLog(failedJournal, va.Vote.Token, b, e)
 			if err != nil {
 				return fmt.Errorf("0 jsonLog: %v", err)
-
 			}
 
 			// Retry
@@ -185,8 +184,10 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 			// Unrecoverable error
 			return fmt.Errorf("unrecoverable error: %v",
 				err)
-		} else if vr.ErrorCode != nil {
-			// Evaluate errors when ErrorCode is set
+		}
+
+		// Evaluate errors when ErrorCode is set
+		if vr.ErrorCode != nil {
 			switch *vr.ErrorCode {
 			// Silently ignore.
 			case tkv1.VoteErrorTicketAlreadyVoted:
@@ -249,23 +250,23 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 
 				return nil
 			}
-		} else {
-			// Success, log it and exit
-			err = p.jsonLog(successJournal, va.Vote.Token, vr)
-			if err != nil {
-				return fmt.Errorf("3 jsonLog: %v", err)
-			}
-
-			// All done with this vote
-			// Vote completed
-			p.Lock()
-			p.ballotResults = append(p.ballotResults, *vr)
-			fmt.Printf("%v finished bunch %v vote %v -- "+
-				"total progress %v/%v\n", time.Now(), bunchID,
-				voteID, len(p.ballotResults), cap(p.ballotResults))
-			p.Unlock()
-			return nil
 		}
+
+		// Success, log it and exit
+		err = p.jsonLog(successJournal, va.Vote.Token, vr)
+		if err != nil {
+			return fmt.Errorf("3 jsonLog: %v", err)
+		}
+
+		// All done with this vote
+		// Vote completed
+		p.Lock()
+		p.ballotResults = append(p.ballotResults, *vr)
+		fmt.Printf("%v finished bunch %v vote %v -- "+
+			"total progress %v/%v\n", time.Now(), bunchID,
+			voteID, len(p.ballotResults), cap(p.ballotResults))
+		p.Unlock()
+		return nil
 	}
 
 	// Not reached
