@@ -120,7 +120,9 @@ func (p *piv) generateVoteAlarm(token, voteBit string, ctres *pb.CommittedTicket
 	return va, nil
 }
 
-func waitRandom(min, max byte) time.Duration {
+// randomDuration returns a randomly selected Duration between the provided
+// min and max (in seconds).
+func randomDuration(min, max byte) time.Duration {
 	var (
 		wait []byte
 		err  error
@@ -138,9 +140,7 @@ func waitRandom(min, max byte) time.Duration {
 		}
 		break
 	}
-	d := time.Duration(wait[0]) * time.Second
-	time.Sleep(d)
-	return d
+	return time.Duration(wait[0]) * time.Second
 }
 
 func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteAlarm) error {
@@ -158,8 +158,13 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 		var rmsg string
 		if retry != 0 {
 			// Wait between 1 and 17 seconds
-			d := waitRandom(3, 17)
+			d := randomDuration(3, 17)
 			rmsg = fmt.Sprintf("retry %v (%v) ", retry, d)
+			err = WaitFor(ectx, d)
+			if err != nil {
+				return fmt.Errorf("%v bunch %v vote %v failed: %v",
+					time.Now(), bunchID, voteID, err)
+			}
 		}
 
 		fmt.Printf("%v voting bunch %v vote %v %v%v\n",

@@ -1674,7 +1674,7 @@ func _main() error {
 	switch action {
 	case cmdInventory, cmdTally, cmdVote:
 		// These commands require a connection to a dcrwallet instance. Get
-		// block height to validate GPRC cerds.
+		// block height to validate GPRC creds.
 		ar, err := c.wallet.Accounts(c.ctx, &pb.AccountsRequest{})
 		if err != nil {
 			return err
