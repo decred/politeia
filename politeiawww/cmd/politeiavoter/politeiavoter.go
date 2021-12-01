@@ -1033,15 +1033,31 @@ func (p *piv) vote(args []string) error {
 	err := p._vote(args[0], args[1])
 	// we return err after printing details
 
-	// Verify vote replies
+	// Verify vote replies. Already voted errors are not
+	// considered to be failures because they occur when
+	// a network error or dropped client connection causes
+	// politeiavoter to incorrectly think that the first
+	// attempt to cast the vote failed. politeiavoter will
+	// attempt to retry the vote that it has already
+	// successfully cast, resulting in the already voted
+	// error.
+	var alreadyVoted int
 	failedReceipts := make([]tkv1.CastVoteReply, 0,
 		len(p.ballotResults))
 	for _, v := range p.ballotResults {
-		if v.ErrorContext != "" {
-			failedReceipts = append(failedReceipts, v)
+		if v.ErrorCode == nil {
 			continue
 		}
+		if *v.ErrorCode == tkv1.VoteErrorTicketAlreadyVoted {
+			alreadyVoted++
+			continue
+		}
+		failedReceipts = append(failedReceipts, v)
 	}
+
+	log.Debugf("%v already voted errors found; these are "+
+		"counted as being successful", alreadyVoted)
+
 	fmt.Printf("Votes succeeded: %v\n", len(p.ballotResults)-
 		len(failedReceipts))
 	fmt.Printf("Votes failed   : %v\n", len(failedReceipts))
