@@ -523,7 +523,6 @@ func (p *Politeiawww) setupCMS() error {
 			p.setupCMSAddressWatcher()
 		}()
 	*/
-	return nil
 }
 
 // getPluginInventory returns the politeiad plugin inventory. If a politeiad

@@ -88,7 +88,7 @@ func TestCmdInvoiceStatus(t *testing.T) {
 			tokenb,
 			cms.SetInvoiceStatus{
 				Token:     token,
-				Status:    cms.InvoiceStatusT(cms.InvoiceStatusInvalid),
+				Status:    cms.InvoiceStatusInvalid,
 				Reason:    "",
 				PublicKey: publicKey,
 				Signature: signature,

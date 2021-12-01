@@ -286,7 +286,7 @@ type invoiceFormatTest struct {
 func invoiceFormatTests(t *testing.T) []invoiceFormatTest {
 	t.Helper()
 
-	testInvoice, err := fileInvoiceIndex()
+	testInvoice, err := fileInvoiceIndex(t, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -463,7 +463,7 @@ func invoiceNameTests(t *testing.T) []invoiceFormatTest {
 	// a default value when the name is provided as an empty string.
 	filesEmptyName := filesForInvoice(t, &cms.InvoiceMetadata{
 		ContractorName: "",
-	})
+	}, nil)
 	for k, v := range filesEmptyName {
 		if v.Name == cms.FileNameInvoiceMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
@@ -506,98 +506,98 @@ func invoiceNameTests(t *testing.T) []invoiceFormatTest {
 			"contractor name is too short",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorName: nameTooShort,
-			}),
+			}, nil),
 			errNameInvalid,
 		},
 		{
 			"contractor name is too long",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorName: nameTooLong,
-			}),
+			}, nil),
 			errNameInvalid,
 		},
 		{
 			"contractor name is the min length",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorName: nameMinLength,
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor name is the max length",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorName: nameMaxLength,
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor name contains A to Z",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorName: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor name contains a to z",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorName: "abcdefghijklmnopqrstuvwxyz",
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor name contains 0 to 9",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorName: "0123456789",
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor name contains supported chars",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorName: ".a-b,a",
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor name contains non-supported chars",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorName: "&.,:;- @+#/()!?\"'",
-			}),
+			}, nil),
 			errNameInvalid,
 		},
 		{
 			"contractor name contains newline",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorName: "invoice name\n",
-			}),
+			}, nil),
 			errNameInvalid,
 		},
 		{
 			"contractor name contains tab",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorName: "invoice name\t",
-			}),
+			}, nil),
 			errNameInvalid,
 		},
 		{
 			"contractor name contains brackets",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorName: "{invoice name}",
-			}),
+			}, nil),
 			errNameInvalid,
 		},
 		{
 			"contractor name is valid lowercase",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorName: "invoice name",
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor name is valid mixed case",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorName: "Invoice Name",
-			}),
+			}, nil),
 			nil,
 		},
 	}
@@ -651,98 +651,98 @@ func invoiceLocationTests(t *testing.T) []invoiceFormatTest {
 			"contractor location is too short",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorLocation: locationTooShort,
-			}),
+			}, nil),
 			errLocationInvalid,
 		},
 		{
 			"contractor location is too long",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorLocation: locationTooLong,
-			}),
+			}, nil),
 			errLocationInvalid,
 		},
 		{
 			"contractor location is the min length",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorLocation: locationMinLength,
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor location is the max length",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorLocation: locationMaxLength,
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor location contains A to Z",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorLocation: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor location contains a to z",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorLocation: "abcdefghijklmnopqrstuvwxyz",
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor location contains 0 to 9",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorLocation: "0123456789",
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor location contains supported chars",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorLocation: ".a-b,a",
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor location contains non-supported chars",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorLocation: "&.,:;- @+#/()!?\"'",
-			}),
+			}, nil),
 			errLocationInvalid,
 		},
 		{
 			"contractor location contains newline",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorLocation: "invoice location\n",
-			}),
+			}, nil),
 			errLocationInvalid,
 		},
 		{
 			"contractor location contains tab",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorLocation: "invoice location\t",
-			}),
+			}, nil),
 			errLocationInvalid,
 		},
 		{
 			"contractor location contains brackets",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorLocation: "{invoice location}",
-			}),
+			}, nil),
 			errLocationInvalid,
 		},
 		{
 			"contractor location is valid lowercase",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorLocation: "invoice location",
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor location is valid mixed case",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorLocation: "Invoice Location",
-			}),
+			}, nil),
 			nil,
 		},
 	}
@@ -790,7 +790,7 @@ func invoiceContactTests(t *testing.T) []invoiceFormatTest {
 	// a default value when the contact is provided as an empty string.
 	filesEmptyContact := filesForInvoice(t, &cms.InvoiceMetadata{
 		ContractorContact: "",
-	})
+	}, nil)
 	for k, v := range filesEmptyContact {
 		if v.Name == cms.FileNameInvoiceMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
@@ -834,98 +834,98 @@ func invoiceContactTests(t *testing.T) []invoiceFormatTest {
 			"contractor contact is too short",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorContact: contactTooShort,
-			}),
+			}, nil),
 			errContactInvalid,
 		},
 		{
 			"contractor contact is too long",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorContact: contactTooLong,
-			}),
+			}, nil),
 			errContactInvalid,
 		},
 		{
 			"contractor contact is the min length",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorContact: contactMinLength,
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor contact is the max length",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorContact: contactMaxLength,
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor contact contains A to Z",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorContact: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor contact contains a to z",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorContact: "abcdefghijklmnopqrstuvwxyz",
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor contact contains 0 to 9",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorContact: "0123456789",
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor contact contains supported chars",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorContact: ".a-b,a",
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor contact contains non-supported chars",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorContact: "&.,:;- @+#/()!?\"'",
-			}),
+			}, nil),
 			errContactInvalid,
 		},
 		{
 			"contractor contact contains newline",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorContact: "invoice contact\n",
-			}),
+			}, nil),
 			errContactInvalid,
 		},
 		{
 			"contractor contact contains tab",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorContact: "invoice contact\t",
-			}),
+			}, nil),
 			errContactInvalid,
 		},
 		{
 			"contractor contact contains brackets",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorContact: "{invoice contact}",
-			}),
+			}, nil),
 			errContactInvalid,
 		},
 		{
 			"contractor contact is valid lowercase",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorContact: "invoice contact",
-			}),
+			}, nil),
 			nil,
 		},
 		{
 			"contractor contact is valid mixed case",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorContact: "Invoice Contact",
-			}),
+			}, nil),
 			nil,
 		},
 	}
@@ -951,7 +951,7 @@ func invoiceRateTests(t *testing.T) []invoiceFormatTest {
 	// a default value when the rate is provided as an empty string.
 	filesEmptyRate := filesForInvoice(t, &cms.InvoiceMetadata{
 		ContractorRate: 0,
-	})
+	}, nil)
 	for k, v := range filesEmptyRate {
 		if v.Name == cms.FileNameInvoiceMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
@@ -995,21 +995,21 @@ func invoiceRateTests(t *testing.T) []invoiceFormatTest {
 			"contractor rate is too low",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorRate: uint(rateTooLow),
-			}),
+			}, nil),
 			errContractorRateInvalid,
 		},
 		{
 			"contractor rate is too high",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorRate: uint(rateTooHigh),
-			}),
+			}, nil),
 			errContractorRateInvalid,
 		},
 		{
 			"contractor rate is acceptable",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				ContractorRate: uint(rateAverage),
-			}),
+			}, nil),
 			nil,
 		},
 	}
@@ -1035,7 +1035,7 @@ func invoicePaymentAddressTests(t *testing.T) []invoiceFormatTest {
 	// a default value when the address is provided as an empty string.
 	filesEmptyAddress := filesForInvoice(t, &cms.InvoiceMetadata{
 		PaymentAddress: "",
-	})
+	}, nil)
 	for k, v := range filesEmptyAddress {
 		if v.Name == cms.FileNameInvoiceMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
@@ -1078,21 +1078,21 @@ func invoicePaymentAddressTests(t *testing.T) []invoiceFormatTest {
 			"payment address is invalid",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				PaymentAddress: "INVALID ADDRESS",
-			}),
+			}, nil),
 			errPaymentAddressInvalid,
 		},
 		{
 			"payment address is wrong network",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				PaymentAddress: addressWrongNetwork,
-			}),
+			}, nil),
 			errPaymentAddressInvalid,
 		},
 		{
 			"paytment address is acceptable",
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				PaymentAddress: addressCorrectNetwork,
-			}),
+			}, nil),
 			nil,
 		},
 	}
@@ -1114,7 +1114,7 @@ func invoiceMonthYearTests(t *testing.T) []invoiceFormatTest {
 	// a default value when the month is provided as an empty value.
 	filesEmptyMonth := filesForInvoice(t, &cms.InvoiceMetadata{
 		PaymentAddress: "",
-	})
+	}, nil)
 	for k, v := range filesEmptyMonth {
 		if v.Name == cms.FileNameInvoiceMetadata {
 			b, err := base64.StdEncoding.DecodeString(v.Payload)
@@ -1161,7 +1161,7 @@ func invoiceMonthYearTests(t *testing.T) []invoiceFormatTest {
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				Month: monthTooHigh,
 				Year:  2020,
-			}),
+			}, nil),
 			errMonthYearInvalid,
 		},
 		{
@@ -1169,7 +1169,7 @@ func invoiceMonthYearTests(t *testing.T) []invoiceFormatTest {
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				Month: monthTooSoon,
 				Year:  yearTooSoon,
-			}),
+			}, nil),
 			errMonthYearInvalid,
 		},
 		{
@@ -1177,7 +1177,7 @@ func invoiceMonthYearTests(t *testing.T) []invoiceFormatTest {
 			filesForInvoice(t, &cms.InvoiceMetadata{
 				Month: 10,
 				Year:  2020,
-			}),
+			}, nil),
 			nil,
 		},
 	}
@@ -1204,7 +1204,7 @@ func file(name string, payload []byte) backend.File {
 
 // fileInvoiceIndex returns a backend file that contains a invoice index
 // file.
-func fileInvoiceIndex() (backend.File, error) {
+func fileInvoiceIndex(t *testing.T, li *cms.LineItemsInput) (backend.File, error) {
 
 	testInvoice := cms.InvoiceInput{}
 
@@ -1233,6 +1233,28 @@ func fileInvoiceIndex() (backend.File, error) {
 	}
 	testInvoice.LineItems = testLineItems
 
+	// Sanity check. Verify that the default domain we used is
+	// one of the default domains defined by the cms plugin API.
+	var found bool
+	for _, v := range cms.SettingInvoiceDomains {
+		if v == testLineItems[0].Domain {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("%v is not a default domain", testLineItems[0].Domain)
+	}
+	for _, v := range cms.SettingInvoiceDomains {
+		if v == testLineItems[1].Domain {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("%v is not a default domain", testLineItems[1].Domain)
+	}
+
 	// Create a raw json []byte from the above information
 	b, err := json.Marshal(testInvoice)
 	if err != nil {
@@ -1251,7 +1273,6 @@ func fileInvoiceMetadata(t *testing.T, pm *cms.InvoiceMetadata) backend.File {
 	// Setup a default invoice metadata
 	pmd := &cms.InvoiceMetadata{
 		Name:               "Test Invoice Name",
-		Domain:             "development",
 		Month:              3,
 		Year:               2021,
 		ExchangeRate:       10000,
@@ -1260,19 +1281,6 @@ func fileInvoiceMetadata(t *testing.T, pm *cms.InvoiceMetadata) backend.File {
 		ContractorContact:  "test@decred.org",
 		ContractorRate:     5000,
 		PaymentAddress:     "TskbfyX1zjCwMJuYJgzqc9msC9R66ScmWti",
-	}
-
-	// Sanity check. Verify that the default domain we used is
-	// one of the default domains defined by the cms plugin API.
-	var found bool
-	for _, v := range cms.SettingInvoiceDomains {
-		if v == pmd.Domain {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("%v is not a default domain", pmd.Domain)
 	}
 
 	// Overwrite the default values with the caller provided
@@ -1340,9 +1348,9 @@ func fileEmptyPNG(t *testing.T) backend.File {
 // returned files only include the files required by the cms plugin API. No
 // attachment files are included. The caller can pass in additional files that
 // will be included in the returned list.
-func filesForInvoice(t *testing.T, pm *cms.InvoiceMetadata, files ...backend.File) []backend.File {
+func filesForInvoice(t *testing.T, pm *cms.InvoiceMetadata, li *cms.LineItemsInput, files ...backend.File) []backend.File {
 	t.Helper()
-	index, err := fileInvoiceIndex()
+	index, err := fileInvoiceIndex(t, li)
 	if err != nil {
 		t.Fatal(err)
 	}
