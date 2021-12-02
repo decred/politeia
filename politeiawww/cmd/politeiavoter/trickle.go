@@ -262,6 +262,9 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 		// Vote completed
 		p.Lock()
 		p.ballotResults = append(p.ballotResults, *vr)
+
+		// This is required to be in the lock to prevent a
+		// ballotResults race
 		fmt.Printf("%v finished bunch %v vote %v -- "+
 			"total progress %v/%v\n", time.Now(), bunchID,
 			voteID, len(p.ballotResults), cap(p.ballotResults))
