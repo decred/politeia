@@ -26,9 +26,9 @@ type statusEntry struct {
 	voteMetadata *ticketvote.VoteMetadata
 }
 
-// statusesCacheLimit limits the number of entries in the proposal statuses
-// cache.
-const statusesCacheLimit = 1000
+// defaultCacheLimit is the default maximum number of entries that are allowed
+// to exist in cache.
+const defaultCacheLimit = 1000
 
 // proposalStatuses is used to cache final proposal statuses which are not
 // expected to change in the future and proposal data such as record or vote
@@ -51,6 +51,7 @@ type proposalStatuses struct {
 	sync.Mutex
 	data    map[string]*statusEntry // [token]statusEntry
 	entries *list.List              // list of cache records tokens
+	limit   int
 }
 
 // get retrieves the data associated with the given token from the
@@ -77,14 +78,14 @@ func (s *proposalStatuses) set(token string, entry statusEntry) {
 	}
 
 	// If entry does not exist and cache is full, then remove oldest entry
-	if s.entries.Len() == statusesCacheLimit {
+	if s.entries.Len() == s.limit {
 		// Remove front - oldest entry from entries list.
-		t := s.entries.Remove(s.entries.Front()).(string)
+		t := s.entries.Remove(s.entries.Back()).(string)
 		// Remove oldest status from map.
 		delete(s.data, t)
 	}
 
 	// Store new status.
-	s.entries.PushBack(token)
+	s.entries.PushFront(token)
 	s.data[token] = &entry
 }
