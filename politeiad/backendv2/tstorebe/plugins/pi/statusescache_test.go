@@ -16,9 +16,8 @@ import (
 func TestGet(t *testing.T) {
 	// Create a new cache
 	statuses := proposalStatuses{
-		data:    make(map[string]*statusEntry, defaultCacheLimit),
+		data:    make(map[string]*statusEntry, statusesCacheLimit),
 		entries: list.New(),
-		limit:   defaultCacheLimit,
 	}
 
 	// Setup a cache entry
@@ -46,11 +45,18 @@ func TestGet(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
-	// Create a new cache with limit of two entries
+	// Setup a new cache with limit of two entries; set global cache capacity
+	// limit to two and reset it to default on defer.
+	defaultCacheLimit := statusesCacheLimit
+	statusesCacheLimit = 2
+	defer func() {
+		statusesCacheLimit = defaultCacheLimit
+	}()
+
+	// Create cache
 	statuses := proposalStatuses{
-		data:    make(map[string]*statusEntry, 2),
+		data:    make(map[string]*statusEntry, statusesCacheLimit),
 		entries: list.New(),
-		limit:   2,
 	}
 
 	// Test tokens and cache entries

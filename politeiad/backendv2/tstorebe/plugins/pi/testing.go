@@ -76,9 +76,8 @@ func newTestPiPlugin(t *testing.T) (*piPlugin, func()) {
 		proposalDomains:         domainsMap,
 		billingStatusChangesMax: pi.SettingBillingStatusChangesMax,
 		statuses: proposalStatuses{
-			data:    make(map[string]*statusEntry, defaultCacheLimit),
+			data:    make(map[string]*statusEntry, statusesCacheLimit),
 			entries: list.New(),
-			limit:   defaultCacheLimit,
 		},
 	}
 

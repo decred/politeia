@@ -345,9 +345,8 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		proposalDomains:         domainsMap,
 		billingStatusChangesMax: billingStatusChangesMax,
 		statuses: proposalStatuses{
-			data:    make(map[string]*statusEntry, defaultCacheLimit),
+			data:    make(map[string]*statusEntry, statusesCacheLimit),
 			entries: list.New(),
-			limit:   defaultCacheLimit,
 		},
 	}, nil
 }
