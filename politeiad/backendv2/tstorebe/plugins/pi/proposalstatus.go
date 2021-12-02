@@ -75,7 +75,7 @@ func (p *piPlugin) getProposalStatus(token []byte) (pi.PropStatusT, error) {
 	}
 
 	// Get the vote summary if required
-	if statusRequiresVoteSummary(propStatus) {
+	if requiresVoteSummary(propStatus, recordState, recordStatus) {
 		vs, err := p.voteSummary(token)
 		if err != nil {
 			return "", err
@@ -84,7 +84,7 @@ func (p *piPlugin) getProposalStatus(token []byte) (pi.PropStatusT, error) {
 	}
 
 	// Get the billing statuses if required
-	if statusRequiresBillingStatuses(voteStatus, voteMetadata) {
+	if requiresBillingStatuses(voteStatus, voteMetadata) {
 		billingStatuses, err = p.billingStatusChanges(token)
 		if err != nil {
 			return "", err
@@ -157,10 +157,11 @@ func statusRequiresRecord(s pi.PropStatusT) bool {
 	}
 }
 
-// statusRequiresVoteSummary returns whether the proposal status requires the
-// vote summary to be retrieved. This is necessary when the proposal is in
-// a stage where the vote status can still change.
-func statusRequiresVoteSummary(s pi.PropStatusT) bool {
+// requiresVoteSummary returns whether the proposal requires the vote summary
+// to be retrieved to determine the proposal status on runtime. This is
+// necessary when the proposal is in a stage where the vote status can still
+// change.
+func requiresVoteSummary(s pi.PropStatusT, state backend.StateT, status backend.StatusT) bool {
 	if statusIsFinal(s) {
 		// The status is final and cannot be changed
 		// any further, which means the vote summary
@@ -175,15 +176,15 @@ func statusRequiresVoteSummary(s pi.PropStatusT) bool {
 
 	default:
 		// If proposal status is unknown, not final or vote was not finished yet,
-		// we need to fetch the vote summary.
-		return true
+		// vote summary is required only if proposal is vetted and public.
+		return state == backend.StateVetted && status == backend.StatusPublic
 	}
 }
 
-// statusRequiresBillingStatuses returns whether the proposal status requires
+// requiresBillingStatuses returns whether the proposal vote status requires
 // the billing status changes to be retrieved. The billing status
 // changes are required only if the proposal is not a RFP and it's vote was
 // approved, otherwise they are not relevant.
-func statusRequiresBillingStatuses(vs ticketvote.VoteStatusT, vm *ticketvote.VoteMetadata) bool {
+func requiresBillingStatuses(vs ticketvote.VoteStatusT, vm *ticketvote.VoteMetadata) bool {
 	return !isRFP(vm) && vs == ticketvote.VoteStatusApproved
 }
