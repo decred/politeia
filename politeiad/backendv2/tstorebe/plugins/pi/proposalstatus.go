@@ -181,10 +181,11 @@ func requiresVoteSummary(s pi.PropStatusT, state backend.StateT, status backend.
 	}
 }
 
-// requiresBillingStatuses returns whether the proposal vote status requires
-// the billing status changes to be retrieved. The billing status
-// changes are required only if the proposal is not a RFP and it's vote was
-// approved, otherwise they are not relevant.
+// requiresBillingStatuses returns whether the proposal metadata and vote
+// status require the billing status changes to be retrieved to determine the
+// proposal status. The billing status changes are required only if the
+// proposal is not a RFP and it's vote was approved, otherwise they are not
+// relevant.
 func requiresBillingStatuses(vs ticketvote.VoteStatusT, vm *ticketvote.VoteMetadata) bool {
 	return !isRFP(vm) && vs == ticketvote.VoteStatusApproved
 }
