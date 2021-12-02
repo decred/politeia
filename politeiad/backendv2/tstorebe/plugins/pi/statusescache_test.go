@@ -100,16 +100,16 @@ func TestSet(t *testing.T) {
 	}
 
 	// Ensure that the cache's tokens list is a FIFO data structure where
-	// the oldest element is the back of the list and the newest is the
-	// the front.
+	// the oldest element is at the back of the list and the newest is the
+	// at the front.
 	listTokenLast := statuses.entries.Back().Value.(string)
 	if listTokenLast != tokens[1] {
-		t.Errorf("unexpected entry at the back of the entries list; "+
+		t.Errorf("unexpected entry is at the back of the entries list; "+
 			"expected %v, got %v", tokens[1], listTokenLast)
 	}
 	listTokenFirst := statuses.entries.Front().Value.(string)
 	if listTokenFirst != tokenThird {
-		t.Errorf("unexpected entry is in the front of the entries list; "+
+		t.Errorf("unexpected entry is at the front of the entries list; "+
 			"expected %v, got %v", tokenThird, listTokenFirst)
 	}
 }
