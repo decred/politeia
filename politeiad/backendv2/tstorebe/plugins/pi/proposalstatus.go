@@ -204,7 +204,7 @@ func statusRequiresBillingStatuses(vs ticketvote.VoteStatusT) bool {
 }
 
 // voteStatusIsFinal returns whether the given vote status is final and
-// cannot be changed any futher.
+// cannot be changed any further.
 func voteStatusIsFinal(vs ticketvote.VoteStatusT) bool {
 	switch vs {
 	case ticketvote.VoteStatusIneligible,
