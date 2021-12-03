@@ -274,12 +274,12 @@ func TestCmdSummary(t *testing.T) {
 		},
 		{
 			name:       string(pi.PropStatusAbandoned),
-			token:      "45154fb45664714c",
+			token:      "45154fb45664714e",
 			propStatus: pi.PropStatusAbandoned,
 		},
 		{
 			name:       string(pi.PropStatusCensored),
-			token:      "45154fb45664714d",
+			token:      "45154fb45664714f",
 			propStatus: pi.PropStatusCensored,
 		},
 	}
