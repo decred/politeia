@@ -45,8 +45,8 @@ func TestGet(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
-	// Setup a new cache with limit of two entries; set global cache capacity
-	// limit to two and reset it to default on defer.
+	// Temporarily set global cache capacity limit to two in order to test
+	// adding a new entry to a full cache.
 	defaultCacheLimit := statusesCacheLimit
 	statusesCacheLimit = 2
 	defer func() {
@@ -59,9 +59,9 @@ func TestSet(t *testing.T) {
 		entries: list.New(),
 	}
 
-	// Test tokens and cache entries
-	tokens := [2]string{"45154fb45664714a", "45154fb45664714b"}
-	entries := [2]statusEntry{
+	// Setup test tokens and cache entries
+	tokens := []string{"45154fb45664714a", "45154fb45664714b"}
+	entries := []statusEntry{
 		{
 			propStatus:   pi.PropStatusActive,
 			recordState:  backend.StateUnvetted,
@@ -81,7 +81,7 @@ func TestSet(t *testing.T) {
 		statuses.set(token, entries[i])
 	}
 
-	// Store a third entry, it should replace the first entry as the cache
+	// Store a third entry, it should replace the oldest entry as the cache
 	// is a FIFO data structure.
 	tokenThird := "45154fb45664714c"
 	entryThird := statusEntry{
@@ -92,8 +92,8 @@ func TestSet(t *testing.T) {
 	}
 	statuses.set(tokenThird, entryThird)
 
-	// Verify that second and third entries stored in cached and that first
-	// entry was removed.
+	// Ensure that oldest entry was removed, and that the other two entries
+	// exist is cache.
 	var e *statusEntry
 	if e = statuses.get(tokenThird); e == nil {
 		t.Errorf("entry not found in cache, token: %v", tokenThird)
@@ -117,5 +117,16 @@ func TestSet(t *testing.T) {
 	if listTokenFirst != tokenThird {
 		t.Errorf("unexpected entry is at the front of the entries list; "+
 			"expected %v, got %v", tokenThird, listTokenFirst)
+	}
+
+	// Overwrite existing cache entry.
+	entryThird.propStatus = pi.PropStatusActive
+	statuses.set(tokenThird, entryThird)
+
+	// Ensure new entry was stored in cache successfully
+	e = statuses.data[tokenThird]
+	if e.propStatus != pi.PropStatusActive {
+		t.Errorf("unexpected proposal status: want %v, got %v",
+			pi.PropStatusActive, e.propStatus)
 	}
 }
