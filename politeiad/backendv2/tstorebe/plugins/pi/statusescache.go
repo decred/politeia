@@ -75,6 +75,8 @@ func (s *proposalStatuses) set(token string, entry statusEntry) {
 	// overwrite the proposal status.
 	if s.data[token] != nil {
 		s.data[token] = &entry
+		log.Debugf("proposalStatuses: entry for proposal %v was overwritten.",
+			token)
 		return
 	}
 
@@ -84,9 +86,11 @@ func (s *proposalStatuses) set(token string, entry statusEntry) {
 		t := s.entries.Remove(s.entries.Back()).(string)
 		// Remove oldest status from map.
 		delete(s.data, t)
+		log.Debugf("proposalStatuses: entry for proposal %v was removed.", t)
 	}
 
 	// Store new status.
 	s.entries.PushFront(token)
 	s.data[token] = &entry
+	log.Debugf("proposalStatuses: entry for proposal %v was added.", token)
 }
