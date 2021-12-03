@@ -5,6 +5,7 @@
 package pi
 
 import (
+	"container/list"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -31,6 +32,11 @@ var (
 type piPlugin struct {
 	backend backend.Backend
 	tstore  plugins.TstoreClient
+
+	// statuses holds proposal statuses and various proposal metadata in an
+	// in-memory cache to improve the performance of determining the proposal
+	// statuses at runtime.
+	statuses proposalStatuses
 
 	// dataDir is the pi plugin data directory. The only data that is
 	// stored here is cached data that can be re-created at any time
@@ -339,5 +345,9 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		proposalDomainsEncoded:  domainsString,
 		proposalDomains:         domainsMap,
 		billingStatusChangesMax: billingStatusChangesMax,
+		statuses: proposalStatuses{
+			data:    make(map[string]*statusEntry, statusesCacheLimit),
+			entries: list.New(),
+		},
 	}, nil
 }

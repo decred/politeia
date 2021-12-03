@@ -13,6 +13,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/comments"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/dcrdata"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/pi"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/usermd"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
@@ -75,6 +76,7 @@ func init() {
 	dcrdata.UseLogger(pluginLog)
 	ticketvote.UseLogger(pluginLog)
 	usermd.UseLogger(pluginLog)
+	pi.UseLogger(pluginLog)
 
 	// Other loggers
 	wsdcrdata.UseLogger(wsdcrdataLog)
