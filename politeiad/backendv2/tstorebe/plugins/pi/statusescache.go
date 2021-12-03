@@ -34,11 +34,12 @@ var statusesCacheLimit = 1000
 // proposalStatuses is used to cache proposal data required to determine
 // the proposal status at runtime such as record metadata, vote metadata, the
 // vote status and the proposal billing status changes. The cache is necessary
-// to improve the performance and to reduce the number of backend calls when
-// determining a status of a proposal at runtime and can be helpful when the
-// cached data is not expected to change, which means that once we store the
-// data in cache we don't need to fetch it again. The cache entries are lazy
-// loaded.
+// to improve the performance of determining a status of a proposal at runtime
+// and to reduce the number of expensive backend calls that result in the tlog
+// tree be retrieved, which gets very expensive when a tree contains tens of
+// thousands of ticket vote leaves. This can be helpful when the cached data is
+// not expected to change, which means that once we store the data in cache we
+// don't need to fetch it again. The cache entries are lazy loaded.
 //
 // Number of entries stored in cache is limited by statusesCacheLimit. If the
 // cache is full and a new entry is being added, the oldest entry is removed
