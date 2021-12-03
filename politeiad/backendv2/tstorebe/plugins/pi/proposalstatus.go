@@ -10,6 +10,7 @@ import (
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/pkg/errors"
 )
 
 // getPoposalStatus determines the proposal status at runtime, it uses the
@@ -216,4 +217,74 @@ func voteStatusIsFinal(vs ticketvote.VoteStatusT) bool {
 	default:
 		return false
 	}
+}
+
+// proposalStatusApproved returns the proposal status of an approved proposal.
+func proposalStatusApproved(voteMD *ticketvote.VoteMetadata, bscs []pi.BillingStatusChange) (pi.PropStatusT, error) {
+	// If the proposal in an RFP then we don't need to
+	// check the billing status changes. RFP proposals
+	// do not bill against the treasury. This does not
+	// apply to RFP submission proposals.
+	if isRFP(voteMD) {
+		return pi.PropStatusApproved, nil
+	}
+
+	// Use the billing status to determine the proposal status.
+	bs := proposalBillingStatus(ticketvote.VoteStatusApproved, bscs)
+	switch bs {
+	case pi.BillingStatusClosed:
+		return pi.PropStatusClosed, nil
+	case pi.BillingStatusCompleted:
+		return pi.PropStatusCompleted, nil
+	case pi.BillingStatusActive:
+		return pi.PropStatusActive, nil
+	}
+
+	// Shouldn't happen return an error
+	return pi.PropStatusInvalid,
+		errors.Errorf(
+			"couldn't determine proposal status of an approved propsoal: "+
+				"billingStatus: %v", bs)
+}
+
+// proposalStatus combines record metadata and plugin metadata in order to
+// create a unified map of the various paths a proposal can take throughout
+// the proposal process.
+func proposalStatus(state backend.StateT, status backend.StatusT, voteStatus ticketvote.VoteStatusT, voteMD *ticketvote.VoteMetadata, bscs []pi.BillingStatusChange) (pi.PropStatusT, error) {
+	switch state {
+	case backend.StateUnvetted:
+		switch status {
+		case backend.StatusUnreviewed:
+			return pi.PropStatusUnvetted, nil
+		case backend.StatusArchived:
+			return pi.PropStatusUnvettedAbandoned, nil
+		case backend.StatusCensored:
+			return pi.PropStatusUnvettedCensored, nil
+		}
+	case backend.StateVetted:
+		switch status {
+		case backend.StatusArchived:
+			return pi.PropStatusAbandoned, nil
+		case backend.StatusCensored:
+			return pi.PropStatusCensored, nil
+		case backend.StatusPublic:
+			switch voteStatus {
+			case ticketvote.VoteStatusUnauthorized:
+				return pi.PropStatusUnderReview, nil
+			case ticketvote.VoteStatusAuthorized:
+				return pi.PropStatusVoteAuthorized, nil
+			case ticketvote.VoteStatusStarted:
+				return pi.PropStatusVoteStarted, nil
+			case ticketvote.VoteStatusRejected:
+				return pi.PropStatusRejected, nil
+			case ticketvote.VoteStatusApproved:
+				return proposalStatusApproved(voteMD, bscs)
+			}
+		}
+	}
+	// Shouldn't happen return an error
+	return pi.PropStatusInvalid,
+		errors.Errorf(
+			"couldn't determine proposal status: proposal state: %v, "+
+				"proposal status %v, vote status: %v", state, status, voteStatus)
 }
