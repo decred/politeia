@@ -261,7 +261,7 @@ func TestCmdSummary(t *testing.T) {
 		token      []byte
 		propStatus pi.PropStatusT // expected proposal status
 	}
-	var tests [6]test
+	tests := make([]test, 0, 6)
 
 	for i, token := range tokens {
 		// Decode string token
@@ -276,11 +276,11 @@ func TestCmdSummary(t *testing.T) {
 		})
 
 		// Add test
-		tests[i] = test{
+		tests = append(tests, test{
 			name:       string(statuses[i]),
 			token:      b,
 			propStatus: statuses[i],
-		}
+		})
 	}
 
 	// Run tests
