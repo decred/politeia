@@ -84,12 +84,14 @@ func (p *piPlugin) getProposalStatus(token []byte) (pi.PropStatusT, error) {
 		}
 	}
 
-	// Get the vote summary
-	voteSummary, err = p.voteSummary(token)
-	if err != nil {
-		return "", err
+	// If cached vote status is not final, fetch the latest vote status
+	if !voteStatusIsFinal(voteStatus) {
+		voteSummary, err = p.voteSummary(token)
+		if err != nil {
+			return "", err
+		}
+		voteStatus = voteSummary.Status
 	}
-	voteStatus = voteSummary.Status
 
 	// Get the billing statuses if required
 	if statusRequiresBillingStatuses(voteStatus) {
@@ -198,5 +200,20 @@ func statusRequiresBillingStatuses(vs ticketvote.VoteStatusT) bool {
 		// Force the billing statuses to be retrieved for any
 		// unhandled cases.
 		return true
+	}
+}
+
+// voteStatusIsFinal returns whether the given vote status is final and
+// cannot be changed any futher.
+func voteStatusIsFinal(vs ticketvote.VoteStatusT) bool {
+	switch vs {
+	case ticketvote.VoteStatusIneligible,
+		ticketvote.VoteStatusFinished,
+		ticketvote.VoteStatusRejected,
+		ticketvote.VoteStatusApproved:
+		return true
+
+	default:
+		return false
 	}
 }
