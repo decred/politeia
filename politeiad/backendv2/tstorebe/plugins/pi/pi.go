@@ -35,7 +35,7 @@ type piPlugin struct {
 
 	// statuses holds proposal statuses and various proposal metadata in an
 	// in-memory cache to improve the performance of determining the proposal
-	// statuses on runtime.
+	// statuses at runtime.
 	statuses proposalStatuses
 
 	// dataDir is the pi plugin data directory. The only data that is
