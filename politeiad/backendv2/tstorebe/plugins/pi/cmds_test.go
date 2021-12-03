@@ -246,48 +246,60 @@ func TestCmdSummary(t *testing.T) {
 	p, cleanup := newTestPiPlugin(t)
 	defer cleanup()
 
-	// Setup test data
-	var tokens = [6]string{"45154fb45664714b", "45154fb45664714a",
-		"45154fb45664714c", "45154fb45664714d", "45154fb45664714e",
-		"45154fb45664714f"}
-	// List of all final proposal statuses
-	var statuses = [6]pi.PropStatusT{pi.PropStatusUnvettedAbandoned,
-		pi.PropStatusUnvettedCensored, pi.PropStatusAbandoned,
-		pi.PropStatusCensored, pi.PropStatusApproved, pi.PropStatusRejected}
-
-	// Setup tests and pre-load final statuses in cache
-	type test struct {
+	// Setup tests
+	var tests = []struct {
 		name       string // Test name
-		token      []byte
+		token      string
 		propStatus pi.PropStatusT // expected proposal status
-	}
-	tests := make([]test, 0, 6)
-
-	for i, token := range tokens {
-		// Decode string token
-		b, err := hex.DecodeString(token)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// Cache final status
-		p.statuses.set(token, statusEntry{
-			propStatus: statuses[i],
-		})
-
-		// Add test
-		tests = append(tests, test{
-			name:       string(statuses[i]),
-			token:      b,
-			propStatus: statuses[i],
-		})
+	}{
+		{
+			name:       string(pi.PropStatusUnvettedAbandoned),
+			token:      "45154fb45664714b",
+			propStatus: pi.PropStatusUnvettedAbandoned,
+		},
+		{
+			name:       string(pi.PropStatusUnvettedCensored),
+			token:      "45154fb45664714a",
+			propStatus: pi.PropStatusUnvettedCensored,
+		},
+		{
+			name:       string(pi.PropStatusAbandoned),
+			token:      "45154fb45664714c",
+			propStatus: pi.PropStatusAbandoned,
+		},
+		{
+			name:       string(pi.PropStatusCensored),
+			token:      "45154fb45664714d",
+			propStatus: pi.PropStatusCensored,
+		},
+		{
+			name:       string(pi.PropStatusAbandoned),
+			token:      "45154fb45664714c",
+			propStatus: pi.PropStatusAbandoned,
+		},
+		{
+			name:       string(pi.PropStatusCensored),
+			token:      "45154fb45664714d",
+			propStatus: pi.PropStatusCensored,
+		},
 	}
 
 	// Run tests
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			// Decode string token
+			bt, err := hex.DecodeString(tc.token)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Cache final status
+			p.statuses.set(tc.token, statusEntry{
+				propStatus: tc.propStatus,
+			})
+
 			// Run test
-			r, err := p.cmdSummary(tc.token)
+			r, err := p.cmdSummary(bt)
 			if err != nil {
 				// Unexpected error
 				t.Fatal(err)
