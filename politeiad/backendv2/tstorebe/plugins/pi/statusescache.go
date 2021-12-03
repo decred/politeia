@@ -30,14 +30,14 @@ type statusEntry struct {
 // a var in order to allow setting different limit values in test files.
 var statusesCacheLimit = 1000
 
-// proposalStatuses is used to cache final proposal statuses which are not
-// expected to change in the future and proposal data required to determine
-// the proposal status on runtime such as record or vote metadata and proposal
-// vote status. The cache is necessary to improve the performance and to
-// reduce the number of backend calls when determining a status of a proposal
-// on runtime and can be helpful when the cached data is not expected to
-// change, which means that once we store the data in cache we don't need to
-// fetch it again. The cache entries are lazy loaded.
+// proposalStatuses is used to cache proposal data required to determine
+// the proposal status at runtime such as record metadata, vote metadata, the
+// vote status and the proposal billing status changes. The cache is necessary
+// to improve the performance and to reduce the number of backend calls when
+// determining a status of a proposal at runtime and can be helpful when the
+// cached data is not expected to change, which means that once we store the
+// data in cache we don't need to fetch it again. The cache entries are lazy
+// loaded.
 //
 // Number of entries stored in cache is limited by statusesCacheLimit. If the
 // cache is full and a new entry is being added, the oldest entry is removed
@@ -45,8 +45,8 @@ var statusesCacheLimit = 1000
 //
 // Currently the limit is set to 1000 as we don't really need more than that
 // as the goal of the cache is to speed up fetching the statuses of the
-// most recent proposals. Each cache entry size is ~100bytes so the cache total
-// size when full is expected to be ~100KB.
+// most recent proposals. Each cache entry size is ~150bytes so the cache total
+// size when full is expected to be ~150KB.
 type proposalStatuses struct {
 	sync.Mutex
 	data    map[string]*statusEntry // [token]statusEntry

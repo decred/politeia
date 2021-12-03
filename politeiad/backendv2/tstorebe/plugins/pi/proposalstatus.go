@@ -12,7 +12,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
 
-// getProposalStatus determines the proposal status in runtime, it uses the
+// getPoposalStatus determines the proposal status at runtime, it uses the
 // in-memory cache to avoid retrieving the record, it's vote summary or
 // it's billing status changes when possible.
 func (p *piPlugin) getProposalStatus(token []byte) (pi.PropStatusT, error) {
@@ -75,7 +75,7 @@ func (p *piPlugin) getProposalStatus(token []byte) (pi.PropStatusT, error) {
 	}
 
 	// Get the vote summary if required
-	if requiresVoteSummary(propStatus, recordState, recordStatus) {
+	if statusRequiresVoteSummary(propStatus) {
 		vs, err := p.voteSummary(token)
 		if err != nil {
 			return "", err
@@ -84,7 +84,7 @@ func (p *piPlugin) getProposalStatus(token []byte) (pi.PropStatusT, error) {
 	}
 
 	// Get the billing statuses if required
-	if requiresBillingStatuses(voteStatus, voteMetadata) {
+	if statusRequiresBillingStatuses(propStatus) {
 		billingStatuses, err = p.billingStatusChanges(token)
 		if err != nil {
 			return "", err
@@ -157,11 +157,10 @@ func statusRequiresRecord(s pi.PropStatusT) bool {
 	}
 }
 
-// requiresVoteSummary returns whether the proposal requires the vote summary
-// to be retrieved to determine the proposal status on runtime. This is
-// necessary when the proposal is in a stage where the vote status can still
-// change.
-func requiresVoteSummary(s pi.PropStatusT, state backend.StateT, status backend.StatusT) bool {
+// statusRequiresVoteSummary returns whether the proposal status requires the
+// vote summary to be retrieved. This is necessary when the proposal is in
+// a stage where the vote status can still change.
+func statusRequiresVoteSummary(s pi.PropStatusT) bool {
 	if statusIsFinal(s) {
 		// The status is final and cannot be changed
 		// any further, which means the vote summary
@@ -171,21 +170,48 @@ func requiresVoteSummary(s pi.PropStatusT, state backend.StateT, status backend.
 
 	switch s {
 	case pi.PropStatusActive, pi.PropStatusClosed, pi.PropStatusCompleted:
-		// The vote result is known no need to fetch
+		// The vote result is known, no need to fetch
 		return false
 
+	case pi.PropStatusUnvetted, pi.PropStatusUnderReview,
+		pi.PropStatusVoteAuthorized, pi.PropStatusVoteStarted:
+		// Vote status changes are possible, we need to fetch the latest
+		return true
+
 	default:
-		// If proposal status is unknown, not final or vote was not finished yet,
-		// vote summary is required only if proposal is vetted and public.
-		return state == backend.StateVetted && status == backend.StatusPublic
+		// Defaulting to true is the conservative default
+		// since it will force the vote summary to be retrieved
+		// for unhandled cases.
+		return true
 	}
 }
 
-// requiresBillingStatuses returns whether the proposal metadata and vote
-// status require the billing status changes to be retrieved to determine the
-// proposal status. The billing status changes are required only if the
-// proposal is not a RFP and it's vote was approved, otherwise they are not
-// relevant.
-func requiresBillingStatuses(vs ticketvote.VoteStatusT, vm *ticketvote.VoteMetadata) bool {
-	return !isRFP(vm) && vs == ticketvote.VoteStatusApproved
+// statusRequiresBillingStatuses returns whether the proposal status requires
+// the billing status changes to be retrieved. This is necessary when the
+// proposal is in a stage where it's billing status still can change.
+func statusRequiresBillingStatuses(s pi.PropStatusT) bool {
+	if statusIsFinal(s) {
+		// The status is final and cannot be changed
+		// any further, which means billing status
+		// changes are not required.
+		return false
+	}
+
+	switch s {
+	case pi.PropStatusUnvetted, pi.PropStatusVoteAuthorized,
+		pi.PropStatusUnderReview, pi.PropStatusVoteStarted:
+		// No need to fetch billing status changes yet
+		return false
+
+	case pi.PropStatusActive, pi.PropStatusCompleted, pi.PropStatusClosed:
+		// New billing status changes are still possible, we need to fetch the
+		// latest.
+		return true
+
+	default:
+		// Defaulting to true is the conservative default
+		// since it will force the billing status changes
+		// to be retrieved for unhandled cases.
+		return true
+	}
 }
