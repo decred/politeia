@@ -20,10 +20,11 @@ type statusEntry struct {
 
 	// The following fields cache data in order to reduce the number of backend
 	// calls required to determine the proposal status.
-	recordState  backend.StateT
-	recordStatus backend.StatusT
-	voteStatus   ticketvote.VoteStatusT
-	voteMetadata *ticketvote.VoteMetadata
+	recordState          backend.StateT
+	recordStatus         backend.StatusT
+	voteStatus           ticketvote.VoteStatusT
+	voteMetadata         *ticketvote.VoteMetadata
+	billingStatusesCount int // Number of billing status changes
 }
 
 // statusesCacheLimit is the cache's default maximum capacity. Note that it's

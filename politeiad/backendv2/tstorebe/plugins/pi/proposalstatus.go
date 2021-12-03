@@ -30,8 +30,12 @@ func (p *piPlugin) getProposalStatus(token []byte) (pi.PropStatusT, error) {
 		// The following fields are required to determine the proposal status and
 		// will only be populated for certain types of proposals or during certain
 		// stages of the proposal lifecycle.
-		voteMetadata    *ticketvote.VoteMetadata
-		billingStatuses []pi.BillingStatusChange
+		voteMetadata         *ticketvote.VoteMetadata
+		billingStatuses      []pi.BillingStatusChange
+		billingStatusesCount int
+
+		// Declarations to prevent goto errors
+		voteSummary *ticketvote.SummaryReply
 	)
 
 	// Check if the proposal status has been cached
@@ -42,6 +46,7 @@ func (p *piPlugin) getProposalStatus(token []byte) (pi.PropStatusT, error) {
 		recordStatus = e.recordStatus
 		voteStatus = e.voteStatus
 		voteMetadata = e.voteMetadata
+		billingStatusesCount = e.billingStatusesCount
 	}
 
 	// Check if we need to get any additional data
@@ -65,32 +70,43 @@ func (p *piPlugin) getProposalStatus(token []byte) (pi.PropStatusT, error) {
 		// determine the proposal status.
 		recordState = r.RecordMetadata.State
 		recordStatus = r.RecordMetadata.Status
-		voteStatus = ticketvote.VoteStatusInvalid
 
 		// Pull the vote metadata out of the record files
 		voteMetadata, err = voteMetadataDecode(r.Files)
 		if err != nil {
 			return "", err
 		}
+
+		// If the proposal is unvetted, no other data is
+		// required in order to determine the status.
+		if recordState == backend.StateUnvetted {
+			goto determineStatus
+		}
 	}
 
-	// Get the vote summary if required
-	if statusRequiresVoteSummary(propStatus) {
-		vs, err := p.voteSummary(token)
-		if err != nil {
-			return "", err
-		}
-		voteStatus = vs.Status
+	// Get the vote summary
+	voteSummary, err = p.voteSummary(token)
+	if err != nil {
+		return "", err
 	}
+	voteStatus = voteSummary.Status
 
 	// Get the billing statuses if required
-	if statusRequiresBillingStatuses(propStatus) {
+	if statusRequiresBillingStatuses(voteStatus) {
+		// If the maximum allowed number of billing status changes
+		// have already been made for this proposal and those results
+		// have been cached, then we don't need to retrieve anything
+		// else. The proposal status cannot be changed any further.
+		if uint32(billingStatusesCount) >= p.billingStatusChangesMax {
+			return propStatus, nil
+		}
 		billingStatuses, err = p.billingStatusChanges(token)
 		if err != nil {
 			return "", err
 		}
 	}
 
+determineStatus:
 	// Determine the proposal status
 	propStatus, err = proposalStatus(recordState, recordStatus, voteStatus,
 		voteMetadata, billingStatuses)
@@ -100,11 +116,12 @@ func (p *piPlugin) getProposalStatus(token []byte) (pi.PropStatusT, error) {
 
 	// Cache the results
 	p.statuses.set(tokenStr, statusEntry{
-		propStatus:   propStatus,
-		recordState:  recordState,
-		recordStatus: recordStatus,
-		voteStatus:   voteStatus,
-		voteMetadata: voteMetadata,
+		propStatus:           propStatus,
+		recordState:          recordState,
+		recordStatus:         recordStatus,
+		voteStatus:           voteStatus,
+		voteMetadata:         voteMetadata,
+		billingStatusesCount: len(billingStatuses),
 	})
 
 	return propStatus, nil
@@ -157,61 +174,29 @@ func statusRequiresRecord(s pi.PropStatusT) bool {
 	}
 }
 
-// statusRequiresVoteSummary returns whether the proposal status requires the
-// vote summary to be retrieved. This is necessary when the proposal is in
-// a stage where the vote status can still change.
-func statusRequiresVoteSummary(s pi.PropStatusT) bool {
-	if statusIsFinal(s) {
-		// The status is final and cannot be changed
-		// any further, which means the vote summary
-		// is not required.
+// statusRequiresBillingStatuses returns whether the proposal requires the
+// billing status changes to be retrieved. This is necessary when the proposal
+// is in a stage where it's billing status can still change.
+func statusRequiresBillingStatuses(vs ticketvote.VoteStatusT) bool {
+	switch vs {
+	case ticketvote.VoteStatusUnauthorized,
+		ticketvote.VoteStatusAuthorized,
+		ticketvote.VoteStatusStarted,
+		ticketvote.VoteStatusFinished,
+		ticketvote.VoteStatusRejected,
+		ticketvote.VoteStatusIneligible:
+		// These vote statuses cannot have billing status
+		// changes, so there is not need to retrieve them.
 		return false
-	}
 
-	switch s {
-	case pi.PropStatusActive, pi.PropStatusClosed, pi.PropStatusCompleted:
-		// The vote result is known, no need to fetch
-		return false
-
-	case pi.PropStatusUnvetted, pi.PropStatusUnderReview,
-		pi.PropStatusVoteAuthorized, pi.PropStatusVoteStarted:
-		// Vote status changes are possible, we need to fetch the latest
+	case ticketvote.VoteStatusApproved:
+		// Approved proposals can have billing status
+		// changes. Retrieve them.
 		return true
 
 	default:
-		// Defaulting to true is the conservative default
-		// since it will force the vote summary to be retrieved
-		// for unhandled cases.
-		return true
-	}
-}
-
-// statusRequiresBillingStatuses returns whether the proposal status requires
-// the billing status changes to be retrieved. This is necessary when the
-// proposal is in a stage where it's billing status still can change.
-func statusRequiresBillingStatuses(s pi.PropStatusT) bool {
-	if statusIsFinal(s) {
-		// The status is final and cannot be changed
-		// any further, which means billing status
-		// changes are not required.
-		return false
-	}
-
-	switch s {
-	case pi.PropStatusUnvetted, pi.PropStatusVoteAuthorized,
-		pi.PropStatusUnderReview, pi.PropStatusVoteStarted:
-		// No need to fetch billing status changes yet
-		return false
-
-	case pi.PropStatusActive, pi.PropStatusCompleted, pi.PropStatusClosed:
-		// New billing status changes are still possible, we need to fetch the
-		// latest.
-		return true
-
-	default:
-		// Defaulting to true is the conservative default
-		// since it will force the billing status changes
-		// to be retrieved for unhandled cases.
+		// Force the billing statuses to be retrieved for any
+		// unhandled cases.
 		return true
 	}
 }
