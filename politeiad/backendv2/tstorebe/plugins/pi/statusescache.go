@@ -35,9 +35,9 @@ var statusesCacheLimit = 1000
 // the proposal status at runtime such as record metadata, vote metadata, the
 // vote status and the proposal billing status changes. The cache is necessary
 // to improve the performance of determining a status of a proposal at runtime
-// and to reduce the number of expensive backend calls that result in the tlog
+// by reducing the number of expensive backend calls that result in the tlog
 // tree be retrieved, which gets very expensive when a tree contains tens of
-// thousands of ticket vote leaves. This can be helpful when the cached data is
+// thousands of ticket vote leaves. This is helpful when the cached data is
 // not expected to change, which means that once we store the data in cache we
 // don't need to fetch it again. The cache entries are lazy loaded.
 //
