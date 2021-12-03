@@ -73,10 +73,15 @@ func (s *proposalStatuses) set(token string, entry statusEntry) {
 
 	// If an entry associated with the proposal already exists in cache
 	// overwrite the proposal status.
-	if s.data[token] != nil {
+	if e, ok := s.data[token]; ok {
+		if e.propStatus == entry.propStatus {
+			// Entry exists, but has not changed. No
+			// need to overwrite the existing entry.
+			return
+		}
 		s.data[token] = &entry
-		log.Debugf("proposalStatuses: entry for proposal %v was overwritten",
-			token)
+		log.Debugf("proposalStatuses: updated entry %v from %v to %v",
+			token, e.propStatus, entry.propStatus)
 		return
 	}
 
@@ -86,11 +91,12 @@ func (s *proposalStatuses) set(token string, entry statusEntry) {
 		t := s.entries.Remove(s.entries.Back()).(string)
 		// Remove oldest status from map.
 		delete(s.data, t)
-		log.Debugf("proposalStatuses: entry for proposal %v was removed", t)
+		log.Debugf("proposalStatuses: removed entry %v", t)
 	}
 
 	// Store new status.
 	s.entries.PushFront(token)
 	s.data[token] = &entry
-	log.Debugf("proposalStatuses: entry for proposal %v was added", token)
+	log.Debugf("proposalStatuses: added entry %v with status %v",
+		token, entry.propStatus)
 }
