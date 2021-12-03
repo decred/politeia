@@ -92,7 +92,7 @@ func TestSet(t *testing.T) {
 	}
 	statuses.set(tokenThird, entryThird)
 
-	// Ensure that oldest entry was removed, and that the other two entries
+	// Ensure that the oldest entry was removed, and that the other two entries
 	// exist is cache.
 	var e *statusEntry
 	if e = statuses.get(tokenThird); e == nil {
@@ -123,7 +123,7 @@ func TestSet(t *testing.T) {
 	entryThird.propStatus = pi.PropStatusActive
 	statuses.set(tokenThird, entryThird)
 
-	// Ensure new entry was stored in cache successfully
+	// Ensure that the new entry was stored in cache successfully
 	e = statuses.data[tokenThird]
 	if e.propStatus != pi.PropStatusActive {
 		t.Errorf("unexpected proposal status: want %v, got %v",
