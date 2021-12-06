@@ -152,6 +152,7 @@ type PolicyReply struct {
 	VoteChangesMax     uint32 `json:"votechangesmax"`
 	CountPageSize      uint32 `json:"countpagesize"`
 	TimestampsPageSize uint32 `json:"timestampspagesize"`
+	VotesPageSize      uint32 `json:"votespagesize"`
 }
 
 // RecordStateT represents the state of a record.
@@ -366,10 +367,20 @@ type CommentsReply struct {
 	Comments []Comment `json:"comments"`
 }
 
-// Votes returns the comment votes that meet the provided filtering criteria.
+const (
+	// VotesPageSize is the maximum number of comment votes
+	// that can be requests at any one time.
+	VotesPageSize uint32 = 100
+)
+
+// Votes retrieves the record's comment votes that meet the provided filtering
+// criteria. If no filtering criteria is provided then it rerieves all comment
+// votes. This command is paginated and if no page is provided, then the first
+// page is returned.
 type Votes struct {
 	Token  string `json:"token"`
-	UserID string `json:"userid"`
+	UserID string `json:"userid,omitempty"`
+	Page   uint32 `json:"page,omitempty"`
 }
 
 // VotesReply is the reply to the Votes command.
@@ -393,12 +404,12 @@ type Proof struct {
 // Timestamp contains all of the data required to verify that a piece of data
 // was timestamped onto the decred blockchain.
 //
-// All digests are hex encoded SHA256 digests. The merkle root can be found in
-// the OP_RETURN of the specified DCR transaction.
+// All digests are hex encoded SHA256 digests. The merkle root can be found
+// in the OP_RETURN of the specified DCR transaction.
 //
-// TxID, MerkleRoot, and Proofs will only be populated once the merkle root has
-// been included in a DCR tx and the tx has 6 confirmations. The Data field
-// will not be populated if the data has been censored.
+// TxID, MerkleRoot, and Proofs will only be populated once the merkle root
+// has been included in a DCR tx and the tx has 6 confirmations. The Data
+// field will not be populated if the data has been censored.
 type Timestamp struct {
 	Data       string  `json:"data"` // JSON encoded
 	Digest     string  `json:"digest"`

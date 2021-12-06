@@ -463,9 +463,19 @@ type CountReply struct {
 	Count uint32 `json:"count"`
 }
 
-// Votes retrieves the comment votes that meet the provided filtering criteria.
+const (
+	// VotesPageSize is the maximum number of comment votes
+	// that can be requests at any one time.
+	VotesPageSize uint32 = 100
+)
+
+// Votes retrieves the record's comment votes that meet the provided filtering
+// criteria. If no filtering criteria is provided then it rerieves all comment
+// votes. This command is paginated and if no page is provided, then the first
+// page is returned.
 type Votes struct {
-	UserID string `json:"userid"`
+	UserID string `json:"userid,omitemty"`
+	Page   uint32 `json:"page,omitemty"`
 }
 
 // VotesReply is the reply to the Votes command.

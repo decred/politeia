@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"time"
@@ -1170,6 +1171,15 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 	if err != nil {
 		return "", err
 	}
+	filterByUserID := v.UserID != ""
+
+	// Default to first page if page is not provided
+	var page uint32
+	if v.Page != 0 {
+		page = v.Page
+	} else {
+		page = 1
+	}
 
 	// Get record state
 	state, err := p.tstore.RecordState(token)
@@ -1183,14 +1193,23 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 		return "", err
 	}
 
-	// Compile the comment vote digests for all votes that were cast
-	// by the specified user.
-	digests := make([][]byte, 0, 256)
+	// Compile the comment vote digests
+	var digests [][]byte
 	for _, cidx := range ridx.Comments {
-		voteIdxs, ok := cidx.Votes[v.UserID]
-		if !ok {
-			// User has not cast any votes for this comment
-			continue
+		var voteIdxs []voteIndex
+		if !filterByUserID {
+			// If no user ID filter is applied, collect all comment votes
+			for _, idxs := range cidx.Votes {
+				voteIdxs = append(voteIdxs, idxs...)
+			}
+		} else {
+			// If user ID filter is applied, collect only user's comment votes.
+			var ok bool
+			voteIdxs, ok = cidx.Votes[v.UserID]
+			if !ok {
+				// User has not cast any votes for this comment
+				continue
+			}
 		}
 
 		// User has cast votes on this comment
@@ -1199,13 +1218,36 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 		}
 	}
 
+	// If requested page exceeds the number of available pages, reutrn
+	// emptry reply.
+	pageSize := comments.VotesPageSize
+	if len(digests) < int((page-1)*pageSize) {
+		votesReply([]comments.CommentVote{})
+	}
+
 	// Lookup votes
 	votes, err := p.commentVotes(token, digests)
 	if err != nil {
 		return "", fmt.Errorf("commentVotes: %v", err)
 	}
 
+	// Sort comment votes by timestamp from newest to oldest.
+	sort.SliceStable(votes, func(i, j int) bool {
+		return votes[i].Timestamp > votes[j].Timestamp
+	})
+
+	// Page's last index, consider edge case when page is not full
+	pageLastIndex := int(math.Min(float64(page*pageSize),
+		float64(len(votes))))
+	votes = votes[(page-1)*pageSize : pageLastIndex]
+
 	// Prepare reply
+	return votesReply(votes)
+}
+
+// votesReply prepares the reply for the comment votes command, then it returns
+// it encoded as json.
+func votesReply(votes []comments.CommentVote) (string, error) {
 	vr := comments.VotesReply{
 		Votes: votes,
 	}
