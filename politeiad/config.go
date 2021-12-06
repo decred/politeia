@@ -36,9 +36,14 @@ const (
 
 	defaultMainnetPort = "49374"
 	defaultTestnetPort = "59374"
+	defaultSimnetPort = "59374"
+
+	defaultHTTPProtocol = "http://"
+	defaultHTTPSProtocol = "https://"
 
 	defaultMainnetDcrdata = "dcrdata.decred.org:443"
 	defaultTestnetDcrdata = "testnet.decred.org:443"
+	defaultSimnetDcrdata = "localhost:17779"
 
 	// Backend options
 	backendGit     = "git"
@@ -421,6 +426,7 @@ func loadConfig() (*config, []string, error) {
 		numNets++
 		// Also disable dns seeding on the simulation test network.
 		activeNetParams = &simNetParams
+		port = defaultSimnetPort
 	}
 	if numNets > 1 {
 		str := "%s: The testnet and simnet params can't be " +
@@ -490,17 +496,21 @@ func loadConfig() (*config, []string, error) {
 	// Add default port to all listener addresses if needed and remove
 	// duplicate addresses.
 	cfg.Listeners = normalizeAddresses(cfg.Listeners, port)
+	protocol := defaultHTTPSProtocol
 
 	if len(cfg.DcrdataHost) == 0 {
 		if cfg.TestNet {
 			cfg.DcrdataHost = defaultTestnetDcrdata
+		} else if cfg.SimNet{
+			cfg.DcrdataHost = defaultSimnetDcrdata
+			protocol = defaultHTTPProtocol
 		} else {
 			cfg.DcrdataHost = defaultMainnetDcrdata
 		}
 	}
-	cfg.DcrdataHost = "https://" + cfg.DcrdataHost
+	cfg.DcrdataHost = protocol + cfg.DcrdataHost
 
-	if cfg.TestNet {
+	if cfg.TestNet || cfg.SimNet {
 		var timeHost string
 		if len(cfg.DcrtimeHost) == 0 {
 			timeHost = v1.DefaultTestnetTimeHost

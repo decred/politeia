@@ -255,6 +255,9 @@ func New(settings []backend.PluginSetting, activeNetParams *chaincfg.Params) (*d
 	case chaincfg.TestNet3Params().Name:
 		hostHTTP = dcrdata.SettingHostHTTPTestNet
 		hostWS = dcrdata.SettingHostWSTestNet
+	case chaincfg.SimNetParams().Name:
+		hostHTTP = dcrdata.SettingHostHTTPSimNet
+		hostWS = dcrdata.SettingHostWSSimNet
 	default:
 		return nil, fmt.Errorf("unknown active net: %v", activeNetParams.Name)
 	}

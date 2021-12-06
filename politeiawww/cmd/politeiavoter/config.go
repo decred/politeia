@@ -34,6 +34,7 @@ const (
 
 	defaultWalletMainnetPort = "9111"
 	defaultWalletTestnetPort = "19111"
+	defaultWalletSimnetPort = "19558"
 
 	walletCertFile = "rpc.cert"
 	clientCertFile = "client.pem"

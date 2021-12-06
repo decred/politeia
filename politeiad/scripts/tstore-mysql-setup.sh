@@ -32,6 +32,7 @@ trillian="trillian"
 
 # Database names
 testnet_kv="testnet3_kv"
+simnet_kv="simnet_kv"
 mainnet_kv="mainnet_kv"
 
 # Setup database users
@@ -46,8 +47,11 @@ mysql ${flags} -e \
 # Setup kv databases. The trillian script creates the trillian databases.
 mysql ${flags} -e "CREATE DATABASE IF NOT EXISTS ${testnet_kv};"
 mysql ${flags} -e "CREATE DATABASE IF NOT EXISTS ${mainnet_kv};"
+mysql ${flags} -e "CREATE DATABASE IF NOT EXISTS ${simnet_kv};"
 
 mysql ${flags} -e \
   "GRANT ALL ON ${testnet_kv}.* TO '${politeiad}'@'${MYSQL_USER_HOST}'"
+mysql ${flags} -e \
+  "GRANT ALL ON ${simnet_kv}.* TO '${politeiad}'@'${MYSQL_USER_HOST}'"
 mysql ${flags} -e \
   "GRANT ALL ON ${mainnet_kv}.* TO '${politeiad}'@'${MYSQL_USER_HOST}'"

@@ -33,7 +33,7 @@ var MainNetParams = ChainParams{
 
 var TestNet3Params = ChainParams{
 	Params:              chaincfg.TestNet3Params(),
-	WalletRPCServerPort: "19111",
+	WalletRPCServerPort: "19558",
 }
 
 // simNetParams contains parameters specific to the simulation test network
