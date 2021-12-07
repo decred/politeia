@@ -862,6 +862,7 @@ func (p *piv) _vote(token, voteID string) error {
 		return fmt.Errorf("proposal vote is not active: %v", vs.Status)
 	}
 	bestBlock := vs.BestBlock
+
 	// Get server public key by calling version request.
 	v, err := p.getVersion()
 	if err != nil {
@@ -889,6 +890,7 @@ func (p *piv) _vote(token, voteID string) error {
 	if !found {
 		return fmt.Errorf("vote id not found: %v", voteID)
 	}
+
 	// Find eligble tickets
 	tix, err := convertTicketHashes(dr.Vote.EligibleTickets)
 	if err != nil {
@@ -906,6 +908,7 @@ func (p *piv) _vote(token, voteID string) error {
 	if len(ctres.TicketAddresses) == 0 {
 		return fmt.Errorf("no eligible tickets found")
 	}
+
 	// voteResults a list of the votes that have already been cast. We use these
 	// to filter out the tickets that have already voted.
 	rr, err := p.voteResults(token, v.PubKey)
@@ -933,6 +936,7 @@ func (p *piv) _vote(token, voteID string) error {
 		eligible[i], eligible[j] = eligible[j], eligible[i]
 	}
 	ctres.TicketAddresses = eligible
+
 	// Sign all tickets
 	sm := &pb.SignMessagesRequest{
 		Passphrase: passphrase,
@@ -954,7 +958,6 @@ func (p *piv) _vote(token, voteID string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("\n\n>>>> HASHES", smr.Replies)
 
 	// Make sure all signatures worked
 	for k, v := range smr.Replies {
@@ -979,6 +982,7 @@ func (p *piv) _vote(token, voteID string) error {
 				(time.Duration(blocksLeft) -
 					time.Duration(p.cfg.HoursPrior*p.cfg.blocksPerHour))
 		}
+
 		return p.alarmTrickler(token, voteBit, ctres, smr)
 	}
 
@@ -1689,7 +1693,6 @@ func _main() error {
 		// block height to validate GPRC creds.
 		ar, err := c.wallet.Accounts(c.ctx, &pb.AccountsRequest{})
 		if err != nil {
-			fmt.Println("DEU ERRO")
 			return err
 		}
 		log.Debugf("Current wallet height: %v", ar.CurrentBlockHeight)

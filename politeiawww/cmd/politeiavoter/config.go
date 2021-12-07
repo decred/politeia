@@ -74,6 +74,7 @@ type config struct {
 	ConfigFile       string `short:"C" long:"configfile" description:"Path to configuration file"`
 	LogDir           string `long:"logdir" description:"Directory to log output."`
 	TestNet          bool   `long:"testnet" description:"Use the test network"`
+	SimNet           bool   `long:"simnet" description:"Use the simulation network"`
 	PoliteiaWWW      string `long:"politeiawww" description:"Politeia WWW host"`
 	Profile          string `long:"profile" description:"Enable HTTP profiling on given port -- NOTE port must be between 1024 and 65536"`
 	DebugLevel       string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
@@ -409,6 +410,8 @@ func loadConfig() (*config, []string, error) {
 	activeNetParams = &mainNetParams
 	if cfg.TestNet {
 		activeNetParams = &testNet3Params
+	} else if cfg.SimNet {
+		activeNetParams = &simNetParams
 	}
 
 	// Calculate blocks per day
@@ -427,6 +430,9 @@ func loadConfig() (*config, []string, error) {
 		if activeNetParams.Name == "mainnet" {
 			cfg.WalletHost = defaultWalletHost + ":" +
 				defaultWalletMainnetPort
+		} else if activeNetParams.Name == "simnet" {
+			cfg.WalletHost = defaultWalletHost + ":" +
+				defaultWalletSimnetPort
 		} else {
 			cfg.WalletHost = defaultWalletHost + ":" +
 				defaultWalletTestnetPort
