@@ -73,7 +73,7 @@ var (
 
 	// Application options
 	testnet         = flag.Bool("testnet", false, "")
-	simnet					= flag.Bool("simnet", false, "")
+	simnet          = flag.Bool("simnet", false, "")
 	dataDir         = flag.String("datadir", defaultDataDir, "")
 	cockroachdbhost = flag.String("cockroachdbhost", defaultCockroachDBHost, "")
 	mysqlhost       = flag.String("mysqlhost", defaultMySQLHost, "")

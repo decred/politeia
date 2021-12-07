@@ -388,7 +388,6 @@ func (c *Client) PluginInventory(ctx context.Context) ([]pdv2.Plugin, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	err = util.VerifyChallenge(c.pid, challenge, pir.Response)
 	if err != nil {
 		return nil, err

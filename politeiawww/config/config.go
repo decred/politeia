@@ -87,7 +87,7 @@ const (
 	defaultRPCHost          = "localhost"
 	defaultRPCMainnetPort   = "49374"
 	defaultRPCTestnetPort   = "59374"
-	defaultRPCSimnetPort		= "59374"
+	defaultRPCSimnetPort    = "59374"
 	defaultRPCCertFilename  = "rpc.cert"
 	defaultIdentityFilename = "identity.json"
 	allowInteractive        = "i-know-this-is-a-bad-idea"
