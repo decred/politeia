@@ -327,8 +327,8 @@ func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply
 	} else {
 		// If user ID filter is not applied, we need to collect all
 		// the user IDs from comment vote structs.
+		uids = make(map[string]uuid.UUID, len(votes))
 		for _, vote := range votes {
-			uids = make(map[string]uuid.UUID, len(votes))
 			if _, ok := uids[vote.UserID]; ok {
 				// If user uuid already known, skip
 				continue
