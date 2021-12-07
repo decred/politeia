@@ -72,7 +72,7 @@ func (c *cmdCommentVotes) Execute(args []string) error {
 const commentVotesHelpMsg = `commentvotes "token"
 
 Get paginated comment up/downvotes of a proposal. The --userid flag can be 
-used to retrieve the votes of a specific userid. The --page flag can be used 
+used to retrieve the votes of a specific user. The --page flag can be used 
 to retrieve a specific page, if no page is provided then the first page is 
 returned.
 
