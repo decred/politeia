@@ -26,17 +26,11 @@ const (
 )
 
 func (p *Politeiawww) dcrdataHostHTTP() string {
-	if p.cfg.SimNet {
-		return fmt.Sprintf("http://%v/api", p.cfg.DcrdataHost)
-	}
-	return fmt.Sprintf("https://%v/api", p.cfg.DcrdataHost)
+	return fmt.Sprintf("%v%v/api", p.cfg.DcrdataHTTPProto, p.cfg.DcrdataHost)
 }
 
 func (p *Politeiawww) dcrdataHostWS() string {
-	if p.cfg.SimNet {
-		return fmt.Sprintf("ws://%v/ps", p.cfg.DcrdataHost)
-	}
-	return fmt.Sprintf("wss://%v/ps", p.cfg.DcrdataHost)
+	return fmt.Sprintf("%v%v/ps", p.cfg.DcrdataWSProto, p.cfg.DcrdataHost)
 }
 
 // BETransaction is an object representing a transaction; it's

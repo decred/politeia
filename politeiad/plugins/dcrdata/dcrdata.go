@@ -39,7 +39,7 @@ const (
 	SettingHostHTTPTestNet = "https://testnet.decred.org"
 
 	// SettingHostHTTPSimNet is the default dcrdata testnet http host.
-	SettingHostHTTPSimNet = "http://localhost:17779"
+	SettingHostHTTPSimNet = "https://localhost:17779"
 
 	// SettingHostWSMainNet is the default dcrdata mainnet websocket
 	// host.
@@ -51,7 +51,7 @@ const (
 
 	// SettingHostWSTestNet is the default dcrdata testnet websocket
 	// host.
-	SettingHostWSSimNet = "ws://localhost:17779/ps"
+	SettingHostWSSimNet = "wss://localhost:17779/ps"
 )
 
 // StatusT represents a dcrdata connection status. Some commands will returned

@@ -218,6 +218,8 @@ func Load() (*Config, []string, error) {
 			VoteDurationMin:          defaultVoteDurationMin,
 			VoteDurationMax:          defaultVoteDurationMax,
 			MailRateLimit:            defaultMailRateLimit,
+			DcrdataHTTPProto:         defaultDcrdataHTTPProto,
+			DcrdataWSProto:           defaultDcrdataWSProto,
 		},
 	}
 

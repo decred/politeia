@@ -24,8 +24,10 @@ const (
 	PiWWWMode  = "piwww"
 	CMSWWWMode = "cmswww"
 
-	defaultDcrdataMainnet = "dcrdata.decred.org:443"
-	defaultDcrdataTestnet = "testnet.decred.org:443"
+	defaultDcrdataMainnet   = "dcrdata.decred.org:443"
+	defaultDcrdataTestnet   = "testnet.decred.org:443"
+	defaultDcrdataHTTPProto = "https://"
+	defaultDcrdataWSProto   = "wss://"
 
 	defaultPaywallMinConfirmations = uint64(2)
 	defaultPaywallAmount           = uint64(0)
@@ -76,8 +78,10 @@ type LegacyConfig struct {
 	WebServerAddress string `long:"webserveraddress" description:"Web server address used to create email links (format: <scheme>://<host>[:<port>])"`
 
 	// Legacy API settings
-	Mode        string `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
-	DcrdataHost string `long:"dcrdatahost" description:"Dcrdata ip:port"`
+	Mode             string `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
+	DcrdataHost      string `long:"dcrdatahost" description:"Dcrdata ip:port"`
+	DcrdataHTTPProto string `long:"dcrdatahttpproto" description:"Dcrdata HTTP protocol: http or https (format: <protocol>://)"`
+	DcrdataWSProto string `long:"dcrdatawsproto" description:"Dcrdata WS protocol: ws or wss (format: <protocol>://)"`
 
 	// Legacy pi settings
 	PaywallAmount            uint64 `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register or submit a proposal."`
