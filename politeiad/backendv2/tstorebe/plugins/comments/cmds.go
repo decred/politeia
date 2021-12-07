@@ -1219,7 +1219,7 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 	}
 
 	// If requested page exceeds the number of available pages, reutrn
-	// emptry reply.
+	// an emptry reply.
 	pageSize := comments.VotesPageSize
 	if len(digests) < int((page-1)*pageSize) {
 		return votesReply([]comments.CommentVote{})
