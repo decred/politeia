@@ -337,7 +337,7 @@ func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply
 			if err != nil {
 				return nil, err
 			}
-			uids[v.UserID] = uid
+			uids[vote.UserID] = uid
 		}
 	}
 	// Map string user ID to the user name - map[userid]username
