@@ -28,7 +28,7 @@ func (p *Politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		Route:        v1.PoliteiaWWWAPIRoute,
 		BuildVersion: version.BuildMainVersion(),
 		PubKey:       hex.EncodeToString(p.cfg.Identity.Key[:]),
-		TestNet:      p.cfg.TestNet,
+		TestNet:      p.cfg.TestNet || p.cfg.SimNet,
 		Mode:         p.cfg.Mode,
 	}
 

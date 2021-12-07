@@ -41,6 +41,10 @@ const (
 	// DefaultTestnetPort is the default port that the HTTPS server will be
 	// listening on when politeiawww is configured to use the DCR testnet.
 	DefaultTestnetPort = "4443"
+
+	// DefaultSimnetPort is the default port that the HTTPS server will be
+	// listening on when politeiawww is configured to use the DCR simnet.
+	DefaultSimnetPort = "4443"
 )
 
 // The following defaults are exported so that they can be used by external
@@ -83,6 +87,7 @@ const (
 	defaultRPCHost          = "localhost"
 	defaultRPCMainnetPort   = "49374"
 	defaultRPCTestnetPort   = "59374"
+	defaultRPCSimnetPort		= "59374"
 	defaultRPCCertFilename  = "rpc.cert"
 	defaultIdentityFilename = "identity.json"
 	allowInteractive        = "i-know-this-is-a-bad-idea"
@@ -117,6 +122,7 @@ type Config struct {
 	DataDir     string `short:"b" long:"datadir" description:"Directory to store data"`
 	LogDir      string `long:"logdir" description:"Directory to log output."`
 	TestNet     bool   `long:"testnet" description:"Use the test network"`
+	SimNet      bool   `long:"simnet" description:"Use the simulation network"`
 	DebugLevel  string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
 
 	// HTTP server settings
@@ -340,6 +346,8 @@ func Load() (*Config, []string, error) {
 	cfg.ActiveNet = &MainNetParams
 	if cfg.TestNet {
 		cfg.ActiveNet = &TestNet3Params
+	} else if cfg.SimNet {
+		cfg.ActiveNet = &SimNetParams
 	}
 
 	// Append the network type to the data and log directories
@@ -425,6 +433,9 @@ func setupHTTPServerSettings(cfg *Config) error {
 	if cfg.TestNet {
 		port = DefaultTestnetPort
 	}
+	if cfg.SimNet {
+		port = DefaultSimnetPort
+	}
 	if len(cfg.Listeners) == 0 {
 		cfg.Listeners = []string{
 			net.JoinHostPort("", port),
@@ -459,6 +470,8 @@ func setupRPCSettings(cfg *Config) error {
 	port := defaultRPCMainnetPort
 	if cfg.TestNet {
 		port = defaultRPCTestnetPort
+	} else if cfg.SimNet {
+		port = defaultRPCSimnetPort
 	}
 	cfg.RPCHost = util.NormalizeAddress(cfg.RPCHost, port)
 	u, err := url.Parse("https://" + cfg.RPCHost)

@@ -16,7 +16,7 @@ type ChainParams struct {
 	WalletRPCServerPort string
 }
 
-// mainNetParams contains parameters specific to the main network
+// MainNetParams contains parameters specific to the main network
 // (wire.MainNet).  NOTE: The RPC port is intentionally different than the
 // reference implementation because dcrd does not handle wallet requests.  The
 // separate wallet process listens on the well-known port and forwards requests
@@ -27,16 +27,15 @@ var MainNetParams = ChainParams{
 	WalletRPCServerPort: "9111",
 }
 
-// testNet3Params contains parameters specific to the test network (version 0)
+// TestNet3Params contains parameters specific to the test network (version 0)
 // (wire.TestNet).  NOTE: The RPC port is intentionally different than the
 // reference implementation - see the mainNetParams comment for details.
-
 var TestNet3Params = ChainParams{
 	Params:              chaincfg.TestNet3Params(),
-	WalletRPCServerPort: "19558",
+	WalletRPCServerPort: "19111",
 }
 
-// simNetParams contains parameters specific to the simulation test network
+// SimNetParams contains parameters specific to the simulation test network
 // (wire.SimNet).
 var SimNetParams = ChainParams{
 	Params:              chaincfg.SimNetParams(),

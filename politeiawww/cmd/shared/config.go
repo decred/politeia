@@ -28,7 +28,8 @@ const (
 	defaultHost              = "https://127.0.0.1:4443"
 	defaultFaucetHost        = "https://faucet.decred.org/requestfaucet"
 	defaultWalletHost        = "127.0.0.1"
-	defaultWalletTestnetPort = "19558"
+	defaultWalletTestnetPort = "19111"
+	defaultWalletSimnetPort  = "19558"
 
 	userFile       = "user.txt"
 	csrfFile       = "csrf.txt"

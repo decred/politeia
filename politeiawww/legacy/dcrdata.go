@@ -26,10 +26,16 @@ const (
 )
 
 func (p *Politeiawww) dcrdataHostHTTP() string {
+	if p.cfg.SimNet {
+		return fmt.Sprintf("http://%v/api", p.cfg.DcrdataHost)
+	}
 	return fmt.Sprintf("https://%v/api", p.cfg.DcrdataHost)
 }
 
 func (p *Politeiawww) dcrdataHostWS() string {
+	if p.cfg.SimNet {
+		return fmt.Sprintf("ws://%v/ps", p.cfg.DcrdataHost)
+	}
 	return fmt.Sprintf("wss://%v/ps", p.cfg.DcrdataHost)
 }
 
