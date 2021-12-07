@@ -81,7 +81,7 @@ type LegacyConfig struct {
 	Mode             string `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
 	DcrdataHost      string `long:"dcrdatahost" description:"Dcrdata ip:port"`
 	DcrdataHTTPProto string `long:"dcrdatahttpproto" description:"Dcrdata HTTP protocol: http or https (format: <protocol>://)"`
-	DcrdataWSProto string `long:"dcrdatawsproto" description:"Dcrdata WS protocol: ws or wss (format: <protocol>://)"`
+	DcrdataWSProto   string `long:"dcrdatawsproto" description:"Dcrdata WS protocol: ws or wss (format: <protocol>://)"`
 
 	// Legacy pi settings
 	PaywallAmount            uint64 `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register or submit a proposal."`
