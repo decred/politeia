@@ -31,6 +31,7 @@ fi
 
 # Database names
 readonly DB_MAINNET="users_mainnet"
+readonly DB_SIMNET="users_testnet3"
 readonly DB_TESTNET="users_testnet3"
 
 # Database usernames
@@ -40,6 +41,10 @@ readonly USER_POLITEIAWWW="politeiawww"
 cockroach sql \
   --certs-dir="${ROOT_CERTS_DIR}" \
   --execute "CREATE DATABASE IF NOT EXISTS ${DB_MAINNET}"
+
+cockroach sql \
+  --certs-dir="${ROOT_CERTS_DIR}" \
+  --execute "CREATE DATABASE IF NOT EXISTS ${DB_SIMNET}"
 
 cockroach sql \
   --certs-dir="${ROOT_CERTS_DIR}" \
@@ -54,6 +59,11 @@ cockroach sql \
   --certs-dir="${ROOT_CERTS_DIR}" \
   --execute "GRANT CREATE, SELECT, DROP, INSERT, DELETE, UPDATE \
   ON DATABASE ${DB_MAINNET} TO  ${USER_POLITEIAWWW}"
+
+cockroach sql \
+  --certs-dir="${ROOT_CERTS_DIR}" \
+  --execute "GRANT CREATE, SELECT, DROP, INSERT, DELETE, UPDATE \
+  ON DATABASE ${DB_SIMNET} TO  ${USER_POLITEIAWWW}"
 
 cockroach sql \
   --certs-dir="${ROOT_CERTS_DIR}" \

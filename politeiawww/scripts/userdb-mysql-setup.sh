@@ -29,6 +29,7 @@ flags="-u "${MYSQL_ROOT_USER}" -p"${MYSQL_ROOT_PASSWORD}" --verbose \
 # Database names.
 DB_MAINNET="users_mainnet"
 DB_TESTNET="users_testnet3"
+DB_SIMNET="users_simnet"
 
 # Database usernames.
 USER_POLITEIAWWW="politeiawww"
@@ -38,9 +39,12 @@ mysql ${flags} -e \
   "CREATE USER IF NOT EXISTS '${USER_POLITEIAWWW}'@'${MYSQL_USER_HOST}' \
   IDENTIFIED BY '${MYSQL_POLITEIAWWW_PASSWORD}';"
 
-# Create the mainnet and testnet databases for the politeiawww user data.
+# Create the mainnet, simnet and testnet databases for the politeiawww user data.
 mysql ${flags} -e \
   "CREATE DATABASE IF NOT EXISTS ${DB_MAINNET};"
+
+mysql ${flags} -e \
+  "CREATE DATABASE IF NOT EXISTS ${DB_SIMNET};"
 
 mysql ${flags} -e \
   "CREATE DATABASE IF NOT EXISTS ${DB_TESTNET};"
@@ -48,6 +52,10 @@ mysql ${flags} -e \
 # Grant politeiawww user privileges.
 mysql ${flags} -e \
   "GRANT ALL PRIVILEGES ON ${DB_MAINNET}.* \
+  TO '${USER_POLITEIAWWW}'@'${MYSQL_USER_HOST}';"
+
+mysql ${flags} -e \
+  "GRANT ALL PRIVILEGES ON ${DB_SIMNET}.* \
   TO '${USER_POLITEIAWWW}'@'${MYSQL_USER_HOST}';"
 
 mysql ${flags} -e \

@@ -73,6 +73,7 @@ var (
 
 	// Application options
 	testnet         = flag.Bool("testnet", false, "")
+	simnet					= flag.Bool("simnet", false, "")
 	dataDir         = flag.String("datadir", defaultDataDir, "")
 	cockroachdbhost = flag.String("cockroachdbhost", defaultCockroachDBHost, "")
 	mysqlhost       = flag.String("mysqlhost", defaultMySQLHost, "")
@@ -94,7 +95,7 @@ var (
 	verifyIdentities = flag.Bool("verifyidentities", false, "")
 	resetTotp        = flag.Bool("resettotp", false, "")
 
-	network string // Mainnet or testnet3
+	network string // Mainnet, simnet or testnet3
 	userDB  user.Database
 )
 
@@ -110,6 +111,8 @@ const usageMsg = `politeiawww_dbutil usage:
   Application options
     -testnet
           Use testnet database
+    -simnet
+          Use simnet database
     -datadir string
           politeiawww data directory
           (default osDataDir/politeiawww/data)
@@ -832,6 +835,8 @@ func _main() error {
 
 	if *testnet {
 		network = chaincfg.TestNet3Params().Name
+	} else if *simnet{
+		network = chaincfg.SimNetParams().Name
 	} else {
 		network = chaincfg.MainNetParams().Name
 	}
