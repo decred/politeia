@@ -375,7 +375,7 @@ const (
 
 // Votes retrieves the record's comment votes that meet the provided filtering
 // criteria. If no filtering criteria is provided then it rerieves all comment
-// votes. This command is paginated and if no page is provided, then the first
+// votes. This command is paginated, if no page is provided, then the first
 // page is returned.
 type Votes struct {
 	Token  string `json:"token"`
