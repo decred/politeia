@@ -314,24 +314,30 @@ func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply
 	cv := convertCommentVotes(votes)
 
 	// Populate comment votes with user data
-	var uids []uuid.UUID
+	var uids map[string]uuid.UUID
 	if v.UserID != "" {
 		// If user ID filter is applied, we have only one user
 		// to fetch.
+		uids = make(map[string]uuid.UUID, 1)
 		uid, err := uuid.Parse(v.UserID)
 		if err != nil {
 			return nil, err
 		}
-		uids = append(uids, uid)
+		uids[v.UserID] = uid
 	} else {
 		// If user ID filter is not applied, we need to collect all
 		// the user IDs from comment vote structs.
 		for _, vote := range votes {
+			uids = make(map[string]uuid.UUID, len(votes))
+			if _, ok := uids[vote.UserID]; ok {
+				// If user uuid already known, skip
+				continue
+			}
 			uid, err := uuid.Parse(vote.UserID)
 			if err != nil {
 				return nil, err
 			}
-			uids = append(uids, uid)
+			uids[v.UserID] = uid
 		}
 	}
 	// Map string user ID to the user name - map[userid]username
