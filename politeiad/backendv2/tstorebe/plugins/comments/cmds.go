@@ -1212,7 +1212,7 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 			}
 		}
 
-		// User has cast votes on this comment
+		// Collect digests
 		for _, vidx := range voteIdxs {
 			digests = append(digests, vidx.Digest)
 		}
