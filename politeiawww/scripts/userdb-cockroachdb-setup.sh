@@ -31,7 +31,7 @@ fi
 
 # Database names
 readonly DB_MAINNET="users_mainnet"
-readonly DB_SIMNET="users_testnet3"
+readonly DB_SIMNET="users_simnet"
 readonly DB_TESTNET="users_testnet3"
 
 # Database usernames
