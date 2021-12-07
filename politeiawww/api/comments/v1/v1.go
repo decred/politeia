@@ -367,12 +367,6 @@ type CommentsReply struct {
 	Comments []Comment `json:"comments"`
 }
 
-const (
-	// VotesPageSize is the maximum number of comment votes
-	// that can be requests at any one time.
-	VotesPageSize uint32 = 100
-)
-
 // Votes retrieves the record's comment votes that meet the provided filtering
 // criteria. If no filtering criteria is provided then it rerieves all comment
 // votes. This command is paginated, if no page is provided, then the first

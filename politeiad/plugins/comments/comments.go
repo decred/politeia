@@ -38,6 +38,10 @@ const (
 	// SettingKeyAllowExtraData is the plugin setting key for the
 	// SettingAllowExtraData plugin setting.
 	SettingKeyAllowExtraData = "allowextradata"
+
+	// SettingKeyVotesPageSize is the plugin setting key for the
+	// SettingVotesPageSize plugin setting.
+	SettingKeyVotesPageSize = "votespagesize"
 )
 
 // Plugin setting default values. These can be overridden by providing a plugin
@@ -55,6 +59,10 @@ const (
 	// SettingAllowExtraData is the default value of the bool flag which
 	// determines whether posting extra data along with the comment is allowed.
 	SettingAllowExtraData = false
+
+	// SettingVotesPageSize is the default maximum number of comment votes
+	// that can be requests at any one time.
+	SettingVotesPageSize uint32 = 100
 )
 
 // ErrorCodeT represents a error that was caused by the user.
@@ -462,12 +470,6 @@ type Count struct{}
 type CountReply struct {
 	Count uint32 `json:"count"`
 }
-
-const (
-	// VotesPageSize is the maximum number of comment votes
-	// that can be requests at any one time.
-	VotesPageSize uint32 = 100
-)
 
 // Votes retrieves the record's comment votes that meet the provided filtering
 // criteria. If no filtering criteria is provided then it rerieves all comment
