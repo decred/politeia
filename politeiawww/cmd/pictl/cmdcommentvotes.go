@@ -16,6 +16,7 @@ type cmdCommentVotes struct {
 		Token string `positional-arg-name:"token" required:"true"`
 	} `positional-args:"true"`
 
+	// Filtering options
 	UserID string `long:"userid"`
 	Page   uint32 `long:"page"`
 }
@@ -24,7 +25,7 @@ type cmdCommentVotes struct {
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdCommentVotes) Execute(args []string) error {
-	// Unpack args & flags
+	// Unpack args & filtering options
 	var (
 		token  = c.Args.Token
 		userID = c.UserID
