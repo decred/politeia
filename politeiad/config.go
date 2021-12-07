@@ -36,14 +36,14 @@ const (
 
 	defaultMainnetPort = "49374"
 	defaultTestnetPort = "59374"
-	defaultSimnetPort = "59374"
+	defaultSimnetPort  = "59374"
 
-	defaultHTTPProtocol = "http://"
+	defaultHTTPProtocol  = "http://"
 	defaultHTTPSProtocol = "https://"
 
 	defaultMainnetDcrdata = "dcrdata.decred.org:443"
 	defaultTestnetDcrdata = "testnet.decred.org:443"
-	defaultSimnetDcrdata = "localhost:17779"
+	defaultSimnetDcrdata  = "localhost:17779"
 
 	// Backend options
 	backendGit     = "git"
@@ -501,7 +501,7 @@ func loadConfig() (*config, []string, error) {
 	if len(cfg.DcrdataHost) == 0 {
 		if cfg.TestNet {
 			cfg.DcrdataHost = defaultTestnetDcrdata
-		} else if cfg.SimNet{
+		} else if cfg.SimNet {
 			cfg.DcrdataHost = defaultSimnetDcrdata
 			protocol = defaultHTTPProtocol
 		} else {

@@ -835,7 +835,7 @@ func _main() error {
 
 	if *testnet {
 		network = chaincfg.TestNet3Params().Name
-	} else if *simnet{
+	} else if *simnet {
 		network = chaincfg.SimNetParams().Name
 	} else {
 		network = chaincfg.MainNetParams().Name
