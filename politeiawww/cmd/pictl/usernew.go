@@ -22,7 +22,7 @@ type userNewCmd struct {
 		Password string `positional-arg-name:"password"` // Password
 	} `positional-args:"true"`
 	Random  bool `long:"random" optional:"true"`  // Generate random user credentials
-	Paywall bool `long:"paywall" optional:"true"` // Use faucet to pay paywall (tesnet only)
+	Paywall bool `long:"paywall" optional:"true"` // Use faucet to pay paywall (testnet only)
 	Verify  bool `long:"verify" optional:"true"`  // Verify user email address (testnet only)
 	NoSave  bool `long:"nosave" optional:"true"`  // Don't save user identity to disk
 }
