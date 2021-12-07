@@ -967,22 +967,49 @@ func (p *piv) _vote(token, voteID string) error {
 		return fmt.Errorf("signature failed index %v: %v", k, v.Error)
 	}
 
+	// Trickle in the votes if specified
 	if p.cfg.Trickle {
-		go p.statsHandler()
+		// Setup the trickler vote duration
+		var (
+			// blocksLeft is the total number of blocks left in the voting period.
+			blocksLeft = int64(vs.EndBlockHeight) - int64(bestBlock)
 
-		// Calculate vote duration if not set
-		if p.cfg.voteDuration.Seconds() == 0 {
-			blocksLeft := int64(vs.EndBlockHeight) - int64(bestBlock)
-			if blocksLeft < int64(p.cfg.HoursPrior*p.cfg.blocksPerHour) {
-				return fmt.Errorf("less than twelve hours " +
-					"left to vote, please set " +
-					"--voteduration manually")
+			// blockTime is the avg timer per block on the specified network.
+			blockTime = activeNetParams.TargetTimePerBlock
+
+			// remainingVoteDuration is the total amount of time remaining in the
+			// vote.
+			remainingVoteDuration = time.Duration(blocksLeft) * blockTime
+		)
+		switch {
+		case p.cfg.voteDuration.Seconds() == 0:
+			// A vote duration was not provided. The vote duration is set to
+			// the remaining time in the vote minus the hours prior setting.
+			if p.cfg.hoursPrior > remainingVoteDuration {
+				return fmt.Errorf("the --hoursprior setting (currently set "+
+					"to %v) specifies that all votes should be cast within %v "+
+					"prior to the end of the voting period. The remaining voting "+
+					"period of %v does not allow for this. Adjust --hoursprior "+
+					"to modify this behavior.", *p.cfg.HoursPrior,
+					p.cfg.hoursPrior, remainingVoteDuration)
 			}
-			p.cfg.voteDuration = activeNetParams.TargetTimePerBlock *
-				(time.Duration(blocksLeft) -
-					time.Duration(p.cfg.HoursPrior*p.cfg.blocksPerHour))
+
+			p.cfg.voteDuration = remainingVoteDuration - p.cfg.hoursPrior
+
+		case p.cfg.voteDuration.Seconds() > 0:
+			// A vote duration was provided
+			if p.cfg.voteDuration > remainingVoteDuration {
+				return fmt.Errorf("the provided --voteduration of %v is "+
+					"greater than the remaining time in the vote of %v",
+					p.cfg.voteDuration, remainingVoteDuration)
+			}
+
+		default:
+			// Should not be possible
+			return fmt.Errorf("invalid vote duration %v", p.cfg.voteDuration)
 		}
 
+		// Trickle votes
 		return p.alarmTrickler(token, voteBit, ctres, smr)
 	}
 
