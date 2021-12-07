@@ -1222,7 +1222,7 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 	// emptry reply.
 	pageSize := comments.VotesPageSize
 	if len(digests) < int((page-1)*pageSize) {
-		votesReply([]comments.CommentVote{})
+		return votesReply([]comments.CommentVote{})
 	}
 
 	// Lookup votes

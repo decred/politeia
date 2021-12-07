@@ -5,7 +5,6 @@
 package main
 
 import (
-	"sort"
 	"strings"
 
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
@@ -60,17 +59,11 @@ func printCommentVotes(votes []cmv1.CommentVote) {
 		return
 	}
 	printf("Token   : %v\n", votes[0].Token)
-	printf("UserID  : %v\n", votes[0].UserID)
-	printf("Username: %v\n", votes[0].Username)
 	printf("Votes\n")
 
-	// Order votes by timestamp. Oldest to newest.
-	sort.SliceStable(votes, func(i, j int) bool {
-		return votes[i].Timestamp < votes[j].Timestamp
-	})
-
 	for _, v := range votes {
-		printf("  %-22v comment %v vote %v\n",
-			dateAndTimeFromUnix(v.Timestamp), v.CommentID, v.Vote)
+		printf("  %-22v userid %v username %v comment %v vote %v \n",
+			dateAndTimeFromUnix(v.Timestamp), v.UserID, v.Username, v.CommentID,
+			v.Vote)
 	}
 }

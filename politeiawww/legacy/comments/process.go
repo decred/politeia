@@ -314,15 +314,36 @@ func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply
 	cv := convertCommentVotes(votes)
 
 	// Populate comment votes with user data
-	uid, err := uuid.Parse(v.UserID)
-	if err != nil {
-		return nil, err
+	var uids []uuid.UUID
+	if v.UserID != "" {
+		// If user ID filter is applied, we have only one user
+		// to fetch.
+		uid, err := uuid.Parse(v.UserID)
+		if err != nil {
+			return nil, err
+		}
+		uids = append(uids, uid)
+	} else {
+		// If user ID filter is not applied, we need to collect all
+		// the user IDs from comment vote structs.
+		for _, vote := range votes {
+			uid, err := uuid.Parse(vote.UserID)
+			if err != nil {
+				return nil, err
+			}
+			uids = append(uids, uid)
+		}
 	}
-	u, err := c.userdb.UserGetById(uid)
-	if err != nil {
-		return nil, err
+	// Map string user ID to the user name - map[userid]username
+	usernames := make(map[string]string, len(uids))
+	for _, uid := range uids {
+		u, err := c.userdb.UserGetById(uid)
+		if err != nil {
+			return nil, err
+		}
+		usernames[uid.String()] = u.Username
 	}
-	commentVotePopulateUserData(cv, *u)
+	commentVotePopulateUserData(cv, usernames)
 
 	return &v1.VotesReply{
 		Votes: cv,
@@ -437,11 +458,13 @@ func commentPopulateUserData(c *v1.Comment, u user.User) {
 	c.Username = u.Username
 }
 
-// commentVotePopulateUserData populates the comment vote with user data that
-// is not stored in politeiad.
-func commentVotePopulateUserData(votes []v1.CommentVote, u user.User) {
+// commentVotePopulateUserData populates the comment votes with user data that
+// is not stored in politeiad. It accepts a map with the user IDs as keys
+// mapping to the usernames.
+func commentVotePopulateUserData(votes []v1.CommentVote, usernames map[string]string) {
 	for k := range votes {
-		votes[k].Username = u.Username
+		username := usernames[votes[k].UserID]
+		votes[k].Username = username
 	}
 }
 

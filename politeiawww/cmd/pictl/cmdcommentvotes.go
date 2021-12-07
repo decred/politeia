@@ -13,21 +13,22 @@ import (
 // record.
 type cmdCommentVotes struct {
 	Args struct {
-		Token  string `positional-arg-name:"token" required:"true"`
-		UserID string `positional-arg-name:"userid"`
-		Page   uint32 `positional-arg-name:"page"`
+		Token string `positional-arg-name:"token" required:"true"`
 	} `positional-args:"true"`
+
+	UserID string `long:"userid"`
+	Page   uint32 `long:"page"`
 }
 
 // Execute executes the cmdCommentVotes command.
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdCommentVotes) Execute(args []string) error {
-	// Unpack args
+	// Unpack args & flags
 	var (
 		token  = c.Args.Token
-		userID = c.Args.UserID
-		page   = c.Args.Page
+		userID = c.UserID
+		page   = c.Page
 	)
 
 	// Setup client
