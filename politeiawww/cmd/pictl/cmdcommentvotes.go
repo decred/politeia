@@ -69,14 +69,16 @@ func (c *cmdCommentVotes) Execute(args []string) error {
 }
 
 // commentVotesHelpMsg is printed to stdout by the help command.
-const commentVotesHelpMsg = `commentvotes "token" "userid" "page"
+const commentVotesHelpMsg = `commentvotes "token"
 
-Get comment upvote/downvotes for a proposal. User ID can be used to retrieve 
-the votes of a specific user. If no filter criteria provided the returned 
-votes are paginated. If all votes are requested and no page value is provided 
-then the first page is returned.
+Get paginated comment up/downvotes for a proposal. The --userid flag can be 
+used to retrieve the votes of a specific userid. The --page flag can be used 
+to retrieve a specific page, if no page is provided then the first page is 
+returned.
 
 Arguments:
-1. token   (string, required)  Proposal censorship token
-2. userid  (string, optional)  User ID
-3. page    (uint32, optional)  Requested page`
+1. token  (string, required)  Proposal censorship token
+
+Flags:
+  --userid  (string, optional)  User ID
+  --page    (uint32, optional)  Requested page`
