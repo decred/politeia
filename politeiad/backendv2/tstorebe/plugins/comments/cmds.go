@@ -1218,7 +1218,7 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 		}
 	}
 
-	// If requested page exceeds the number of available pages, reutrn
+	// If requested page exceeds the number of available pages, return
 	// an emptry reply.
 	pageSize := p.votesPageSize
 	if len(digests) < int((page-1)*pageSize) {

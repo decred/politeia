@@ -474,7 +474,8 @@ type CountReply struct {
 // Votes retrieves the record's comment votes that meet the provided filtering
 // criteria. If no filtering criteria is provided then it rerieves all comment
 // votes. This command is paginated, if no page is provided, then the first
-// page is returned.
+// page is returned. If the requested page does not exist an empty page
+// is returned.
 type Votes struct {
 	UserID string `json:"userid,omitemty"`
 	Page   uint32 `json:"page,omitemty"`
