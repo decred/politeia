@@ -23,7 +23,7 @@ func TestSetupVoteDuration(t *testing.T) {
 		wantErr        bool
 	}{
 		{
-			"vote duration exceeds remaining time",
+			"provided vote duration exceeds remaining time",
 			2 * time.Hour,
 			0,
 			1 * time.Hour,
