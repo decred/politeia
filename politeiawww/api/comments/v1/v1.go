@@ -398,8 +398,8 @@ type Proof struct {
 // Timestamp contains all of the data required to verify that a piece of data
 // was timestamped onto the decred blockchain.
 //
-// All digests are hex encoded SHA256 digests. The merkle root can be found
-// in the OP_RETURN of the specified DCR transaction.
+// All digests are hex encoded SHA256 digests. The merkle root can be found in
+// the OP_RETURN of the specified DCR transaction.
 //
 // TxID, MerkleRoot, and Proofs will only be populated once the merkle root
 // has been included in a DCR tx and the tx has 6 confirmations. The Data
