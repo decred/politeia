@@ -367,7 +367,7 @@ func (c *Comments) commentVotesPopulateUserData(votes []v1.CommentVote, userID s
 	}
 
 	// Map user IDs to usernames
-	usernames := make(map[string]string, len(mPubKeys))
+	usernames := make(map[string]string, len(users))
 	for _, u := range users {
 		usernames[u.ID.String()] = u.Username
 	}
