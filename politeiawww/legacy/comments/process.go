@@ -314,46 +314,71 @@ func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply
 	cv := convertCommentVotes(votes)
 
 	// Populate comment votes with user data
-	var uids map[string]uuid.UUID
-	if v.UserID != "" {
-		// If user ID filter is applied, we have only one user
-		// to fetch.
-		uids = make(map[string]uuid.UUID, 1)
-		uid, err := uuid.Parse(v.UserID)
-		if err != nil {
-			return nil, err
-		}
-		uids[v.UserID] = uid
-	} else {
-		// If user ID filter is not applied, we need to collect all
-		// the user IDs from comment vote structs.
-		uids = make(map[string]uuid.UUID, len(votes))
-		for _, vote := range votes {
-			if _, ok := uids[vote.UserID]; ok {
-				// If user uuid already known, skip
-				continue
-			}
-			uid, err := uuid.Parse(vote.UserID)
-			if err != nil {
-				return nil, err
-			}
-			uids[vote.UserID] = uid
-		}
+	err = c.commentVotesPopulateUserData(cv, v.UserID)
+	if err != nil {
+		return nil, err
 	}
-	// Map string user ID to the user name - map[userid]username
-	usernames := make(map[string]string, len(uids))
-	for _, uid := range uids {
-		u, err := c.userdb.UserGetById(uid)
-		if err != nil {
-			return nil, err
-		}
-		usernames[uid.String()] = u.Username
-	}
-	commentVotePopulateUserData(cv, usernames)
 
 	return &v1.VotesReply{
 		Votes: cv,
 	}, nil
+}
+
+// commentVotePopulateUserData populates the comment votes with user data that
+// is not stored in politeiad. If all votes are associated with one user it
+// expects to get the user's ID as a parameter.
+func (c *Comments) commentVotesPopulateUserData(votes []v1.CommentVote, userID string) error {
+	// If given votes slice is emptry, nothing to do
+	if len(votes) == 0 {
+		return nil
+	}
+
+	// Collect the users public keys in a map to prevent duplicates and to
+	// retrieve the users in a batched db call.
+	var mPubKeys map[string]bool // map[pubkey]bool
+	if userID != "" {
+		// If user ID filter is applied, we have only one user
+		// to fetch.
+		mPubKeys = make(map[string]bool, 1)
+		mPubKeys[votes[0].PublicKey] = true
+	} else {
+		// If user ID filter is not applied, we need to collect all
+		// the user public keys from comment votes.
+		mPubKeys = make(map[string]bool, len(votes))
+		for _, vote := range votes {
+			if ok := mPubKeys[vote.UserID]; ok {
+				// If user uuid already known, skip
+				continue
+			}
+			mPubKeys[vote.PublicKey] = true
+		}
+	}
+
+	// Store public keys in a slice
+	pubKeys := make([]string, 0, len(mPubKeys))
+	for pubKey := range mPubKeys {
+		pubKeys = append(pubKeys, pubKey)
+	}
+
+	// Get users from db
+	users, err := c.userdb.UsersGetByPubKey(pubKeys)
+	if err != nil {
+		return err
+	}
+
+	// Map user IDs to usernames
+	usernames := make(map[string]string, len(mPubKeys))
+	for _, u := range users {
+		usernames[u.ID.String()] = u.Username
+	}
+
+	// Populate comment votes with usernames
+	for k := range votes {
+		username := usernames[votes[k].UserID]
+		votes[k].Username = username
+	}
+
+	return nil
 }
 
 func (c *Comments) processTimestamps(ctx context.Context, t v1.Timestamps, isAdmin bool) (*v1.TimestampsReply, error) {
@@ -462,16 +487,6 @@ func (c *Comments) recordNoFiles(ctx context.Context, token string) (*pdv2.Recor
 // stored in politeiad.
 func commentPopulateUserData(c *v1.Comment, u user.User) {
 	c.Username = u.Username
-}
-
-// commentVotePopulateUserData populates the comment votes with user data that
-// is not stored in politeiad. It accepts a map with the user IDs as keys
-// mapping to the usernames.
-func commentVotePopulateUserData(votes []v1.CommentVote, usernames map[string]string) {
-	for k := range votes {
-		username := usernames[votes[k].UserID]
-		votes[k].Username = username
-	}
 }
 
 func convertStateToPlugin(s v1.RecordStateT) comments.RecordStateT {
