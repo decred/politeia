@@ -401,9 +401,9 @@ type Proof struct {
 // All digests are hex encoded SHA256 digests. The merkle root can be found in
 // the OP_RETURN of the specified DCR transaction.
 //
-// TxID, MerkleRoot, and Proofs will only be populated once the merkle root
-// has been included in a DCR tx and the tx has 6 confirmations. The Data
-// field will not be populated if the data has been censored.
+// TxID, MerkleRoot, and Proofs will only be populated once the merkle root has
+// been included in a DCR tx and the tx has 6 confirmations. The Data field
+// will not be populated if the data has been censored.
 type Timestamp struct {
 	Data       string  `json:"data"` // JSON encoded
 	Digest     string  `json:"digest"`
