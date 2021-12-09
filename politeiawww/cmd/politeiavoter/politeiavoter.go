@@ -967,22 +967,20 @@ func (p *piv) _vote(token, voteID string) error {
 		return fmt.Errorf("signature failed index %v: %v", k, v.Error)
 	}
 
+	// Trickle in the votes if specified
 	if p.cfg.Trickle {
-		go p.statsHandler()
-
-		// Calculate vote duration if not set
-		if p.cfg.voteDuration.Seconds() == 0 {
-			blocksLeft := int64(vs.EndBlockHeight) - int64(bestBlock)
-			if blocksLeft < int64(p.cfg.HoursPrior*p.cfg.blocksPerHour) {
-				return fmt.Errorf("less than twelve hours " +
-					"left to vote, please set " +
-					"--voteduration manually")
-			}
-			p.cfg.voteDuration = activeNetParams.TargetTimePerBlock *
-				(time.Duration(blocksLeft) -
-					time.Duration(p.cfg.HoursPrior*p.cfg.blocksPerHour))
+		// Setup the trickler vote duration
+		var (
+			blocksLeft     = int64(vs.EndBlockHeight) - int64(bestBlock)
+			blockTime      = activeNetParams.TargetTimePerBlock
+			timeLeftInVote = time.Duration(blocksLeft) * blockTime
+		)
+		err = p.setupVoteDuration(timeLeftInVote)
+		if err != nil {
+			return err
 		}
 
+		// Trickle votes
 		return p.alarmTrickler(token, voteBit, ctres, smr)
 	}
 
@@ -1021,6 +1019,42 @@ func (p *piv) _vote(token, voteID string) error {
 			err)
 	}
 	p.ballotResults = br.Receipts
+
+	return nil
+}
+
+// setupVoteDuration sets up the duration that will be used for trickling
+// votes. The user can either set a duration manually using the --voteduration
+// setting or this function will calculate a duration. The calculated duration
+// is the remaining time left in the vote minus the --hoursprior setting.
+func (p *piv) setupVoteDuration(timeLeftInVote time.Duration) error {
+	switch {
+	case p.cfg.voteDuration.Seconds() > 0:
+		// A vote duration was provided
+		if p.cfg.voteDuration > timeLeftInVote {
+			return fmt.Errorf("the provided --voteduration of %v is "+
+				"greater than the remaining time in the vote of %v",
+				p.cfg.voteDuration, timeLeftInVote)
+		}
+
+	case p.cfg.voteDuration.Seconds() == 0:
+		// A vote duration was not provided. The vote duration is set to
+		// the remaining time in the vote minus the hours prior setting.
+		p.cfg.voteDuration = timeLeftInVote - p.cfg.hoursPrior
+
+		// Force the user to manually set the vote duration when the
+		// calculated duration is under 24h.
+		if p.cfg.voteDuration < (24 * time.Hour) {
+			return fmt.Errorf("there is only %v left in the vote; when "+
+				"the remaining time is this low you must use --voteduration "+
+				"to manually set the duration that will be used to trickle "+
+				"in your votes, example --voteduration=6h", timeLeftInVote)
+		}
+
+	default:
+		// Should not be possible
+		return fmt.Errorf("invalid vote duration %v", p.cfg.voteDuration)
+	}
 
 	return nil
 }
