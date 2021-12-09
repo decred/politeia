@@ -1212,6 +1212,9 @@ func lineItemTests(t *testing.T) []invoiceFormatTest {
 		proposalTokenMinLength string
 		proposalTokenMaxLength string
 
+		rateTooLow  uint32
+		rateTooHigh uint32
+
 		invoiceMetaData = fileInvoiceMetadata(t, nil)
 		indexBadParse   backend.File
 		indexEmpty      backend.File
@@ -1326,10 +1329,130 @@ func lineItemTests(t *testing.T) []invoiceFormatTest {
 		PluginID:  cms.PluginID,
 		ErrorCode: uint32(cms.ErrorCodeInvoiceDomainInvalid),
 	}
-	// errInvalidDomain is returned when an invalid domain is given
+	// errInvalidSubdomain is returned when an invalid subdomain is given
 	errInvalidSubdomain := backend.PluginError{
 		PluginID:  cms.PluginID,
 		ErrorCode: uint32(cms.ErrorStatusMalformedSubdomain),
+	}
+	// errInvalidDescription is returned when an invalid description is given
+	errInvalidDescription := backend.PluginError{
+		PluginID:  cms.PluginID,
+		ErrorCode: uint32(cms.ErrorStatusMalformedDescription),
+	}
+	// errInvalidPropToken is returned when an invalid proptoken is given
+	errInvalidPropToken := backend.PluginError{
+		PluginID:  cms.PluginID,
+		ErrorCode: uint32(cms.ErrorStatusMalformedProposalToken),
+	}
+	// errInvalidLaborExpense is returned when an hours or expense field is
+	// invalid depending on line item type.
+	errInvalidLaborExpense := backend.PluginError{
+		PluginID:  cms.PluginID,
+		ErrorCode: uint32(cms.ErrorStatusInvalidLaborExpense),
+	}
+	// errInvalidInvoiceRate is returned when an invalid rate is provided.
+	errInvalidInvoiceRate := backend.PluginError{
+		PluginID:  cms.PluginID,
+		ErrorCode: uint32(cms.ErrorStatusInvoiceInvalidRate),
+	}
+	// errInvalidSubUserIDLineItem is returned when an sub user id is provided
+	// in a line item.
+	errInvalidSubUserIDLineItem := backend.PluginError{
+		PluginID:  cms.PluginID,
+		ErrorCode: uint32(cms.ErrorStatusInvalidSubUserIDLineItem),
+	}
+	// errInvalidLineItemType is returned when an sub user id is provided
+	// in a line item.
+	errInvalidLineItemType := backend.PluginError{
+		PluginID:  cms.PluginID,
+		ErrorCode: uint32(cms.ErrorStatusInvalidLineItemType),
+	}
+
+	// Setup files with an empty labor hours. This is done manually
+	// because the function that creates the invoice line items uses
+	// a default value when the rate is provided as an empty string.
+	filesEmptyLabor :=
+		[]backend.File{
+			fileInvoiceIndex(t, &cms.LineItemsInput{
+				Type:  int(cms.LineItemTypeLabor),
+				Labor: 0,
+			}), invoiceMetaData}
+	for k, v := range filesEmptyLabor {
+		if v.Name == cms.FileNameIndexFile {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var pm cms.InvoiceInput
+			err = json.Unmarshal(b, &pm)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pm.LineItems[0].Labor = 0
+			b, err = json.Marshal(pm)
+			if err != nil {
+				t.Fatal(err)
+			}
+			v.Payload = base64.StdEncoding.EncodeToString(b)
+			filesEmptyLabor[k] = v
+		}
+	}
+
+	// Setup files with an empty labor hours. This is done manually
+	// because the function that creates the invoice line items uses
+	// a default value when the rate is provided as an empty string.
+	filesEmptyLaborSubHours :=
+		[]backend.File{
+			fileInvoiceIndex(t, &cms.LineItemsInput{
+				Type:  int(cms.LineItemTypeSubHours),
+				Labor: 0,
+			}), invoiceMetaData}
+	for k, v := range filesEmptyLaborSubHours {
+		if v.Name == cms.FileNameIndexFile {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var pm cms.InvoiceInput
+			err = json.Unmarshal(b, &pm)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pm.LineItems[0].Labor = 0
+			b, err = json.Marshal(pm)
+			if err != nil {
+				t.Fatal(err)
+			}
+			v.Payload = base64.StdEncoding.EncodeToString(b)
+			filesEmptyLaborSubHours[k] = v
+		}
+	}
+
+	rateTooLow = cms.SettingContractorRateMin - 1
+	rateTooHigh = cms.SettingContractorRateMax + 1
+
+	filesInvalidLineItemType :=
+		[]backend.File{
+			fileInvoiceIndex(t, nil), invoiceMetaData}
+	for k, v := range filesInvalidLineItemType {
+		if v.Name == cms.FileNameIndexFile {
+			b, err := base64.StdEncoding.DecodeString(v.Payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var pm cms.InvoiceInput
+			err = json.Unmarshal(b, &pm)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pm.LineItems[0].Type = 9 // invalid line item type
+			b, err = json.Marshal(pm)
+			if err != nil {
+				t.Fatal(err)
+			}
+			v.Payload = base64.StdEncoding.EncodeToString(b)
+			filesInvalidLineItemType[k] = v
+		}
 	}
 
 	return []invoiceFormatTest{
@@ -1413,27 +1536,27 @@ func lineItemTests(t *testing.T) []invoiceFormatTest {
 			"invalid description too short",
 			[]backend.File{
 				fileInvoiceIndex(t, &cms.LineItemsInput{
-					Subdomain: descriptionTooShort,
+					Description: descriptionTooShort,
 				}),
 				invoiceMetaData,
 			},
-			errInvalidSubdomain,
+			errInvalidDescription,
 		},
 		{
 			"invalid description too long",
 			[]backend.File{
 				fileInvoiceIndex(t, &cms.LineItemsInput{
-					Subdomain: descriptionTooLong,
+					Description: descriptionTooLong,
 				}),
 				invoiceMetaData,
 			},
-			errInvalidSubdomain,
+			errInvalidDescription,
 		},
 		{
 			"valid description at min",
 			[]backend.File{
 				fileInvoiceIndex(t, &cms.LineItemsInput{
-					Subdomain: descriptionMinLength,
+					Description: descriptionMinLength,
 				}),
 				invoiceMetaData,
 			},
@@ -1443,7 +1566,7 @@ func lineItemTests(t *testing.T) []invoiceFormatTest {
 			"valid description at max",
 			[]backend.File{
 				fileInvoiceIndex(t, &cms.LineItemsInput{
-					Subdomain: descriptionMaxLength,
+					Description: descriptionMaxLength,
 				}),
 				invoiceMetaData,
 			},
@@ -1453,27 +1576,27 @@ func lineItemTests(t *testing.T) []invoiceFormatTest {
 			"invalid proptoken too short",
 			[]backend.File{
 				fileInvoiceIndex(t, &cms.LineItemsInput{
-					Subdomain: proposalTokenTooShort,
+					ProposalToken: proposalTokenTooShort,
 				}),
 				invoiceMetaData,
 			},
-			errInvalidSubdomain,
+			errInvalidPropToken,
 		},
 		{
 			"invalid proptoken too long",
 			[]backend.File{
 				fileInvoiceIndex(t, &cms.LineItemsInput{
-					Subdomain: proposalTokenTooLong,
+					ProposalToken: proposalTokenTooLong,
 				}),
 				invoiceMetaData,
 			},
-			errInvalidSubdomain,
+			errInvalidPropToken,
 		},
 		{
 			"valid proptoken at min",
 			[]backend.File{
 				fileInvoiceIndex(t, &cms.LineItemsInput{
-					Subdomain: proposalTokenMinLength,
+					ProposalToken: proposalTokenMinLength,
 				}),
 				invoiceMetaData,
 			},
@@ -1483,27 +1606,363 @@ func lineItemTests(t *testing.T) []invoiceFormatTest {
 			"valid proptoken at max",
 			[]backend.File{
 				fileInvoiceIndex(t, &cms.LineItemsInput{
-					Subdomain: proposalTokenMaxLength,
+					ProposalToken: proposalTokenMaxLength,
 				}),
 				invoiceMetaData,
 			},
 			nil,
 		},
-		// ErrorStatusMalformedSubdomain
-		// ErrorStatusMalformedDescription
-		// ErrorStatusMalformedProposalToken
-		// If labor type:
-		//   labor field is zero: ErrorStatusInvalidLaborExpense
-		//   expense field is non-zero: ErrorStatusInvalidLaborExpense
-		//   sub-rate field is non-zero: ErrorStatusInvoiceInvalidRate
-		//   sub-userid field is not empty: ErrorStatusInvalidSubUserIDLineItem
-		// If Expense of Misc:
-		//	 labor field is non-zero: ErrorStatusInvalidLaborExpense
-		// If Sub Hours:
-		//   labor field is zero: ErrorStatusInvalidLaborExpense
-		// 	 sub-rate is too high: ErrorStatusInvoiceInvalidRate
-		//   sub-rate is too low: ErrorStatusInvoiceInvalidRate
-		// ErrorStatusInvalidLineItemType
+		{
+			"subdomain contains A to Z",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"subdomain contains a to z",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: "abcdefghijklmnopqrstuvwxyz",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"subdomain contains 0 to 9",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: "0123456789",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"subdomain contains supported chars",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: "&,.:;- ,@+#/()!?\"",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"subdomain contains non-supported chars",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: "|$^*_[]{}",
+				}),
+				invoiceMetaData,
+			},
+			errInvalidSubdomain,
+		},
+		{
+			"subdomain contains newline",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: "subdomain\n",
+				}),
+				invoiceMetaData,
+			},
+			errInvalidSubdomain,
+		},
+		{
+			"subdomain contains tab",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: "subdomain\t",
+				}),
+				invoiceMetaData,
+			},
+			errInvalidSubdomain,
+		},
+		{
+			"subdomain is valid lowercase",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: "sub domain",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"subdomain is valid mixed case",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Subdomain: "Sub Domain",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"description contains A to Z",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Description: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"description contains a to z",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Description: "abcdefghijklmnopqrstuvwxyz",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"description contains 0 to 9",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Description: "0123456789",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"description contains supported chars",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Description: "&,.:;- ,@+#/()!?\"",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"description contains non-supported chars",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Description: "|$^*_[]{}",
+				}),
+				invoiceMetaData,
+			},
+			errInvalidDescription,
+		},
+		{
+			"description contains newline",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Description: "description\n",
+				}),
+				invoiceMetaData,
+			},
+			errInvalidDescription,
+		},
+		{
+			"description contains tab",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Description: "description\t",
+				}),
+				invoiceMetaData,
+			},
+			errInvalidDescription,
+		},
+		{
+			"description is valid lowercase",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Description: "description for line item",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"description is valid mixed case",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Description: "Description for line item",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"prop token contains A to Z",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					ProposalToken: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"prop token contains a to z",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					ProposalToken: "abcdefghijklmnopqrstuvwxyz",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"prop token contains 0 to 9",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					ProposalToken: "0123456789",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"prop token contains supported chars",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					ProposalToken: "&,.:;- ,@+#/()!?\"",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"prop token contains non-supported chars",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					ProposalToken: "|$^*_[]{}",
+				}),
+				invoiceMetaData,
+			},
+			errInvalidPropToken,
+		},
+		{
+			"prop token contains newline",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					ProposalToken: "prop token\n",
+				}),
+				invoiceMetaData,
+			},
+			errInvalidPropToken,
+		},
+		{
+			"prop token contains tab",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					ProposalToken: "prop token\t",
+				}),
+				invoiceMetaData,
+			},
+			errInvalidPropToken,
+		},
+		{
+			"prop token is valid lowercase",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					ProposalToken: "sub domain",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"prop token is valid mixed case",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					ProposalToken: "Sub Domain",
+				}),
+				invoiceMetaData,
+			},
+			nil,
+		},
+		{
+			"labor type has labor 0",
+			filesEmptyLabor,
+			errInvalidLaborExpense,
+		},
+		{
+			"labor type has non-zero expenses",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Type:     int(cms.LineItemTypeLabor),
+					Expenses: 1000,
+				}),
+				invoiceMetaData,
+			},
+			errInvalidLaborExpense,
+		},
+		{
+			"labor type has non-zero subrate",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Type:    int(cms.LineItemTypeLabor),
+					SubRate: 1000,
+				}),
+				invoiceMetaData,
+			},
+			errInvalidInvoiceRate,
+		},
+		{
+			"labor type has non-empty sub user id",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Type:      int(cms.LineItemTypeLabor),
+					SubUserID: "sub user id",
+				}),
+				invoiceMetaData,
+			},
+			errInvalidSubUserIDLineItem,
+		},
+		{
+			"expense type has non-empty labor hours",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Type:  int(cms.LineItemTypeExpense),
+					Labor: 1000,
+				}),
+				invoiceMetaData,
+			},
+			errInvalidLaborExpense,
+		},
+		{
+			"subhours type has empty labor hours",
+			filesEmptyLaborSubHours,
+			errInvalidLaborExpense,
+		},
+		{
+			"subhours type has too low rate",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Type:    int(cms.LineItemTypeSubHours),
+					SubRate: uint(rateTooLow),
+				}),
+				invoiceMetaData,
+			},
+			errInvalidInvoiceRate,
+		},
+		{
+			"subhours type has high low rate",
+			[]backend.File{
+				fileInvoiceIndex(t, &cms.LineItemsInput{
+					Type:    int(cms.LineItemTypeSubHours),
+					SubRate: uint(rateTooHigh),
+				}),
+				invoiceMetaData,
+			},
+			errInvalidInvoiceRate,
+		},
+		{
+			"line item has invalid line item type",
+			filesInvalidLineItemType,
+			errInvalidLineItemType,
+		},
 	}
 }
 
@@ -1525,7 +1984,7 @@ func fileInvoiceIndex(t *testing.T, li *cms.LineItemsInput) backend.File {
 
 	testLineItems := []cms.LineItemsInput{
 		{
-			Type:          cms.LineItemTypeLabor,
+			Type:          int(cms.LineItemTypeLabor),
 			Domain:        "development",
 			Subdomain:     "sub-domain stuff",
 			Description:   "this is the first line description.",
@@ -1536,7 +1995,7 @@ func fileInvoiceIndex(t *testing.T, li *cms.LineItemsInput) backend.File {
 			Expenses:      0,
 		},
 		{
-			Type:          cms.LineItemTypeExpense,
+			Type:          int(cms.LineItemTypeExpense),
 			Domain:        "development",
 			Subdomain:     "sub",
 			Description:   "this is the second line description.",
@@ -1547,7 +2006,7 @@ func fileInvoiceIndex(t *testing.T, li *cms.LineItemsInput) backend.File {
 			Expenses:      1000,
 		},
 		{
-			Type:          cms.LineItemTypeSubHours,
+			Type:          int(cms.LineItemTypeSubHours),
 			Domain:        "development",
 			Subdomain:     "sub",
 			Description:   "this is the third line description.",
@@ -1565,9 +2024,9 @@ func fileInvoiceIndex(t *testing.T, li *cms.LineItemsInput) backend.File {
 	// Use labor line item as default
 	var editIndex = 0
 	switch li.Type {
-	case cms.LineItemTypeExpense, cms.LineItemTypeMisc:
+	case int(cms.LineItemTypeExpense), int(cms.LineItemTypeMisc):
 		editIndex = 1
-	case cms.LineItemTypeSubHours:
+	case int(cms.LineItemTypeSubHours):
 		editIndex = 2
 	}
 

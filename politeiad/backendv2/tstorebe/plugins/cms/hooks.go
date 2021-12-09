@@ -455,7 +455,7 @@ func (c *cmsPlugin) validateIndexFile(files []backend.File) error {
 			}
 
 			switch lineInput.Type {
-			case cms.LineItemTypeLabor:
+			case int(cms.LineItemTypeLabor):
 				if lineInput.Labor == 0 {
 					return backend.PluginError{
 						PluginID:     cms.PluginID,
@@ -484,7 +484,7 @@ func (c *cmsPlugin) validateIndexFile(files []backend.File) error {
 						ErrorContext: "no sub user id when labor type",
 					}
 				}
-			case cms.LineItemTypeExpense, cms.LineItemTypeMisc:
+			case int(cms.LineItemTypeExpense), int(cms.LineItemTypeMisc):
 				if lineInput.Labor != 0 {
 					return backend.PluginError{
 						PluginID:     cms.PluginID,
@@ -492,7 +492,7 @@ func (c *cmsPlugin) validateIndexFile(files []backend.File) error {
 						ErrorContext: "labor cannot be populated when not labor type",
 					}
 				}
-			case cms.LineItemTypeSubHours:
+			case int(cms.LineItemTypeSubHours):
 				/* What to do about contractor type checks here?
 				if u.ContractorType != int(cms.ContractorTypeSupervisor) {
 					return www.UserError{

@@ -550,15 +550,15 @@ type InvoiceInput struct {
 // LineItemsInput is the expected struct of line items contained within an users'
 // invoice input.
 type LineItemsInput struct {
-	Type          LineItemTypeT `json:"type"`          // Type of work performed
-	Domain        string        `json:"domain"`        // Domain of work performed
-	Subdomain     string        `json:"subdomain"`     // Subdomain of work performed
-	Description   string        `json:"description"`   // Description of work performed
-	ProposalToken string        `json:"proposaltoken"` // Link to politeia proposal that work is associated with
-	SubUserID     string        `json:"subuserid"`     // UserID of the associated Subcontractor
-	SubRate       uint          `json:"subrate"`       // The payrate of the subcontractor
-	Labor         uint          `json:"labor"`         // Number of minutes (if labor)
-	Expenses      uint          `json:"expenses"`      // Total cost (in USD cents) of line item (if expense or misc)
+	Type          int    `json:"type"`          // Type of work performed
+	Domain        string `json:"domain"`        // Domain of work performed
+	Subdomain     string `json:"subdomain"`     // Subdomain of work performed
+	Description   string `json:"description"`   // Description of work performed
+	ProposalToken string `json:"proposaltoken"` // Link to politeia proposal that work is associated with
+	SubUserID     string `json:"subuserid"`     // UserID of the associated Subcontractor
+	SubRate       uint   `json:"subrate"`       // The payrate of the subcontractor
+	Labor         uint   `json:"labor"`         // Number of minutes (if labor)
+	Expenses      uint   `json:"expenses"`      // Total cost (in USD cents) of line item (if expense or misc)
 }
 
 // InvoiceStatusChange represents the structure that is saved to disk when
