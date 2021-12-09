@@ -125,25 +125,25 @@ func validateParseCSV(data []byte) (*cms.InvoiceInput, error) {
 				fmt.Errorf("invalid number of line items on line: %v want: %v got: %v",
 					i, PolicyInvoiceLineItemCount, len(lineContents))
 		}
+		lineItemType, ok := LineItemType[strings.ToLower(strings.TrimSpace(lineContents[0]))]
+		if !ok {
+			return invInput,
+				fmt.Errorf("invalid line item type on line: %v", i)
+		}
 		hours, err := strconv.Atoi(strings.TrimSpace(lineContents[5]))
 		if err != nil {
 			return invInput,
-				fmt.Errorf("invalid line item hours entered on line: %v", i)
+				fmt.Errorf("invalid hours (%v) entered on line: %v", lineContents[5], i)
 		}
 		cost, err := strconv.Atoi(strings.TrimSpace(lineContents[6]))
 		if err != nil {
 			return invInput,
-				fmt.Errorf("invalid cost entered on line: %v", i)
+				fmt.Errorf("invalid cost (%v) entered on line: %v", lineContents[6], i)
 		}
 		rate, err := strconv.Atoi(strings.TrimSpace(lineContents[8]))
 		if err != nil {
 			return invInput,
 				fmt.Errorf("invalid subrate hours (%v) entered on line: %v", lineContents[8], i)
-		}
-		lineItemType, ok := LineItemType[strings.ToLower(strings.TrimSpace(lineContents[0]))]
-		if !ok {
-			return invInput,
-				fmt.Errorf("invalid line item type on line: %v", i)
 		}
 
 		lineItem.Type = lineItemType
