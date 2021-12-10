@@ -1199,9 +1199,8 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 		pageLastIndex  uint32 = page * p.votesPageSize
 		idx            uint32 = 0
 	)
-	// Iterate record index comments map deterministically, start from comment
-	// id 1 upwards until we find a comment id which doesn't have an entry in
-	// the map.
+	// Iterate over record index comments map deterministically; start from
+	// comment id 1 upwards.
 	for commentID := 1; commentID <= len(ridx.Comments); commentID++ {
 		// If digests page is full, then we are done
 		if len(digests) == int(p.votesPageSize) {
@@ -1211,12 +1210,13 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 		cidx := ridx.Comments[uint32(commentID)]
 		if !filterByUserID {
 			// If no user ID filter is applied, we need to sort the Votes map keys,
-			// in order to iterate the comment's votes maps in a determinsitic
+			// in order to iterate over the comment's votes maps in a determinisitic
 			// manner.
 			sortedKeys := getVotesMapKeysSorted(cidx.Votes)
 			for _, k := range sortedKeys {
 				for _, vidx := range cidx.Votes[k] {
-					if idx >= pageFirstIndex && idx <= pageLastIndex {
+					// Add digest if it's is part of the requested page
+					if isInPageRange(idx, pageFirstIndex, pageLastIndex) {
 						digests = append(digests, vidx.Digest)
 					}
 					idx++
@@ -1231,7 +1231,8 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 				continue
 			}
 			for _, vidx := range voteIdxs {
-				if idx >= pageFirstIndex && idx <= pageLastIndex {
+				// Add digest if it's is part of the requested page
+				if isInPageRange(idx, pageFirstIndex, pageLastIndex) {
 					digests = append(digests, vidx.Digest)
 				}
 				idx++
@@ -1264,7 +1265,7 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 
 // getVotesMapKeysSorted accepts a map of a comment vote indexes with the
 // user IDs as keys, it collects the keys, sorts them and finally returns
-// then as sorted slice.
+// them as sorted slice.
 func getVotesMapKeysSorted(m map[string][]voteIndex) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
@@ -1275,6 +1276,12 @@ func getVotesMapKeysSorted(m map[string][]voteIndex) []string {
 	sort.Strings(keys)
 
 	return keys
+}
+
+// isInPageRange determines whether the given index is part of the given
+// page range.
+func isInPageRange(idx, pageFirstIndex, pageLastIndex uint32) bool {
+	return idx >= pageFirstIndex && idx <= pageLastIndex
 }
 
 // cmdTimestamps retrieves the timestamps for the comments of a record.
