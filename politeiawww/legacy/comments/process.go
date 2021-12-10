@@ -375,6 +375,7 @@ func (c *Comments) commentVotesPopulateUserData(votes []v1.CommentVote, userID s
 		batchLastIndex := int(math.Min(float64(usersBatchSize),
 			float64(len(pubKeys))))
 		batch := pubKeys[:batchLastIndex]
+
 		// Remaining public keys
 		pubKeys = pubKeys[batchLastIndex:]
 
