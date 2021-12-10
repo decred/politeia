@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"sort"
 	"strconv"
 	"time"
@@ -1193,36 +1192,51 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 		return "", err
 	}
 
-	// Compile the comment vote digests
-	var digests [][]byte
-	for _, cidx := range ridx.Comments {
-		var voteIdxs []voteIndex
+	// Collect the requested page of comment vote digests
+	digests := make([][]byte, 0, p.votesPageSize)
+	var (
+		pageFirstIndex uint32 = (page - 1) * p.votesPageSize
+		pageLastIndex  uint32 = page * p.votesPageSize
+		idx            uint32 = 0
+	)
+	// Iterate record index comments map deterministically, start from comment
+	// id 1 upwards until we find a comment id which doesn't have an entry in
+	// the map.
+	for commentID := 1; commentID <= len(ridx.Comments); commentID++ {
+		// If digests page is full, then we are done
+		if len(digests) == int(p.votesPageSize) {
+			break
+		}
+
+		cidx := ridx.Comments[uint32(commentID)]
 		if !filterByUserID {
-			// If no user ID filter is applied, collect all comment votes
-			for _, idxs := range cidx.Votes {
-				voteIdxs = append(voteIdxs, idxs...)
+			// If no user ID filter is applied, we need to sort the Votes map keys,
+			// in order to iterate the comment's votes maps in a determinsitic
+			// manner.
+			sortedKeys := getVotesMapKeysSorted(cidx.Votes)
+			for _, k := range sortedKeys {
+				for _, vidx := range cidx.Votes[k] {
+					if idx >= pageFirstIndex && idx <= pageLastIndex {
+						digests = append(digests, vidx.Digest)
+					}
+					idx++
+				}
 			}
 		} else {
-			// If user ID filter is applied, collect only user's comment votes.
-			var ok bool
-			voteIdxs, ok = cidx.Votes[v.UserID]
+			// If user ID filter is applied, collect the requested page of the user's
+			// comment votes.
+			voteIdxs, ok := cidx.Votes[v.UserID]
 			if !ok {
 				// User has not cast any votes for this comment
 				continue
 			}
+			for _, vidx := range voteIdxs {
+				if idx >= pageFirstIndex && idx <= pageLastIndex {
+					digests = append(digests, vidx.Digest)
+				}
+				idx++
+			}
 		}
-
-		// Collect digests
-		for _, vidx := range voteIdxs {
-			digests = append(digests, vidx.Digest)
-		}
-	}
-
-	// If requested page exceeds the number of available pages, return
-	// an emptry reply.
-	pageSize := p.votesPageSize
-	if len(digests) < int((page-1)*pageSize) {
-		return votesReply([]comments.CommentVote{})
 	}
 
 	// Lookup votes
@@ -1236,18 +1250,7 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 		return votes[i].Timestamp > votes[j].Timestamp
 	})
 
-	// Page's last index, consider edge case when page is not full
-	pageLastIndex := int(math.Min(float64(page*pageSize),
-		float64(len(votes))))
-	votes = votes[(page-1)*pageSize : pageLastIndex]
-
 	// Prepare reply
-	return votesReply(votes)
-}
-
-// votesReply prepares the reply for the comment votes command, then it returns
-// it encoded as json.
-func votesReply(votes []comments.CommentVote) (string, error) {
 	vr := comments.VotesReply{
 		Votes: votes,
 	}
@@ -1257,6 +1260,21 @@ func votesReply(votes []comments.CommentVote) (string, error) {
 	}
 
 	return string(reply), nil
+}
+
+// getVotesMapKeysSorted accepts a map of a comment vote indexes with the
+// user IDs as keys, it collects the keys, sorts them and finally returns
+// then as sorted slice.
+func getVotesMapKeysSorted(m map[string][]voteIndex) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	// Sort keys
+	sort.Strings(keys)
+
+	return keys
 }
 
 // cmdTimestamps retrieves the timestamps for the comments of a record.

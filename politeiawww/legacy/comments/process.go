@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/politeiad/plugins/comments"
@@ -324,6 +325,11 @@ func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply
 	}, nil
 }
 
+// usersBatchSize is the maximum number of users which can be fetched from
+// politeiawww and stored in memory while populating the comment votes structs
+// with the missing users data.
+var usersBatchSize = 10
+
 // commentVotePopulateUserData populates the comment votes with user data that
 // is not stored in politeiad. If all votes are associated with one user it
 // expects to get the user's ID as a parameter.
@@ -360,16 +366,28 @@ func (c *Comments) commentVotesPopulateUserData(votes []v1.CommentVote, userID s
 		pubKeys = append(pubKeys, pubKey)
 	}
 
-	// Get users from db
-	users, err := c.userdb.UsersGetByPubKey(pubKeys)
-	if err != nil {
-		return err
-	}
+	// Get users from db in batchs to avoid reading too many
+	// users into memory.
+	usernames := make(map[string]string, len(pubKeys))
+	for len(pubKeys) > 0 {
+		// Next batch of public keys, consider the case when the remaining
+		// public keys are less than a full batch.
+		batchLastIndex := int(math.Min(float64(usersBatchSize),
+			float64(len(pubKeys))))
+		batch := pubKeys[:batchLastIndex]
+		// Remaining public keys
+		pubKeys = pubKeys[batchLastIndex:]
 
-	// Map user IDs to usernames
-	usernames := make(map[string]string, len(users))
-	for _, u := range users {
-		usernames[u.ID.String()] = u.Username
+		// Get batch of users
+		users, err := c.userdb.UsersGetByPubKey(batch)
+		if err != nil {
+			return err
+		}
+
+		// Map user IDs to usernames
+		for _, u := range users {
+			usernames[u.ID.String()] = u.Username
+		}
 	}
 
 	// Populate comment votes with usernames

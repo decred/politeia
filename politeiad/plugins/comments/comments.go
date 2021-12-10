@@ -44,8 +44,8 @@ const (
 	SettingKeyVotesPageSize = "votespagesize"
 )
 
-// Plugin setting default values. These can be overridden by providing a plugin
-// setting key and value to the plugin on startup.
+// Plugin setting default values. These can be overridden by providing a
+// plugin setting key and value to the plugin on startup.
 const (
 	// SettingCommentLengthMax is the default maximum number of
 	// characters that are allowed in a comment.
@@ -61,8 +61,10 @@ const (
 	SettingAllowExtraData = false
 
 	// SettingVotesPageSize is the default maximum number of comment votes
-	// that can be requests at any one time.
-	SettingVotesPageSize uint32 = 100
+	// that can be returned at any one time. It defaults to 200 to limit the
+	// comment votes route payload size to ~80KB, as each comment vote size is
+	// expected to be around 400 bytes which means 200 * 0.4 = 80KB.
+	SettingVotesPageSize uint32 = 200
 )
 
 // ErrorCodeT represents a error that was caused by the user.
