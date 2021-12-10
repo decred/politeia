@@ -57,14 +57,15 @@ func (c *cmdCommentVotes) Execute(args []string) error {
 	}
 
 	// Print votes or an empty message if no votes were found
-	if len(vr.Votes) > 0 {
+	switch {
+	case len(vr.Votes) > 0:
 		printCommentVotes(vr.Votes)
-	} else {
-		if userID != "" {
-			printf("No comment votes found for user %v\n", userID)
-		} else {
-			printf("No comment votes found for proposal %v\n", token)
-		}
+
+	case userID != "":
+		printf("No comment votes found for user %v\n", userID)
+
+	case userID == "":
+		printf("No comment votes found for proposal %v\n", token)
 	}
 
 	return nil
