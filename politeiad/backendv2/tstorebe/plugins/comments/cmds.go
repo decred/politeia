@@ -1210,7 +1210,7 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 		cidx := ridx.Comments[uint32(commentID)]
 		if !filterByUserID {
 			// If no user ID filter is applied, we need to sort the Votes map keys,
-			// in order to iterate over the comment's votes maps in a determinisitic
+			// in order to iterate over the comment's votes maps in a deterministic
 			// manner.
 			sortedKeys := getVotesMapKeysSorted(cidx.Votes)
 			for _, k := range sortedKeys {
