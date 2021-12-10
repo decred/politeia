@@ -1208,10 +1208,11 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 		}
 
 		cidx := ridx.Comments[uint32(commentID)]
-		if !filterByUserID {
-			// If no user ID filter is applied, we need to sort the Votes map keys,
-			// in order to iterate over the comment's votes maps in a deterministic
-			// manner.
+		switch {
+		// If no user ID filter is applied, we need to sort the Votes map keys,
+		// in order to iterate over the comment's votes maps in a deterministic
+		// manner.
+		case !filterByUserID:
 			sortedKeys := getVotesMapKeysSorted(cidx.Votes)
 			for _, k := range sortedKeys {
 				for _, vidx := range cidx.Votes[k] {
@@ -1222,9 +1223,9 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 					idx++
 				}
 			}
-		} else {
-			// If user ID filter is applied, collect the requested page of the user's
-			// comment votes.
+		// If user ID filter is applied, collect the requested page of the user's
+		// comment votes.
+		case filterByUserID:
 			voteIdxs, ok := cidx.Votes[v.UserID]
 			if !ok {
 				// User has not cast any votes for this comment
