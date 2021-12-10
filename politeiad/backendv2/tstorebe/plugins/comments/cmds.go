@@ -1223,6 +1223,7 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 					idx++
 				}
 			}
+
 		// If user ID filter is applied, collect the requested page of the user's
 		// comment votes.
 		case filterByUserID:
