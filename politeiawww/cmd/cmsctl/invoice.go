@@ -48,12 +48,20 @@ func printInvoiceFiles(files []rcv1.File) error {
 		printf("  %-22v %-26v %v\n", v.Name, v.MIME, size)
 	}
 
-	// Its possible for a proposal metadata to not exist if the
-	// proposal has been censored.
+	// Its possible for a invoice metadata to not exist if the
+	// record has been censored.
 	pm, err := pclient.InvoiceMetadataDecode(files)
 	if err == nil {
 		printf("%v\n", cms.FileNameInvoiceMetadata)
-		printf("  Name      : %v\n", pm.Name)
+		printf("  Version                : %v\n", pm.Version)
+		printf("  Month                  : %v\n", pm.Month)
+		printf("  Year                   : %v\n", pm.Year)
+		printf("  ExchangeRate Name      : %v\n", pm.ExchangeRate)
+		printf("  Contractor Name        : %v\n", pm.ContractorName)
+		printf("  Contractor Location    : %v\n", pm.ContractorLocation)
+		printf("  Contractor Contact     : %v\n", pm.ContractorContact)
+		printf("  Contractor Rate        : %v\n", pm.ContractorRate)
+		printf("  Payment Address        : %v\n", pm.PaymentAddress)
 	}
 
 	return nil
