@@ -250,7 +250,7 @@ func (p *Politeiawww) processInvoiceExchangeRate(ctx context.Context, ier cms.In
 				Year:         ier.Year,
 				ExchangeRate: monthAvgRaw,
 			}
-			err = p.cmsDB.NewExchangeRate(monthAvg)
+			err = p.cmsDB.ExchangeRateNew(monthAvg)
 			if err != nil {
 				return reply, err
 			}

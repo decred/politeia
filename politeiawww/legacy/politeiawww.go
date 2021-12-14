@@ -25,6 +25,7 @@ import (
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/legacy/cms"
 	"github.com/decred/politeia/politeiawww/legacy/cmsdatabase"
+	cmsdb "github.com/decred/politeia/politeiawww/legacy/cmsdatabase/mysql"
 	"github.com/decred/politeia/politeiawww/legacy/codetracker"
 	"github.com/decred/politeia/politeiawww/legacy/comments"
 	"github.com/decred/politeia/politeiawww/legacy/pi"
@@ -363,6 +364,16 @@ func (p *Politeiawww) setupCMS() error {
 	err = p.db.RegisterPlugin(plugin)
 	if err != nil {
 		return fmt.Errorf("register userdb plugin: %v", err)
+	}
+
+	p.cmsDB, err = cmsdb.New(p.cfg.DBHost, net, p.cfg.DBRootCert,
+		p.cfg.DBCert, p.cfg.DBKey)
+	if err != nil {
+		return err
+	}
+	err = p.cmsDB.Setup()
+	if err != nil {
+		return fmt.Errorf("cmsdb setup: %v", err)
 	}
 
 	return nil
