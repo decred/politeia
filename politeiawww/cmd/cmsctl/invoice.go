@@ -56,7 +56,7 @@ func printInvoiceFiles(files []rcv1.File) error {
 		printf("  Version                : %v\n", pm.Version)
 		printf("  Month                  : %v\n", pm.Month)
 		printf("  Year                   : %v\n", pm.Year)
-		printf("  ExchangeRate Name      : %v\n", pm.ExchangeRate)
+		printf("  Exchange Rate          : %v\n", pm.ExchangeRate)
 		printf("  Contractor Name        : %v\n", pm.ContractorName)
 		printf("  Contractor Location    : %v\n", pm.ContractorLocation)
 		printf("  Contractor Contact     : %v\n", pm.ContractorContact)

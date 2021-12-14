@@ -53,6 +53,7 @@ type cmsctl struct {
 	InvoicePolicy  cmdInvoicePolicy  `command:"invoicepolicy"`
 	InvoiceNew     cmdInvoiceNew     `command:"invoicenew"`
 	InvoiceDetails cmdInvoiceDetails `command:"invoicedetails"`
+	InvoiceEdit    cmdInvoiceEdit    `command:"invoiceedit"`
 
 	// Records commands
 	RecordPolicy cmdRecordPolicy `command:"recordpolicy"`
@@ -87,6 +88,7 @@ User commands
 Invoice commands
   invoicepolicy                (public) Get the cms api policy
   invoicenew                   (user)   Submit a new invoice
+  invoiceedit                  (user)   Edit an existing invoice
   invoicedetails               (user)   Request invoice details
 
 Record commands
