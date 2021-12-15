@@ -224,24 +224,12 @@ func (m *mysql) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 	}
 	return nil
 }
+*/
 
 // cmdUpdateCMSUser updates an existing CMSUser record in the database.
 func (m *mysql) cmdUpdateCMSUser(payload string) (string, error) {
 	// Decode payload
-	uu, err := user.DecodeUpdateCMSUser([]byte(payload))
-	if err != nil {
-		return "", err
-	}
-
-	// Create a new User record and a new CMSUser
-	// record using a transaction.
-	tx := m.userDB.Begin()
-	err = m.updateCMSUser(tx, *uu)
-	if err != nil {
-		tx.Rollback()
-		return "", err
-	}
-	err = tx.Commit().Error
+	_, err := user.DecodeUpdateCMSUser([]byte(payload))
 	if err != nil {
 		return "", err
 	}
@@ -252,37 +240,18 @@ func (m *mysql) cmdUpdateCMSUser(payload string) (string, error) {
 	if err != nil {
 		return "", nil
 	}
-
 	return string(reply), nil
 }
 
 // cmdCMSUsersByDomain returns all CMS users within the provided domain.
 func (m *mysql) cmdCMSUsersByDomain(payload string) (string, error) {
 	// Decode payload
-	p, err := user.DecodeCMSUsersByDomain([]byte(payload))
+	_, err := user.DecodeCMSUsersByDomain([]byte(payload))
 	if err != nil {
 		return "", err
 	}
 
-	// Lookup cms users
-	var users []CMSUser
-	err = m.userDB.
-		Where("domain = ?", p.Domain).
-		Preload("User").
-		Find(&users).
-		Error
-	if err != nil {
-		return "", err
-	}
-
-	// Prepare reply
-	u, err := m.convertCMSUsersFromDatabase(users)
-	if err != nil {
-		return "", err
-	}
-	r := user.CMSUsersByDomainReply{
-		Users: u,
-	}
+	r := user.CMSUsersByDomainReply{}
 	reply, err := user.EncodeCMSUsersByDomainReply(r)
 	if err != nil {
 		return "", err
@@ -295,30 +264,12 @@ func (m *mysql) cmdCMSUsersByDomain(payload string) (string, error) {
 // contractor type.
 func (m *mysql) cmdCMSUsersByContractorType(payload string) (string, error) {
 	// Decode payload
-	p, err := user.DecodeCMSUsersByContractorType([]byte(payload))
+	_, err := user.DecodeCMSUsersByContractorType([]byte(payload))
 	if err != nil {
 		return "", err
 	}
 
-	// Lookup cms users
-	var users []CMSUser
-	err = m.userDB.
-		Where("contractor_type = ?", p.ContractorType).
-		Preload("User").
-		Find(&users).
-		Error
-	if err != nil {
-		return "", err
-	}
-
-	// Prepare reply
-	u, err := m.convertCMSUsersFromDatabase(users)
-	if err != nil {
-		return "", err
-	}
-	r := user.CMSUsersByContractorTypeReply{
-		Users: u,
-	}
+	r := user.CMSUsersByContractorTypeReply{}
 	reply, err := user.EncodeCMSUsersByContractorTypeReply(r)
 	if err != nil {
 		return "", err
@@ -331,30 +282,12 @@ func (m *mysql) cmdCMSUsersByContractorType(payload string) (string, error) {
 // contractor type.
 func (m *mysql) cmdCMSUsersByProposalToken(payload string) (string, error) {
 	// Decode payload
-	p, err := user.DecodeCMSUsersByProposalToken([]byte(payload))
+	_, err := user.DecodeCMSUsersByProposalToken([]byte(payload))
 	if err != nil {
 		return "", err
 	}
 
-	// Lookup cms users
-	var users []CMSUser
-	err = m.userDB.
-		Where("'" + p.Token + "' = ANY(string_to_array(proposals_owned, ','))").
-		Preload("User").
-		Find(&users).
-		Error
-	if err != nil {
-		return "", err
-	}
-
-	// Prepare reply
-	u, err := m.convertCMSUsersFromDatabase(users)
-	if err != nil {
-		return "", err
-	}
-	r := user.CMSUsersByProposalTokenReply{
-		Users: u,
-	}
+	r := user.CMSUsersByProposalTokenReply{}
 	reply, err := user.EncodeCMSUsersByProposalTokenReply(r)
 	if err != nil {
 		return "", err
@@ -366,46 +299,11 @@ func (m *mysql) cmdCMSUsersByProposalToken(payload string) (string, error) {
 // cmdCMSUserByID returns the user information for a given user ID.
 func (m *mysql) cmdCMSUserByID(payload string) (string, error) {
 	// Decode payload
-	p, err := user.DecodeCMSUserByID([]byte(payload))
+	_, err := user.DecodeCMSUserByID([]byte(payload))
 	if err != nil {
 		return "", err
 	}
-	var cmsUser CMSUser
-	err = m.userDB.
-		Where("id = ?", p.ID).
-		Preload("User").
-		Find(&cmsUser).
-		Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// It's ok if there are no cms records found for this user.
-			// But we do need to request the rest of the user details from the
-			// www User table.
-			var u User
-			err = m.userDB.
-				Where("id = ?", p.ID).
-				Find(&u).
-				Error
-			if err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					err = user.ErrUserNotFound
-				}
-				return "", err
-			}
-			cmsUser.User = u
-		} else {
-			return "", err
-		}
-	}
-
-	// Prepare reply
-	u, err := m.convertCMSUserFromDatabase(cmsUser)
-	if err != nil {
-		return "", err
-	}
-	r := user.CMSUserByIDReply{
-		User: u,
-	}
+	r := user.CMSUserByIDReply{}
 	reply, err := user.EncodeCMSUserByIDReply(r)
 	if err != nil {
 		return "", err
@@ -416,35 +314,11 @@ func (m *mysql) cmdCMSUserByID(payload string) (string, error) {
 
 func (m *mysql) cmdCMSUserSubContractors(payload string) (string, error) {
 	// Decode payload
-	p, err := user.DecodeCMSUserByID([]byte(payload))
+	_, err := user.DecodeCMSUserByID([]byte(payload))
 	if err != nil {
 		return "", err
 	}
-	var cmsUsers []CMSUser
-
-	// This is done this way currently because GORM doesn't appear to properly
-	// parse the following:
-	// Where("? = ANY(string_to_array(supervisor_user_id, ','))", p.ID)
-	err = m.userDB.
-		Where("'" + p.ID + "' = ANY(string_to_array(supervisor_user_id, ','))").
-		Preload("User").
-		Find(&cmsUsers).
-		Error
-	if err != nil {
-		return "", err
-	}
-	// Prepare reply
-	subUsers := make([]user.CMSUser, 0, len(cmsUsers))
-	for _, u := range cmsUsers {
-		convertUser, err := m.convertCMSUserFromDatabase(u)
-		if err != nil {
-			return "", err
-		}
-		subUsers = append(subUsers, *convertUser)
-	}
-	r := user.CMSUserSubContractorsReply{
-		Users: subUsers,
-	}
+	r := user.CMSUserSubContractorsReply{}
 	reply, err := user.EncodeCMSUserSubContractorsReply(r)
 	if err != nil {
 		return "", err
@@ -457,31 +331,16 @@ func (m *mysql) cmdCMSUserSubContractors(payload string) (string, error) {
 // code stats row into the cms_code_stats table.
 func (m *mysql) NewCMSCodeStats(nu *user.NewCMSCodeStats) error {
 
-	tx := m.userDB.Begin()
-	for _, ncs := range nu.UserCodeStats {
-		cms := convertCodestatsToDatabase(ncs)
-		err := m.newCMSCodeStats(tx, cms)
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-	return tx.Commit().Error
+	return nil
 }
 
 // cmdNewCMSCodeStats inserts a new CMSUser record into the database.
 func (m *mysql) cmdNewCMSCodeStats(payload string) (string, error) {
 	// Decode payload
-	nu, err := user.DecodeNewCMSCodeStats([]byte(payload))
+	_, err := user.DecodeNewCMSCodeStats([]byte(payload))
 	if err != nil {
 		return "", err
 	}
-	err = m.NewCMSCodeStats(nu)
-	if err != nil {
-		return "", err
-	}
-
-	// Prepare reply
 	var nur user.NewCMSCodeStatsReply
 	reply, err := user.EncodeNewCMSCodeStatsReply(nur)
 	if err != nil {
@@ -494,12 +353,7 @@ func (m *mysql) cmdNewCMSCodeStats(payload string) (string, error) {
 // cmdUpdateCMSCodeStats updates an existing CMSUser record into the database.
 func (m *mysql) cmdUpdateCMSCodeStats(payload string) (string, error) {
 	// Decode payload
-	nu, err := user.DecodeUpdateCMSCodeStats([]byte(payload))
-	if err != nil {
-		return "", err
-	}
-
-	err = m.UpdateCMSCodeStats(nu)
+	_, err := user.DecodeUpdateCMSCodeStats([]byte(payload))
 	if err != nil {
 		return "", err
 	}
@@ -514,27 +368,11 @@ func (m *mysql) cmdUpdateCMSCodeStats(payload string) (string, error) {
 	return string(reply), nil
 }
 
-func (m *mysql) UpdateCMSCodeStats(ucs *user.UpdateCMSCodeStats) error {
-	tx := m.userDB.Begin()
-	for _, ncs := range ucs.UserCodeStats {
-		cms := convertCodestatsToDatabase(ncs)
-		err := m.updateCMSCodeStats(tx, cms)
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-	return tx.Commit().Error
-}
-
+/*
 // updateCMSCodeStats updates a CMS Code stats record
 //
 // This function must be called using a transaction.
 func (m *mysql) updateCMSCodeStats(tx *gorm.DB, cs CMSCodeStats) error {
-	err := tx.Save(&cs).Error
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -543,27 +381,18 @@ func (m *mysql) updateCMSCodeStats(tx *gorm.DB, cs CMSCodeStats) error {
 //
 // This function must be called using a transaction.
 func (m *mysql) newCMSCodeStats(tx *gorm.DB, cs CMSCodeStats) error {
-	err := tx.Create(&cs).Error
-	if err != nil {
-		return err
-	}
 	return nil
 }
+*/
 
 func (m *mysql) cmdCMSCodeStatsByUserMonthYear(payload string) (string, error) {
 	// Decode payload
-	p, err := user.DecodeCMSCodeStatsByUserMonthYear([]byte(payload))
+	_, err := user.DecodeCMSCodeStatsByUserMonthYear([]byte(payload))
 	if err != nil {
 		return "", err
 	}
 
-	userCodeStats, err := m.CMSCodeStatsByUserMonthYear(p)
-	if err != nil {
-		return "", err
-	}
-	r := user.CMSCodeStatsByUserMonthYearReply{
-		UserCodeStats: userCodeStats,
-	}
+	r := user.CMSCodeStatsByUserMonthYearReply{}
 	reply, err := user.EncodeCMSCodeStatsByUserMonthYearReply(r)
 	if err != nil {
 		return "", err
@@ -573,52 +402,32 @@ func (m *mysql) cmdCMSCodeStatsByUserMonthYear(payload string) (string, error) {
 }
 
 func (m *mysql) CMSCodeStatsByUserMonthYear(p *user.CMSCodeStatsByUserMonthYear) ([]user.CodeStats, error) {
-	var cmsCodeStats []CMSCodeStats
-	err := m.userDB.
-		Where("git_hub_name = ? AND month = ? AND year = ?", p.GithubName,
-			p.Month, p.Year).
-		Find(&cmsCodeStats).
-		Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			err = user.ErrCodeStatsNotFound
-			return nil, err
-		}
-		return nil, err
-	}
-	// Prepare reply
-	userCodeStats := make([]user.CodeStats, 0, len(cmsCodeStats))
-	for _, u := range cmsCodeStats {
-		userCodeStats = append(userCodeStats, convertCodestatsFromDatabase(u))
-	}
-	return userCodeStats, nil
+	return nil, nil
 }
-*/
+
 // Exec executes a cms plugin command.
 func (m *mysql) cmsPluginExec(cmd, payload string) (string, error) {
 	switch cmd {
 	case user.CmdNewCMSUser:
 		return m.cmdNewCMSUser(payload)
-		/*
-			case user.CmdCMSUsersByDomain:
-				return m.cmdCMSUsersByDomain(payload)
-			case user.CmdCMSUsersByContractorType:
-				return m.cmdCMSUsersByContractorType(payload)
-			case user.CmdUpdateCMSUser:
-				return m.cmdUpdateCMSUser(payload)
-			case user.CmdCMSUserByID:
-				return m.cmdCMSUserByID(payload)
-			case user.CmdCMSUserSubContractors:
-				return m.cmdCMSUserSubContractors(payload)
-			case user.CmdCMSUsersByProposalToken:
-				return m.cmdCMSUsersByProposalToken(payload)
-			case user.CmdNewCMSUserCodeStats:
-				return m.cmdNewCMSCodeStats(payload)
-			case user.CmdUpdateCMSUserCodeStats:
-				return m.cmdUpdateCMSCodeStats(payload)
-			case user.CmdCMSCodeStatsByUserMonthYear:
-				return m.cmdCMSCodeStatsByUserMonthYear(payload)
-		*/
+	case user.CmdCMSUsersByDomain:
+		return m.cmdCMSUsersByDomain(payload)
+	case user.CmdCMSUsersByContractorType:
+		return m.cmdCMSUsersByContractorType(payload)
+	case user.CmdUpdateCMSUser:
+		return m.cmdUpdateCMSUser(payload)
+	case user.CmdCMSUserByID:
+		return m.cmdCMSUserByID(payload)
+	case user.CmdCMSUserSubContractors:
+		return m.cmdCMSUserSubContractors(payload)
+	case user.CmdCMSUsersByProposalToken:
+		return m.cmdCMSUsersByProposalToken(payload)
+	case user.CmdNewCMSUserCodeStats:
+		return m.cmdNewCMSCodeStats(payload)
+	case user.CmdUpdateCMSUserCodeStats:
+		return m.cmdUpdateCMSCodeStats(payload)
+	case user.CmdCMSCodeStatsByUserMonthYear:
+		return m.cmdCMSCodeStatsByUserMonthYear(payload)
 	default:
 		return "", user.ErrInvalidPluginCmd
 	}
