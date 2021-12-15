@@ -49,21 +49,23 @@ type piPlugin struct {
 	identity *identity.FullIdentity
 
 	// Plugin settings
-	textFileCountMax        uint32
-	textFileSizeMax         uint32 // In bytes
-	imageFileCountMax       uint32
-	imageFileSizeMax        uint32 // In bytes
-	titleSupportedChars     string // JSON encoded []string
-	titleLengthMin          uint32 // In characters
-	titleLengthMax          uint32 // In characters
-	titleRegexp             *regexp.Regexp
-	proposalAmountMin       uint64 // In cents
-	proposalAmountMax       uint64 // In cents
-	proposalStartDateMin    int64  // Seconds from current time
-	proposalEndDateMax      int64  // Seconds from current time
-	proposalDomainsEncoded  string // JSON encoded []string
-	proposalDomains         map[string]struct{}
-	billingStatusChangesMax uint32
+	textFileCountMax             uint32
+	textFileSizeMax              uint32 // In bytes
+	imageFileCountMax            uint32
+	imageFileSizeMax             uint32 // In bytes
+	titleSupportedChars          string // JSON encoded []string
+	titleLengthMin               uint32 // In characters
+	titleLengthMax               uint32 // In characters
+	titleRegexp                  *regexp.Regexp
+	proposalAmountMin            uint64 // In cents
+	proposalAmountMax            uint64 // In cents
+	proposalStartDateMin         int64  // Seconds from current time
+	proposalEndDateMax           int64  // Seconds from current time
+	proposalDomainsEncoded       string // JSON encoded []string
+	proposalDomains              map[string]struct{}
+	billingStatusChangesMax      uint32
+	summariesPageSize            uint32
+	billingStatusChangesPageSize uint32
 }
 
 // Setup performs any plugin setup that is required.
@@ -180,6 +182,14 @@ func (p *piPlugin) Settings() []backend.PluginSetting {
 			Key:   pi.SettingKeyBillingStatusChangesMax,
 			Value: strconv.FormatUint(uint64(p.billingStatusChangesMax), 10),
 		},
+		{
+			Key:   pi.SettingKeySummariesPageSize,
+			Value: strconv.FormatUint(uint64(p.summariesPageSize), 10),
+		},
+		{
+			Key:   pi.SettingKeyBillingStatusChangesPageSize,
+			Value: strconv.FormatUint(uint64(p.billingStatusChangesPageSize), 10),
+		},
 	}
 }
 
@@ -194,18 +204,20 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 
 	// Setup plugin setting default values
 	var (
-		textFileSizeMax         = pi.SettingTextFileSizeMax
-		imageFileCountMax       = pi.SettingImageFileCountMax
-		imageFileSizeMax        = pi.SettingImageFileSizeMax
-		titleLengthMin          = pi.SettingTitleLengthMin
-		titleLengthMax          = pi.SettingTitleLengthMax
-		titleSupportedChars     = pi.SettingTitleSupportedChars
-		amountMin               = pi.SettingProposalAmountMin
-		amountMax               = pi.SettingProposalAmountMax
-		startDateMin            = pi.SettingProposalStartDateMin
-		endDateMax              = pi.SettingProposalEndDateMax
-		domains                 = pi.SettingProposalDomains
-		billingStatusChangesMax = pi.SettingBillingStatusChangesMax
+		textFileSizeMax              = pi.SettingTextFileSizeMax
+		imageFileCountMax            = pi.SettingImageFileCountMax
+		imageFileSizeMax             = pi.SettingImageFileSizeMax
+		titleLengthMin               = pi.SettingTitleLengthMin
+		titleLengthMax               = pi.SettingTitleLengthMax
+		titleSupportedChars          = pi.SettingTitleSupportedChars
+		amountMin                    = pi.SettingProposalAmountMin
+		amountMax                    = pi.SettingProposalAmountMax
+		startDateMin                 = pi.SettingProposalStartDateMin
+		endDateMax                   = pi.SettingProposalEndDateMax
+		domains                      = pi.SettingProposalDomains
+		billingStatusChangesMax      = pi.SettingBillingStatusChangesMax
+		summariesPageSize            = pi.SettingSummariesPageSize
+		billingStatusChangesPageSize = pi.SettingBillingStatusChangesPageSize
 	)
 
 	// Override defaults with any passed in settings
@@ -291,6 +303,20 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 					v.Key, v.Value, err)
 			}
 			billingStatusChangesMax = uint32(u)
+		case pi.SettingKeySummariesPageSize:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			summariesPageSize = uint32(u)
+		case pi.SettingKeyBillingStatusChangesPageSize:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			billingStatusChangesPageSize = uint32(u)
 
 		default:
 			return nil, errors.Errorf("invalid plugin setting: %v", v.Key)
@@ -327,24 +353,26 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 	}
 
 	return &piPlugin{
-		dataDir:                 dataDir,
-		identity:                id,
-		backend:                 backend,
-		textFileSizeMax:         textFileSizeMax,
-		tstore:                  tstore,
-		imageFileCountMax:       imageFileCountMax,
-		imageFileSizeMax:        imageFileSizeMax,
-		titleLengthMin:          titleLengthMin,
-		titleLengthMax:          titleLengthMax,
-		titleSupportedChars:     titleSupportedCharsString,
-		titleRegexp:             rexp,
-		proposalAmountMin:       amountMin,
-		proposalAmountMax:       amountMax,
-		proposalStartDateMin:    startDateMin,
-		proposalEndDateMax:      endDateMax,
-		proposalDomainsEncoded:  domainsString,
-		proposalDomains:         domainsMap,
-		billingStatusChangesMax: billingStatusChangesMax,
+		dataDir:                      dataDir,
+		identity:                     id,
+		backend:                      backend,
+		textFileSizeMax:              textFileSizeMax,
+		tstore:                       tstore,
+		imageFileCountMax:            imageFileCountMax,
+		imageFileSizeMax:             imageFileSizeMax,
+		titleLengthMin:               titleLengthMin,
+		titleLengthMax:               titleLengthMax,
+		titleSupportedChars:          titleSupportedCharsString,
+		titleRegexp:                  rexp,
+		proposalAmountMin:            amountMin,
+		proposalAmountMax:            amountMax,
+		proposalStartDateMin:         startDateMin,
+		proposalEndDateMax:           endDateMax,
+		proposalDomainsEncoded:       domainsString,
+		proposalDomains:              domainsMap,
+		billingStatusChangesMax:      billingStatusChangesMax,
+		summariesPageSize:            summariesPageSize,
+		billingStatusChangesPageSize: billingStatusChangesPageSize,
 		statuses: proposalStatuses{
 			data:    make(map[string]*statusEntry, statusesCacheLimit),
 			entries: list.New(),

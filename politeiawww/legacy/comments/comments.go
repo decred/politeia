@@ -251,8 +251,10 @@ func (c *Comments) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *sessions.Sessions, e *events.Manager, plugins []pdv2.Plugin) (*Comments, error) {
 	// Parse plugin settings
 	var (
-		lengthMax      uint32
-		voteChangesMax uint32
+		lengthMax          uint32
+		voteChangesMax     uint32
+		countPageSize      uint32
+		timestampsPageSize uint32
 	)
 	for _, p := range plugins {
 		if p.ID != comments.PluginID {
@@ -273,6 +275,18 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 					return nil, err
 				}
 				voteChangesMax = uint32(u)
+			case comments.SettingKeyCountPageSize:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				countPageSize = uint32(u)
+			case comments.SettingKeyTimestampsPageSize:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				timestampsPageSize = uint32(u)
 			default:
 				// Skip unknown settings
 				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)
@@ -288,6 +302,12 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 	case voteChangesMax == 0:
 		return nil, fmt.Errorf("plugin setting not found: %v",
 			comments.SettingKeyVoteChangesMax)
+	case countPageSize == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			comments.SettingKeyCountPageSize)
+	case timestampsPageSize == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			comments.SettingKeyTimestampsPageSize)
 	}
 
 	return &Comments{
@@ -299,8 +319,8 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 		policy: &v1.PolicyReply{
 			LengthMax:          lengthMax,
 			VoteChangesMax:     voteChangesMax,
-			CountPageSize:      v1.CountPageSize,
-			TimestampsPageSize: v1.TimestampsPageSize,
+			CountPageSize:      countPageSize,
+			TimestampsPageSize: timestampsPageSize,
 		},
 	}, nil
 }

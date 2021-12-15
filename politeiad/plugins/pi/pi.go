@@ -57,11 +57,11 @@ const (
 	// the SettingProposalAmountMax plugin setting.
 	SettingKeyProposalAmountMax = "proposalamountmax"
 
-	// SettingKeyProposalStartDateMin is the plugin settings key for
+	// SettingKeyProposalStartDateMin is the plugin setting key for
 	// the SettingProposalStartDateMin plugin setting.
 	SettingKeyProposalStartDateMin = "proposalstartdatemin"
 
-	// SettingKeyProposalEndDateMax is the plugin settings key for
+	// SettingKeyProposalEndDateMax is the plugin setting key for
 	// the SettingProposalEndDateMax plugin setting.
 	SettingKeyProposalEndDateMax = "proposalenddatemax"
 
@@ -72,6 +72,14 @@ const (
 	// SettingKeyBillingStatusChangesMax is the plugin setting
 	// key for the SettingBillingStatusChangesMax plugin setting.
 	SettingKeyBillingStatusChangesMax = "billingstatuschangesmax"
+
+	// SettingKeySummariesPageSize is the plugin setting key for the
+	// SettingSummariesPageSize plugin setting.
+	SettingKeySummariesPageSize = "summariespagesize"
+
+	// SettingKeyBillingStatusChangesPageSize is the plugin key for
+	// the SettingBillingStatusChangesPageSize plugin setting.
+	SettingKeyBillingStatusChangesPageSize = "billingstatuschangespagesize"
 )
 
 // Plugin setting default values. These can be overridden by providing a plugin
@@ -116,6 +124,14 @@ const (
 	// SettingBillingStatusChangesMax is the default maximum allowed
 	// billing status changes.
 	SettingBillingStatusChangesMax uint32 = 1
+
+	// SettingSummariesPageSize is the default maximum number of proposal
+	// summaries that can be requested at any one time.
+	SettingSummariesPageSize uint32 = 5
+
+	// SettingBillingStatusChangesPageSize is the default maximum number of
+	// billing status changes that can be requested at any one time.
+	SettingBillingStatusChangesPageSize uint32 = 5
 )
 
 var (

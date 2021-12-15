@@ -38,6 +38,14 @@ const (
 	// SettingKeyAllowExtraData is the plugin setting key for the
 	// SettingAllowExtraData plugin setting.
 	SettingKeyAllowExtraData = "allowextradata"
+
+	// SettingKeyCountPageSize is the plugin setting key for the
+	// SettingCountPageSize plugin setting.
+	SettingKeyCountPageSize = "countpagesize"
+
+	// SettingKeyTimestampsPageSize is the plugin setting key for the
+	// SettingTimestampsPageSize plugin setting.
+	SettingKeyTimestampsPageSize = "timestampspagesize"
 )
 
 // Plugin setting default values. These can be overridden by providing a plugin
@@ -55,6 +63,14 @@ const (
 	// SettingAllowExtraData is the default value of the bool flag which
 	// determines whether posting extra data along with the comment is allowed.
 	SettingAllowExtraData = false
+
+	// SettingCountPageSize is the default maximum number of comment counts
+	// that can be requested at any one time.
+	SettingCountPageSize uint32 = 10
+
+	// SettingTimestampsPageSize is the default maximum number of comment
+	// timestamps that can be requested at any one time.
+	SettingTimestampsPageSize uint32 = 100
 )
 
 // ErrorCodeT represents a error that was caused by the user.

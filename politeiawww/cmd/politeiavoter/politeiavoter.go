@@ -638,7 +638,8 @@ func (p *piv) inventory() error {
 		}
 		pageTokens := ir.Vetted[tkv1.VoteStatuses[tkv1.VoteStatusStarted]]
 		tokens = append(tokens, pageTokens...)
-		if uint32(len(pageTokens)) < tkv1.InventoryPageSize {
+		// XXX Retrieve inventory page size
+		if uint32(len(pageTokens)) < 20 {
 			break
 		}
 		page++

@@ -268,12 +268,6 @@ type SetBillingStatusReply struct {
 	Timestamp int64  `json:"timestamp"` // Unix timestamp
 }
 
-const (
-	// BillingStatusChangesPageSize is the maximum number of billing status
-	// changes that can be requested at any one time.
-	BillingStatusChangesPageSize uint32 = 5
-)
-
 // BillingStatusChanges requests the billing status changes for the provided
 // proposal tokens.
 type BillingStatusChanges struct {
@@ -304,12 +298,6 @@ const (
 type ProposalUpdateMetadata struct {
 	Title string `json:"title"`
 }
-
-const (
-	// SummariesPageSize is the maximum number of proposal summaries that
-	// can be requested at any one time.
-	SummariesPageSize uint32 = 5
-)
 
 // Summaries requests the proposal summaries for the provided proposal tokens.
 type Summaries struct {
