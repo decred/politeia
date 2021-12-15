@@ -47,7 +47,7 @@ const tableExchangeRates = `
 `
 
 var (
-	_ user.Database = (*mysql)(nil)
+	_ database.Database = (*mysql)(nil)
 )
 
 // mysql implements the user.Database interface.
@@ -132,6 +132,441 @@ func (m *mysql) ExchangeRateNew(dbExchangeRate *database.ExchangeRate) error {
 	}
 
 	return nil
+}
+
+// ExchangeRate returns exchange rate by month/year
+func (m *mysql) ExchangeRate(month, year int) (*database.ExchangeRate, error) {
+	log.Tracef("ExchangeRate: %v %v", month, year)
+
+	if m.isShutdown() {
+		return nil, user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	var rate uint
+	err := m.cmsDB.QueryRowContext(ctx,
+		"SELECT rate FROM exchange_rates WHERE month = ? AND year = ?", month, year).Scan(&rate)
+	switch {
+	case err == sql.ErrNoRows:
+		return nil, database.ErrExchangeRateNotFound
+	case err != nil:
+		return nil, err
+	}
+
+	return &database.ExchangeRate{
+		Month:        uint(month),
+		Year:         uint(year),
+		ExchangeRate: rate,
+	}, nil
+}
+
+// Create new invoice.
+//
+// CreateInvoice satisfies the database interface.
+func (m *mysql) NewInvoice(dbInvoice *database.Invoice) error {
+
+	if m.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Start transaction.
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := m.cmsDB.BeginTx(ctx, opts)
+	if err != nil {
+		return fmt.Errorf("begin tx: %v", err)
+	}
+	defer tx.Rollback()
+
+	// CALL newInvoice here
+
+	// Commit transaction.
+	if err := tx.Commit(); err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return fmt.Errorf("commit tx: %v", err)
+	}
+
+	return nil
+}
+
+// Update existing invoice.
+//
+// UpdateInvoice satisfies the database interface.
+func (m *mysql) UpdateInvoice(dbInvoice *database.Invoice) error {
+
+	if m.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Start transaction.
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := m.cmsDB.BeginTx(ctx, opts)
+	if err != nil {
+		return fmt.Errorf("begin tx: %v", err)
+	}
+	defer tx.Rollback()
+
+	// CALL updateInvoice here
+
+	// Commit transaction.
+	if err := tx.Commit(); err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return fmt.Errorf("commit tx: %v", err)
+	}
+
+	return nil
+}
+
+// RemoveLineItem deletes an existing invoice line items from the database.
+func (m *mysql) RemoveInvoiceLineItems(invoiceToken string) error {
+
+	if m.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Start transaction.
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := m.cmsDB.BeginTx(ctx, opts)
+	if err != nil {
+		return fmt.Errorf("begin tx: %v", err)
+	}
+	defer tx.Rollback()
+
+	// CALL removeInvoiceLineItems here
+
+	// Commit transaction.
+	if err := tx.Commit(); err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return fmt.Errorf("commit tx: %v", err)
+	}
+
+	return nil
+}
+
+// Return all invoices by userid
+func (m *mysql) InvoicesByUserID(userid string) ([]database.Invoice, error) {
+	return nil, nil
+}
+
+// InvoiceByToken Return invoice by its token.
+func (m *mysql) InvoiceByToken(token string) (*database.Invoice, error) {
+	return nil, nil
+}
+
+// InvoiceByKey Return invoice by its key.
+func (m *mysql) InvoiceByKey(key string) (*database.Invoice, error) {
+	return nil, nil
+}
+
+// InvoiceByTokenVersion Return invoice by its token and version
+func (m *mysql) InvoiceByTokenVersion(token string, version string) (*database.Invoice, error) {
+	return nil, nil
+}
+
+// InvoicesByMonthYearStatus returns all invoices by month year and status
+func (m *mysql) InvoicesByMonthYearStatus(month, year uint16, status int) ([]database.Invoice, error) {
+	return nil, nil
+}
+
+// InvoicesByMonthYear returns all invoices by month/year
+func (m *mysql) InvoicesByMonthYear(month, year uint16) ([]database.Invoice, error) {
+	return nil, nil
+}
+
+// InvoicesByStatus returns all invoices by status
+func (m *mysql) InvoicesByStatus(status int) ([]database.Invoice, error) {
+	return nil, nil
+}
+
+// InvoicesAll returns all invoices
+func (m *mysql) InvoicesAll() ([]database.Invoice, error) {
+	return nil, nil
+}
+
+// InvoicesByAddress return invoices by its payment address.
+func (m *mysql) InvoicesByAddress(address string) ([]database.Invoice, error) {
+	return nil, nil
+}
+
+// InvoicesByDateRangeStatus takes a start and end time (in Unix seconds) and returns
+// all invoices with the included status.  This uses the
+// invoice_changes table to discover the token to look up the correct line items.
+func (m *mysql) InvoicesByDateRangeStatus(start, end int64, status int) ([]database.Invoice, error) {
+	return nil, nil
+}
+
+// InvoicesByDateRange takes a start and end time (in Unix seconds) and returns
+// all invoices.  This uses the
+// invoice_changes table to discover the token to look up the correct line items.
+func (m *mysql) InvoicesByDateRange(start, end int64) ([]database.Invoice, error) {
+	return nil, nil
+}
+
+// InvoicesByLineItemsProposalToken takes a proposal token as an argument and
+// returns all invoices that have line items corresponding with that token.
+// All line items that are not considered relevant to the proposal token will
+// be omitted.
+func (m *mysql) InvoicesByLineItemsProposalToken(token string) ([]database.Invoice, error) {
+	return nil, nil
+}
+
+// MatchingLineItems is a type used for finding matched line items based on
+// proposal ownership.
+type MatchingLineItems struct {
+	InvoiceToken   string
+	UserID         string
+	Month          uint
+	Year           uint
+	Type           uint
+	Domain         string
+	Subdomain      string
+	Description    string
+	ProposalURL    string
+	Labor          uint
+	Expenses       uint
+	ContractorRate uint
+	PublicKey      string
+	ExchangeRate   uint
+	SubRate        uint
+	SubUser        string
+}
+
+/*
+// This function must be called within a transaction.
+func createCmsTables(tx *gorm.DB) error {
+	log.Tracef("createCmsTables")
+
+	// Create cms tables
+	if !tx.HasTable(tableNameInvoice) {
+		err := tx.CreateTable(&Invoice{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	if !tx.HasTable(tableNameLineItem) {
+		err := tx.CreateTable(&LineItem{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	if !tx.HasTable(tableNameInvoiceChange) {
+		err := tx.CreateTable(&InvoiceChange{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	if !tx.HasTable(tableNameExchangeRate) {
+		err := tx.CreateTable(&ExchangeRate{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	if !tx.HasTable(tableNamePayments) {
+		err := tx.CreateTable(&Payments{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	if !tx.HasTable(tableNameDCC) {
+		err := tx.CreateTable(&DCC{}).Error
+		if err != nil {
+			return err
+		}
+	}
+	if !tx.HasTable(tableNameVersions) {
+		err := tx.CreateTable(&Version{}).Error
+		if err != nil {
+			return err
+		}
+	}
+
+	var v Version
+	err := tx.Where("id = ?", cacheID).
+		Find(&v).
+		Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		err = tx.Create(
+			&Version{
+				ID:        cacheID,
+				Version:   cmsVersion,
+				Timestamp: time.Now().Unix(),
+			}).Error
+		return err
+	}
+	return nil
+}
+*/
+// Setup calls the tables creation function to ensure the database is prepared for use.
+func (m *mysql) Setup() error {
+	return nil
+}
+
+// Build drops all existing tables from the records cache, recreates them, then
+// builds the records cache using the passed in records.
+func (m *mysql) Build(dbInvs []database.Invoice, dbDCCs []database.DCC) error {
+	return nil
+}
+
+// Update existing payment.
+//
+// UpdatePayments satisfies the database interface.
+func (m *mysql) UpdatePayments(dbPayments *database.Payments) error {
+
+	if m.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Start transaction.
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := m.cmsDB.BeginTx(ctx, opts)
+	if err != nil {
+		return fmt.Errorf("begin tx: %v", err)
+	}
+	defer tx.Rollback()
+
+	// CALL updatePayments func here
+
+	// Commit transaction.
+	if err := tx.Commit(); err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return fmt.Errorf("commit tx: %v", err)
+	}
+
+	return nil
+}
+
+// PaymentsByAddress returns payments row that has the matching Address.
+func (m *mysql) PaymentsByAddress(address string) (*database.Payments, error) {
+	return nil, nil
+}
+
+// PaymentsByStatus returns all payments rows that match the given status.
+func (m *mysql) PaymentsByStatus(status uint) ([]database.Payments, error) {
+	return nil, nil
+}
+
+// Create new dcc.
+//
+// NewDCC satisfies the database interface.
+func (m *mysql) NewDCC(dbDCC *database.DCC) error {
+
+	if m.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Start transaction.
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := m.cmsDB.BeginTx(ctx, opts)
+	if err != nil {
+		return fmt.Errorf("begin tx: %v", err)
+	}
+	defer tx.Rollback()
+
+	// CALL newDCC func here
+
+	// Commit transaction.
+	if err := tx.Commit(); err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return fmt.Errorf("commit tx: %v", err)
+	}
+
+	return nil
+}
+
+// Update existing dcc.
+//
+// UpdateDCC satisfies the database interface.
+func (m *mysql) UpdateDCC(dbDCC *database.DCC) error {
+
+	if m.isShutdown() {
+		return user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Start transaction.
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := m.cmsDB.BeginTx(ctx, opts)
+	if err != nil {
+		return fmt.Errorf("begin tx: %v", err)
+	}
+	defer tx.Rollback()
+
+	// Commit transaction.
+	if err := tx.Commit(); err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return fmt.Errorf("commit tx: %v", err)
+	}
+
+	return nil
+}
+
+// DCCByToken Return DCC by its token.
+func (m *mysql) DCCByToken(token string) (*database.DCC, error) {
+	return nil, nil
+}
+
+// DCCsByStatus Return DCCs by status.
+func (m *mysql) DCCsByStatus(status int) ([]*database.DCC, error) {
+	return nil, nil
+}
+
+// DCCsAll Returns all DCCs regardless of status.
+func (m *mysql) DCCsAll() ([]*database.DCC, error) {
+	return nil, nil
 }
 
 // Close shuts down the database.  All interface functions must return with

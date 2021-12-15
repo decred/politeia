@@ -366,10 +366,18 @@ func (p *Politeiawww) setupCMS() error {
 		return fmt.Errorf("register userdb plugin: %v", err)
 	}
 
-	p.cmsDB, err = cmsdb.New(p.cfg.DBHost, net, p.cfg.DBRootCert,
-		p.cfg.DBCert, p.cfg.DBKey)
+	var encryptionKey string
+	if p.cfg.OldEncryptionKey != "" {
+		encryptionKey = p.cfg.OldEncryptionKey
+	} else {
+		encryptionKey = p.cfg.EncryptionKey
+	}
+
+	network := filepath.Base(p.cfg.DataDir)
+	p.cmsDB, err = cmsdb.New(p.cfg.DBHost,
+		p.cfg.DBPass, network, encryptionKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("new mysql db: %v", err)
 	}
 	err = p.cmsDB.Setup()
 	if err != nil {
