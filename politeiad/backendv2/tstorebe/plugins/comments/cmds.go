@@ -1161,6 +1161,68 @@ func (p *commentsPlugin) cmdCount(token []byte) (string, error) {
 	return string(reply), nil
 }
 
+// collectVoteDigestsPage accepts a map of all comment indexes with a
+// filtering criteria and it collects the requested page.
+func collectVoteDigestsPage(commentIdxes map[uint32]commentIndex, userID string, page, pageSize uint32) [][]byte {
+	// Default to first page if page is not provided
+	if page == 0 {
+		page = 1
+	}
+
+	digests := make([][]byte, 0, pageSize)
+	var (
+		pageFirstIndex uint32 = (page - 1) * pageSize
+		pageLastIndex  uint32 = page * pageSize
+		idx            uint32 = 0
+		filterByUserID        = userID != ""
+	)
+
+	// Iterate over record index comments map deterministically; start from
+	// comment id 1 upwards.
+	for commentID := 1; commentID <= len(commentIdxes); commentID++ {
+		// If digests page is full, then we are done
+		if len(digests) == int(pageSize) {
+			break
+		}
+
+		cidx := commentIdxes[uint32(commentID)]
+		switch {
+		// User ID filtering criteria is applied. Collect the requested page of
+		// the user's comment votes.
+		case filterByUserID:
+			voteIdxs, ok := cidx.Votes[userID]
+			if !ok {
+				// User has not cast any votes for this comment
+				continue
+			}
+			for _, vidx := range voteIdxs {
+				// Add digest if it's is part of the requested page
+				if isInPageRange(idx, pageFirstIndex, pageLastIndex) {
+					digests = append(digests, vidx.Digest)
+				}
+				idx++
+			}
+
+		// No filtering criteria is applied. we need to sort the Votes map keys,
+		// in order to iterate over the comment's votes maps in a deterministic
+		// manner while collecting the requested page.
+		default:
+			sortedKeys := getVotesMapKeysSorted(cidx.Votes)
+			for _, k := range sortedKeys {
+				for _, vidx := range cidx.Votes[k] {
+					// Add digest if it's is part of the requested page
+					if isInPageRange(idx, pageFirstIndex, pageLastIndex) {
+						digests = append(digests, vidx.Digest)
+					}
+					idx++
+				}
+			}
+		}
+	}
+
+	return digests
+}
+
 // cmdVotes retrieves the comment votes that meet the provided filtering
 // criteria.
 func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) {
@@ -1169,15 +1231,6 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 	err := json.Unmarshal([]byte(payload), &v)
 	if err != nil {
 		return "", err
-	}
-	filterByUserID := v.UserID != ""
-
-	// Default to first page if page is not provided
-	var page uint32
-	if v.Page != 0 {
-		page = v.Page
-	} else {
-		page = 1
 	}
 
 	// Get record state
@@ -1193,54 +1246,8 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 	}
 
 	// Collect the requested page of comment vote digests
-	digests := make([][]byte, 0, p.votesPageSize)
-	var (
-		pageFirstIndex uint32 = (page - 1) * p.votesPageSize
-		pageLastIndex  uint32 = page * p.votesPageSize
-		idx            uint32 = 0
-	)
-	// Iterate over record index comments map deterministically; start from
-	// comment id 1 upwards.
-	for commentID := 1; commentID <= len(ridx.Comments); commentID++ {
-		// If digests page is full, then we are done
-		if len(digests) == int(p.votesPageSize) {
-			break
-		}
-
-		cidx := ridx.Comments[uint32(commentID)]
-		switch {
-		// If no user ID filter is applied, we need to sort the Votes map keys,
-		// in order to iterate over the comment's votes maps in a deterministic
-		// manner.
-		case !filterByUserID:
-			sortedKeys := getVotesMapKeysSorted(cidx.Votes)
-			for _, k := range sortedKeys {
-				for _, vidx := range cidx.Votes[k] {
-					// Add digest if it's is part of the requested page
-					if isInPageRange(idx, pageFirstIndex, pageLastIndex) {
-						digests = append(digests, vidx.Digest)
-					}
-					idx++
-				}
-			}
-
-		// If user ID filter is applied, collect the requested page of the user's
-		// comment votes.
-		case filterByUserID:
-			voteIdxs, ok := cidx.Votes[v.UserID]
-			if !ok {
-				// User has not cast any votes for this comment
-				continue
-			}
-			for _, vidx := range voteIdxs {
-				// Add digest if it's is part of the requested page
-				if isInPageRange(idx, pageFirstIndex, pageLastIndex) {
-					digests = append(digests, vidx.Digest)
-				}
-				idx++
-			}
-		}
-	}
+	digests := collectVoteDigestsPage(ridx.Comments, v.UserID, v.Page,
+		p.votesPageSize)
 
 	// Lookup votes
 	votes, err := p.commentVotes(token, digests)

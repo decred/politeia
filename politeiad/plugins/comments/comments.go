@@ -61,10 +61,11 @@ const (
 	SettingAllowExtraData = false
 
 	// SettingVotesPageSize is the default maximum number of comment votes
-	// that can be returned at any one time. It defaults to 200 to limit the
-	// comment votes route payload size to be ~80KB, as each comment vote size
-	// is expected to be around 400 bytes which means 200 * 0.4 = 80KB.
-	SettingVotesPageSize uint32 = 200
+	// that can be returned at any one time. It defaults to 2621 to limit the
+	// comment votes route payload size to be ~1MiB, as each comment vote size
+	// is expected to be around 400 bytes which means:
+	// 2621 * 400 byte = ~1048576 byte = 1MiB.
+	SettingVotesPageSize uint32 = 2621
 )
 
 // ErrorCodeT represents a error that was caused by the user.
