@@ -8,11 +8,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 
 	// MySQL driver.
 	_ "github.com/go-sql-driver/mysql"
@@ -28,6 +30,11 @@ const (
 	// Database table names
 	tableNameKeyValue = "kv"
 	tableNameNonce    = "nonce"
+
+	// maxPlaceholders is the maximum number of placeholders, "(?, ?, ?)", that
+	// can be used in a prepared statement. MySQL uses an uint16 for this, so
+	// the limit is the the maximum value of an uint16.
+	maxPlaceholders = 65536
 )
 
 // tableKeyValue defines the key-value table.
@@ -201,66 +208,49 @@ func (s *mysql) Get(keys []string) (map[string][]byte, error) {
 		return nil, store.ErrShutdown
 	}
 
-	ctx, cancel := ctxWithTimeout()
-	defer cancel()
+	// Build the select statements
+	statements := buildSelectStatements(keys, maxPlaceholders)
 
-	// Build query. A placeholder parameter (?) is required for each
-	// key being requested.
-	//
-	// Ex 3 keys: "SELECT k, v FROM kv WHERE k IN (?, ?, ?)"
-	sql := "SELECT k, v FROM kv WHERE k IN ("
-	for i := 0; i < len(keys); i++ {
-		sql += "?"
-		// Don't add a comma on the last one
-		if i < len(keys)-1 {
-			sql += ","
-		}
-	}
-	sql += ");"
-
-	log.Tracef("%v", sql)
-
-	// The keys must be converted to []interface{} for the query method
-	// to accept them.
-	args := make([]interface{}, len(keys))
-	for i, v := range keys {
-		args[i] = v
-	}
-
-	// Get blobs
-	rows, err := s.db.QueryContext(ctx, sql, args...)
-	if err != nil {
-		return nil, fmt.Errorf("query: %v", err)
-	}
-	defer rows.Close()
-
+	// Execute the statements
 	reply := make(map[string][]byte, len(keys))
-	for rows.Next() {
-		var k string
-		var v []byte
-		err = rows.Scan(&k, &v)
-		if err != nil {
-			return nil, fmt.Errorf("scan: %v", err)
-		}
-		reply[k] = v
-	}
-	err = rows.Err()
-	if err != nil {
-		return nil, fmt.Errorf("next: %v", err)
-	}
+	for i, e := range statements {
+		log.Debugf("Executing select statement %v/%v", i, len(statements))
 
-	// Decrypt data blobs
-	for k, v := range reply {
-		encrypted := isEncrypted(v)
-		log.Tracef("Blob is encrypted: %v", encrypted)
-		if !encrypted {
-			continue
-		}
-		b, _, err := s.decrypt(v)
+		ctx, cancel := ctxWithTimeout()
+		defer cancel()
+
+		rows, err := s.db.QueryContext(ctx, e.Query, e.Args...)
 		if err != nil {
-			return nil, fmt.Errorf("decrypt: %v", err)
+			return nil, errors.WithStack(err)
 		}
-		reply[k] = b
+		defer rows.Close()
+
+		// Unpack the reply
+		reply := make(map[string][]byte, len(keys))
+		for rows.Next() {
+			var k string
+			var v []byte
+			err = rows.Scan(&k, &v)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+
+			// Decrypt the blob if required
+			if isEncrypted(v) {
+				log.Tracef("Encrypted blob: %v", k)
+				v, _, err = s.decrypt(v)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			// Save the blob
+			reply[k] = v
+		}
+		err = rows.Err()
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
 	}
 
 	return reply, nil
@@ -277,6 +267,85 @@ func (s *mysql) Close() {
 
 	// Close mysql connection
 	s.db.Close()
+}
+
+// selectStatement contains the query string and arguments for a SELECT
+// statement.
+type selectStatement struct {
+	Query string
+	Args  []interface{}
+}
+
+// buildSelectStatements builds the SELECT statements that can be executed
+// against the MySQL key-value store. The maximum number of records that will
+// be retrieved in any individual SELECT statement is determined by the size
+// argument. The keys are split up into multiple statements if they exceed this
+// limit.
+func buildSelectStatements(keys []string, size int) []selectStatement {
+	statements := make([]selectStatement, 0, (len(keys)/size)+1)
+	var startIdx int
+	for startIdx < len(keys) {
+		// Find the end index
+		endIdx := startIdx + size
+		if endIdx > len(keys) {
+			// We've reached the end of the slice
+			endIdx = len(keys)
+		}
+
+		// startIdx is included. endIdx is excluded.
+		statementKeys := keys[startIdx:endIdx]
+
+		// Build the query
+		q := buildSelectQuery(len(statementKeys))
+		log.Tracef("%v", q)
+
+		// Convert the keys to interfaces. The sql query
+		// methods require arguments be interfaces.
+		args := make([]interface{}, len(statementKeys))
+		for i, v := range statementKeys {
+			args[i] = v
+		}
+
+		// Save the statement
+		statements = append(statements, selectStatement{
+			Query: q,
+			Args:  args,
+		})
+
+		// Update the start index
+		startIdx = endIdx
+	}
+
+	return statements
+}
+
+// buildSelectQuery returns a query string for the MySQL key-value store.
+//
+// Example: "SELECT k, v FROM kv WHERE k IN (?,?);"
+func buildSelectQuery(placeholders int) string {
+	return fmt.Sprintf("SELECT k, v FROM kv WHERE k IN %v;",
+		buildPlaceholders(placeholders))
+}
+
+// buildPlaceholders builds and returns a parameter placeholder string with the
+// specified number of placeholders.
+//
+// Input: 1  Output: "(?)"
+// Input: 3  Output: "(?,?,?)"
+func buildPlaceholders(placeholders int) string {
+	var b strings.Builder
+
+	b.WriteString("(")
+	for i := 0; i < placeholders; i++ {
+		b.WriteString("?")
+		// Don't add a comma on the last one
+		if i < placeholders-1 {
+			b.WriteString(",")
+		}
+	}
+	b.WriteString(")")
+
+	return b.String()
 }
 
 // New connects to a mysql instance using the given connection params,
