@@ -34,7 +34,7 @@ func TestBuildSelectStatements(t *testing.T) {
 			[]selectStatement{
 				{
 					Query: buildSelectQuery(1),
-					Args:  []interface{}{key1, key2},
+					Args:  []interface{}{key1},
 				},
 			},
 		},
