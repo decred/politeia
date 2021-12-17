@@ -215,10 +215,13 @@ func (s *mysql) Get(keys []string) (map[string][]byte, error) {
 	// Build the select statements
 	statements := buildSelectStatements(keys, maxPlaceholders)
 
+	log.Debugf("Get %v blobs using %v prepared statements",
+		len(keys), len(statements))
+
 	// Execute the statements
 	reply := make(map[string][]byte, len(keys))
 	for i, e := range statements {
-		log.Debugf("Executing select statement %v/%v", i, len(statements))
+		log.Debugf("Executing select statement %v/%v", i+1, len(statements))
 
 		ctx, cancel := ctxWithTimeout()
 		defer cancel()
