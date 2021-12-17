@@ -1,37 +1,39 @@
 package mysql
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	v2 "github.com/decred/politeia/politeiawww/api/cms/v2"
 	"github.com/decred/politeia/politeiawww/legacy/user"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/jinzhu/gorm"
 )
 
 const (
 	tableNameCMSUser = "cms_user"
 )
 
-/*
 type CMSUser struct {
-	ID                 uuid.UUID `gorm:"primary_key"` // UUID (User foreign key)
-	Domain             int       `gorm:"not null"`    // Contractor domain
-	GitHubName         string    `gorm:"not null"`    // Github Name/ID
-	MatrixName         string    `gorm:"not null"`    // Matrix Name/ID
-	ContractorType     int       `gorm:"not null"`    // Type of Contractor
-	ContractorName     string    `gorm:"not null"`    // IRL Contractor Name or identity
-	ContractorLocation string    `gorm:"not null"`    // General IRL Contractor Location
-	ContractorContact  string    `gorm:"not null"`    // Point of contact outside of matrix
-	SupervisorUserID   string    `gorm:"not null"`    // This is can either be 1 SupervisorUserID or a comma separated string of many supervisor user ids
-	ProposalsOwned     string    `gorm:"not null"`    // This can either be 1 Proposal or a comma separated string of many.
+	ID                 string
+	Domain             int
+	GitHubName         string
+	MatrixName         string
+	ContractorType     int
+	ContractorName     string
+	ContractorLocation string
+	ContractorContact  string
+	SupervisorUserID   string
+	ProposalsOwned     string
 
 	// Set by gorm
 	CreatedAt time.Time // Time of record creation
 	UpdatedAt time.Time // Time of last record update
 }
-*/
+
 // tableCMSuser defines the cms_user table.
 const tableCMSuser = `
 id VARCHAR(36) NOT NULL PRIMARY KEY,
@@ -53,10 +55,7 @@ FOREIGN KEY (id) REFERENCES users(id)
 // with the provided user info.
 //
 // This function must be called using a transaction.
-func (m *mysql) newCMSUser(tx *sql.Tx, nu user.NewCMSUser) error {
-	ctx, cancel := ctxWithTimeout()
-	defer cancel()
-
+func (m *mysql) newCMSUser(ctx context.Context, tx *sql.Tx, nu user.NewCMSUser) error {
 	// Create a new User record
 	u := user.User{
 		Email:                     nu.Email,
@@ -119,7 +118,7 @@ func (m *mysql) cmdNewCMSUser(payload string) (string, error) {
 	}
 	defer tx.Rollback()
 
-	err = m.newCMSUser(tx, *nu)
+	err = m.newCMSUser(ctx, tx, *nu)
 	if err != nil {
 		tx.Rollback()
 		return "", err
@@ -145,14 +144,13 @@ func (m *mysql) cmdNewCMSUser(payload string) (string, error) {
 	return string(reply), nil
 }
 
-/*
 // updateCMSUser updates an existing  CMSUser record with the provided user
 // info.
 //
 // This function must be called using a transaction.
-func (m *mysql) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
+func (m *mysql) updateCMSUser(ctx context.Context, tx *sql.Tx, nu user.UpdateCMSUser) error {
 	cms := CMSUser{
-		ID: nu.ID,
+		ID: nu.ID.String(),
 	}
 	var superVisorUserIds string
 	for i, userIds := range nu.SupervisorUserIDs {
@@ -170,7 +168,9 @@ func (m *mysql) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 			proposalsOwned += ", " + proposal
 		}
 	}
-	err := tx.First(&cms).Error
+
+	err := m.userDB.QueryRowContext(ctx,
+		"SELECT * FROM cms_user WHERE id = ?", cms.ID).Scan(&cms)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			cms.Domain = nu.Domain
@@ -182,7 +182,16 @@ func (m *mysql) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 			cms.ContractorContact = nu.ContractorContact
 			cms.SupervisorUserID = superVisorUserIds
 			cms.ProposalsOwned = proposalsOwned
-			err = tx.Create(&cms).Error
+			cms.CreatedAt = time.Now()
+			_, err = tx.ExecContext(ctx,
+				"INSERT INTO cms_user (id, domain, github_name, matrix_name, "+
+					"contractor_name, contractor_type, contractor_location, "+
+					"contractor_contact, supervisor_user_id, proposals_owned, "+
+					"created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				cms.ID, cms.Domain, cms.GitHubName, cms.MatrixName,
+				cms.ContractorType, cms.ContractorName, cms.ContractorLocation,
+				cms.ContractorContact, cms.SupervisorUserID, cms.ProposalsOwned,
+				cms.CreatedAt.Unix())
 			if err != nil {
 				return err
 			}
@@ -217,21 +226,61 @@ func (m *mysql) updateCMSUser(tx *gorm.DB, nu user.UpdateCMSUser) error {
 	if proposalsOwned != "" {
 		cms.ProposalsOwned = proposalsOwned
 	}
-
-	err = tx.Save(&cms).Error
+	cms.UpdatedAt = time.Now()
+	_, err = tx.ExecContext(ctx,
+		"UPDATE cms_user SET domain = ?, github_name = ?, matrix_name = ?, "+
+			"contractor_type = ?, contractor_name = ?, contractor_location = ?, "+
+			"contractor_contact = ?, supervisor_user_id = ?, "+
+			"proposals_owned = ?, updated_at = ? WHERE id = ? ",
+		cms.Domain, cms.GitHubName, cms.MatrixName, cms.ContractorType,
+		cms.ContractorName, cms.ContractorLocation, cms.ContractorContact,
+		cms.SupervisorUserID, cms.ProposalsOwned, cms.UpdatedAt.Unix(), cms.ID)
 	if err != nil {
-		return err
+		return fmt.Errorf("update user: %v", err)
 	}
+
 	return nil
 }
-*/
 
 // cmdUpdateCMSUser updates an existing CMSUser record in the database.
 func (m *mysql) cmdUpdateCMSUser(payload string) (string, error) {
 	// Decode payload
-	_, err := user.DecodeUpdateCMSUser([]byte(payload))
+	uu, err := user.DecodeUpdateCMSUser([]byte(payload))
 	if err != nil {
 		return "", err
+	}
+
+	if m.isShutdown() {
+		return "", user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Start transaction.
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := m.userDB.BeginTx(ctx, opts)
+	if err != nil {
+		return "", fmt.Errorf("begin tx: %v", err)
+	}
+	defer tx.Rollback()
+
+	err = m.updateCMSUser(ctx, tx, *uu)
+	if err != nil {
+		tx.Rollback()
+		return "", err
+	}
+
+	// Commit transaction.
+	if err := tx.Commit(); err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return "", fmt.Errorf("commit tx: %v", err)
 	}
 
 	// Prepare reply
@@ -246,12 +295,54 @@ func (m *mysql) cmdUpdateCMSUser(payload string) (string, error) {
 // cmdCMSUsersByDomain returns all CMS users within the provided domain.
 func (m *mysql) cmdCMSUsersByDomain(payload string) (string, error) {
 	// Decode payload
-	_, err := user.DecodeCMSUsersByDomain([]byte(payload))
+	ud, err := user.DecodeCMSUsersByDomain([]byte(payload))
 	if err != nil {
 		return "", err
 	}
 
-	r := user.CMSUsersByDomainReply{}
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Lookup users by domain.
+	q := `SELECT 
+		  id,
+		  github_name,
+		  matrix_name,
+		  contractor_type,
+		  contractor_name,
+		  contractor_contact,
+		  contractor_location,
+		  supervisor_user_id,
+		  proposals_owned
+          FROM cms_user
+          WHERE domain = ?`
+
+	rows, err := m.userDB.QueryContext(ctx, q, ud.Domain)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	cmsUsers := make([]user.CMSUser, 0)
+	for rows.Next() {
+		cmsUser := CMSUser{}
+		err := rows.Scan(&cmsUser.ID, &cmsUser.GitHubName, &cmsUser.MatrixName,
+			&cmsUser.ContractorType, &cmsUser.ContractorContact,
+			&cmsUser.ContractorLocation, &cmsUser.SupervisorUserID,
+			&cmsUser.ProposalsOwned)
+		if err != nil {
+			return "", err
+		}
+		cmsUser.Domain = ud.Domain
+		convertedUser, err := m.convertCMSUserFromDatabase(cmsUser)
+		if err != nil {
+			return "", err
+		}
+		cmsUsers = append(cmsUsers, *convertedUser)
+	}
+	r := user.CMSUsersByDomainReply{
+		Users: cmsUsers,
+	}
 	reply, err := user.EncodeCMSUsersByDomainReply(r)
 	if err != nil {
 		return "", err
@@ -264,12 +355,55 @@ func (m *mysql) cmdCMSUsersByDomain(payload string) (string, error) {
 // contractor type.
 func (m *mysql) cmdCMSUsersByContractorType(payload string) (string, error) {
 	// Decode payload
-	_, err := user.DecodeCMSUsersByContractorType([]byte(payload))
+	uct, err := user.DecodeCMSUsersByContractorType([]byte(payload))
 	if err != nil {
 		return "", err
 	}
 
-	r := user.CMSUsersByContractorTypeReply{}
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Lookup users by domain.
+	q := `SELECT 
+		  id,
+		  domain,
+		  github_name,
+		  matrix_name,
+		  contractor_type,
+		  contractor_name,
+		  contractor_contact,
+		  contractor_location,
+		  supervisor_user_id,
+		  proposals_owned
+          FROM cms_user
+          WHERE domain = ?`
+
+	rows, err := m.userDB.QueryContext(ctx, q, uct.ContractorType)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	cmsUsers := make([]user.CMSUser, 0)
+	for rows.Next() {
+		cmsUser := CMSUser{}
+		err := rows.Scan(&cmsUser.ID, &cmsUser.Domain, &cmsUser.GitHubName,
+			&cmsUser.MatrixName, &cmsUser.ContractorType,
+			&cmsUser.ContractorContact, &cmsUser.ContractorLocation,
+			&cmsUser.SupervisorUserID, &cmsUser.ProposalsOwned)
+		if err != nil {
+			return "", err
+		}
+		convertedUser, err := m.convertCMSUserFromDatabase(cmsUser)
+		if err != nil {
+			return "", err
+		}
+		cmsUsers = append(cmsUsers, *convertedUser)
+	}
+
+	r := user.CMSUsersByContractorTypeReply{
+		Users: cmsUsers,
+	}
 	reply, err := user.EncodeCMSUsersByContractorTypeReply(r)
 	if err != nil {
 		return "", err
@@ -282,12 +416,56 @@ func (m *mysql) cmdCMSUsersByContractorType(payload string) (string, error) {
 // contractor type.
 func (m *mysql) cmdCMSUsersByProposalToken(payload string) (string, error) {
 	// Decode payload
-	_, err := user.DecodeCMSUsersByProposalToken([]byte(payload))
+	upt, err := user.DecodeCMSUsersByProposalToken([]byte(payload))
 	if err != nil {
 		return "", err
 	}
 
-	r := user.CMSUsersByProposalTokenReply{}
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Lookup users by domain.
+	q := `SELECT 
+		  id,
+		  domain,
+		  github_name,
+		  matrix_name,
+		  contractor_type,
+		  contractor_name,
+		  contractor_contact,
+		  contractor_location,
+		  supervisor_user_id,
+		  proposals_owned
+          FROM cms_user
+          WHERE domain = ?`
+
+	rows, err := m.userDB.QueryContext(ctx, q, upt.Token)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	cmsUsers := make([]user.CMSUser, 0)
+	for rows.Next() {
+		cmsUser := CMSUser{}
+		err := rows.Scan(&cmsUser.ID, &cmsUser.Domain, &cmsUser.GitHubName,
+			&cmsUser.MatrixName, &cmsUser.ContractorType,
+			&cmsUser.ContractorContact, &cmsUser.ContractorLocation,
+			&cmsUser.SupervisorUserID, &cmsUser.ProposalsOwned)
+		if err != nil {
+			return "", err
+		}
+
+		convertedUser, err := m.convertCMSUserFromDatabase(cmsUser)
+		if err != nil {
+			return "", err
+		}
+		cmsUsers = append(cmsUsers, *convertedUser)
+	}
+
+	r := user.CMSUsersByProposalTokenReply{
+		Users: cmsUsers,
+	}
 	reply, err := user.EncodeCMSUsersByProposalTokenReply(r)
 	if err != nil {
 		return "", err
@@ -299,11 +477,43 @@ func (m *mysql) cmdCMSUsersByProposalToken(payload string) (string, error) {
 // cmdCMSUserByID returns the user information for a given user ID.
 func (m *mysql) cmdCMSUserByID(payload string) (string, error) {
 	// Decode payload
-	_, err := user.DecodeCMSUserByID([]byte(payload))
+	uid, err := user.DecodeCMSUserByID([]byte(payload))
 	if err != nil {
 		return "", err
 	}
-	r := user.CMSUserByIDReply{}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+	q := `SELECT 
+		id,
+		domain,
+		github_name,
+		matrix_name,
+		contractor_type,
+		contractor_name,
+		contractor_contact,
+		contractor_location,
+		supervisor_user_id,
+		proposals_owned
+		FROM cms_user
+		WHERE id = ?`
+	cmsUser := CMSUser{}
+	err = m.userDB.QueryRowContext(ctx, q, uid.ID).Scan(&cmsUser.ID,
+		&cmsUser.Domain, &cmsUser.GitHubName,
+		&cmsUser.MatrixName, &cmsUser.ContractorType,
+		&cmsUser.ContractorContact, &cmsUser.ContractorLocation,
+		&cmsUser.SupervisorUserID, &cmsUser.ProposalsOwned)
+	if err != nil {
+		return "", err
+	}
+
+	convertedUser, err := m.convertCMSUserFromDatabase(cmsUser)
+	if err != nil {
+		return "", err
+	}
+	r := user.CMSUserByIDReply{
+		User: convertedUser,
+	}
 	reply, err := user.EncodeCMSUserByIDReply(r)
 	if err != nil {
 		return "", err

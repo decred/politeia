@@ -33,6 +33,11 @@ const (
 
 	// Database table names.
 	tableNameExchangeRates = "exchange_rates"
+	tableNameInvoices      = "invoices"
+	tableNameLineItems     = "line_items"
+	tableNamePayments      = "payments"
+	tableNameInvoiceChange = "invoice_changes"
+	tableNameVersions      = "versions"
 
 	// Key-value store keys.
 	keyVersion = "version"
