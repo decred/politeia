@@ -367,17 +367,17 @@ func (c *Comments) commentVotesPopulateUserData(votes []v1.CommentVote, userID s
 
 	// Get users from db in batchs to avoid reading too many
 	// users into memory.
-	var startIdx int
+	var batchStartIdx int
 	usernames := make(map[string]string, len(pubkeys))
-	for startIdx < len(pubkeys) {
-		endIdx := startIdx + usersBatchSize
-		if endIdx > len(pubkeys) {
+	for batchStartIdx < len(pubkeys) {
+		batchEndIdx := batchStartIdx + usersBatchSize
+		if batchEndIdx > len(pubkeys) {
 			// We've reached the end of the slice
-			endIdx = len(pubkeys)
+			batchEndIdx = len(pubkeys)
 		}
 
-		// startIdx is included. endIdx is excluded.
-		batch := pubkeys[startIdx:endIdx]
+		// batchStartIdx is included. batchEndIdx is excluded.
+		batch := pubkeys[batchStartIdx:batchEndIdx]
 
 		// Get batch of users
 		users, err := c.userdb.UsersGetByPubKey(batch)
@@ -390,8 +390,11 @@ func (c *Comments) commentVotesPopulateUserData(votes []v1.CommentVote, userID s
 			usernames[u.ID.String()] = u.Username
 		}
 
-		// Update the start index
-		startIdx = endIdx
+		log.Debugf("fetched a batch of %v users out of %v required users",
+			len(batch), len(pubkeys))
+
+		// Next batch start index
+		batchStartIdx = batchEndIdx
 	}
 
 	// Populate comment votes with usernames
