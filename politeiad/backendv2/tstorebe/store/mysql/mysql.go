@@ -35,7 +35,7 @@ const (
 	// maxPlaceholders is the maximum number of placeholders, "(?, ?, ?)", that
 	// can be used in a prepared statement. MySQL uses an uint16 for this, so
 	// the limit is the the maximum value of an uint16.
-	maxPlaceholders = 65536
+	maxPlaceholders = 65535
 )
 
 // tableKeyValue defines the key-value table.
