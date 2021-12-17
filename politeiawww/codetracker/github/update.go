@@ -53,7 +53,19 @@ func (g *github) Update(repos []string, start, end int64) {
 		log.Infof("%s", repo)
 		orgRepo := strings.Split(repo, "-")
 		org := orgRepo[0]
-		repo = orgRepo[1]
+		if len(orgRepo) > 2 {
+			for k, v := range orgRepo {
+				if k == 0 {
+					continue
+				} else if k == len(orgRepo)-1 {
+					repo += v
+				} else {
+					repo += v + "-"
+				}
+			}
+		} else {
+			repo = orgRepo[1]
+		}
 		log.Infof("Syncing %s/%s", org, repo)
 
 		// Grab latest sync time
