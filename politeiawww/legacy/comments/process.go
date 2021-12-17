@@ -390,7 +390,7 @@ func (c *Comments) commentVotesPopulateUserData(votes []v1.CommentVote, userID s
 			usernames[u.ID.String()] = u.Username
 		}
 
-		log.Debugf("fetched a batch of %v users out of %v required users",
+		log.Debugf("Fetched a batch of %v users out of %v required users",
 			len(batch), len(pubkeys))
 
 		// Next batch start index

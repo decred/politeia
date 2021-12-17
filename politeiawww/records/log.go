@@ -29,5 +29,5 @@ func UseLogger(logger slog.Logger) {
 
 // Initialize the package logger.
 func init() {
-	UseLogger(logger.NewSubsystem("RECORDS"))
+	UseLogger(logger.NewSubsystem("RCPL"))
 }

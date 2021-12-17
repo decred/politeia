@@ -29,5 +29,5 @@ func UseLogger(logger slog.Logger) {
 
 // Initialize the package logger.
 func init() {
-	UseLogger(logger.NewSubsystem("PI"))
+	UseLogger(logger.NewSubsystem("PIPL"))
 }
