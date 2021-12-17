@@ -6,6 +6,7 @@ package mysql
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -47,9 +48,14 @@ func TestGet(t *testing.T) {
 	defer cleanup()
 
 	// Test the single query code path
-	testGetSingleQuery(t, s)
+	t.Run("single query", func(t *testing.T) {
+		testGetSingleQuery(t, s)
+	})
 
 	// Test the multiple query code path
+	t.Run("multi query", func(t *testing.T) {
+		testGetMultiQuery(t, s)
+	})
 }
 
 // testGetSingleQuery tests the mysql Get() method when the number of records
@@ -62,7 +68,8 @@ func testGetSingleQuery(t *testing.T, s *mysql) {
 		value1 = []byte("value1")
 		value2 = []byte("value2")
 
-		// rows contains the rows that will be returned from the mocked sql query.
+		// rows contains the rows that will be returned
+		// from the mocked sql query.
 		rows = sqlmock.NewRows([]string{"k", "v"}).
 			AddRow(key1, value1).
 			AddRow(key2, value2)
@@ -89,6 +96,86 @@ func testGetSingleQuery(t *testing.T, s *mysql) {
 	// Verify the returned value
 	if len(blobs) != 2 {
 		t.Errorf("got %v blobs, want 2", len(blobs))
+	}
+	v1 := blobs[key1]
+	if !bytes.Equal(v1, value1) {
+		t.Errorf("got '%s' for value 1; want '%s'", v1, value1)
+	}
+	v2 := blobs[key2]
+	if !bytes.Equal(v2, value2) {
+		t.Errorf("got '%s' for value 2; want '%s'", v2, value2)
+	}
+}
+
+// testGetMultiQuery tests the mysql Get() method when the number of records
+// being retrieved cannot fit into a single MySQL SELECT statement and must
+// be broken up into multiple SELECT statements.
+func testGetMultiQuery(t *testing.T, s *mysql) {
+	// Prepare the test data. The maximum number of records
+	// that can be returned in a single SELECT statement is
+	// limited by the maxPlaceholders variable. We multiply
+	// this by 2 in order to ensure that multiple queries
+	// are required.
+	var (
+		keysCount = maxPlaceholders * 2
+		keys      = make([]string, 0, keysCount)
+
+		// These variables contain the rows that will be
+		// returned from each mocked sql query.
+		rows1 = sqlmock.NewRows([]string{"k", "v"})
+		rows2 = sqlmock.NewRows([]string{"k", "v"})
+	)
+	for i := 0; i < keysCount; i++ {
+		key := fmt.Sprintf("key%v", i)
+		value := []byte(fmt.Sprintf("value%v", i))
+		keys = append(keys, key)
+
+		if i < keysCount/2 {
+			// Add to the first query results
+			rows1.AddRow(key, value)
+		} else {
+			// Add to the second query results
+			rows2.AddRow(key, value)
+		}
+	}
+
+	// Setup the sql expectations for both queries
+	query := buildSelectQuery(keysCount / 2)
+	s.mock.ExpectQuery(query).
+		WillReturnRows(rows1).
+		RowsWillBeClosed()
+	s.mock.ExpectQuery(query).
+		WillReturnRows(rows2).
+		RowsWillBeClosed()
+
+	// Run the test
+	blobs, err := s.Get(keys)
+	if err != nil {
+		t.Errorf("multi query get failed; skipped printing " +
+			"the error for readability")
+	}
+
+	// Verify the sql expectations
+	err = s.mock.ExpectationsWereMet()
+	if err != nil {
+		t.Errorf("multi query sql expectations were not ; " +
+			"met; skipped printing the error for readability")
+	}
+
+	// Verify the returned values contain entries from both
+	// queries.
+	var (
+		idx1 = keysCount/2 - 1
+		idx2 = keysCount/2 + 2
+
+		key1 = fmt.Sprintf("key%v", idx1)
+		key2 = fmt.Sprintf("key%v", idx2)
+
+		value1 = []byte(fmt.Sprintf("value%v", idx1))
+		value2 = []byte(fmt.Sprintf("value%v", idx2))
+	)
+	if len(blobs) != keysCount {
+		t.Errorf("got %v blobs, want %v", len(blobs), keysCount)
 	}
 	v1 := blobs[key1]
 	if !bytes.Equal(v1, value1) {
@@ -191,7 +278,8 @@ func TestBuildPlaceholders(t *testing.T) {
 		{3, "(?,?,?)"},
 	}
 	for _, tc := range tests {
-		t.Run("", func(t *testing.T) {
+		name := fmt.Sprintf("%v placeholders", tc.placeholders)
+		t.Run(name, func(t *testing.T) {
 			output := buildPlaceholders(tc.placeholders)
 			if output != tc.output {
 				t.Errorf("got %v, want %v", output, tc.output)
