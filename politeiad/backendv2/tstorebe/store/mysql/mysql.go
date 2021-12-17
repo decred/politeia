@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
 	"github.com/pkg/errors"
@@ -57,7 +58,10 @@ type mysql struct {
 	shutdown uint64
 	db       *sql.DB
 	key      [32]byte
-	testing  bool // Only set during unit tests
+
+	// The following fields are only used during unit tests.
+	testing bool
+	mock    sqlmock.Sqlmock
 }
 
 func ctxWithTimeout() (context.Context, func()) {
@@ -226,7 +230,6 @@ func (s *mysql) Get(keys []string) (map[string][]byte, error) {
 		defer rows.Close()
 
 		// Unpack the reply
-		reply := make(map[string][]byte, len(keys))
 		for rows.Next() {
 			var k string
 			var v []byte
