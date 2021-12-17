@@ -1257,9 +1257,9 @@ func collectVoteDigestsPage(commentIdxes map[uint32]commentIndex, userID string,
 		// manner, the user IDs must first be sorted, then the pagination is
 		// applied.
 		default:
-			sortedKeys := getVotesMapKeysSorted(cidx.Votes)
-			for _, k := range sortedKeys {
-				for _, vidx := range cidx.Votes[k] {
+			userIDs := getSortedUserIDs(cidx.Votes)
+			for _, userID := range userIDs {
+				for _, vidx := range cidx.Votes[userID] {
 					// Add digest if it's part of the requested page
 					if isInPageRange(idx, pageFirstIndex, pageLastIndex) {
 						digests = append(digests, vidx.Digest)
@@ -1278,19 +1278,18 @@ func collectVoteDigestsPage(commentIdxes map[uint32]commentIndex, userID string,
 	return digests
 }
 
-// getVotesMapKeysSorted accepts a map of a comment vote indexes with the
-// user IDs as keys, it collects the keys, sorts them and finally returns
-// them as sorted slice.
-func getVotesMapKeysSorted(m map[string][]voteIndex) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
+// getSortedUserIDs accepts a map of comment vote indexes indexed by user IDs,
+// it collects the keys, sorts them and finally returns them as sorted slice.
+func getSortedUserIDs(m map[string][]voteIndex) []string {
+	userIDs := make([]string, 0, len(m))
+	for userID := range m {
+		userIDs = append(userIDs, userID)
 	}
 
 	// Sort keys
-	sort.Strings(keys)
+	sort.Strings(userIDs)
 
-	return keys
+	return userIDs
 }
 
 // isInPageRange determines whether the given index is part of the given
