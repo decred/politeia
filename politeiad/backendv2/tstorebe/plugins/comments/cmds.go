@@ -1240,7 +1240,7 @@ func collectVoteDigestsPage(commentIdxes map[uint32]commentIndex, userID string,
 				continue
 			}
 			for _, vidx := range voteIdxs {
-				// Add digest if it's is part of the requested page
+				// Add digest if it's part of the requested page
 				if isInPageRange(idx, pageFirstIndex, pageLastIndex) {
 					digests = append(digests, vidx.Digest)
 
@@ -1252,14 +1252,15 @@ func collectVoteDigestsPage(commentIdxes map[uint32]commentIndex, userID string,
 				idx++
 			}
 
-		// No filtering criteria is applied. we need to sort the Votes map keys,
-		// in order to iterate over the comment's votes maps in a deterministic
-		// manner while collecting the requested page.
+		// No filtering criteria is applied. The votes are indexed by user ID and
+		// saved in a map. In order to return a page of votes in a deterministic
+		// manner, the user IDs must first be sorted, then the pagination is
+		// applied.
 		default:
 			sortedKeys := getVotesMapKeysSorted(cidx.Votes)
 			for _, k := range sortedKeys {
 				for _, vidx := range cidx.Votes[k] {
-					// Add digest if it's is part of the requested page
+					// Add digest if it's part of the requested page
 					if isInPageRange(idx, pageFirstIndex, pageLastIndex) {
 						digests = append(digests, vidx.Digest)
 

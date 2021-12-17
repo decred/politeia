@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/politeiad/plugins/comments"
@@ -341,43 +340,44 @@ func (c *Comments) commentVotesPopulateUserData(votes []v1.CommentVote, userID s
 
 	// Collect the users public keys in a map to prevent duplicates and to
 	// retrieve the users in a batched db call.
-	var mPubKeys map[string]bool // map[pubkey]bool
+	var mPubkeys map[string]bool // map[pubkey]bool
 	if userID != "" {
 		// If user ID filter is applied, we have only one user
 		// to fetch.
-		mPubKeys = make(map[string]bool, 1)
-		mPubKeys[votes[0].PublicKey] = true
+		mPubkeys = make(map[string]bool, 1)
+		mPubkeys[votes[0].PublicKey] = true
 	} else {
 		// If user ID filter is not applied, we need to collect all
 		// the user public keys from comment votes.
-		mPubKeys = make(map[string]bool, len(votes))
+		mPubkeys = make(map[string]bool, len(votes))
 		for _, vote := range votes {
-			if ok := mPubKeys[vote.UserID]; ok {
+			if ok := mPubkeys[vote.UserID]; ok {
 				// If user uuid already known, skip
 				continue
 			}
-			mPubKeys[vote.PublicKey] = true
+			mPubkeys[vote.PublicKey] = true
 		}
 	}
 
 	// Store public keys in a slice
-	pubKeys := make([]string, 0, len(mPubKeys))
-	for pubKey := range mPubKeys {
-		pubKeys = append(pubKeys, pubKey)
+	pubkeys := make([]string, 0, len(mPubkeys))
+	for pubkey := range mPubkeys {
+		pubkeys = append(pubkeys, pubkey)
 	}
 
 	// Get users from db in batchs to avoid reading too many
 	// users into memory.
-	usernames := make(map[string]string, len(pubKeys))
-	for len(pubKeys) > 0 {
-		// Next batch of public keys, consider the case when the remaining
-		// public keys are less than a full batch.
-		batchLastIndex := int(math.Min(float64(usersBatchSize),
-			float64(len(pubKeys))))
-		batch := pubKeys[:batchLastIndex]
+	var startIdx int
+	usernames := make(map[string]string, len(pubkeys))
+	for startIdx < len(pubkeys) {
+		endIdx := startIdx + usersBatchSize
+		if endIdx > len(pubkeys) {
+			// We've reached the end of the slice
+			endIdx = len(pubkeys)
+		}
 
-		// Remaining public keys
-		pubKeys = pubKeys[batchLastIndex:]
+		// startIdx is included. endIdx is excluded.
+		batch := pubkeys[startIdx:endIdx]
 
 		// Get batch of users
 		users, err := c.userdb.UsersGetByPubKey(batch)
@@ -389,6 +389,9 @@ func (c *Comments) commentVotesPopulateUserData(votes []v1.CommentVote, userID s
 		for _, u := range users {
 			usernames[u.ID.String()] = u.Username
 		}
+
+		// Update the start index
+		startIdx = endIdx
 	}
 
 	// Populate comment votes with usernames
