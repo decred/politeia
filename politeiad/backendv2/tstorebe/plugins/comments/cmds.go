@@ -1246,7 +1246,7 @@ func collectVoteDigestsPage(commentIdxes map[uint32]commentIndex, userID string,
 
 					// If digests page is full, then we are done
 					if len(digests) == int(pageSize) {
-						goto done
+						return digests
 					}
 				}
 				idx++
@@ -1265,7 +1265,7 @@ func collectVoteDigestsPage(commentIdxes map[uint32]commentIndex, userID string,
 
 						// If digests page is full, then we are done
 						if len(digests) == int(pageSize) {
-							goto done
+							return digests
 						}
 					}
 					idx++
@@ -1274,7 +1274,6 @@ func collectVoteDigestsPage(commentIdxes map[uint32]commentIndex, userID string,
 		}
 	}
 
-done:
 	return digests
 }
 
