@@ -705,7 +705,7 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 	entries := make([]store.BlobEntry, 0, len(keys))
 	// Iterate over the blobs map in a deterministic manner, in order
 	// to keep the ordering of the record's files and metadata streams
-	// consistent. Therefore, sort the blobs maps keys.
+	// consistent. Therefore, sort the blobs map keys.
 	sortedKeys := getSortedKeys(blobs)
 	for _, key := range sortedKeys {
 		v := blobs[key]
