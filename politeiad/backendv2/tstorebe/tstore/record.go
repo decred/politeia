@@ -701,7 +701,7 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 			treeID, len(keys), len(blobs))
 	}
 
-	// Decode Blobs.
+	// Decode Blobs
 	entries := make([]store.BlobEntry, 0, len(keys))
 	// Sort the blobs map keys to iterate over it in a deterministic manner,
 	// this ensures that the ordering of the record's files and metadata streams
