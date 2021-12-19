@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
@@ -702,7 +703,12 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 
 	// Decode blobs
 	entries := make([]store.BlobEntry, 0, len(keys))
-	for _, v := range blobs {
+	// Iterate over the blobs map in a deterministic manner, in order
+	// to keep the ordering of the record's files and metadata streams
+	// consistent. Therefore, sort the blobs maps keys.
+	sortedKeys := getSortedKeys(blobs)
+	for _, key := range sortedKeys {
+		v := blobs[key]
 		be, err := store.Deblob(v)
 		if err != nil {
 			return nil, err
@@ -777,6 +783,20 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 		Metadata:       metadata,
 		Files:          files,
 	}, nil
+}
+
+// getSortedKeys accepts a map of record's blobs indexed by string keys,
+// it colects the keys in a slice and returns them sorted.
+func getSortedKeys(blobs map[string][]byte) []string {
+	keys := make([]string, 0, len(blobs))
+	for k := range blobs {
+		keys = append(keys, k)
+	}
+
+	// Sort keys
+	sort.Strings(keys)
+
+	return keys
 }
 
 // Record returns the specified version of the record.
