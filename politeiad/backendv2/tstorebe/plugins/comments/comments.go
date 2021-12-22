@@ -43,6 +43,8 @@ type commentsPlugin struct {
 	commentLengthMax uint32
 	voteChangesMax   uint32
 	allowExtraData   bool
+	allowEdits       bool
+	editPeriodTime   uint32
 }
 
 // Setup performs any plugin setup that is required.
@@ -155,6 +157,14 @@ func (p *commentsPlugin) Settings() []backend.PluginSetting {
 			Key:   comments.SettingKeyAllowExtraData,
 			Value: strconv.FormatBool(p.allowExtraData),
 		},
+		{
+			Key:   comments.SettingKeyAllowEdits,
+			Value: strconv.FormatBool(p.allowEdits),
+		},
+		{
+			Key:   comments.SettingKeyEditPeriodTime,
+			Value: strconv.FormatUint(uint64(p.editPeriodTime), 10),
+		},
 	}
 }
 
@@ -172,6 +182,8 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 		commentLengthMax = comments.SettingCommentLengthMax
 		voteChangesMax   = comments.SettingVoteChangesMax
 		allowExtraData   = comments.SettingAllowExtraData
+		allowEdits       = comments.SettingAllowEdits
+		editPeriodTime   = comments.SettingEditPeriodTime
 	)
 
 	// Override defaults with any passed in settings
@@ -198,6 +210,20 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 					v.Key, v.Value, err)
 			}
 			allowExtraData = b
+		case comments.SettingKeyAllowEdits:
+			b, err := strconv.ParseBool(v.Value)
+			if err != nil {
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			allowEdits = b
+		case comments.SettingKeyEditPeriodTime:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			editPeriodTime = uint32(u)
 		default:
 			return nil, errors.Errorf("invalid comments plugin setting '%v'", v.Key)
 		}
@@ -210,5 +236,7 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 		commentLengthMax: commentLengthMax,
 		voteChangesMax:   voteChangesMax,
 		allowExtraData:   allowExtraData,
+		allowEdits:       allowEdits,
+		editPeriodTime:   editPeriodTime,
 	}, nil
 }

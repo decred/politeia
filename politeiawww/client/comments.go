@@ -49,6 +49,23 @@ func (c *Client) CommentNew(n cmv1.New) (*cmv1.NewReply, error) {
 	return &nr, nil
 }
 
+// CommentEdit sends a comments v1 Edit request to politeiawww.
+func (c *Client) CommentEdit(e cmv1.Edit) (*cmv1.EditReply, error) {
+	resBody, err := c.makeReq(http.MethodPost,
+		cmv1.APIRoute, cmv1.RouteEdit, e)
+	if err != nil {
+		return nil, err
+	}
+
+	var er cmv1.EditReply
+	err = json.Unmarshal(resBody, &er)
+	if err != nil {
+		return nil, err
+	}
+
+	return &er, nil
+}
+
 // CommentVote sends a comments v1 Vote request to politeiawww.
 func (c *Client) CommentVote(v cmv1.Vote) (*cmv1.VoteReply, error) {
 	resBody, err := c.makeReq(http.MethodPost,

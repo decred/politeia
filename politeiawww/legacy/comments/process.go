@@ -96,6 +96,78 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 	}, nil
 }
 
+func (c *Comments) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.EditReply, error) {
+	log.Tracef("processEdit: %v %v", e.Token, e.CommentID)
+
+	// Verify state
+	state := convertStateToPlugin(e.State)
+	if state == comments.RecordStateInvalid {
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodeRecordStateInvalid,
+		}
+	}
+
+	// Verify user signed using active identity
+	if u.PublicKey() != e.PublicKey {
+		return nil, v1.UserErrorReply{
+			ErrorCode:    v1.ErrorCodePublicKeyInvalid,
+			ErrorContext: "not active identity",
+		}
+	}
+
+	// Ensure that session user is the comment author
+	if u.ID.String() != e.UserID {
+		return nil, v1.UserErrorReply{
+			ErrorCode:    v1.ErrorCodeUnauthorized,
+			ErrorContext: "user is not comment author",
+		}
+	}
+
+	// Execute pre plugin hooks. Checking the mode is a temporary
+	// measure until user plugins have been properly implemented.
+	switch c.cfg.Mode {
+	case config.PiWWWMode:
+		err := c.piHookEditPre(u)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Send plugin command
+	ce := comments.Edit{
+		UserID:        u.ID.String(),
+		State:         state,
+		Token:         e.Token,
+		ParentID:      e.ParentID,
+		CommentID:     e.CommentID,
+		Comment:       e.Comment,
+		PublicKey:     e.PublicKey,
+		Signature:     e.Signature,
+		ExtraData:     e.ExtraData,
+		ExtraDataHint: e.ExtraDataHint,
+	}
+	pdc, err := c.politeiad.CommentEdit(ctx, ce)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare reply
+	cm := convertComment(*pdc)
+	commentPopulateUserData(&cm, u)
+
+	// Emit event
+	// XXX should we introduce a new event here?
+	c.events.Emit(EventTypeNew,
+		EventNew{
+			State:   e.State,
+			Comment: cm,
+		})
+
+	return &v1.EditReply{
+		Comment: cm,
+	}, nil
+}
+
 func (c *Comments) processVote(ctx context.Context, v v1.Vote, u user.User) (*v1.VoteReply, error) {
 	log.Tracef("processVote: %v %v %v", v.Token, v.CommentID, v.Vote)
 

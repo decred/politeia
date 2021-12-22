@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -19,6 +18,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -554,6 +554,14 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 
 // cmdEdit edits an existing comment.
 func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
+	// Check if comment edits are allowed
+	if !p.allowEdits {
+		return "", backend.PluginError{
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeEditsNotAllowed),
+		}
+	}
+
 	// Decode payload
 	var e comments.Edit
 	err := json.Unmarshal([]byte(payload), &e)
@@ -575,8 +583,9 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 
 	// Verify signature
 	msg := strconv.FormatUint(uint64(e.State), 10) + e.Token +
-		strconv.FormatUint(uint64(e.ParentID), 10) + e.Comment +
-		e.ExtraData + e.ExtraDataHint
+		strconv.FormatUint(uint64(e.ParentID), 10) +
+		strconv.FormatUint(uint64(e.CommentID), 10) +
+		e.Comment + e.ExtraData + e.ExtraDataHint
 	err = util.VerifySignature(e.Signature, e.PublicKey, msg)
 	if err != nil {
 		return "", convertSignatureError(err)
@@ -609,6 +618,28 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	ridx, err := p.recordIndex(token, state)
 	if err != nil {
 		return "", err
+	}
+
+	// Get first version of the comment
+	cf, err := p.commentFirstVersion(token, *ridx, e.CommentID)
+	if err != nil {
+		return "", err
+	}
+	if cf == nil {
+		return "", backend.PluginError{
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeCommentNotFound),
+		}
+	}
+
+	// Comment edits are allowed only during the timeframe
+	// set by the editPeriodTime plugin setting.
+	if cf.Timestamp+int64(p.editPeriodTime) > time.Now().Unix() {
+		return "", backend.PluginError{
+			PluginID:     comments.PluginID,
+			ErrorCode:    uint32(comments.ErrorCodeEditsNotAllowed),
+			ErrorContext: "comment edits timeframe expired",
+		}
 	}
 
 	// Get the existing comment
@@ -699,6 +730,35 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	}
 
 	return string(reply), nil
+}
+
+// commentFirstVersion returns the first version of the specified comment. If
+// a comment is not found for the provided comment ID, a nil is returned.
+func (p *commentsPlugin) commentFirstVersion(token []byte, ridx recordIndex, commentID uint32) (*comments.Comment, error) {
+	cidx, ok := ridx.Comments[commentID]
+	if !ok {
+		// Comment does not exist
+		return nil, nil
+	}
+
+	// First version comment add digest
+	digest := cidx.Adds[1]
+
+	// Comment add record
+	adds, err := p.commentAdds(token, [][]byte{digest})
+	if err != nil {
+		return nil, errors.Errorf("commentAdds: %v", err)
+	}
+	if len(adds) != 1 {
+		return nil, errors.Errorf("wrong comment adds count; got %v, want %v",
+			len(adds), 1)
+	}
+
+	// Convert comment add
+	c := convertCommentFromCommentAdd(adds[1])
+	c.Downvotes, c.Upvotes = voteScore(cidx)
+
+	return &c, nil
 }
 
 // verifyExtraData ensures no extra data provided if it's not allowed.

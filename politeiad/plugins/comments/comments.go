@@ -38,6 +38,14 @@ const (
 	// SettingKeyAllowExtraData is the plugin setting key for the
 	// SettingAllowExtraData plugin setting.
 	SettingKeyAllowExtraData = "allowextradata"
+
+	// SettingKeyAllowEdits is the plugin setting key for the
+	// SettingAllowEdits plugin setting.
+	SettingKeyAllowEdits = "allowedits"
+
+	// SettingKeyEditPeriodTime is the plugin setting key for the
+	// SettingEditPeriodTime plugin setting.
+	SettingKeyEditPeriodTime = "editperiodtime"
 )
 
 // Plugin setting default values. These can be overridden by providing a plugin
@@ -55,6 +63,17 @@ const (
 	// SettingAllowExtraData is the default value of the bool flag which
 	// determines whether posting extra data along with the comment is allowed.
 	SettingAllowExtraData = false
+
+	// SettingAllowEdits is the default value of the bool flag which
+	// determines whether comment edits are temporarily allowed during the
+	// timeframe set by SettingEditPeriodTime.
+	SettingAllowEdits = false
+
+	// SettingEditPeriodTime is the default maximum amount of time,
+	// in seconds, since the submission of a comment where it's still
+	// editable. It defaults to five minutes which should be enough time
+	// to spot typos and grammar mistakes.
+	SettingEditPeriodTime uint32 = 300
 )
 
 // ErrorCodeT represents a error that was caused by the user.
@@ -111,8 +130,12 @@ const (
 	// is found while comment plugin setting does not allow it.
 	ErrorCodeExtraDataNotAllowed = 12
 
+	// ErrorCodeEditsNotAllowed is returned when comment edits are not
+	// allowed.
+	ErrorCodeEditsNotAllowed = 13
+
 	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 13
+	ErrorCodeLast ErrorCodeT = 14
 )
 
 var (
@@ -131,6 +154,7 @@ var (
 		ErrorCodeVoteChangesMaxExceeded: "vote changes max exceeded",
 		ErrorCodeRecordStateInvalid:     "record state invalid",
 		ErrorCodeExtraDataNotAllowed:    "comment extra data not allowed",
+		ErrorCodeEditsNotAllowed:        "edits are not allowed",
 	}
 )
 
@@ -335,7 +359,7 @@ type NewReply struct {
 // PublicKey is the user's public key that is used to verify the signature.
 //
 // Signature is the user signature of the:
-// State + Token + ParentID + Comment + ExtraData + ExtraDataHint
+// State + Token + ParentID + CommentID + Comment + ExtraData + ExtraDataHint
 //
 // Receipt is the server signature of the user signature.
 //

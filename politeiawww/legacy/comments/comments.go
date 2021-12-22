@@ -6,7 +6,6 @@ package comments
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/decred/politeia/politeiawww/legacy/sessions"
 	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 )
 
 // Comments is the context for the comments API.
@@ -67,6 +67,37 @@ func (c *Comments) HandleNew(w http.ResponseWriter, r *http.Request) {
 	}
 
 	util.RespondWithJSON(w, http.StatusOK, nr)
+}
+
+// HandleEdit is the request handler for the comments v1 Edit route.
+func (c *Comments) HandleEdit(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("HandleEdit")
+
+	var v v1.Edit
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&v); err != nil {
+		respondWithError(w, r, "HandleEdit: unmarshal",
+			v1.UserErrorReply{
+				ErrorCode: v1.ErrorCodeInputInvalid,
+			})
+		return
+	}
+
+	u, err := c.sessions.GetSessionUser(w, r)
+	if err != nil {
+		respondWithError(w, r,
+			"HandleEdit: GetSessionUser: %v", err)
+		return
+	}
+
+	vr, err := c.processEdit(r.Context(), v, *u)
+	if err != nil {
+		respondWithError(w, r,
+			"HandleEdit: processEdit: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, vr)
 }
 
 // HandleVote is the request handler for the comments v1 Vote route.
@@ -253,6 +284,8 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 	var (
 		lengthMax      uint32
 		voteChangesMax uint32
+		allowEdits     bool
+		editPeriodTime uint32
 	)
 	for _, p := range plugins {
 		if p.ID != comments.PluginID {
@@ -273,6 +306,20 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 					return nil, err
 				}
 				voteChangesMax = uint32(u)
+			case comments.SettingKeyAllowEdits:
+				b, err := strconv.ParseBool(v.Value)
+				if err != nil {
+					return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
+						v.Key, v.Value, err)
+				}
+				allowEdits = b
+			case comments.SettingKeyEditPeriodTime:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
+						v.Key, v.Value, err)
+				}
+				editPeriodTime = uint32(u)
 			default:
 				// Skip unknown settings
 				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)
@@ -283,11 +330,14 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 	// Verify all plugin settings have been provided
 	switch {
 	case lengthMax == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			comments.SettingKeyCommentLengthMax)
 	case voteChangesMax == 0:
-		return nil, fmt.Errorf("plugin setting not found: %v",
+		return nil, errors.Errorf("plugin setting not found: %v",
 			comments.SettingKeyVoteChangesMax)
+	case editPeriodTime == 0:
+		return nil, errors.Errorf("plugin setting not found: %v",
+			comments.SettingKeyEditPeriodTime)
 	}
 
 	return &Comments{
@@ -301,6 +351,8 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 			VoteChangesMax:     voteChangesMax,
 			CountPageSize:      v1.CountPageSize,
 			TimestampsPageSize: v1.TimestampsPageSize,
+			AllowEdits:         allowEdits,
+			EditPeriodTime:     editPeriodTime,
 		},
 	}, nil
 }
