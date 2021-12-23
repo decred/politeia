@@ -197,6 +197,31 @@ func commentDelVerify(c cmv1.Comment, serverPublicKey string) error {
 	return nil
 }
 
+// CommentEditVerify verifies the edited comment signature and receipt.
+func CommentEditVerify(c cmv1.Comment, serverPublicKey string) error {
+	// Verify comment. The signature is the client signature of the
+	// State + Token + ParentID + Comment + ExtraData + ExtraDataHint.
+	msg := strconv.FormatUint(uint64(c.State), 10) + c.Token +
+		strconv.FormatUint(uint64(c.ParentID), 10) +
+		strconv.FormatUint(uint64(c.CommentID), 10) +
+		c.Comment + c.ExtraData + c.ExtraDataHint
+	err := util.VerifySignature(c.Signature, c.PublicKey, msg)
+	if err != nil {
+		return fmt.Errorf("unable to verify comment %v signature: %v",
+			c.CommentID, err)
+	}
+
+	// Verify receipt. The receipt is the server signature of the
+	// client signature.
+	err = util.VerifySignature(c.Receipt, serverPublicKey, c.Signature)
+	if err != nil {
+		return fmt.Errorf("unable to verify comment %v receipt: %v",
+			c.CommentID, err)
+	}
+
+	return nil
+}
+
 // CommentVerify verifies the comment signature and receipt. If the comment
 // has been deleted then the deletion signature and receipt will be verified.
 func CommentVerify(c cmv1.Comment, serverPublicKey string) error {

@@ -634,7 +634,7 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 
 	// Comment edits are allowed only during the timeframe
 	// set by the editPeriodTime plugin setting.
-	if cf.Timestamp+int64(p.editPeriodTime) > time.Now().Unix() {
+	if time.Now().Unix() > cf.Timestamp+int64(p.editPeriodTime) {
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
 			ErrorCode:    uint32(comments.ErrorCodeEditsNotAllowed),
@@ -755,7 +755,7 @@ func (p *commentsPlugin) commentFirstVersion(token []byte, ridx recordIndex, com
 	}
 
 	// Convert comment add
-	c := convertCommentFromCommentAdd(adds[1])
+	c := convertCommentFromCommentAdd(adds[0])
 	c.Downvotes, c.Upvotes = voteScore(cidx)
 
 	return &c, nil

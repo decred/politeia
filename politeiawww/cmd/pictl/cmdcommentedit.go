@@ -13,6 +13,7 @@ import (
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/politeiawww/cmd/shared"
+	"github.com/pkg/errors"
 )
 
 // cmdCommentEdit edits a new comment.
@@ -89,6 +90,16 @@ func (c *cmdCommentEdit) Execute(args []string) error {
 		extraData = string(b)
 	}
 
+	// Get user ID of logged in user
+	lr, err := client.Me()
+	if err != nil {
+		if err.Error() == "401" {
+			return errors.Errorf("no logged in user found")
+		}
+		return err
+	}
+	userID := lr.UserID
+
 	// Setup request
 	msg := strconv.FormatUint(uint64(state), 10) + token +
 		strconv.FormatUint(uint64(parentID), 10) +
@@ -96,6 +107,7 @@ func (c *cmdCommentEdit) Execute(args []string) error {
 		comment + extraData + extraDataHint
 	sig := cfg.Identity.SignMessage([]byte(msg))
 	e := cmv1.Edit{
+		UserID:        userID,
 		State:         state,
 		Token:         token,
 		ParentID:      parentID,
@@ -118,7 +130,7 @@ func (c *cmdCommentEdit) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	err = pclient.CommentVerify(er.Comment, vr.PubKey)
+	err = pclient.CommentEditVerify(er.Comment, vr.PubKey)
 	if err != nil {
 		return err
 	}
