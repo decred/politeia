@@ -626,6 +626,7 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 		return "", err
 	}
 	if cf == nil {
+		// Comment not found
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
 			ErrorCode: uint32(comments.ErrorCodeCommentNotFound),
@@ -733,7 +734,8 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 }
 
 // commentFirstVersion returns the first version of the specified comment. If
-// a comment is not found for the provided comment ID, a nil is returned.
+// a comment is not found for the provided comment ID, a nil is returned. The
+// returned comment does not include the vote score.
 func (p *commentsPlugin) commentFirstVersion(token []byte, ridx recordIndex, commentID uint32) (*comments.Comment, error) {
 	cidx, ok := ridx.Comments[commentID]
 	if !ok {
@@ -756,7 +758,6 @@ func (p *commentsPlugin) commentFirstVersion(token []byte, ridx recordIndex, com
 
 	// Convert comment add
 	c := convertCommentFromCommentAdd(adds[0])
-	c.Downvotes, c.Upvotes = voteScore(cidx)
 
 	return &c, nil
 }

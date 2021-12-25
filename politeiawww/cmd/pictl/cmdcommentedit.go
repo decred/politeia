@@ -151,7 +151,7 @@ This command assumes the record is a vetted record.
 If the record is unvetted, the --unvetted flag must be used. Commenting on
 unvetted records requires admin priviledges.
 
-Proposal's author may edit author update using the --updatetitle flag.
+Proposal's author may edit an author update using the --updatetitle flag.
 
 Arguments:
 1. token     (string, required)  Proposal censorship token.
