@@ -574,8 +574,6 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	// Ensure no extra data provided if not allowed
 	err = p.verifyExtraData(e.ExtraData, e.ExtraDataHint)
 	if err != nil {
 		return "", err
@@ -590,6 +588,8 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	if err != nil {
 		return "", convertSignatureError(err)
 	}
+
+	fmt.Printf("fdfdfdfdf: %v \n\n\n\n\n", e.Signature)
 
 	// Verify comment
 	if len(e.Comment) > int(p.commentLengthMax) {
