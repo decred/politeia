@@ -565,6 +565,15 @@ type Summary struct {
 	BestBlock uint32 `json:"bestblock"`
 }
 
+const (
+	// SummariesPageSize is the maximum number of vote summaries that
+	// can be requested at any one time.
+	//
+	// NOTE: This is DEPRECATED and will be deleted as part of the next major
+	// release. Use the API's Policy route to retrieve the routes page sizes.
+	SummariesPageSize uint32 = 5
+)
+
 // Summaries requests the vote summaries for the provided record tokens.
 type Summaries struct {
 	Tokens []string `json:"tokens"`
@@ -592,6 +601,15 @@ type Submissions struct {
 type SubmissionsReply struct {
 	Submissions []string `json:"submissions"`
 }
+
+const (
+	// InventoryPageSize is the maximum number of tokens that will be
+	// returned for any single status in an InventoryReply.
+	//
+	// NOTE: This is DEPRECATED and will be deleted as part of the next major
+	// release. Use the API's Policy route to retrieve the routes page sizes.
+	InventoryPageSize uint32 = 20
+)
 
 // Inventory requests the tokens of public records in the inventory
 // categorized by vote status.
@@ -655,6 +673,15 @@ type Timestamp struct {
 	MerkleRoot string  `json:"merkleroot"`
 	Proofs     []Proof `json:"proofs"`
 }
+
+const (
+	// VoteTimestampsPageSize is the maximum number of vote timestamps
+	// that will be returned for any single request.
+	//
+	// NOTE: This is DEPRECATED and will be deleted as part of the next major
+	// release. Use the API's Policy route to retrieve the routes page sizes.
+	VoteTimestampsPageSize uint32 = 100
+)
 
 // Timestamps requests the timestamps for ticket vote data.
 //

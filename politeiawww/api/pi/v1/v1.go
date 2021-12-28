@@ -268,6 +268,15 @@ type SetBillingStatusReply struct {
 	Timestamp int64  `json:"timestamp"` // Unix timestamp
 }
 
+const (
+	// BillingStatusChangesPageSize is the maximum number of billing status
+	// changes that can be requested at any one time.
+	//
+	// NOTE: This is DEPRECATED and will be deleted as part of the next major
+	// release. Use the API's Policy route to retrieve the routes page sizes.
+	BillingStatusChangesPageSize uint32 = 5
+)
+
 // BillingStatusChanges requests the billing status changes for the provided
 // proposal tokens.
 type BillingStatusChanges struct {
@@ -298,6 +307,15 @@ const (
 type ProposalUpdateMetadata struct {
 	Title string `json:"title"`
 }
+
+const (
+	// SummariesPageSize is the maximum number of proposal summaries that
+	// can be requested at any one time.
+	//
+	// NOTE: This is DEPRECATED and will be deleted as part of the next major
+	// release. Use the API's Policy route to retrieve the routes page sizes.
+	SummariesPageSize uint32 = 5
+)
 
 // Summaries requests the proposal summaries for the provided proposal tokens.
 type Summaries struct {

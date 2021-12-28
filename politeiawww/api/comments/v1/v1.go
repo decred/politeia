@@ -338,6 +338,15 @@ type DelReply struct {
 	Comment Comment `json:"comment"`
 }
 
+const (
+	// CountPageSize is the maximum number of tokens that can be
+	// included in the Count command.
+	//
+	// NOTE: This is DEPRECATED and will be deleted as part of the next major
+	// release. Use the API's Policy route to retrieve the routes page sizes.
+	CountPageSize uint32 = 10
+)
+
 // Count requests the number of comments on that have been made on the given
 // records. If a record is not found for a token then it will not be included
 // in the returned map.
@@ -400,6 +409,15 @@ type Timestamp struct {
 	MerkleRoot string  `json:"merkleroot"`
 	Proofs     []Proof `json:"proofs"`
 }
+
+const (
+	// TimestampsPageSize is the maximum number of comment timestamps
+	// that can be requests at any one time.
+	//
+	// NOTE: This is DEPRECATED and will be deleted as part of the next major
+	// release. Use the API's Policy route to retrieve the routes page sizes.
+	TimestampsPageSize uint32 = 100
+)
 
 // CommentTimestamp contains the timestamps for the full history of a single
 // comment.
