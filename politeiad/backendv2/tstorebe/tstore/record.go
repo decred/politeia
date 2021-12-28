@@ -703,9 +703,9 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 
 	// Decode blobs
 	entries := make([]store.BlobEntry, 0, len(keys))
-	// Sort the blobs map keys to iterate over it in a deterministic manner,
-	// this ensures that the ordering of the record's files and metadata streams
-	// is consistent.
+	// To ensure that the ordering of the record's files and metadata streams
+	// is always consistent, we need iterate over the blobs map in a
+	// deterministic manner, which requires sorting map keys.
 	sortedKeys := getSortedKeys(blobs)
 	for _, key := range sortedKeys {
 		v := blobs[key]
@@ -786,7 +786,7 @@ func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAl
 }
 
 // getSortedKeys accepts a map of record's blobs indexed by string keys,
-// it colects the keys in a slice and returns them sorted.
+// and it returns the keys in a sorted slice.
 func getSortedKeys(blobs map[string][]byte) []string {
 	keys := make([]string, 0, len(blobs))
 	for k := range blobs {
