@@ -150,8 +150,10 @@ type Policy struct{}
 type PolicyReply struct {
 	LengthMax          uint32 `json:"lengthmax"` // In characters
 	VoteChangesMax     uint32 `json:"votechangesmax"`
+	AllowExtraData     bool   `json:"allowextradata"`
 	CountPageSize      uint32 `json:"countpagesize"`
 	TimestampsPageSize uint32 `json:"timestampspagesize"`
+	VotesPageSize      uint32 `json:"votespagesize"`
 }
 
 // RecordStateT represents the state of a record.
@@ -369,10 +371,15 @@ type CommentsReply struct {
 	Comments []Comment `json:"comments"`
 }
 
-// Votes returns the comment votes that meet the provided filtering criteria.
+// Votes retrieves the record's comment votes that meet the provided filtering
+// criteria. If no filtering criteria is provided then it rerieves all comment
+// votes. This command is paginated, if no page is provided, then the first
+// page is returned. If the requested page does not exist an empty page
+// is returned.
 type Votes struct {
 	Token  string `json:"token"`
-	UserID string `json:"userid"`
+	UserID string `json:"userid,omitempty"`
+	Page   uint32 `json:"page,omitempty"`
 }
 
 // VotesReply is the reply to the Votes command.
