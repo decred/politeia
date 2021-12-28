@@ -60,18 +60,10 @@ func (p *piv) generateVoteAlarm(token, voteBit string, ctres *pb.CommittedTicket
 	}
 
 	bunches := int(p.cfg.Bunches)
-	duration := p.cfg.voteDuration
-	voteDuration := duration - time.Duration(p.cfg.HoursPrior)*time.Hour
-	vd := time.Duration(p.cfg.HoursPrior) * time.Hour
-	if voteDuration < vd {
-		return nil, fmt.Errorf("not enough time left to trickle "+
-			"votes: %v < %v, use --hoursprior to modify this "+
-			"behavior", voteDuration, vd)
-	}
+	voteDuration := p.cfg.voteDuration
 	fmt.Printf("Total number of votes  : %v\n", len(ctres.TicketAddresses))
 	fmt.Printf("Total number of bunches: %v\n", bunches)
-	fmt.Printf("Total vote duration    : %v\n", duration)
-	fmt.Printf("Duration calculated    : %v\n", voteDuration)
+	fmt.Printf("Vote duration          : %v\n", voteDuration)
 
 	// Initialize bunches
 	tStart := make([]time.Time, bunches)
@@ -308,6 +300,7 @@ func randomTime(d time.Duration) (time.Time, time.Time, error) {
 }
 
 func (p *piv) alarmTrickler(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) error {
+	// Generate work queue
 	votes, err := p.generateVoteAlarm(token, voteBit, ctres, smr)
 	if err != nil {
 		return err
@@ -318,6 +311,9 @@ func (p *piv) alarmTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 	if err != nil {
 		return err
 	}
+
+	// Launch the voting stats handler
+	go p.statsHandler()
 
 	// Launch voting go routines
 	eg, ectx := errgroup.WithContext(p.ctx)

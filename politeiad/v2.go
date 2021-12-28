@@ -602,7 +602,7 @@ func (p *politeia) handlePluginReads(w http.ResponseWriter, r *http.Request) {
 			// Internal server error. Log it and return a 500.
 			t := time.Now().Unix()
 			e := fmt.Sprintf("PluginRead %v %v %v: %v",
-				v.cmd.ID, v.cmd.Command, v.cmd.Payload, err)
+				v.cmd.ID, v.cmd.Command, v.cmd.Payload, v.err)
 			log.Errorf("%v %v %v %v Internal error %v: %v",
 				util.RemoteAddr(r), r.Method, r.URL, r.Proto, t, e)
 			log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())

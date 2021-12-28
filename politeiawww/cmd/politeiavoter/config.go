@@ -39,8 +39,7 @@ const (
 	clientCertFile = "client.pem"
 	clientKeyFile  = "client-key.pem"
 
-	defaultHoursPrior = uint64(12)
-	defaultBunches    = uint(1)
+	defaultBunches = uint(1)
 
 	// Testing stuff
 	testNormal            = 0
@@ -56,6 +55,10 @@ var (
 	defaultWalletCert = filepath.Join(dcrwalletHomeDir, walletCertFile)
 	defaultClientCert = filepath.Join(defaultHomeDir, clientCertFile)
 	defaultClientKey  = filepath.Join(defaultHomeDir, clientKeyFile)
+
+	// defaultHoursPrior is the default HoursPrior config value. It's required
+	// to be var and not a const since the HoursPrior setting is a pointer.
+	defaultHoursPrior = uint64(12)
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -92,7 +95,7 @@ type config struct {
 	// voting period and is set to a default of 12 hours. These extra
 	// hours, prior to expiration gives the user some additional margin to
 	// correct failures.
-	HoursPrior uint64 `long:"hoursprior" description:"Number of hours to subtract from available voting window."`
+	HoursPrior *uint64 `long:"hoursprior" description:"Number of hours prior to the end of the voting period that all votes will be trickled in by."`
 
 	ClientCert string `long:"clientcert" description:"Path to TLS certificate for client authentication"`
 	ClientKey  string `long:"clientkey" description:"Path to TLS client authentication key"`
@@ -100,6 +103,7 @@ type config struct {
 	voteDir       string
 	dial          func(string, string) (net.Conn, error)
 	voteDuration  time.Duration // Parsed VoteDuration
+	hoursPrior    time.Duration // Converted HoursPrior
 	blocksPerHour uint64
 
 	// Test only
@@ -232,7 +236,7 @@ func loadConfig() (*config, []string, error) {
 		ClientCert: defaultClientCert,
 		ClientKey:  defaultClientKey,
 		Bunches:    defaultBunches,
-		HoursPrior: defaultHoursPrior,
+		// HoursPrior default is set below
 	}
 
 	// Service options which are only added on Windows.
@@ -512,6 +516,18 @@ func loadConfig() (*config, []string, error) {
 				"%v", err)
 		}
 	}
+
+	// Configure the hours prior setting
+	if cfg.HoursPrior != nil && cfg.VoteDuration != "" {
+		return nil, nil, fmt.Errorf("--hoursprior and " +
+			"--voteduration cannot both be set")
+	}
+	if cfg.HoursPrior == nil {
+		// Hours prior setting was not provided. Use the default.
+		cfg.HoursPrior = &defaultHoursPrior
+	}
+	cfg.hoursPrior = time.Duration(*cfg.HoursPrior) * time.Hour
+
 	// Number of bunches
 	if cfg.Bunches < 1 || cfg.Bunches > 100 {
 		return nil, nil, fmt.Errorf("invalid number of bunches "+

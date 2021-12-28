@@ -150,6 +150,7 @@ type Policy struct{}
 type PolicyReply struct {
 	LengthMax          uint32 `json:"lengthmax"` // In characters
 	VoteChangesMax     uint32 `json:"votechangesmax"`
+	AllowExtraData     bool   `json:"allowextradata"`
 	CountPageSize      uint32 `json:"countpagesize"`
 	TimestampsPageSize uint32 `json:"timestampspagesize"`
 	VotesPageSize      uint32 `json:"votespagesize"`
