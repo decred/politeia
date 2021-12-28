@@ -154,59 +154,69 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 					return nil, err
 				}
 				textFileSizeMax = uint32(u)
+
 			case pi.SettingKeyImageFileCountMax:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				imageFileCountMax = uint32(u)
+
 			case pi.SettingKeyImageFileSizeMax:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				imageFileSizeMax = uint32(u)
+
 			case pi.SettingKeyTitleLengthMin:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				titleLengthMin = uint32(u)
+
 			case pi.SettingKeyTitleLengthMax:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				titleLengthMax = uint32(u)
+
 			case pi.SettingKeyTitleSupportedChars:
 				err := json.Unmarshal([]byte(v.Value), &titleSupportedChars)
 				if err != nil {
 					return nil, err
 				}
+
 			case pi.SettingKeyProposalAmountMin:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				amountMin = u
+
 			case pi.SettingKeyProposalAmountMax:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				amountMax = u
+
 			case pi.SettingKeyProposalStartDateMin:
 				u, err := strconv.ParseInt(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				startDateMin = u
+
 			case pi.SettingKeyProposalEndDateMax:
 				u, err := strconv.ParseInt(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				endDateMax = u
+
 			case pi.SettingKeyProposalDomains:
 				err := json.Unmarshal([]byte(v.Value), &domains)
 				if err != nil {
@@ -219,18 +229,21 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 							"string")
 					}
 				}
+
 			case pi.SettingKeyBillingStatusChangesMax:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				billingStatusChangesMax = uint32(u)
+
 			case pi.SettingKeySummariesPageSize:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				summariesPageSize = uint32(u)
+
 			case pi.SettingKeyBillingStatusChangesPageSize:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {

@@ -230,6 +230,7 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 					v.Key, v.Value, err)
 			}
 			textFileSizeMax = uint32(u)
+
 		case pi.SettingKeyImageFileCountMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
@@ -237,6 +238,7 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 					v.Key, v.Value, err)
 			}
 			imageFileCountMax = uint32(u)
+
 		case pi.SettingKeyImageFileSizeMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
@@ -244,6 +246,7 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 					v.Key, v.Value, err)
 			}
 			imageFileSizeMax = uint32(u)
+
 		case pi.SettingKeyTitleLengthMin:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
@@ -251,6 +254,7 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 					v.Key, v.Value, err)
 			}
 			titleLengthMin = uint32(u)
+
 		case pi.SettingKeyTitleLengthMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
@@ -258,12 +262,14 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 					v.Key, v.Value, err)
 			}
 			titleLengthMax = uint32(u)
+
 		case pi.SettingKeyTitleSupportedChars:
 			err := json.Unmarshal([]byte(v.Value), &titleSupportedChars)
 			if err != nil {
 				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
+
 		case pi.SettingKeyProposalAmountMin:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
@@ -271,6 +277,7 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 					v.Key, v.Value, err)
 			}
 			amountMin = u
+
 		case pi.SettingKeyProposalAmountMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
@@ -278,6 +285,7 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 					v.Key, v.Value, err)
 			}
 			amountMax = u
+
 		case pi.SettingKeyProposalEndDateMax:
 			u, err := strconv.ParseInt(v.Value, 10, 64)
 			if err != nil {
@@ -290,12 +298,14 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 					"must be in the future", v.Key, v.Value)
 			}
 			endDateMax = u
+
 		case pi.SettingKeyProposalDomains:
 			err := json.Unmarshal([]byte(v.Value), &domains)
 			if err != nil {
 				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
+
 		case pi.SettingKeyBillingStatusChangesMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
@@ -303,6 +313,7 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 					v.Key, v.Value, err)
 			}
 			billingStatusChangesMax = uint32(u)
+
 		case pi.SettingKeySummariesPageSize:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
@@ -310,6 +321,7 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 					v.Key, v.Value, err)
 			}
 			summariesPageSize = uint32(u)
+
 		case pi.SettingKeyBillingStatusChangesPageSize:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {

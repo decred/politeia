@@ -297,42 +297,49 @@ func New(cfg *config.Config, pdc *pdclient.Client, s *sessions.Sessions, e *even
 					return nil, err
 				}
 				linkByPeriodMin = i
+
 			case ticketvote.SettingKeyLinkByPeriodMax:
 				i, err := strconv.ParseInt(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				linkByPeriodMax = i
+
 			case ticketvote.SettingKeyVoteDurationMin:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				voteDurationMin = uint32(u)
+
 			case ticketvote.SettingKeyVoteDurationMax:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				voteDurationMax = uint32(u)
+
 			case ticketvote.SettingKeySummariesPageSize:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				summariesPageSize = uint32(u)
+
 			case ticketvote.SettingKeyInventoryPageSize:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				inventoryPageSize = uint32(u)
+
 			case ticketvote.SettingKeyTimestampsPageSize:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				timestampsPageSize = uint32(u)
+
 			default:
 				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)
 			}
