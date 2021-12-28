@@ -254,6 +254,7 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 		lengthMax      uint32
 		voteChangesMax uint32
 		allowExtraData bool
+		votesPageSize  uint32
 	)
 	for _, p := range plugins {
 		if p.ID != comments.PluginID {
@@ -283,6 +284,12 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 				}
 				allowExtraData = b
 
+			case comments.SettingKeyVotesPageSize:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				votesPageSize = uint32(u)
 			default:
 				// Skip unknown settings
 				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)
@@ -298,6 +305,9 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 	case voteChangesMax == 0:
 		return nil, fmt.Errorf("plugin setting not found: %v",
 			comments.SettingKeyVoteChangesMax)
+	case votesPageSize == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			comments.SettingKeyVotesPageSize)
 	}
 
 	return &Comments{
@@ -312,6 +322,7 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 			AllowExtraData:     allowExtraData,
 			CountPageSize:      v1.CountPageSize,
 			TimestampsPageSize: v1.TimestampsPageSize,
+			VotesPageSize:      votesPageSize,
 		},
 	}, nil
 }
