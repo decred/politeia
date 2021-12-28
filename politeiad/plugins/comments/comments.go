@@ -480,8 +480,8 @@ type CountReply struct {
 // page is returned. If the requested page does not exist an empty page
 // is returned.
 type Votes struct {
-	UserID string `json:"userid,omitemty"`
-	Page   uint32 `json:"page,omitemty"`
+	UserID string `json:"userid,omitempty"`
+	Page   uint32 `json:"page,omitempty"`
 }
 
 // VotesReply is the reply to the Votes command.
