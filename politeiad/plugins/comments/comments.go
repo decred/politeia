@@ -42,6 +42,14 @@ const (
 	// SettingKeyVotesPageSize is the plugin setting key for the
 	// SettingVotesPageSize plugin setting.
 	SettingKeyVotesPageSize = "votespagesize"
+
+	// SettingKeyCountPageSize is the plugin setting key for the
+	// SettingCountPageSize plugin setting.
+	SettingKeyCountPageSize = "countpagesize"
+
+	// SettingKeyTimestampsPageSize is the plugin setting key for the
+	// SettingTimestampsPageSize plugin setting.
+	SettingKeyTimestampsPageSize = "timestampspagesize"
 )
 
 // Plugin setting default values. These can be overridden by providing a
@@ -66,6 +74,14 @@ const (
 	// is expected to be around 400 bytes which means:
 	// 2500 * 400 byte = 1000000 byte = ~1MiB.
 	SettingVotesPageSize uint32 = 2500
+
+	// SettingCountPageSize is the default maximum number of comment counts
+	// that can be requested at any one time.
+	SettingCountPageSize uint32 = 10
+
+	// SettingTimestampsPageSize is the default maximum number of comment
+	// timestamps that can be requested at any one time.
+	SettingTimestampsPageSize uint32 = 100
 )
 
 // ErrorCodeT represents a error that was caused by the user.

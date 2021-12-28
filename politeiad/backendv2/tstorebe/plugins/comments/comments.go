@@ -40,10 +40,12 @@ type commentsPlugin struct {
 	identity *identity.FullIdentity
 
 	// Plugin settings
-	commentLengthMax uint32
-	voteChangesMax   uint32
-	allowExtraData   bool
-	votesPageSize    uint32
+	commentLengthMax   uint32
+	voteChangesMax     uint32
+	allowExtraData     bool
+	votesPageSize      uint32
+	countPageSize      uint32
+	timestampsPageSize uint32
 }
 
 // Setup performs any plugin setup that is required.
@@ -160,6 +162,14 @@ func (p *commentsPlugin) Settings() []backend.PluginSetting {
 			Key:   comments.SettingKeyVotesPageSize,
 			Value: strconv.FormatUint(uint64(p.votesPageSize), 10),
 		},
+		{
+			Key:   comments.SettingKeyCountPageSize,
+			Value: strconv.FormatUint(uint64(p.countPageSize), 10),
+		},
+		{
+			Key:   comments.SettingKeyTimestampsPageSize,
+			Value: strconv.FormatUint(uint64(p.timestampsPageSize), 10),
+		},
 	}
 }
 
@@ -174,10 +184,12 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 
 	// Default plugin settings
 	var (
-		commentLengthMax = comments.SettingCommentLengthMax
-		voteChangesMax   = comments.SettingVoteChangesMax
-		allowExtraData   = comments.SettingAllowExtraData
-		votesPageSize    = comments.SettingVotesPageSize
+		commentLengthMax   = comments.SettingCommentLengthMax
+		voteChangesMax     = comments.SettingVoteChangesMax
+		allowExtraData     = comments.SettingAllowExtraData
+		votesPageSize      = comments.SettingVotesPageSize
+		countPageSize      = comments.SettingCountPageSize
+		timestampsPageSize = comments.SettingTimestampsPageSize
 	)
 
 	// Override defaults with any passed in settings
@@ -190,6 +202,7 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 					v.Key, v.Value, err)
 			}
 			commentLengthMax = uint32(u)
+
 		case comments.SettingKeyVoteChangesMax:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
@@ -197,6 +210,7 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 					v.Key, v.Value, err)
 			}
 			voteChangesMax = uint32(u)
+
 		case comments.SettingKeyAllowExtraData:
 			b, err := strconv.ParseBool(v.Value)
 			if err != nil {
@@ -204,6 +218,7 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 					v.Key, v.Value, err)
 			}
 			allowExtraData = b
+
 		case comments.SettingKeyVotesPageSize:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
@@ -211,18 +226,37 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 					v.Key, v.Value, err)
 			}
 			votesPageSize = uint32(u)
+
+		case comments.SettingKeyCountPageSize:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			countPageSize = uint32(u)
+
+		case comments.SettingKeyTimestampsPageSize:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			timestampsPageSize = uint32(u)
+
 		default:
 			return nil, errors.Errorf("invalid comments plugin setting '%v'", v.Key)
 		}
 	}
 
 	return &commentsPlugin{
-		tstore:           tstore,
-		identity:         id,
-		dataDir:          dataDir,
-		commentLengthMax: commentLengthMax,
-		voteChangesMax:   voteChangesMax,
-		allowExtraData:   allowExtraData,
-		votesPageSize:    votesPageSize,
+		tstore:             tstore,
+		identity:           id,
+		dataDir:            dataDir,
+		commentLengthMax:   commentLengthMax,
+		voteChangesMax:     voteChangesMax,
+		allowExtraData:     allowExtraData,
+		votesPageSize:      votesPageSize,
+		countPageSize:      countPageSize,
+		timestampsPageSize: timestampsPageSize,
 	}, nil
 }

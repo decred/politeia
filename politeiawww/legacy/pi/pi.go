@@ -126,18 +126,20 @@ func (p *Pi) HandleSummaries(w http.ResponseWriter, r *http.Request) {
 func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mailer, s *sessions.Sessions, e *events.Manager, plugins []pdv2.Plugin) (*Pi, error) {
 	// Parse plugin settings
 	var (
-		textFileSizeMax         uint32
-		imageFileCountMax       uint32
-		imageFileSizeMax        uint32
-		titleLengthMin          uint32
-		titleLengthMax          uint32
-		titleSupportedChars     []string
-		amountMin               uint64
-		amountMax               uint64
-		startDateMin            int64
-		endDateMax              int64
-		domains                 []string
-		billingStatusChangesMax uint32
+		textFileSizeMax              uint32
+		imageFileCountMax            uint32
+		imageFileSizeMax             uint32
+		titleLengthMin               uint32
+		titleLengthMax               uint32
+		titleSupportedChars          []string
+		amountMin                    uint64
+		amountMax                    uint64
+		startDateMin                 int64
+		endDateMax                   int64
+		domains                      []string
+		billingStatusChangesMax      uint32
+		summariesPageSize            uint32
+		billingStatusChangesPageSize uint32
 	)
 	for _, p := range plugins {
 		if p.ID != pi.PluginID {
@@ -152,59 +154,69 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 					return nil, err
 				}
 				textFileSizeMax = uint32(u)
+
 			case pi.SettingKeyImageFileCountMax:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				imageFileCountMax = uint32(u)
+
 			case pi.SettingKeyImageFileSizeMax:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				imageFileSizeMax = uint32(u)
+
 			case pi.SettingKeyTitleLengthMin:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				titleLengthMin = uint32(u)
+
 			case pi.SettingKeyTitleLengthMax:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				titleLengthMax = uint32(u)
+
 			case pi.SettingKeyTitleSupportedChars:
 				err := json.Unmarshal([]byte(v.Value), &titleSupportedChars)
 				if err != nil {
 					return nil, err
 				}
+
 			case pi.SettingKeyProposalAmountMin:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				amountMin = u
+
 			case pi.SettingKeyProposalAmountMax:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				amountMax = u
+
 			case pi.SettingKeyProposalStartDateMin:
 				u, err := strconv.ParseInt(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				startDateMin = u
+
 			case pi.SettingKeyProposalEndDateMax:
 				u, err := strconv.ParseInt(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				endDateMax = u
+
 			case pi.SettingKeyProposalDomains:
 				err := json.Unmarshal([]byte(v.Value), &domains)
 				if err != nil {
@@ -217,12 +229,27 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 							"string")
 					}
 				}
+
 			case pi.SettingKeyBillingStatusChangesMax:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				billingStatusChangesMax = uint32(u)
+
+			case pi.SettingKeySummariesPageSize:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				summariesPageSize = uint32(u)
+
+			case pi.SettingKeyBillingStatusChangesPageSize:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				billingStatusChangesPageSize = uint32(u)
 
 			default:
 				// Skip unknown settings
@@ -263,6 +290,12 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 	case len(domains) == 0:
 		return nil, errors.Errorf("plugin setting not found: %v",
 			pi.SettingKeyProposalDomains)
+	case summariesPageSize == 0:
+		return nil, errors.Errorf("plugin setting not found: %v",
+			pi.SettingKeySummariesPageSize)
+	case billingStatusChangesPageSize == 0:
+		return nil, errors.Errorf("plugin setting not found: %v",
+			pi.SettingKeyBillingStatusChangesPageSize)
 	}
 
 	// Setup pi context
@@ -285,8 +318,8 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, m mail.Mai
 			StartDateMin:                 startDateMin,
 			EndDateMax:                   endDateMax,
 			Domains:                      domains,
-			SummariesPageSize:            v1.SummariesPageSize,
-			BillingStatusChangesPageSize: v1.BillingStatusChangesPageSize,
+			SummariesPageSize:            summariesPageSize,
+			BillingStatusChangesPageSize: billingStatusChangesPageSize,
 			BillingStatusChangesMax:      billingStatusChangesMax,
 		},
 	}

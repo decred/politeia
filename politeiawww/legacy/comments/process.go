@@ -208,10 +208,10 @@ func (c *Comments) processCount(ctx context.Context, ct v1.Count) (*v1.CountRepl
 			Counts: map[string]uint32{},
 		}, nil
 
-	case len(ct.Tokens) > int(v1.CountPageSize):
+	case len(ct.Tokens) > int(c.policy.CountPageSize):
 		return nil, v1.UserErrorReply{
 			ErrorCode:    v1.ErrorCodePageSizeExceeded,
-			ErrorContext: fmt.Sprintf("max page size is %v", v1.CountPageSize),
+			ErrorContext: fmt.Sprintf("max page size is %v", c.policy.CountPageSize),
 		}
 	}
 
@@ -417,11 +417,11 @@ func (c *Comments) processTimestamps(ctx context.Context, t v1.Timestamps, isAdm
 			Comments: map[uint32]v1.CommentTimestamp{},
 		}, nil
 
-	case len(t.CommentIDs) > int(v1.TimestampsPageSize):
+	case len(t.CommentIDs) > int(c.policy.TimestampsPageSize):
 		return nil, v1.UserErrorReply{
 			ErrorCode: v1.ErrorCodePageSizeExceeded,
 			ErrorContext: fmt.Sprintf("max page size is %v",
-				v1.TimestampsPageSize),
+				c.policy.TimestampsPageSize),
 		}
 	}
 

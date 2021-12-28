@@ -343,6 +343,9 @@ type DelReply struct {
 const (
 	// CountPageSize is the maximum number of tokens that can be
 	// included in the Count command.
+	//
+	// NOTE: This is DEPRECATED and will be deleted as part of the next major
+	// release. Use the API's Policy route to retrieve the routes page sizes.
 	CountPageSize uint32 = 10
 )
 
@@ -417,6 +420,9 @@ type Timestamp struct {
 const (
 	// TimestampsPageSize is the maximum number of comment timestamps
 	// that can be requests at any one time.
+	//
+	// NOTE: This is DEPRECATED and will be deleted as part of the next major
+	// release. Use the API's Policy route to retrieve the routes page sizes.
 	TimestampsPageSize uint32 = 100
 )
 
