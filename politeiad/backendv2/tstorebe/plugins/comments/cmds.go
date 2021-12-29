@@ -1244,27 +1244,20 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 		return "", err
 	}
 
-	// Compile the comment vote digests for all votes that were cast
-	// by the specified user.
-	digests := make([][]byte, 0, 256)
-	for _, cidx := range ridx.Comments {
-		voteIdxs, ok := cidx.Votes[v.UserID]
-		if !ok {
-			// User has not cast any votes for this comment
-			continue
-		}
-
-		// User has cast votes on this comment
-		for _, vidx := range voteIdxs {
-			digests = append(digests, vidx.Digest)
-		}
-	}
+	// Collect the requested page of comment vote digests
+	digests := collectVoteDigestsPage(ridx.Comments, v.UserID, v.Page,
+		p.votesPageSize)
 
 	// Lookup votes
 	votes, err := p.commentVotes(token, digests)
 	if err != nil {
 		return "", fmt.Errorf("commentVotes: %v", err)
 	}
+
+	// Sort comment votes by timestamp from newest to oldest.
+	sort.SliceStable(votes, func(i, j int) bool {
+		return votes[i].Timestamp > votes[j].Timestamp
+	})
 
 	// Prepare reply
 	vr := comments.VotesReply{
@@ -1276,6 +1269,94 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 	}
 
 	return string(reply), nil
+}
+
+// collectVoteDigestsPage accepts a map of all comment indexes with a
+// filtering criteria and it collects the requested page.
+func collectVoteDigestsPage(commentIdxes map[uint32]commentIndex, userID string, page, pageSize uint32) [][]byte {
+	// Default to first page if page is not provided
+	if page == 0 {
+		page = 1
+	}
+
+	digests := make([][]byte, 0, pageSize)
+	var (
+		pageFirstIndex uint32 = (page - 1) * pageSize
+		pageLastIndex  uint32 = page * pageSize
+		idx            uint32 = 0
+		filterByUserID        = userID != ""
+	)
+
+	// Iterate over record index comments map deterministically; start from
+	// comment id 1 upwards.
+	for commentID := 1; commentID <= len(commentIdxes); commentID++ {
+		cidx := commentIdxes[uint32(commentID)]
+		switch {
+		// User ID filtering criteria is applied. Collect the requested page of
+		// the user's comment votes.
+		case filterByUserID:
+			voteIdxs, ok := cidx.Votes[userID]
+			if !ok {
+				// User has not cast any votes for this comment
+				continue
+			}
+			for _, vidx := range voteIdxs {
+				// Add digest if it's part of the requested page
+				if isInPageRange(idx, pageFirstIndex, pageLastIndex) {
+					digests = append(digests, vidx.Digest)
+
+					// If digests page is full, then we are done
+					if len(digests) == int(pageSize) {
+						return digests
+					}
+				}
+				idx++
+			}
+
+		// No filtering criteria is applied. The votes are indexed by user ID and
+		// saved in a map. In order to return a page of votes in a deterministic
+		// manner, the user IDs must first be sorted, then the pagination is
+		// applied.
+		default:
+			userIDs := getSortedUserIDs(cidx.Votes)
+			for _, userID := range userIDs {
+				for _, vidx := range cidx.Votes[userID] {
+					// Add digest if it's part of the requested page
+					if isInPageRange(idx, pageFirstIndex, pageLastIndex) {
+						digests = append(digests, vidx.Digest)
+
+						// If digests page is full, then we are done
+						if len(digests) == int(pageSize) {
+							return digests
+						}
+					}
+					idx++
+				}
+			}
+		}
+	}
+
+	return digests
+}
+
+// getSortedUserIDs accepts a map of comment vote indexes indexed by user IDs,
+// it collects the keys, sorts them and finally returns them as sorted slice.
+func getSortedUserIDs(m map[string][]voteIndex) []string {
+	userIDs := make([]string, 0, len(m))
+	for userID := range m {
+		userIDs = append(userIDs, userID)
+	}
+
+	// Sort keys
+	sort.Strings(userIDs)
+
+	return userIDs
+}
+
+// isInPageRange determines whether the given index is part of the given
+// page range.
+func isInPageRange(idx, pageFirstIndex, pageLastIndex uint32) bool {
+	return idx >= pageFirstIndex && idx <= pageLastIndex
 }
 
 // cmdTimestamps retrieves the timestamps for the comments of a record.

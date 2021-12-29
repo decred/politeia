@@ -153,8 +153,10 @@ type Policy struct{}
 type PolicyReply struct {
 	LengthMax          uint32 `json:"lengthmax"` // In characters
 	VoteChangesMax     uint32 `json:"votechangesmax"`
+	AllowExtraData     bool   `json:"allowextradata"`
 	CountPageSize      uint32 `json:"countpagesize"`
 	TimestampsPageSize uint32 `json:"timestampspagesize"`
+	VotesPageSize      uint32 `json:"votespagesize"`
 	AllowEdits         bool   `json:"allowedits"`
 	EditPeriodTime     uint32 `json:"editperiodtime"`
 }
@@ -377,6 +379,9 @@ type DelReply struct {
 const (
 	// CountPageSize is the maximum number of tokens that can be
 	// included in the Count command.
+	//
+	// NOTE: This is DEPRECATED and will be deleted as part of the next major
+	// release. Use the API's Policy route to retrieve the routes page sizes.
 	CountPageSize uint32 = 10
 )
 
@@ -402,10 +407,15 @@ type CommentsReply struct {
 	Comments []Comment `json:"comments"`
 }
 
-// Votes returns the comment votes that meet the provided filtering criteria.
+// Votes retrieves the record's comment votes that meet the provided filtering
+// criteria. If no filtering criteria is provided then it rerieves all comment
+// votes. This command is paginated, if no page is provided, then the first
+// page is returned. If the requested page does not exist an empty page
+// is returned.
 type Votes struct {
 	Token  string `json:"token"`
-	UserID string `json:"userid"`
+	UserID string `json:"userid,omitempty"`
+	Page   uint32 `json:"page,omitempty"`
 }
 
 // VotesReply is the reply to the Votes command.
@@ -446,6 +456,9 @@ type Timestamp struct {
 const (
 	// TimestampsPageSize is the maximum number of comment timestamps
 	// that can be requests at any one time.
+	//
+	// NOTE: This is DEPRECATED and will be deleted as part of the next major
+	// release. Use the API's Policy route to retrieve the routes page sizes.
 	TimestampsPageSize uint32 = 100
 )
 

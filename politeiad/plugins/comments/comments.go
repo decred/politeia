@@ -39,6 +39,18 @@ const (
 	// SettingAllowExtraData plugin setting.
 	SettingKeyAllowExtraData = "allowextradata"
 
+	// SettingKeyVotesPageSize is the plugin setting key for the
+	// SettingVotesPageSize plugin setting.
+	SettingKeyVotesPageSize = "votespagesize"
+
+	// SettingKeyCountPageSize is the plugin setting key for the
+	// SettingCountPageSize plugin setting.
+	SettingKeyCountPageSize = "countpagesize"
+
+	// SettingKeyTimestampsPageSize is the plugin setting key for the
+	// SettingTimestampsPageSize plugin setting.
+	SettingKeyTimestampsPageSize = "timestampspagesize"
+
 	// SettingKeyAllowEdits is the plugin setting key for the
 	// SettingAllowEdits plugin setting.
 	SettingKeyAllowEdits = "allowedits"
@@ -48,8 +60,8 @@ const (
 	SettingKeyEditPeriodTime = "editperiodtime"
 )
 
-// Plugin setting default values. These can be overridden by providing a plugin
-// setting key and value to the plugin on startup.
+// Plugin setting default values. These can be overridden by providing a
+// plugin setting key and value to the plugin on startup.
 const (
 	// SettingCommentLengthMax is the default maximum number of
 	// characters that are allowed in a comment.
@@ -63,6 +75,21 @@ const (
 	// SettingAllowExtraData is the default value of the bool flag which
 	// determines whether posting extra data along with the comment is allowed.
 	SettingAllowExtraData = false
+
+	// SettingVotesPageSize is the default maximum number of comment votes
+	// that can be returned at any one time. It defaults to 2500 to limit the
+	// comment votes route payload size to be ~1MiB, as each comment vote size
+	// is expected to be around 400 bytes which means:
+	// 2500 * 400 byte = 1000000 byte = ~1MiB.
+	SettingVotesPageSize uint32 = 2500
+
+	// SettingCountPageSize is the default maximum number of comment counts
+	// that can be requested at any one time.
+	SettingCountPageSize uint32 = 10
+
+	// SettingTimestampsPageSize is the default maximum number of comment
+	// timestamps that can be requested at any one time.
+	SettingTimestampsPageSize uint32 = 100
 
 	// SettingAllowEdits is the default value of the bool flag which
 	// determines whether comment edits are temporarily allowed during the
@@ -487,9 +514,14 @@ type CountReply struct {
 	Count uint32 `json:"count"`
 }
 
-// Votes retrieves the comment votes that meet the provided filtering criteria.
+// Votes retrieves the record's comment votes that meet the provided filtering
+// criteria. If no filtering criteria is provided then it rerieves all comment
+// votes. This command is paginated, if no page is provided, then the first
+// page is returned. If the requested page does not exist an empty page
+// is returned.
 type Votes struct {
-	UserID string `json:"userid"`
+	UserID string `json:"userid,omitempty"`
+	Page   uint32 `json:"page,omitempty"`
 }
 
 // VotesReply is the reply to the Votes command.

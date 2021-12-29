@@ -182,11 +182,11 @@ func (t *TicketVote) processSummaries(ctx context.Context, s v1.Summaries) (*v1.
 	log.Tracef("processSummaries: %v", s.Tokens)
 
 	// Verify request size
-	if len(s.Tokens) > int(v1.SummariesPageSize) {
+	if len(s.Tokens) > int(t.policy.SummariesPageSize) {
 		return nil, v1.UserErrorReply{
 			ErrorCode: v1.ErrorCodePageSizeExceeded,
 			ErrorContext: fmt.Sprintf("max page size is %v",
-				v1.SummariesPageSize),
+				t.policy.SummariesPageSize),
 		}
 	}
 

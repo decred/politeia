@@ -271,6 +271,9 @@ type SetBillingStatusReply struct {
 const (
 	// BillingStatusChangesPageSize is the maximum number of billing status
 	// changes that can be requested at any one time.
+	//
+	// NOTE: This is DEPRECATED and will be deleted as part of the next major
+	// release. Use the API's Policy route to retrieve the routes page sizes.
 	BillingStatusChangesPageSize uint32 = 5
 )
 
@@ -308,6 +311,9 @@ type ProposalUpdateMetadata struct {
 const (
 	// SummariesPageSize is the maximum number of proposal summaries that
 	// can be requested at any one time.
+	//
+	// NOTE: This is DEPRECATED and will be deleted as part of the next major
+	// release. Use the API's Policy route to retrieve the routes page sizes.
 	SummariesPageSize uint32 = 5
 )
 

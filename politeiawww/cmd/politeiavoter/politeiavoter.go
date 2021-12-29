@@ -616,6 +616,25 @@ func (p *piv) records(tokens []string, serverPubKey string) (*rcv1.RecordsReply,
 	return &rsr, nil
 }
 
+// votePolicy sends a ticketvote API Policy request and returns the reply.
+func (p *piv) votePolicy() (*tkv1.PolicyReply, error) {
+	// Send request
+	responseBody, err := p.makeRequest(http.MethodPost, tkv1.APIRoute,
+		tkv1.RoutePolicy, tkv1.Policy{})
+	if err != nil {
+		return nil, err
+	}
+
+	var pr tkv1.PolicyReply
+	err = json.Unmarshal(responseBody, &pr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal RecordsReply: %v",
+			err)
+	}
+
+	return &pr, nil
+}
+
 func (p *piv) inventory() error {
 	// Get server public key to verify replies.
 	version, err := p.getVersion()
@@ -623,9 +642,16 @@ func (p *piv) inventory() error {
 		return err
 	}
 	serverPubKey := version.PubKey
+
 	// Inventory route is paginated, therefore we keep fetching
 	// until we receive a patch with number of records smaller than the
-	// ticketvote's declared page size.
+	// ticketvote's declared page size. The page size is retrieved from
+	// the ticketvote API Policy route.
+	vp, err := p.votePolicy()
+	if err != nil {
+		return err
+	}
+	pageSize := vp.InventoryPageSize
 	page := uint32(1)
 	var tokens []string
 	for {
@@ -638,7 +664,7 @@ func (p *piv) inventory() error {
 		}
 		pageTokens := ir.Vetted[tkv1.VoteStatuses[tkv1.VoteStatusStarted]]
 		tokens = append(tokens, pageTokens...)
-		if uint32(len(pageTokens)) < tkv1.InventoryPageSize {
+		if uint32(len(pageTokens)) < pageSize {
 			break
 		}
 		page++
