@@ -245,6 +245,24 @@ func (p *commentsPlugin) comments(token []byte, ridx recordIndex, commentIDs []u
 			return nil, fmt.Errorf("comment index not found %v", c.CommentID)
 		}
 		c.Downvotes, c.Upvotes = voteScore(cidx)
+		// Populate creation timestamp
+		switch {
+		case c.Version == 1:
+			// If comment was not edited, then the comment creation timestamp is
+			// equal to the first version's timestamp.
+			c.CreatedAt = c.Timestamp
+		default:
+			// If comment was edited, we need to get the first version of the
+			// comment in order to determine the creation timestamp.
+			versionFirst := uint32(1)
+			cAdds, err := p.commentAdds(token, [][]byte{cidx.Adds[versionFirst]})
+			if err != nil {
+				return nil, fmt.Errorf("commentAdds: %v", err)
+			}
+			fc := convertCommentFromCommentAdd(cAdds[0])
+			c.CreatedAt = fc.Timestamp
+		}
+
 		cs[v.CommentID] = c
 	}
 	for _, v := range dels {

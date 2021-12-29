@@ -234,6 +234,7 @@ type Comment struct {
 	Signature string       `json:"signature"` // Client signature
 	CommentID uint32       `json:"commentid"` // Comment ID
 	Version   uint32       `json:"version"`   // Comment version
+	CreatedAt int64        `json:"createdat"` // UNIX timestamp of creation time
 	Timestamp int64        `json:"timestamp"` // UNIX timestamp of last edit
 	Receipt   string       `json:"receipt"`   // Server sig of client sig
 	Downvotes uint64       `json:"downvotes"` // Tolal downvotes on comment

@@ -619,6 +619,8 @@ func convertComment(c comments.Comment) v1.Comment {
 		PublicKey:     c.PublicKey,
 		Signature:     c.Signature,
 		CommentID:     c.CommentID,
+		Version:       c.Version,
+		CreatedAt:     c.CreatedAt,
 		Timestamp:     c.Timestamp,
 		Receipt:       c.Receipt,
 		Downvotes:     c.Downvotes,
