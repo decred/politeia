@@ -764,8 +764,7 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	return string(reply), nil
 }
 
-// commentFirstVersion returns the first version of the specified comment. If
-// a comment is not found for the provided comment ID, a nil is returned. The
+// commentFirstVersion returns the first version of the specified comment. The
 // returned comment does not include the vote score.
 func (p *commentsPlugin) commentFirstVersion(token []byte, commentID uint32, cidx commentIndex) (*comments.Comment, error) {
 	// First version comment add digest
