@@ -246,6 +246,10 @@ func (p *commentsPlugin) comments(token []byte, ridx recordIndex, commentIDs []u
 		}
 		c.Downvotes, c.Upvotes = voteScore(cidx)
 		// Populate creation timestamp
+		c.CreatedAt, err = p.commentCreationTimestamp(c, cidx)
+		if err != nil {
+			return nil, err
+		}
 
 		cs[v.CommentID] = c
 	}
