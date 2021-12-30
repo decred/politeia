@@ -219,20 +219,20 @@ func (p *commentsPlugin) comments(token []byte, ridx recordIndex, commentIDs []u
 	// Get comment add records
 	adds, err := p.commentAdds(token, digestAdds)
 	if err != nil {
-		return nil, fmt.Errorf("commentAdds: %v", err)
+		return nil, errors.Errorf("commentAdds: %v", err)
 	}
 	if len(adds) != len(digestAdds) {
-		return nil, fmt.Errorf("wrong comment adds count; got %v, want %v",
+		return nil, errors.Errorf("wrong comment adds count; got %v, want %v",
 			len(adds), len(digestAdds))
 	}
 
 	// Get comment del records
 	dels, err := p.commentDels(token, digestDels)
 	if err != nil {
-		return nil, fmt.Errorf("commentDels: %v", err)
+		return nil, errors.Errorf("commentDels: %v", err)
 	}
 	if len(dels) != len(digestDels) {
-		return nil, fmt.Errorf("wrong comment dels count; got %v, want %v",
+		return nil, errors.Errorf("wrong comment dels count; got %v, want %v",
 			len(dels), len(digestDels))
 	}
 
@@ -242,26 +242,10 @@ func (p *commentsPlugin) comments(token []byte, ridx recordIndex, commentIDs []u
 		c := convertCommentFromCommentAdd(v)
 		cidx, ok := ridx.Comments[c.CommentID]
 		if !ok {
-			return nil, fmt.Errorf("comment index not found %v", c.CommentID)
+			return nil, errors.Errorf("comment index not found %v", c.CommentID)
 		}
 		c.Downvotes, c.Upvotes = voteScore(cidx)
 		// Populate creation timestamp
-		switch {
-		case c.Version == 1:
-			// If comment was not edited, then the comment creation timestamp is
-			// equal to the first version's timestamp.
-			c.CreatedAt = c.Timestamp
-		default:
-			// If comment was edited, we need to get the first version of the
-			// comment in order to determine the creation timestamp.
-			versionFirst := uint32(1)
-			cAdds, err := p.commentAdds(token, [][]byte{cidx.Adds[versionFirst]})
-			if err != nil {
-				return nil, fmt.Errorf("commentAdds: %v", err)
-			}
-			fc := convertCommentFromCommentAdd(cAdds[0])
-			c.CreatedAt = fc.Timestamp
-		}
 
 		cs[v.CommentID] = c
 	}
@@ -271,6 +255,31 @@ func (p *commentsPlugin) comments(token []byte, ridx recordIndex, commentIDs []u
 	}
 
 	return cs, nil
+}
+
+// commentCreationTimestamp accepts the latest version of a comment with the
+// comment index , and it returns the comment's creation timestamp.
+func (p *commentsPlugin) commentCreationTimestamp(c comments.Comment, cidx commentIndex) (int64, error) {
+	// If comment was not edited, then the comment creation timestamp is
+	// equal to the first version's timestamp.
+	if c.Version == 1 {
+		return c.Timestamp, nil
+	}
+
+	// If comment was edited, we need to get the first version of the
+	// comment in order to determine the creation timestamp.
+	b, err := hex.DecodeString(c.Token)
+	if err != nil {
+		return 0, err
+	}
+	versionFirst := uint32(1)
+	cAdds, err := p.commentAdds(b, [][]byte{cidx.Adds[versionFirst]})
+	if err != nil {
+		return 0, errors.Errorf("commentAdds: %v", err)
+	}
+	fc := convertCommentFromCommentAdd(cAdds[0])
+
+	return fc.Timestamp, nil
 }
 
 // comment returns the latest version of a comment.
