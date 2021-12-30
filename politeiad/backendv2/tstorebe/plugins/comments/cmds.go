@@ -276,14 +276,12 @@ func (p *commentsPlugin) commentCreationTimestamp(c comments.Comment, cidx comme
 	if err != nil {
 		return 0, err
 	}
-	versionFirst := uint32(1)
-	cAdds, err := p.commentAdds(b, [][]byte{cidx.Adds[versionFirst]})
+	cf, err := p.commentFirstVersion(b, c.CommentID, cidx)
 	if err != nil {
-		return 0, errors.Errorf("commentAdds: %v", err)
+		return 0, err
 	}
-	fc := convertCommentFromCommentAdd(cAdds[0])
 
-	return fc.Timestamp, nil
+	return cf.Timestamp, nil
 }
 
 // comment returns the latest version of a comment.
@@ -651,17 +649,19 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 		return "", err
 	}
 
-	// Get first version of the comment
-	cf, err := p.commentFirstVersion(token, *ridx, e.CommentID)
-	if err != nil {
-		return "", err
-	}
-	if cf == nil {
+	cidx, ok := ridx.Comments[e.CommentID]
+	if !ok {
 		// Comment not found
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
 			ErrorCode: uint32(comments.ErrorCodeCommentNotFound),
 		}
+	}
+
+	// Get first version of the comment
+	cf, err := p.commentFirstVersion(token, e.CommentID, cidx)
+	if err != nil {
+		return "", err
 	}
 
 	// Comment edits are allowed only during the timeframe
@@ -767,13 +767,7 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 // commentFirstVersion returns the first version of the specified comment. If
 // a comment is not found for the provided comment ID, a nil is returned. The
 // returned comment does not include the vote score.
-func (p *commentsPlugin) commentFirstVersion(token []byte, ridx recordIndex, commentID uint32) (*comments.Comment, error) {
-	cidx, ok := ridx.Comments[commentID]
-	if !ok {
-		// Comment does not exist
-		return nil, nil
-	}
-
+func (p *commentsPlugin) commentFirstVersion(token []byte, commentID uint32, cidx commentIndex) (*comments.Comment, error) {
 	// First version comment add digest
 	digest := cidx.Adds[1]
 
