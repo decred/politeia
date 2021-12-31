@@ -705,8 +705,17 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 		}
 	}
 
+	// Verify extra data hint
+	if e.ExtraDataHint != existing.ExtraDataHint {
+		return "", backend.PluginError{
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeExtraDataHintChangesNotAllowed),
+		}
+	}
+
 	// Verify comment changes
-	if e.Comment == existing.Comment {
+	if e.Comment == existing.Comment &&
+		e.ExtraData == existing.ExtraData {
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
 			ErrorCode: uint32(comments.ErrorCodeNoChanges),

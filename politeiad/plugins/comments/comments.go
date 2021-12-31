@@ -161,8 +161,12 @@ const (
 	// allowed.
 	ErrorCodeEditsNotAllowed = 13
 
+	// ErrorCodeExtraDataHintChangesNotAllowed is returned when an edited
+	// comment includes a different extra data hint than the existing one.
+	ErrorCodeExtraDataHintChangesNotAllowed = 14
+
 	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 14
+	ErrorCodeLast ErrorCodeT = 15
 )
 
 var (
@@ -182,6 +186,8 @@ var (
 		ErrorCodeRecordStateInvalid:     "record state invalid",
 		ErrorCodeExtraDataNotAllowed:    "comment extra data not allowed",
 		ErrorCodeEditsNotAllowed:        "edits are not allowed",
+		ErrorCodeExtraDataHintChangesNotAllowed: "extra data hint edits are not" +
+			" allowed",
 	}
 )
 
