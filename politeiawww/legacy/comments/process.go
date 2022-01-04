@@ -154,14 +154,6 @@ func (c *Comments) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1
 	cm := convertComment(*pdc)
 	commentPopulateUserData(&cm, u)
 
-	// Emit event
-	// XXX should we introduce a new event here?
-	c.events.Emit(EventTypeNew,
-		EventNew{
-			State:   e.State,
-			Comment: cm,
-		})
-
 	return &v1.EditReply{
 		Comment: cm,
 	}, nil
