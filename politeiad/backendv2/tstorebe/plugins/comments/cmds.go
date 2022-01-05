@@ -671,7 +671,7 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
 			ErrorCode:    uint32(comments.ErrorCodeEditNotAllowed),
-			ErrorContext: "comment edits timeframe expired",
+			ErrorContext: "comment edits timeframe has expired",
 		}
 	}
 
