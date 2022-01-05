@@ -158,7 +158,7 @@ type PolicyReply struct {
 	TimestampsPageSize uint32 `json:"timestampspagesize"`
 	VotesPageSize      uint32 `json:"votespagesize"`
 	AllowEdits         bool   `json:"allowedits"`
-	EditPeriodTime     uint32 `json:"editperiodtime"`
+	EditPeriod         uint32 `json:"editperiod"`
 }
 
 // RecordStateT represents the state of a record.

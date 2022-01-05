@@ -289,7 +289,7 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 		countPageSize      uint32
 		timestampsPageSize uint32
 		allowEdits         bool
-		editPeriodTime     uint32
+		editPeriod         uint32
 	)
 	for _, p := range plugins {
 		if p.ID != comments.PluginID {
@@ -348,13 +348,13 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 				}
 				allowEdits = b
 
-			case comments.SettingKeyEditPeriodTime:
+			case comments.SettingKeyEditPeriod:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 						v.Key, v.Value, err)
 				}
-				editPeriodTime = uint32(u)
+				editPeriod = uint32(u)
 
 			default:
 				// Skip unknown settings
@@ -380,9 +380,9 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 	case timestampsPageSize == 0:
 		return nil, errors.Errorf("plugin setting not found: %v",
 			comments.SettingKeyTimestampsPageSize)
-	case editPeriodTime == 0:
+	case editPeriod == 0:
 		return nil, errors.Errorf("plugin setting not found: %v",
-			comments.SettingKeyEditPeriodTime)
+			comments.SettingKeyEditPeriod)
 	}
 
 	return &Comments{
@@ -399,7 +399,7 @@ func New(cfg *config.Config, pdc *pdclient.Client, udb user.Database, s *session
 			CountPageSize:      countPageSize,
 			TimestampsPageSize: timestampsPageSize,
 			AllowEdits:         allowEdits,
-			EditPeriodTime:     editPeriodTime,
+			EditPeriod:         editPeriod,
 		},
 	}, nil
 }

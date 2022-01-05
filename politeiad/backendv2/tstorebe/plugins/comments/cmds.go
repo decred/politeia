@@ -272,7 +272,7 @@ func (p *commentsPlugin) commentCreationTimestamp(c comments.Comment, cidx comme
 
 	// If comment was edited, we need to get the first version of the
 	// comment in order to determine the creation timestamp.
-	b, err := hex.DecodeString(c.Token)
+	b, err := tokenDecode(c.Token)
 	if err != nil {
 		return 0, err
 	}
@@ -586,8 +586,9 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	// Check if comment edits are allowed
 	if !p.allowEdits {
 		return "", backend.PluginError{
-			PluginID:  comments.PluginID,
-			ErrorCode: uint32(comments.ErrorCodeEditsNotAllowed),
+			PluginID:     comments.PluginID,
+			ErrorCode:    uint32(comments.ErrorCodeEditNotAllowed),
+			ErrorContext: "comments plugin setting 'allowedits' is off",
 		}
 	}
 
@@ -665,11 +666,11 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	}
 
 	// Comment edits are allowed only during the timeframe
-	// set by the editPeriodTime plugin setting.
-	if time.Now().Unix() > cf.Timestamp+int64(p.editPeriodTime) {
+	// set by the editPeriod plugin setting.
+	if time.Now().Unix() > cf.Timestamp+int64(p.editPeriod) {
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
-			ErrorCode:    uint32(comments.ErrorCodeEditsNotAllowed),
+			ErrorCode:    uint32(comments.ErrorCodeEditNotAllowed),
 			ErrorContext: "comment edits timeframe expired",
 		}
 	}
@@ -708,8 +709,9 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	// Verify extra data hint
 	if e.ExtraDataHint != existing.ExtraDataHint {
 		return "", backend.PluginError{
-			PluginID:  comments.PluginID,
-			ErrorCode: uint32(comments.ErrorCodeExtraDataHintChangesNotAllowed),
+			PluginID:     comments.PluginID,
+			ErrorCode:    uint32(comments.ErrorCodeEditNotAllowed),
+			ErrorContext: "extra data hint edits are not allowed",
 		}
 	}
 

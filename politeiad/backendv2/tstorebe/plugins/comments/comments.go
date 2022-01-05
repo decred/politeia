@@ -47,7 +47,7 @@ type commentsPlugin struct {
 	countPageSize      uint32
 	timestampsPageSize uint32
 	allowEdits         bool
-	editPeriodTime     uint32
+	editPeriod         uint32
 }
 
 // Setup performs any plugin setup that is required.
@@ -177,8 +177,8 @@ func (p *commentsPlugin) Settings() []backend.PluginSetting {
 			Value: strconv.FormatBool(p.allowEdits),
 		},
 		{
-			Key:   comments.SettingKeyEditPeriodTime,
-			Value: strconv.FormatUint(uint64(p.editPeriodTime), 10),
+			Key:   comments.SettingKeyEditPeriod,
+			Value: strconv.FormatUint(uint64(p.editPeriod), 10),
 		},
 	}
 }
@@ -201,7 +201,7 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 		countPageSize      = comments.SettingCountPageSize
 		timestampsPageSize = comments.SettingTimestampsPageSize
 		allowEdits         = comments.SettingAllowEdits
-		editPeriodTime     = comments.SettingEditPeriodTime
+		editPeriod         = comments.SettingEditPeriod
 	)
 
 	// Override defaults with any passed in settings
@@ -263,13 +263,13 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 			}
 			allowEdits = b
 
-		case comments.SettingKeyEditPeriodTime:
+		case comments.SettingKeyEditPeriod:
 			u, err := strconv.ParseUint(v.Value, 10, 64)
 			if err != nil {
 				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
 					v.Key, v.Value, err)
 			}
-			editPeriodTime = uint32(u)
+			editPeriod = uint32(u)
 
 		default:
 			return nil, errors.Errorf("invalid comments plugin setting '%v'", v.Key)
@@ -287,6 +287,6 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 		countPageSize:      countPageSize,
 		timestampsPageSize: timestampsPageSize,
 		allowEdits:         allowEdits,
-		editPeriodTime:     editPeriodTime,
+		editPeriod:         editPeriod,
 	}, nil
 }

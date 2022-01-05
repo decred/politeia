@@ -238,7 +238,7 @@ func TestCmdEdit(t *testing.T) {
 					ExtraDataHint: extraDataHint,
 				}),
 			false,
-			pluginError(comments.ErrorCodeEditsNotAllowed),
+			pluginError(comments.ErrorCodeEditNotAllowed),
 		},
 		{
 			"payload token invalid",

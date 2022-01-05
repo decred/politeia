@@ -28,7 +28,7 @@ func newTestCommentsPlugin(t *testing.T) (*commentsPlugin, func()) {
 		voteChangesMax:   comments.SettingVoteChangesMax,
 		allowExtraData:   comments.SettingAllowExtraData,
 		allowEdits:       comments.SettingAllowEdits,
-		editPeriodTime:   comments.SettingEditPeriodTime,
+		editPeriod:       comments.SettingEditPeriod,
 	}
 
 	return &c, func() {
