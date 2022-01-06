@@ -706,7 +706,11 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 		}
 	}
 
-	// Verify extra data hint
+	// Verify extra data hint. This doesn't really belong here, and should be
+	// left up to the application plugin (i.e. the pi plugin) to decide. It was
+	// put here to prevent application plugin from needing to pull the prior
+	// version of the comment, which is expensive since it causes a tlog tree
+	// retrieval.
 	if e.ExtraDataHint != existing.ExtraDataHint {
 		return "", backend.PluginError{
 			PluginID:     comments.PluginID,
