@@ -114,7 +114,8 @@ func (c *Comments) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1
 		}
 	}
 
-	// Ensure that session user is the comment author
+	// Ensure that session user ID is identical to the user ID included in the
+	// edit request payload.
 	if u.ID.String() != e.UserID {
 		return nil, v1.UserErrorReply{
 			ErrorCode:    v1.ErrorCodeUnauthorized,
