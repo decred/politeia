@@ -46,6 +46,8 @@ type commentsPlugin struct {
 	votesPageSize      uint32
 	countPageSize      uint32
 	timestampsPageSize uint32
+	allowEdits         bool
+	editPeriod         uint32
 }
 
 // Setup performs any plugin setup that is required.
@@ -170,6 +172,14 @@ func (p *commentsPlugin) Settings() []backend.PluginSetting {
 			Key:   comments.SettingKeyTimestampsPageSize,
 			Value: strconv.FormatUint(uint64(p.timestampsPageSize), 10),
 		},
+		{
+			Key:   comments.SettingKeyAllowEdits,
+			Value: strconv.FormatBool(p.allowEdits),
+		},
+		{
+			Key:   comments.SettingKeyEditPeriod,
+			Value: strconv.FormatUint(uint64(p.editPeriod), 10),
+		},
 	}
 }
 
@@ -190,6 +200,8 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 		votesPageSize      = comments.SettingVotesPageSize
 		countPageSize      = comments.SettingCountPageSize
 		timestampsPageSize = comments.SettingTimestampsPageSize
+		allowEdits         = comments.SettingAllowEdits
+		editPeriod         = comments.SettingEditPeriod
 	)
 
 	// Override defaults with any passed in settings
@@ -243,6 +255,22 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 			}
 			timestampsPageSize = uint32(u)
 
+		case comments.SettingKeyAllowEdits:
+			b, err := strconv.ParseBool(v.Value)
+			if err != nil {
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			allowEdits = b
+
+		case comments.SettingKeyEditPeriod:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			editPeriod = uint32(u)
+
 		default:
 			return nil, errors.Errorf("invalid comments plugin setting '%v'", v.Key)
 		}
@@ -258,5 +286,7 @@ func New(tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir 
 		votesPageSize:      votesPageSize,
 		countPageSize:      countPageSize,
 		timestampsPageSize: timestampsPageSize,
+		allowEdits:         allowEdits,
+		editPeriod:         editPeriod,
 	}, nil
 }

@@ -50,6 +50,14 @@ const (
 	// SettingKeyTimestampsPageSize is the plugin setting key for the
 	// SettingTimestampsPageSize plugin setting.
 	SettingKeyTimestampsPageSize = "timestampspagesize"
+
+	// SettingKeyAllowEdits is the plugin setting key for the
+	// SettingAllowEdits plugin setting.
+	SettingKeyAllowEdits = "allowedits"
+
+	// SettingKeyEditPeriod is the plugin setting key for the
+	// SettingEditPeriod plugin setting.
+	SettingKeyEditPeriod = "editperiod"
 )
 
 // Plugin setting default values. These can be overridden by providing a
@@ -82,6 +90,17 @@ const (
 	// SettingTimestampsPageSize is the default maximum number of comment
 	// timestamps that can be requested at any one time.
 	SettingTimestampsPageSize uint32 = 100
+
+	// SettingAllowEdits is the default value of the bool flag which
+	// determines whether comment edits are temporarily allowed during the
+	// timeframe set by SettingEditPeriod.
+	SettingAllowEdits = false
+
+	// SettingEditPeriod is the default maximum amount of time,
+	// in seconds, since the submission of a comment where it's still
+	// editable. It defaults to five minutes which should be enough time
+	// to spot typos and grammar mistakes.
+	SettingEditPeriod uint32 = 300
 )
 
 // ErrorCodeT represents a error that was caused by the user.
@@ -138,8 +157,12 @@ const (
 	// is found while comment plugin setting does not allow it.
 	ErrorCodeExtraDataNotAllowed = 12
 
+	// ErrorCodeEditNotAllowed is returned when comment edit is not
+	// allowed.
+	ErrorCodeEditNotAllowed = 13
+
 	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 13
+	ErrorCodeLast ErrorCodeT = 14
 )
 
 var (
@@ -158,6 +181,7 @@ var (
 		ErrorCodeVoteChangesMaxExceeded: "vote changes max exceeded",
 		ErrorCodeRecordStateInvalid:     "record state invalid",
 		ErrorCodeExtraDataNotAllowed:    "comment extra data not allowed",
+		ErrorCodeEditNotAllowed:         "comment edit is not allowed",
 	}
 )
 
@@ -210,6 +234,7 @@ type Comment struct {
 	Signature string       `json:"signature"` // Client signature
 	CommentID uint32       `json:"commentid"` // Comment ID
 	Version   uint32       `json:"version"`   // Comment version
+	CreatedAt int64        `json:"createdat"` // UNIX timestamp of creation time
 	Timestamp int64        `json:"timestamp"` // UNIX timestamp of last edit
 	Receipt   string       `json:"receipt"`   // Server sig of client sig
 	Downvotes uint64       `json:"downvotes"` // Tolal downvotes on comment
@@ -228,8 +253,14 @@ type Comment struct {
 //
 // PublicKey is the user's public key that is used to verify the signature.
 //
-// Signature is the user signature of the:
-// State + Token + ParentID + Comment + ExtraData + ExtraDataHint
+// The structure of the signature field depends on whether the CommentAdd is
+// associated with a new comment or a comment edit:
+//
+//   1. When a comment is created it's the user signature of the:
+//   State + Token + ParentID + Comment + ExtraData + ExtraDataHint.
+//
+//   2. When a comment is edited it's the user signature of the:
+//   State + Token + ParentID + CommentID + Comment + ExtraData + ExtraDataHint.
 //
 // Receipt is the server signature of the user signature.
 //
@@ -362,7 +393,7 @@ type NewReply struct {
 // PublicKey is the user's public key that is used to verify the signature.
 //
 // Signature is the user signature of the:
-// State + Token + ParentID + Comment + ExtraData + ExtraDataHint
+// State + Token + ParentID + CommentID + Comment + ExtraData + ExtraDataHint
 //
 // Receipt is the server signature of the user signature.
 //

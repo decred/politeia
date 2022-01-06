@@ -16,6 +16,9 @@ const (
 	// RouteNew adds a new comment.
 	RouteNew = "/new"
 
+	// RouteEdit edits a comment.
+	RouteEdit = "/edit"
+
 	// RouteVote votes on a comment.
 	RouteVote = "/vote"
 
@@ -154,6 +157,8 @@ type PolicyReply struct {
 	CountPageSize      uint32 `json:"countpagesize"`
 	TimestampsPageSize uint32 `json:"timestampspagesize"`
 	VotesPageSize      uint32 `json:"votespagesize"`
+	AllowEdits         bool   `json:"allowedits"`
+	EditPeriod         uint32 `json:"editperiod"`
 }
 
 // RecordStateT represents the state of a record.
@@ -205,6 +210,8 @@ type Comment struct {
 	PublicKey string       `json:"publickey"` // Public key used for Signature
 	Signature string       `json:"signature"` // Client signature
 	CommentID uint32       `json:"commentid"` // Comment ID
+	Version   uint32       `json:"version"`   // Comment version
+	CreatedAt int64        `json:"createdat"` // UNIX timestamp of creation time
 	Timestamp int64        `json:"timestamp"` // UNIX timestamp of last edit
 	Receipt   string       `json:"receipt"`   // Server sig of client sig
 	Downvotes uint64       `json:"downvotes"` // Tolal downvotes on comment
@@ -267,6 +274,37 @@ type New struct {
 
 // NewReply is the reply to the New command.
 type NewReply struct {
+	Comment Comment `json:"comment"`
+}
+
+// Edit edits an existing comment.
+//
+// PublicKey is the user's public key that is used to verify the signature.
+//
+// Signature is the user signature of the:
+// State + Token + ParentID + CommentID + Comment + ExtraData + ExtraDataHint
+//
+// Receipt is the server signature of the user signature.
+//
+// The PublicKey, Signature, and Receipt are all hex encoded and use the
+// ed25519 signature scheme.
+type Edit struct {
+	UserID    string       `json:"userid"`    // Unique user ID
+	State     RecordStateT `json:"state"`     // Record state
+	Token     string       `json:"token"`     // Record token
+	ParentID  uint32       `json:"parentid"`  // Parent comment ID
+	CommentID uint32       `json:"commentid"` // Comment ID
+	Comment   string       `json:"comment"`   // Comment text
+	PublicKey string       `json:"publickey"` // Pubkey used for Signature
+	Signature string       `json:"signature"` // Client signature
+
+	// Optional fields to be used freely
+	ExtraData     string `json:"extradata,omitempty"`
+	ExtraDataHint string `json:"extradatahint,omitempty"`
+}
+
+// EditReply is the reply to the Edit command.
+type EditReply struct {
 	Comment Comment `json:"comment"`
 }
 

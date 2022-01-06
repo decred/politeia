@@ -85,6 +85,7 @@ type pictl struct {
 	// Comments commands
 	CommentsPolicy    cmdCommentPolicy     `command:"commentpolicy"`
 	CommentNew        cmdCommentNew        `command:"commentnew"`
+	CommentEdit       cmdCommentEdit       `command:"commentedit"`
 	CommentVote       cmdCommentVote       `command:"commentvote"`
 	CommentCensor     cmdCommentCensor     `command:"commentcensor"`
 	CommentCount      cmdCommentCount      `command:"commentcount"`
@@ -182,6 +183,7 @@ Record commands
 Comment commands
   commentpolicy                (public) Get the comments api policy
   commentnew                   (user)   Submit a new comment
+  commentedit                  (user)   Edit a comment
   commentvote                  (user)   Upvote/downvote a comment
   commentcensor                (admin)  Censor a comment
   commentcount                 (public) Get the number of comments

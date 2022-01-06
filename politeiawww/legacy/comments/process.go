@@ -95,6 +95,71 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 	}, nil
 }
 
+func (c *Comments) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.EditReply, error) {
+	log.Tracef("processEdit: %v %v", e.Token, e.CommentID)
+
+	// Verify state
+	state := convertStateToPlugin(e.State)
+	if state == comments.RecordStateInvalid {
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodeRecordStateInvalid,
+		}
+	}
+
+	// Verify user signed using active identity
+	if u.PublicKey() != e.PublicKey {
+		return nil, v1.UserErrorReply{
+			ErrorCode:    v1.ErrorCodePublicKeyInvalid,
+			ErrorContext: "not active identity",
+		}
+	}
+
+	// Ensure that session user ID is identical to the user ID included in the
+	// edit request payload.
+	if u.ID.String() != e.UserID {
+		return nil, v1.UserErrorReply{
+			ErrorCode:    v1.ErrorCodeUnauthorized,
+			ErrorContext: "user is not comment author",
+		}
+	}
+
+	// Execute pre plugin hooks. Checking the mode is a temporary
+	// measure until user plugins have been properly implemented.
+	switch c.cfg.Mode {
+	case config.PiWWWMode:
+		err := c.piHookEditPre(u)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Send plugin command
+	ce := comments.Edit{
+		UserID:        u.ID.String(),
+		State:         state,
+		Token:         e.Token,
+		ParentID:      e.ParentID,
+		CommentID:     e.CommentID,
+		Comment:       e.Comment,
+		PublicKey:     e.PublicKey,
+		Signature:     e.Signature,
+		ExtraData:     e.ExtraData,
+		ExtraDataHint: e.ExtraDataHint,
+	}
+	pdc, err := c.politeiad.CommentEdit(ctx, ce)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare reply
+	cm := convertComment(*pdc)
+	commentPopulateUserData(&cm, u)
+
+	return &v1.EditReply{
+		Comment: cm,
+	}, nil
+}
+
 func (c *Comments) processVote(ctx context.Context, v v1.Vote, u user.User) (*v1.VoteReply, error) {
 	log.Tracef("processVote: %v %v %v", v.Token, v.CommentID, v.Vote)
 
@@ -547,6 +612,8 @@ func convertComment(c comments.Comment) v1.Comment {
 		PublicKey:     c.PublicKey,
 		Signature:     c.Signature,
 		CommentID:     c.CommentID,
+		Version:       c.Version,
+		CreatedAt:     c.CreatedAt,
 		Timestamp:     c.Timestamp,
 		Receipt:       c.Receipt,
 		Downvotes:     c.Downvotes,
