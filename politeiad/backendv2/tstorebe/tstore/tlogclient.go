@@ -21,11 +21,8 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/google/trillian"
 	"github.com/google/trillian/client"
-	tcrypto "github.com/google/trillian/crypto"
 	"github.com/google/trillian/crypto/keys/der"
 	"github.com/google/trillian/crypto/keyspb"
-	"github.com/google/trillian/crypto/sigpb"
-	"github.com/google/trillian/merkle/hashers/registry"
 	"github.com/google/trillian/merkle/rfc6962"
 	"github.com/google/trillian/types"
 	"golang.org/x/crypto/argon2"
@@ -121,23 +118,14 @@ type tclient struct {
 func (t *tclient) TreeNew() (*trillian.Tree, *trillian.SignedLogRoot, error) {
 	log.Tracef("trillian TreeNew")
 
-	pk, err := ptypes.MarshalAny(t.privateKey)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	// Create new trillian tree
 	tree, err := t.admin.CreateTree(t.ctx, &trillian.CreateTreeRequest{
 		Tree: &trillian.Tree{
-			TreeState:          trillian.TreeState_ACTIVE,
-			TreeType:           trillian.TreeType_LOG,
-			HashStrategy:       trillian.HashStrategy_RFC6962_SHA256,
-			HashAlgorithm:      sigpb.DigitallySigned_SHA256,
-			SignatureAlgorithm: sigpb.DigitallySigned_ED25519,
-			DisplayName:        "",
-			Description:        "",
-			MaxRootDuration:    ptypes.DurationProto(0),
-			PrivateKey:         pk,
+			TreeState:       trillian.TreeState_ACTIVE,
+			TreeType:        trillian.TreeType_LOG,
+			DisplayName:     "",
+			Description:     "",
+			MaxRootDuration: ptypes.DurationProto(0),
 		},
 	})
 	if err != nil {
@@ -164,17 +152,6 @@ func (t *tclient) TreeNew() (*trillian.Tree, *trillian.SignedLogRoot, error) {
 	default:
 		err = fmt.Errorf("failed to InitLog (unknown error)")
 	}
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Verify root signature
-	verifier, err := client.NewLogVerifierFromTree(tree)
-	if err != nil {
-		return nil, nil, err
-	}
-	_, err = tcrypto.VerifySignedLogRoot(verifier.PubKey,
-		crypto.SHA256, ilr.Created)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -269,11 +246,7 @@ func (t *tclient) InclusionProof(treeID int64, merkleLeafHash []byte, lrv1 *type
 	proof := resp.Proof[0]
 
 	// Verify inclusion proof
-	lh, err := registry.NewLogHasher(trillian.HashStrategy_RFC6962_SHA256)
-	if err != nil {
-		return nil, err
-	}
-	verifier := client.NewLogVerifier(lh, t.publicKey, crypto.SHA256)
+	verifier := client.NewLogVerifier(rfc6962.DefaultHasher)
 	err = verifier.VerifyInclusionByHash(lrv1, merkleLeafHash, proof)
 	if err != nil {
 		return nil, fmt.Errorf("VerifyInclusionByHash: %v", err)
@@ -293,14 +266,8 @@ func (t *tclient) SignedLogRoot(tree *trillian.Tree) (*trillian.SignedLogRoot, *
 		return nil, nil, err
 	}
 
-	// Verify the log root
-	verifier, err := client.NewLogVerifierFromTree(tree)
-	if err != nil {
-		return nil, nil, err
-	}
-	lrv1, err := tcrypto.VerifySignedLogRoot(verifier.PubKey,
-		crypto.SHA256, resp.SignedLogRoot)
-	if err != nil {
+	var lrv1 *types.LogRootV1
+	if err := lrv1.UnmarshalBinary(resp.SignedLogRoot.LogRoot); err != nil {
 		return nil, nil, err
 	}
 
@@ -339,10 +306,11 @@ func (t *tclient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 	}
 
 	// Append leaves
-	qlr, err := t.log.QueueLeaves(t.ctx, &trillian.QueueLeavesRequest{
-		LogId:  treeID,
-		Leaves: leaves,
-	})
+	alr, err := t.log.AddSequencedLeaves(t.ctx,
+		&trillian.AddSequencedLeavesRequest{
+			LogId:  treeID,
+			Leaves: leaves,
+		})
 	if err != nil {
 		return nil, nil, fmt.Errorf("QueuedLeaves: %v", err)
 	}
@@ -356,8 +324,8 @@ func (t *tclient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 	// fetch the inclusion proof in the code below for leaves that are
 	// still in the process of being taken out of the queue.
 	var n int
-	for k := range qlr.QueuedLeaves {
-		c := codes.Code(qlr.QueuedLeaves[k].GetStatus().GetCode())
+	for k := range alr.Results {
+		c := codes.Code(alr.Results[k].GetStatus().GetCode())
 		if c != codes.OK {
 			n++
 		}
@@ -375,7 +343,7 @@ func (t *tclient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 	if err != nil {
 		return nil, nil, err
 	}
-	for _, v := range qlr.QueuedLeaves {
+	for _, v := range alr.Results {
 		ctx, cancel := context.WithTimeout(context.Background(),
 			waitForInclusionTimeout)
 		defer cancel()
@@ -392,9 +360,9 @@ func (t *tclient) LeavesAppend(treeID int64, leaves []*trillian.LogLeaf) ([]queu
 	}
 
 	// Get inclusion proofs
-	proofs := make([]queuedLeafProof, 0, len(qlr.QueuedLeaves))
+	proofs := make([]queuedLeafProof, 0, len(alr.Results))
 	var failed int
-	for _, v := range qlr.QueuedLeaves {
+	for _, v := range alr.Results {
 		qlp := queuedLeafProof{
 			QueuedLeaf: v,
 		}
@@ -674,14 +642,11 @@ func (t *testTClient) TreeNew() (*trillian.Tree, *trillian.SignedLogRoot, error)
 
 	// Create trillian tree
 	tree := trillian.Tree{
-		TreeId:             rand.Int63(),
-		TreeState:          trillian.TreeState_ACTIVE,
-		TreeType:           trillian.TreeType_LOG,
-		HashStrategy:       trillian.HashStrategy_RFC6962_SHA256,
-		HashAlgorithm:      sigpb.DigitallySigned_SHA256,
-		SignatureAlgorithm: sigpb.DigitallySigned_ED25519,
-		DisplayName:        "",
-		Description:        "",
+		TreeId:      rand.Int63(),
+		TreeState:   trillian.TreeState_ACTIVE,
+		TreeType:    trillian.TreeType_LOG,
+		DisplayName: "",
+		Description: "",
 	}
 	t.trees[tree.TreeId] = &tree
 
@@ -733,14 +698,11 @@ func (t *testTClient) TreesAll() ([]*trillian.Tree, error) {
 	trees := make([]*trillian.Tree, len(t.trees))
 	for _, v := range t.trees {
 		trees = append(trees, &trillian.Tree{
-			TreeId:             v.TreeId,
-			TreeState:          v.TreeState,
-			TreeType:           v.TreeType,
-			HashStrategy:       v.HashStrategy,
-			HashAlgorithm:      v.HashAlgorithm,
-			SignatureAlgorithm: v.SignatureAlgorithm,
-			DisplayName:        v.DisplayName,
-			Description:        v.Description,
+			TreeId:      v.TreeId,
+			TreeState:   v.TreeState,
+			TreeType:    v.TreeType,
+			DisplayName: v.DisplayName,
+			Description: v.Description,
 		})
 	}
 
