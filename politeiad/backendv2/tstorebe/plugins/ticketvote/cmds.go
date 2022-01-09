@@ -1858,7 +1858,7 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 		auths   = make([]ticketvote.Timestamp, 0, 32)
 		details *ticketvote.Timestamp
 
-		pageSize = ticketvote.VoteTimestampsPageSize
+		pageSize = p.timestampsPageSize
 		votes    = make([]ticketvote.Timestamp, 0, pageSize)
 	)
 	switch {
