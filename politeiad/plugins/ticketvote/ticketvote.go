@@ -653,12 +653,6 @@ type SubmissionsReply struct {
 	Submissions []string `json:"submissions"`
 }
 
-const (
-	// InventoryPageSize is the maximum number of tokens that will be
-	// returned for any single status in an InventoryReply.
-	InventoryPageSize uint32 = 20
-)
-
 // Inventory requests the tokens of public records in the inventory categorized
 // by vote status.
 //
@@ -719,17 +713,6 @@ type Timestamp struct {
 	MerkleRoot string  `json:"merkleroot"`
 	Proofs     []Proof `json:"proofs"`
 }
-
-const (
-	// VoteTimestampsPageSize is the maximum number of vote timestamps
-	// that will be returned for any single request. A vote timestamp
-	// is ~2000 bytes so a page of 100 votes will only be 0.2MB, but
-	// the bottleneck on this call is performance, not size. Its
-	// expensive to retrieve a large number of inclusion proofs from
-	// trillian. A 100 timestamps request will take ~1 second to
-	// complete.
-	VoteTimestampsPageSize uint32 = 100
-)
 
 // Timestamps requests the timestamps for a ticket vote.
 //
