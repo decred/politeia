@@ -5,7 +5,7 @@ politeiad
 
 ### Install dependencies
 
-<details><summary><b>Go 1.15 or 1.16</b></summary>
+<details><summary><b>Go 1.17</b></summary>
 
   Installation instructions can be at https://golang.org/doc/install.
   Ensure Go was installed properly and is a supported version:
@@ -83,7 +83,7 @@ politeiad
 
 </details>
 
-<details><summary><b>Trillian 1.3.13</b></summary>
+<details><summary><b>Trillian 1.4.0</b></summary>
 
   Installation instructions can be found at https://github.com/google/trillian.
 
@@ -94,7 +94,7 @@ politeiad
   $ cd $GOPATH/src/github.com/google/
   $ git clone git@github.com:google/trillian.git
   $ cd trillian
-  $ git checkout tags/v1.3.13 -b v1.3.13
+  $ git checkout tags/v1.4.0 -b v1.4.0
   $ go install -v ./...
   ```
 
