@@ -55,7 +55,7 @@ func (c *cmdCommentTimestamps) Execute(args []string) error {
 
 	// If the proposal has no comments yet, nothing to do.
 	if len(commentIDs) == 0 {
-		printf("Proposal has no comments yet \n")
+		printf("Proposal has no comments \n")
 		return nil
 	}
 
