@@ -68,8 +68,9 @@ func (c *cmdCommentTimestamps) Execute(args []string) error {
 
 	// Timestamps route is paginated, request timestamps page by page.
 	var (
-		pageStartIdx int
-		fetched      int
+		pageStartIdx        int
+		fetched             int
+		totalNotTimestamped int
 	)
 	for pageStartIdx < len(commentIDs) {
 		pageEndIdx := pageStartIdx + int(pageSize)
@@ -98,11 +99,12 @@ func (c *cmdCommentTimestamps) Execute(args []string) error {
 			return err
 		}
 		if len(notTimestamped) > 0 {
-			printf("Not timestamped yet: %v\n", notTimestamped)
+			totalNotTimestamped = totalNotTimestamped + len(notTimestamped)
 		}
 
-		printf("Fetched timestampes of %v/%v comments \n", fetched,
-			len(commentIDs))
+		printf("Total number of comments: %v, fetched: %v, timestamped: %v, "+
+			"not timestamped: %v \n", len(commentIDs), fetched,
+			fetched-totalNotTimestamped, totalNotTimestamped)
 
 		// Next page start index
 		pageStartIdx = pageEndIdx
