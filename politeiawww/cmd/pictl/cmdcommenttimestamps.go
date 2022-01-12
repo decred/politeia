@@ -34,23 +34,80 @@ func (c *cmdCommentTimestamps) Execute(args []string) error {
 		return err
 	}
 
-	// Get timestamps
-	t := cmv1.Timestamps{
-		Token:      c.Args.Token,
-		CommentIDs: c.Args.CommentIDs,
+	// If given comment IDs is empty fetch all IDs and request timestamps
+	// page by page.
+	commentIDs := c.Args.CommentIDs
+	if len(commentIDs) == 0 {
+		// Fetch all comments
+		cm := cmv1.Comments{
+			Token: c.Args.Token,
+		}
+		cmr, err := pc.Comments(cm)
+		if err != nil {
+			return err
+		}
+
+		// Collect comment IDs
+		for _, c := range cmr.Comments {
+			commentIDs = append(commentIDs, c.CommentID)
+		}
 	}
-	tr, err := pc.CommentTimestamps(t)
+
+	// If the proposal has no comments yet, nothing to do.
+	if len(commentIDs) == 0 {
+		printf("Proposal has no comments yet \n")
+		return nil
+	}
+
+	// Get timestamps page size
+	pr, err := pc.CommentPolicy()
 	if err != nil {
 		return err
 	}
+	pageSize := pr.TimestampsPageSize
 
-	// Verify timestamps
-	notTimestamped, err := pclient.CommentTimestampsVerify(*tr)
-	if err != nil {
-		return err
+	// Timestamps route is paginated, request timestamps page by page.
+	var (
+		pageStartIdx int
+		fetched      int
+	)
+	for pageStartIdx < len(commentIDs) {
+		pageEndIdx := pageStartIdx + int(pageSize)
+		if pageEndIdx > len(commentIDs) {
+			// We've reached the end of the slice
+			pageEndIdx = len(commentIDs)
+		}
+
+		// pageStartIdx is included. pageEndIdx is excluded.
+		page := commentIDs[pageStartIdx:pageEndIdx]
+
+		// Get timestamps
+		t := cmv1.Timestamps{
+			Token:      c.Args.Token,
+			CommentIDs: page,
+		}
+		tr, err := pc.CommentTimestamps(t)
+		if err != nil {
+			return err
+		}
+		fetched = fetched + len(page)
+
+		// Verify timestamps
+		notTimestamped, err := pclient.CommentTimestampsVerify(*tr)
+		if err != nil {
+			return err
+		}
+		if len(notTimestamped) > 0 {
+			printf("Not timestamped yet: %v\n", notTimestamped)
+		}
+
+		printf("Fetched timestampes of %v/%v comments \n", fetched,
+			len(commentIDs))
+
+		// Next page start index
+		pageStartIdx = pageEndIdx
 	}
 
-	printf("Not timestamped yet: %v", notTimestamped)
 	return nil
 }
 
