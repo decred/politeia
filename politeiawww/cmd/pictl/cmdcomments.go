@@ -5,8 +5,6 @@
 package main
 
 import (
-	"fmt"
-
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	pclient "github.com/decred/politeia/politeiawww/client"
 )
@@ -47,7 +45,7 @@ func (c *cmdComments) Execute(args []string) error {
 	// Print comments
 	for _, v := range cr.Comments {
 		printComment(v)
-		fmt.Printf("\n")
+		printf("\n")
 	}
 
 	return nil
