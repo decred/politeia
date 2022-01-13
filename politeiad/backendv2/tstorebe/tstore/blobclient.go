@@ -388,6 +388,35 @@ func (t *Tstore) Timestamp(token []byte, digest []byte) (*backend.Timestamp, err
 	return t.timestamp(treeID, m, leaves)
 }
 
+// CachePut saves the provided key-value pairs to the key-value store.
+//
+// This function satisfies the plugins TstoreClient interface.
+func (t *Tstore) CachePut(blobs map[string][]byte, encrypt bool) error {
+	log.Tracef("CachePut: %v", encrypt)
+
+	return t.store.Put(blobs, encrypt)
+}
+
+// CacheDel deletes the provided blobs from the key-value store. This
+// operation is performed atomically.
+//
+// This function satisfies the plugins TstoreClient interface.
+func (t *Tstore) CacheDel(keys []string) error {
+	log.Tracef("CacheDel: %v", keys)
+
+	return t.store.Del(keys)
+}
+
+// CacheGet returns blobs from the key-value store for the provided keys. An
+// entry will not exist in the returned map if for any blobs that are not
+// found. It is the responsibility of the caller to ensure a blob
+// was returned for all provided keys.
+func (t *Tstore) CacheGet(keys []string) (map[string][]byte, error) {
+	log.Tracef("CacheGet: %v", keys)
+
+	return t.store.Get(keys)
+}
+
 // leavesForDescriptor returns all leaves that have and extra data descriptor
 // that matches the provided descriptor. If a record is vetted, only vetted
 // leaves will be returned.
