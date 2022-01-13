@@ -217,15 +217,15 @@ type TstoreClient interface {
 	RecordState(token []byte) (backend.StateT, error)
 
 	// CachePut saves the provided key-value pairs to the key-value store.
-	CachePut(blobs map[string][]byte, encrypt bool) error
+	CachePut(pluginID string, blobs map[string][]byte, encrypt bool) error
 
 	// CacheDel deletes the provided blobs from the key-value store. This
 	// operation is performed atomically.
-	CacheDel(keys []string) error
+	CacheDel(pluginID string, keys []string) error
 
 	// CacheGet returns blobs from the key-value store for the provided keys. An
 	// entry will not exist in the returned map if for any blobs that are not
 	// found. It is the responsibility of the caller to ensure a blob
 	// was returned for all provided keys.
-	CacheGet(keys []string) (map[string][]byte, error)
+	CacheGet(pluginID string, keys []string) (map[string][]byte, error)
 }

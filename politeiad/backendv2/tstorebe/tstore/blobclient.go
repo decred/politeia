@@ -391,30 +391,65 @@ func (t *Tstore) Timestamp(token []byte, digest []byte) (*backend.Timestamp, err
 // CachePut saves the provided key-value pairs to the key-value store.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) CachePut(blobs map[string][]byte, encrypt bool) error {
+func (t *Tstore) CachePut(pluginID string, blobs map[string][]byte, encrypt bool) error {
 	log.Tracef("CachePut: %v", encrypt)
 
-	return t.store.Put(blobs, encrypt)
+	// Prefix keys with pluginID, in order to strict plugins access only to
+	// the data they own.
+	prefixedBlobs := prefixMapKeys(pluginID, blobs)
+
+	return t.store.Put(prefixedBlobs, encrypt)
 }
 
 // CacheDel deletes the provided blobs from the key-value store. This
 // operation is performed atomically.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) CacheDel(keys []string) error {
+func (t *Tstore) CacheDel(pluginID string, keys []string) error {
 	log.Tracef("CacheDel: %v", keys)
 
-	return t.store.Del(keys)
+	// Prefix keys with pluginID, in order to strict plugins access only to
+	// the data they own.
+	pkeys := prefixKeys(pluginID, keys)
+
+	return t.store.Del(pkeys)
 }
 
 // CacheGet returns blobs from the key-value store for the provided keys. An
 // entry will not exist in the returned map if for any blobs that are not
 // found. It is the responsibility of the caller to ensure a blob
 // was returned for all provided keys.
-func (t *Tstore) CacheGet(keys []string) (map[string][]byte, error) {
+func (t *Tstore) CacheGet(pluginID string, keys []string) (map[string][]byte, error) {
 	log.Tracef("CacheGet: %v", keys)
 
-	return t.store.Get(keys)
+	// Prefix keys with pluginID, in order to strict plugins access only to
+	// the data they own.
+	pkeys := prefixKeys(pluginID, keys)
+
+	return t.store.Get(pkeys)
+}
+
+// prefixMapKeys accepts a map of []byte indexed by string keys, and it
+// prefixes all the map keys with the given string prefix.
+func prefixMapKeys(prefix string, m map[string][]byte) map[string][]byte {
+	pm := make(map[string][]byte, len(m))
+
+	for k, v := range m {
+		pm[prefix+k] = v
+	}
+
+	return pm
+}
+
+// prefixKeys accepts a list of string keys, and it returns the keys prefixed
+// with the given prefix.
+func prefixKeys(prefix string, keys []string) []string {
+	pkeys := make([]string, 0, len(keys))
+	for _, key := range keys {
+		pkeys = append(pkeys, prefix+key)
+	}
+
+	return pkeys
 }
 
 // leavesForDescriptor returns all leaves that have and extra data descriptor
