@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/google/trillian"
 	"google.golang.org/grpc/codes"
@@ -391,8 +392,11 @@ func (t *Tstore) Timestamp(token []byte, digest []byte) (*backend.Timestamp, err
 // CachePut saves the provided key-value pairs to the key-value store.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) CachePut(pluginID string, blobs map[string][]byte, encrypt bool) error {
+func (t *Tstore) CachePut(p plugins.PluginClient, blobs map[string][]byte, encrypt bool) error {
 	log.Tracef("CachePut: %v", encrypt)
+
+	// Find plugin ID
+	pluginID := t.findPluginID(p)
 
 	// Prefix keys with pluginID, in order to strict plugins access only to
 	// the data they own.
@@ -405,8 +409,11 @@ func (t *Tstore) CachePut(pluginID string, blobs map[string][]byte, encrypt bool
 // operation is performed atomically.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *Tstore) CacheDel(pluginID string, keys []string) error {
+func (t *Tstore) CacheDel(p plugins.PluginClient, keys []string) error {
 	log.Tracef("CacheDel: %v", keys)
+
+	// Find plugin ID
+	pluginID := t.findPluginID(p)
 
 	// Prefix keys with pluginID, in order to strict plugins access only to
 	// the data they own.
@@ -419,14 +426,31 @@ func (t *Tstore) CacheDel(pluginID string, keys []string) error {
 // entry will not exist in the returned map if for any blobs that are not
 // found. It is the responsibility of the caller to ensure a blob
 // was returned for all provided keys.
-func (t *Tstore) CacheGet(pluginID string, keys []string) (map[string][]byte, error) {
+func (t *Tstore) CacheGet(p plugins.PluginClient, keys []string) (map[string][]byte, error) {
 	log.Tracef("CacheGet: %v", keys)
+
+	// Find plugin ID
+	pluginID := t.findPluginID(p)
 
 	// Prefix keys with pluginID, in order to strict plugins access only to
 	// the data they own.
 	pkeys := prefixKeys(pluginID, keys)
 
 	return t.store.Get(pkeys)
+}
+
+// findPluginID searches for the given plugin in the tstore plugins map
+// and it returns it's ID if it finds it or an empty string otherwise.
+func (t *Tstore) findPluginID(p plugins.PluginClient) string {
+	// Find plugin ID
+	var pluginID string
+	for ID, v := range t.plugins {
+		if v.client == p {
+			pluginID = ID
+		}
+	}
+
+	return pluginID
 }
 
 // prefixMapKeys accepts a map of []byte indexed by string keys, and it
