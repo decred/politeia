@@ -402,7 +402,7 @@ func (t *tstoreClient) Timestamp(token []byte, digest []byte) (*backend.Timestam
 // CachePut saves the provided key-value pairs to the key-value store.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *tstoreClient) CachePut(p plugins.PluginClient, blobs map[string][]byte, encrypt bool) error {
+func (t *tstoreClient) CachePut(blobs map[string][]byte, encrypt bool) error {
 	log.Tracef("CachePut: %v %v", t.pluginID, encrypt)
 
 	// Prefix keys with pluginID, in order to strict plugins access only to
@@ -416,7 +416,7 @@ func (t *tstoreClient) CachePut(p plugins.PluginClient, blobs map[string][]byte,
 // operation is performed atomically.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *tstoreClient) CacheDel(p plugins.PluginClient, keys []string) error {
+func (t *tstoreClient) CacheDel(keys []string) error {
 	log.Tracef("CacheDel: %v %v", t.pluginID, keys)
 
 	// Prefix keys with pluginID, in order to strict plugins access only to
@@ -430,7 +430,7 @@ func (t *tstoreClient) CacheDel(p plugins.PluginClient, keys []string) error {
 // entry will not exist in the returned map if for any blobs that are not
 // found. It is the responsibility of the caller to ensure a blob
 // was returned for all provided keys.
-func (t *tstoreClient) CacheGet(p plugins.PluginClient, keys []string) (map[string][]byte, error) {
+func (t *tstoreClient) CacheGet(keys []string) (map[string][]byte, error) {
 	log.Tracef("CacheGet: %v %v", t.pluginID, keys)
 
 	// Prefix keys with pluginID, in order to strict plugins access only to
