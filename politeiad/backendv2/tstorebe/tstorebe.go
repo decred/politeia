@@ -36,7 +36,7 @@ type tstoreBackend struct {
 	appDir   string
 	dataDir  string
 	shutdown bool
-	tstore   tstore.Tstore
+	tstore   *tstore.Tstore
 
 	// recordMtxs allows the backend to hold a lock on an individual
 	// record so that it can perform multiple read/write operations
