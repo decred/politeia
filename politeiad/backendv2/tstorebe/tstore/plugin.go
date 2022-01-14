@@ -199,7 +199,7 @@ func (t *Tstore) PluginRead(token []byte, pluginID, cmd, payload string) (string
 		// Read methods are allowed to use short tokens. Lookup the full
 		// length token.
 		var err error
-		token, err = t.FullLengthToken(token)
+		token, err = t.fullLengthToken(token)
 		if err != nil {
 			return "", err
 		}

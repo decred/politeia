@@ -596,7 +596,7 @@ func (t *Tstore) RecordExists(token []byte) bool {
 	// Read methods are allowed to use short tokens. Lookup the full
 	// length token.
 	var err error
-	token, err = t.FullLengthToken(token)
+	token, err = t.fullLengthToken(token)
 	if err != nil {
 		return false
 	}
@@ -605,7 +605,7 @@ func (t *Tstore) RecordExists(token []byte) bool {
 	return err == nil
 }
 
-// Record returns the specified record.
+// record returns the specified record.
 //
 // Version is used to request a specific version of a record. If no version is
 // provided then the most recent version of the record will be returned.
@@ -806,7 +806,7 @@ func (t *Tstore) Record(token []byte, version uint32) (*backend.Record, error) {
 	// Read methods are allowed to use short tokens. Lookup the full
 	// length token.
 	var err error
-	token, err = t.FullLengthToken(token)
+	token, err = t.fullLengthToken(token)
 	if err != nil {
 		return nil, err
 	}
@@ -822,7 +822,7 @@ func (t *Tstore) RecordLatest(token []byte) (*backend.Record, error) {
 	// Read methods are allowed to use short tokens. Lookup the full
 	// length token.
 	var err error
-	token, err = t.FullLengthToken(token)
+	token, err = t.fullLengthToken(token)
 	if err != nil {
 		return nil, err
 	}
@@ -843,38 +843,38 @@ func (t *Tstore) RecordLatest(token []byte) (*backend.Record, error) {
 //
 // OmitAllFiles can be used to retrieve a record without any of the record
 // files. This supersedes the filenames argument.
-func (t *tstoreClient) RecordPartial(token []byte, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
+func (t *Tstore) RecordPartial(token []byte, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
 	log.Tracef("RecordPartial: %x %v %v %v",
 		token, version, omitAllFiles, filenames)
 
 	// Read methods are allowed to use short tokens. Lookup the full
 	// length token.
 	var err error
-	token, err = t.tstore.FullLengthToken(token)
+	token, err = t.fullLengthToken(token)
 	if err != nil {
 		return nil, err
 	}
 
 	treeID := treeIDFromToken(token)
-	return t.tstore.Record(treeID, version, filenames, omitAllFiles)
+	return t.record(treeID, version, filenames, omitAllFiles)
 }
 
 // RecordState returns the state of a record. This call does not require
 // retrieving any blobs from the kv store. The record state can be derived from
 // only the tlog leaves.
-func (t *tstoreClient) RecordState(token []byte) (backend.StateT, error) {
+func (t *Tstore) RecordState(token []byte) (backend.StateT, error) {
 	log.Tracef("RecordState: %x", token)
 
 	// Read methods are allowed to use short tokens. Lookup the full
 	// length token.
 	var err error
-	token, err = t.tstore.FullLengthToken(token)
+	token, err = t.fullLengthToken(token)
 	if err != nil {
 		return backend.StateInvalid, err
 	}
 
 	treeID := treeIDFromToken(token)
-	leaves, err := t.tstore.LeavesAll(treeID)
+	leaves, err := t.LeavesAll(treeID)
 	if err != nil {
 		return backend.StateInvalid, err
 	}
@@ -1033,7 +1033,7 @@ func (t *Tstore) RecordTimestamps(token []byte, version uint32) (*backend.Record
 	// Read methods are allowed to use short tokens. Lookup the full
 	// length token.
 	var err error
-	token, err = t.FullLengthToken(token)
+	token, err = t.fullLengthToken(token)
 	if err != nil {
 		return nil, err
 	}

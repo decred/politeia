@@ -146,10 +146,10 @@ func (t *Tstore) tokenAdd(fullToken []byte) error {
 	return nil
 }
 
-// FullLengthToken returns the full length token given the short token. A
+// fullLengthToken returns the full length token given the short token. A
 // ErrRecordNotFound error is returned if a record does not exist for the
 // provided token.
-func (t *Tstore) FullLengthToken(token []byte) ([]byte, error) {
+func (t *Tstore) fullLengthToken(token []byte) ([]byte, error) {
 	if tokenIsFullLength(token) {
 		// Token is already full length. Nothing else to do.
 		return token, nil
