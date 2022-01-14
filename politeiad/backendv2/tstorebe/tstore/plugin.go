@@ -78,7 +78,7 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 	)
 	switch p.ID {
 	case cmplugin.PluginID:
-		client, err = comments.New(&TstoreClient{
+		client, err = comments.New(&tstoreClient{
 			pluginID: cmplugin.PluginID,
 			tstore:   t,
 		}, p.Settings, dataDir, p.Identity)
@@ -91,7 +91,7 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 			return err
 		}
 	case piplugin.PluginID:
-		client, err = pi.New(b, &TstoreClient{
+		client, err = pi.New(b, &tstoreClient{
 			pluginID: piplugin.PluginID,
 			tstore:   t,
 		}, p.Settings, dataDir, p.Identity)
@@ -99,7 +99,7 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 			return err
 		}
 	case tkplugin.PluginID:
-		client, err = ticketvote.New(b, &TstoreClient{
+		client, err = ticketvote.New(b, &tstoreClient{
 			pluginID: tkplugin.PluginID,
 			tstore:   t,
 		}, p.Settings, dataDir,
@@ -108,7 +108,7 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 			return err
 		}
 	case umplugin.PluginID:
-		client, err = usermd.New(&TstoreClient{
+		client, err = usermd.New(&tstoreClient{
 			pluginID: umplugin.PluginID,
 			tstore:   t,
 		}, p.Settings, dataDir)

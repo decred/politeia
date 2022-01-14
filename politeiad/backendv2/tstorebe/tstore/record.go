@@ -800,7 +800,7 @@ func getSortedKeys(blobs map[string][]byte) []string {
 }
 
 // Record returns the specified version of the record.
-func (t *TstoreClient) Record(token []byte, version uint32) (*backend.Record, error) {
+func (t *tstoreClient) Record(token []byte, version uint32) (*backend.Record, error) {
 	log.Tracef("Record: %x %v", token, version)
 
 	// Read methods are allowed to use short tokens. Lookup the full
@@ -816,7 +816,7 @@ func (t *TstoreClient) Record(token []byte, version uint32) (*backend.Record, er
 }
 
 // RecordLatest returns the latest version of a record.
-func (t *TstoreClient) RecordLatest(token []byte) (*backend.Record, error) {
+func (t *tstoreClient) RecordLatest(token []byte) (*backend.Record, error) {
 	log.Tracef("RecordLatest: %x", token)
 
 	// Read methods are allowed to use short tokens. Lookup the full
@@ -843,7 +843,7 @@ func (t *TstoreClient) RecordLatest(token []byte) (*backend.Record, error) {
 //
 // OmitAllFiles can be used to retrieve a record without any of the record
 // files. This supersedes the filenames argument.
-func (t *TstoreClient) RecordPartial(token []byte, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
+func (t *tstoreClient) RecordPartial(token []byte, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
 	log.Tracef("RecordPartial: %x %v %v %v",
 		token, version, omitAllFiles, filenames)
 
@@ -862,7 +862,7 @@ func (t *TstoreClient) RecordPartial(token []byte, version uint32, filenames []s
 // RecordState returns the state of a record. This call does not require
 // retrieving any blobs from the kv store. The record state can be derived from
 // only the tlog leaves.
-func (t *TstoreClient) RecordState(token []byte) (backend.StateT, error) {
+func (t *tstoreClient) RecordState(token []byte) (backend.StateT, error) {
 	log.Tracef("RecordState: %x", token)
 
 	// Read methods are allowed to use short tokens. Lookup the full

@@ -40,11 +40,11 @@ const (
 )
 
 var (
-	_ plugins.TstoreClient = (*TstoreClient)(nil)
+	_ plugins.TstoreClient = (*tstoreClient)(nil)
 )
 
-// TstoreClient satisfies the plugin TstoreClient interface.
-type TstoreClient struct {
+// tstoreClient satisfies the plugin TstoreClient interface.
+type tstoreClient struct {
 	pluginID string
 	tstore   *Tstore
 }

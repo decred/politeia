@@ -24,7 +24,7 @@ import (
 // and can be used to get/del the blob from tstore.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *TstoreClient) BlobSave(token []byte, be store.BlobEntry) error {
+func (t *tstoreClient) BlobSave(token []byte, be store.BlobEntry) error {
 	log.Tracef("BlobSave: %x", token)
 
 	// Verify tree is not frozen
@@ -121,7 +121,7 @@ func (t *TstoreClient) BlobSave(token []byte, be store.BlobEntry) error {
 // can be deleted from both frozen and non-frozen records.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *TstoreClient) BlobsDel(token []byte, digests [][]byte) error {
+func (t *tstoreClient) BlobsDel(token []byte, digests [][]byte) error {
 	log.Tracef("BlobsDel: %x %x", token, digests)
 
 	// Get all tree leaves
@@ -168,7 +168,7 @@ func (t *TstoreClient) BlobsDel(token []byte, digests [][]byte) error {
 // is vetted, only vetted blobs will be returned.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *TstoreClient) Blobs(token []byte, digests [][]byte) (map[string]store.BlobEntry, error) {
+func (t *tstoreClient) Blobs(token []byte, digests [][]byte) (map[string]store.BlobEntry, error) {
 	log.Tracef("Blobs: %x %x", token, digests)
 
 	if len(digests) == 0 {
@@ -252,7 +252,7 @@ func (t *TstoreClient) Blobs(token []byte, digests [][]byte) (map[string]store.B
 // only vetted blobs will be returned.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *TstoreClient) BlobsByDataDesc(token []byte, dataDesc []string) ([]store.BlobEntry, error) {
+func (t *tstoreClient) BlobsByDataDesc(token []byte, dataDesc []string) ([]store.BlobEntry, error) {
 	log.Tracef("BlobsByDataDesc: %x %v", token, dataDesc)
 
 	// Get leaves
@@ -318,7 +318,7 @@ func (t *TstoreClient) BlobsByDataDesc(token []byte, dataDesc []string) ([]store
 // returned.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *TstoreClient) DigestsByDataDesc(token []byte, dataDesc []string) ([][]byte, error) {
+func (t *tstoreClient) DigestsByDataDesc(token []byte, dataDesc []string) ([][]byte, error) {
 	log.Tracef("DigestsByDataDesc: %x %v", token, dataDesc)
 
 	// Get leaves
@@ -345,7 +345,7 @@ func (t *TstoreClient) DigestsByDataDesc(token []byte, dataDesc []string) ([][]b
 // returned.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *TstoreClient) Timestamp(token []byte, digest []byte) (*backend.Timestamp, error) {
+func (t *tstoreClient) Timestamp(token []byte, digest []byte) (*backend.Timestamp, error) {
 	log.Tracef("Timestamp: %x %x", token, digest)
 
 	// Get tree leaves
@@ -392,7 +392,7 @@ func (t *TstoreClient) Timestamp(token []byte, digest []byte) (*backend.Timestam
 // CachePut saves the provided key-value pairs to the key-value store.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *TstoreClient) CachePut(p plugins.PluginClient, blobs map[string][]byte, encrypt bool) error {
+func (t *tstoreClient) CachePut(p plugins.PluginClient, blobs map[string][]byte, encrypt bool) error {
 	log.Tracef("CachePut: %v %v", t.pluginID, encrypt)
 
 	// Prefix keys with pluginID, in order to strict plugins access only to
@@ -406,7 +406,7 @@ func (t *TstoreClient) CachePut(p plugins.PluginClient, blobs map[string][]byte,
 // operation is performed atomically.
 //
 // This function satisfies the plugins TstoreClient interface.
-func (t *TstoreClient) CacheDel(p plugins.PluginClient, keys []string) error {
+func (t *tstoreClient) CacheDel(p plugins.PluginClient, keys []string) error {
 	log.Tracef("CacheDel: %v %v", t.pluginID, keys)
 
 	// Prefix keys with pluginID, in order to strict plugins access only to
@@ -420,7 +420,7 @@ func (t *TstoreClient) CacheDel(p plugins.PluginClient, keys []string) error {
 // entry will not exist in the returned map if for any blobs that are not
 // found. It is the responsibility of the caller to ensure a blob
 // was returned for all provided keys.
-func (t *TstoreClient) CacheGet(p plugins.PluginClient, keys []string) (map[string][]byte, error) {
+func (t *tstoreClient) CacheGet(p plugins.PluginClient, keys []string) (map[string][]byte, error) {
 	log.Tracef("CacheGet: %v %v", t.pluginID, keys)
 
 	// Prefix keys with pluginID, in order to strict plugins access only to
