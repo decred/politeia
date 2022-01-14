@@ -29,7 +29,7 @@ func (t *tstoreClient) BlobSave(token []byte, be store.BlobEntry) error {
 
 	// Verify tree is not frozen
 	treeID := treeIDFromToken(token)
-	leaves, err := t.tstore.LeavesAll(treeID)
+	leaves, err := t.tstore.leavesAll(treeID)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func (t *tstoreClient) BlobsDel(token []byte, digests [][]byte) error {
 
 	// Get all tree leaves
 	treeID := treeIDFromToken(token)
-	leaves, err := t.tstore.LeavesAll(treeID)
+	leaves, err := t.tstore.leavesAll(treeID)
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (t *tstoreClient) Blobs(token []byte, digests [][]byte) (map[string]store.B
 
 	// Get leaves
 	treeID := treeIDFromToken(token)
-	leaves, err := t.tstore.LeavesAll(treeID)
+	leaves, err := t.tstore.leavesAll(treeID)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +257,7 @@ func (t *tstoreClient) BlobsByDataDesc(token []byte, dataDesc []string) ([]store
 
 	// Get leaves
 	treeID := treeIDFromToken(token)
-	leaves, err := t.tstore.LeavesAll(treeID)
+	leaves, err := t.tstore.leavesAll(treeID)
 	if err != nil {
 		return nil, err
 	}
@@ -323,7 +323,7 @@ func (t *tstoreClient) DigestsByDataDesc(token []byte, dataDesc []string) ([][]b
 
 	// Get leaves
 	treeID := treeIDFromToken(token)
-	leaves, err := t.tstore.LeavesAll(treeID)
+	leaves, err := t.tstore.leavesAll(treeID)
 	if err != nil {
 		return nil, err
 	}
@@ -350,7 +350,7 @@ func (t *tstoreClient) Timestamp(token []byte, digest []byte) (*backend.Timestam
 
 	// Get tree leaves
 	treeID := treeIDFromToken(token)
-	leaves, err := t.tstore.LeavesAll(treeID)
+	leaves, err := t.tstore.leavesAll(treeID)
 	if err != nil {
 		return nil, err
 	}

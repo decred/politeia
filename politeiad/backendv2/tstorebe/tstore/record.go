@@ -68,7 +68,7 @@ func (t *Tstore) RecordNew() ([]byte, error) {
 // clear text in the key-value store.
 func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metadata []backend.MetadataStream, files []backend.File) (*recordIndex, error) {
 	// Get tree leaves
-	leavesAll, err := t.LeavesAll(treeID)
+	leavesAll, err := t.leavesAll(treeID)
 	if err != nil {
 		return nil, err
 	}
@@ -480,7 +480,7 @@ func (t *Tstore) RecordDel(token []byte) error {
 
 	// Get all tree leaves
 	treeID := treeIDFromToken(token)
-	leavesAll, err := t.LeavesAll(treeID)
+	leavesAll, err := t.leavesAll(treeID)
 	if err != nil {
 		return err
 	}
@@ -617,7 +617,7 @@ func (t *Tstore) RecordExists(token []byte) bool {
 // files. This supersedes the filenames argument.
 func (t *Tstore) record(treeID int64, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
 	// Get tree leaves
-	leaves, err := t.LeavesAll(treeID)
+	leaves, err := t.leavesAll(treeID)
 	if err != nil {
 		return nil, err
 	}
@@ -874,7 +874,7 @@ func (t *Tstore) RecordState(token []byte) (backend.StateT, error) {
 	}
 
 	treeID := treeIDFromToken(token)
-	leaves, err := t.LeavesAll(treeID)
+	leaves, err := t.leavesAll(treeID)
 	if err != nil {
 		return backend.StateInvalid, err
 	}
@@ -1040,7 +1040,7 @@ func (t *Tstore) RecordTimestamps(token []byte, version uint32) (*backend.Record
 
 	// Get record index
 	treeID := treeIDFromToken(token)
-	leaves, err := t.LeavesAll(treeID)
+	leaves, err := t.leavesAll(treeID)
 	if err != nil {
 		return nil, err
 	}

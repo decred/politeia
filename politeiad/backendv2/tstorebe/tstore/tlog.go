@@ -13,10 +13,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// LeavesAll provides a wrapper around the tlog LeavesAll method that unpacks
+// leavesAll provides a wrapper around the tlog LeavesAll method that unpacks
 // any tree not found errors and instead returns a backend ErrRecordNotFound
 // error.
-func (t *Tstore) LeavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
+func (t *Tstore) leavesAll(treeID int64) ([]*trillian.LogLeaf, error) {
 	leaves, err := t.tlog.LeavesAll(treeID)
 	if err != nil {
 		if c := status.Code(err); c == codes.NotFound {
