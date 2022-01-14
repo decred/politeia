@@ -40,8 +40,14 @@ const (
 )
 
 var (
-	_ plugins.TstoreClient = (*Tstore)(nil)
+	_ plugins.TstoreClient = (*TstoreClient)(nil)
 )
+
+// TstoreClient satisfies the plugin TstoreClient interface.
+type TstoreClient struct {
+	pluginID string
+	tstore   *Tstore
+}
 
 // Tstore is a data store that automatically timestamps all data saved to it
 // onto the decred blockchain, making it possible to cryptographically prove
@@ -140,10 +146,10 @@ func (t *Tstore) tokenAdd(fullToken []byte) error {
 	return nil
 }
 
-// fullLengthToken returns the full length token given the short token. A
+// FullLengthToken returns the full length token given the short token. A
 // ErrRecordNotFound error is returned if a record does not exist for the
 // provided token.
-func (t *Tstore) fullLengthToken(token []byte) ([]byte, error) {
+func (t *Tstore) FullLengthToken(token []byte) ([]byte, error) {
 	if tokenIsFullLength(token) {
 		// Token is already full length. Nothing else to do.
 		return token, nil
