@@ -508,7 +508,7 @@ func prefixMapKeys(prefix string, m map[string][]byte) map[string][]byte {
 	pm := make(map[string][]byte, len(m))
 
 	for k, v := range m {
-		pm[prefix+"-"+k] = v
+		pm[prefixKey(prefix, k)] = v
 	}
 
 	return pm
@@ -519,8 +519,13 @@ func prefixMapKeys(prefix string, m map[string][]byte) map[string][]byte {
 func prefixKeys(prefix string, keys []string) []string {
 	pkeys := make([]string, 0, len(keys))
 	for _, key := range keys {
-		pkeys = append(pkeys, prefix+"-"+key)
+		pkeys = append(pkeys, prefixKey(prefix, key))
 	}
 
 	return pkeys
+}
+
+// prefixKey prefixes the given key with given prefix.
+func prefixKey(prefix, key string) string {
+	return prefix + "-" + key
 }
