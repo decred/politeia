@@ -519,7 +519,7 @@ func prefixMapKeys(prefix string, m map[string][]byte) map[string][]byte {
 func prefixKeys(prefix string, keys []string) []string {
 	pkeys := make([]string, 0, len(keys))
 	for _, key := range keys {
-		pkeys = append(pkeys, prefix+"_"+key)
+		pkeys = append(pkeys, prefix+"-"+key)
 	}
 
 	return pkeys
