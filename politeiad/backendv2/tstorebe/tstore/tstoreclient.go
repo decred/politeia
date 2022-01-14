@@ -399,7 +399,9 @@ func (t *tstoreClient) Timestamp(token []byte, digest []byte) (*backend.Timestam
 	return t.tstore.timestamp(treeID, m, leaves)
 }
 
-// CachePut saves the provided key-value pairs to the key-value store.
+// CachePut saves the provided key-value pairs to the key-value store. It
+// prefixes the keys with the plugin ID in order to limit the access of the
+// plugins only to the data they own.
 //
 // This function satisfies the plugins TstoreClient interface.
 func (t *tstoreClient) CachePut(blobs map[string][]byte, encrypt bool) error {
@@ -413,7 +415,8 @@ func (t *tstoreClient) CachePut(blobs map[string][]byte, encrypt bool) error {
 }
 
 // CacheDel deletes the provided blobs from the key-value store. This
-// operation is performed atomically.
+// operation is performed atomically. It prefixes the keys with the plugin
+// ID in order to limit the access of the plugins only to the data they own.
 //
 // This function satisfies the plugins TstoreClient interface.
 func (t *tstoreClient) CacheDel(keys []string) error {
@@ -429,7 +432,8 @@ func (t *tstoreClient) CacheDel(keys []string) error {
 // CacheGet returns blobs from the key-value store for the provided keys. An
 // entry will not exist in the returned map if for any blobs that are not
 // found. It is the responsibility of the caller to ensure a blob
-// was returned for all provided keys.
+// was returned for all provided keys. It prefixes the keys with the plugin
+// ID in order to limit the access of the plugins only to the data they own.
 func (t *tstoreClient) CacheGet(keys []string) (map[string][]byte, error) {
 	log.Tracef("CacheGet: %v %v", t.pluginID, keys)
 
@@ -504,7 +508,7 @@ func prefixMapKeys(prefix string, m map[string][]byte) map[string][]byte {
 	pm := make(map[string][]byte, len(m))
 
 	for k, v := range m {
-		pm[prefix+k] = v
+		pm[prefix+"-"+k] = v
 	}
 
 	return pm
@@ -515,7 +519,7 @@ func prefixMapKeys(prefix string, m map[string][]byte) map[string][]byte {
 func prefixKeys(prefix string, keys []string) []string {
 	pkeys := make([]string, 0, len(keys))
 	for _, key := range keys {
-		pkeys = append(pkeys, prefix+key)
+		pkeys = append(pkeys, prefix+"_"+key)
 	}
 
 	return pkeys

@@ -216,16 +216,20 @@ type TstoreClient interface {
 	// RecordState returns whether the record is unvetted or vetted.
 	RecordState(token []byte) (backend.StateT, error)
 
-	// CachePut saves the provided key-value pairs to the key-value store.
+	// CachePut saves the provided key-value pairs to the key-value store. It
+	// prefixes the keys with the plugin ID in order to limit the access of the
+	// plugins only to the data they own.
 	CachePut(blobs map[string][]byte, encrypt bool) error
 
 	// CacheDel deletes the provided blobs from the key-value store. This
-	// operation is performed atomically.
+	// operation is performed atomically. It prefixes the keys with the plugin
+	// ID in order to limit the access of the plugins only to the data they own.
 	CacheDel(keys []string) error
 
 	// CacheGet returns blobs from the key-value store for the provided keys. An
 	// entry will not exist in the returned map if for any blobs that are not
 	// found. It is the responsibility of the caller to ensure a blob
-	// was returned for all provided keys.
+	// was returned for all provided keys. It prefixes the keys with the plugin
+	// ID in order to limit the access of the plugins only to the data they own.
 	CacheGet(keys []string) (map[string][]byte, error)
 }
