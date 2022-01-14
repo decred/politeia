@@ -440,27 +440,24 @@ func (t *tstoreClient) CacheGet(p plugins.PluginClient, keys []string) (map[stri
 	return t.tstore.store.Get(pkeys)
 }
 
-// prefixMapKeys accepts a map of []byte indexed by string keys, and it
-// prefixes all the map keys with the given string prefix.
-func prefixMapKeys(prefix string, m map[string][]byte) map[string][]byte {
-	pm := make(map[string][]byte, len(m))
-
-	for k, v := range m {
-		pm[prefix+k] = v
-	}
-
-	return pm
+// Record is a wrapper of the tstore Record func.
+func (t *tstoreClient) Record(token []byte, version uint32) (*backend.Record, error) {
+	return t.tstore.Record(token, version)
 }
 
-// prefixKeys accepts a list of string keys, and it returns the keys prefixed
-// with the given prefix.
-func prefixKeys(prefix string, keys []string) []string {
-	pkeys := make([]string, 0, len(keys))
-	for _, key := range keys {
-		pkeys = append(pkeys, prefix+key)
-	}
+// RecordLatest is a wrapper of the tstore RecordLatest func.
+func (t *tstoreClient) RecordLatest(token []byte) (*backend.Record, error) {
+	return t.tstore.RecordLatest(token)
+}
 
-	return pkeys
+// RecordPartial is a wrapper of the tstore RecordPartial func.
+func (t *tstoreClient) RecordPartial(token []byte, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
+	return t.tstore.RecordPartial(token, version, filenames, omitAllFiles)
+}
+
+// RecordState is a wraper of the tstore RecordState func.
+func (t *tstoreClient) RecordState(token []byte) (backend.StateT, error) {
+	return t.tstore.RecordState(token)
 }
 
 // leavesForDescriptor returns all leaves that have and extra data descriptor
@@ -501,22 +498,25 @@ func leavesForDescriptor(leaves []*trillian.LogLeaf, descriptors []string) []*tr
 	return matches
 }
 
-// Record is a wrapper of the tstore Record func.
-func (t *tstoreClient) Record(token []byte, version uint32) (*backend.Record, error) {
-	return t.tstore.Record(token, version)
+// prefixMapKeys accepts a map of []byte indexed by string keys, and it
+// prefixes all the map keys with the given string prefix.
+func prefixMapKeys(prefix string, m map[string][]byte) map[string][]byte {
+	pm := make(map[string][]byte, len(m))
+
+	for k, v := range m {
+		pm[prefix+k] = v
+	}
+
+	return pm
 }
 
-// RecordLatest is a wrapper of the tstore RecordLatest func.
-func (t *tstoreClient) RecordLatest(token []byte) (*backend.Record, error) {
-	return t.tstore.RecordLatest(token)
-}
+// prefixKeys accepts a list of string keys, and it returns the keys prefixed
+// with the given prefix.
+func prefixKeys(prefix string, keys []string) []string {
+	pkeys := make([]string, 0, len(keys))
+	for _, key := range keys {
+		pkeys = append(pkeys, prefix+key)
+	}
 
-// RecordPartial is a wrapper of the tstore RecordPartial func.
-func (t *tstoreClient) RecordPartial(token []byte, version uint32, filenames []string, omitAllFiles bool) (*backend.Record, error) {
-	return t.tstore.RecordPartial(token, version, filenames, omitAllFiles)
-}
-
-// RecordState is a wraper of the tstore RecordState func.
-func (t *tstoreClient) RecordState(token []byte) (backend.StateT, error) {
-	return t.tstore.RecordState(token)
+	return pkeys
 }
