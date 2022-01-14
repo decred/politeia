@@ -14,7 +14,6 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/mysql"
@@ -38,16 +37,6 @@ const (
 	// MySQL settings
 	dbUser = "politeiad"
 )
-
-var (
-	_ plugins.TstoreClient = (*tstoreClient)(nil)
-)
-
-// tstoreClient satisfies the plugin TstoreClient interface.
-type tstoreClient struct {
-	pluginID string
-	tstore   *Tstore
-}
 
 // Tstore is a data store that automatically timestamps all data saved to it
 // onto the decred blockchain, making it possible to cryptographically prove
