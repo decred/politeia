@@ -450,11 +450,100 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		}
 	}
 
-	// XXX cache final timestamp!
+	finalTimestamps, err := finalCommentTimestamps(cts, token)
+	if err != nil {
+		return nil, err
+	}
+	if len(finalTimestamps) > 0 {
+		// Convert final timestamps to map of digests
+		cacheDigests, err := convertFinalTimestampsToDigests(finalTimestamps)
+		if err != nil {
+			return nil, err
+		}
+		err = p.tstore.CachePut(cacheDigests, false)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return &comments.TimestampsReply{
 		Comments: cts,
 	}, nil
+}
+
+// convertFinalTimestampsToDigests accepts a map of final comment timestamps,
+// and it converts the map's values to []byte in order to cache the final
+// timestamps in the key-value store.
+func convertFinalTimestampsToDigests(ts map[string]comments.CommentTimestamp) (map[string][]byte, error) {
+	ds := make(map[string][]byte, len(ts))
+	for key, t := range ts {
+		b, err := json.Marshal(t)
+		if err != nil {
+			return nil, err
+		}
+		ds[key] = b
+	}
+
+	return ds, nil
+}
+
+// finalCommentTimestamps accepts a map of comment timestamps, and it returns
+// a new map with all final comment timestamps. A timestamp considered final
+// when it was successfully timestamped on the DCR chain and it's merkle root
+// was included in a confirmed DCR transaction.
+func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byte) (map[string]comments.CommentTimestamp, error) {
+	fts := make(map[string]comments.CommentTimestamp, len(ts))
+	for commentID, t := range ts {
+		// Generate comment specific cache key using the commentID & token
+		cacheKey, err := timestampCacheKey(token, commentID)
+		if err != nil {
+			return nil, err
+		}
+
+		// Search for final comment add timestamps
+		for _, at := range t.Adds {
+			if at.TxID != "" {
+				// Add final comment add to the final timestamps map.
+				ct, exists := fts[cacheKey]
+				if !exists {
+					ct = comments.CommentTimestamp{}
+				}
+				if len(ct.Adds) == 0 {
+					ct.Adds = make([]comments.Timestamp, 0, len(t.Adds))
+				}
+				ct.Adds = append(ct.Adds, at)
+			}
+		}
+
+		// Search for final comment del timestamp
+		if t.Del != nil {
+			if t.Del.TxID != "" {
+				// Add final cmment del to final timestamps map.
+				ct, exists := fts[cacheKey]
+				if !exists {
+					ct = comments.CommentTimestamp{}
+				}
+				ct.Del = t.Del
+			}
+		}
+
+		// Search for final comment vote timestamps
+		for _, vt := range t.Votes {
+			if vt.TxID != "" {
+				// Add final comment add to the final timestamps map.
+				ct, exists := fts[cacheKey]
+				if !exists {
+					ct = comments.CommentTimestamp{}
+				}
+				if len(ct.Votes) == 0 {
+					ct.Votes = make([]comments.Timestamp, 0, len(t.Votes))
+				}
+				ct.Votes = append(ct.Votes, vt)
+			}
+		}
+	}
+
+	return fts, nil
 }
 
 // commentVoteCachedTimestamp accepts a pointer (can be nil) to a
