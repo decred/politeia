@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
@@ -28,6 +29,9 @@ const (
 	dataDescriptorCommentAdd  = pluginID + "-add-v1"
 	dataDescriptorCommentDel  = pluginID + "-del-v1"
 	dataDescriptorCommentVote = pluginID + "-vote-v1"
+
+	// Key-value cache keys patterns
+	cacheKeyPatternTimestamp = "timestamp-{shorttoken}-{commentID}"
 )
 
 // commentAddSave saves a CommentAdd to the backend.
@@ -335,6 +339,16 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		}, nil
 	}
 
+	// Check if timestamps already exist in the key-value store
+	cacheKeys, err := timestampCacheKeys(token, commentIDs)
+	if err != nil {
+		return nil, err
+	}
+	cacheBlobs, err := p.tstore.CacheGet(cacheKeys)
+	if err != nil {
+		return nil, err
+	}
+
 	// Get record state
 	state, err := p.tstore.RecordState(token)
 	if err != nil {
@@ -356,9 +370,25 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 			continue
 		}
 
+		// Get comment's cache entry if exists.
+		cacheEntry, err := timestampCacheEntry(cacheBlobs, token, cid)
+		if err != nil {
+			return nil, err
+		}
+
 		// Get comment add timestamps
 		adds := make([]comments.Timestamp, 0, len(cidx.Adds))
 		for _, v := range cidx.Adds {
+			// Check if comment add timestamp already exists in cache
+			cachedTimestamp := commentAddCachedTimestamp(cacheEntry, v)
+			if cachedTimestamp != nil {
+				// Cached timestamp found, collect it and continue to next comment
+				// add digest.
+				adds = append(adds, *cachedTimestamp)
+				continue
+			}
+
+			// Comment add digest was not found in cache, get timestamp
 			ts, err := p.timestamp(token, v)
 			if err != nil {
 				return nil, err
@@ -370,11 +400,21 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		// comment has been deleted.
 		var del *comments.Timestamp
 		if cidx.Del != nil {
-			ts, err := p.timestamp(token, cidx.Del)
-			if err != nil {
-				return nil, err
+			// Check if comment del timestamp already exists in cache
+			cachedTimestamp := commentDelCachedTimestamp(cacheEntry, cidx.Del)
+			switch {
+			case cachedTimestamp != nil:
+				// Comment del timestamp found in cache
+				del = cachedTimestamp
+
+			case cachedTimestamp == nil:
+				// Comment del timestamp was not found in cache, get timestamp
+				ts, err := p.timestamp(token, cidx.Del)
+				if err != nil {
+					return nil, err
+				}
+				del = ts
 			}
-			del = ts
 		}
 
 		// Get comment vote timestamps
@@ -383,6 +423,16 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 			votes = make([]comments.Timestamp, 0, len(cidx.Votes))
 			for _, voteIdxs := range cidx.Votes {
 				for _, v := range voteIdxs {
+					// Check if comment vote timestamp already exists in cache
+					cachedTimestamp := commentVoteCachedTimestamp(cacheEntry, v.Digest)
+					if cachedTimestamp != nil {
+						// Cached timestamp found, collect it and continue to next comment
+						// vote digest.
+						votes = append(votes, *cachedTimestamp)
+						continue
+					}
+
+					// Comment vote digest was not found in cache, get timestamp
 					ts, err := p.timestamp(token, v.Digest)
 					if err != nil {
 						return nil, err
@@ -400,9 +450,120 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		}
 	}
 
+	// XXX cache final timestamp!
+
 	return &comments.TimestampsReply{
 		Comments: cts,
 	}, nil
+}
+
+// commentVoteCachedTimestamp accepts a pointer (can be nil) to a
+// CommentTimestamp, and a comment vote digest. It searches for the given
+// comment vote digest in the given cached comment vote timestamps. It
+// returns nil if the digest was not found.
+func commentVoteCachedTimestamp(ct *comments.CommentTimestamp, digest []byte) *comments.Timestamp {
+	if ct == nil {
+		return nil
+	}
+
+	for _, t := range ct.Votes {
+		if t.Digest == hex.EncodeToString(digest) {
+			return &t
+		}
+	}
+
+	return nil
+}
+
+// commentDelCachedTimestamp accepts a pointer (can be nil) to a
+// CommentTimestamp, and a comment del digest. It returns the timestamp
+// of the given comment del digest if it's already exist in cache, and nil
+// otherwise.
+func commentDelCachedTimestamp(ct *comments.CommentTimestamp, digest []byte) *comments.Timestamp {
+	if ct == nil {
+		return nil
+	}
+
+	if ct.Del != nil && ct.Del.Digest == hex.EncodeToString(digest) {
+		return ct.Del
+	}
+
+	return nil
+}
+
+// commentAddCachedTimestamp accepts a pointer (can be nil) to a
+// CommentTimestamp, and a comment add digest. It searches for the given
+// comment add digest in the given cached comment add timestamps. It
+// returns nil if the digest was not found.
+func commentAddCachedTimestamp(ct *comments.CommentTimestamp, digest []byte) *comments.Timestamp {
+	if ct == nil {
+		return nil
+	}
+
+	for _, t := range ct.Adds {
+		if t.Digest == hex.EncodeToString(digest) {
+			return &t
+		}
+	}
+
+	return nil
+}
+
+// timestampCacheEntry accepts a map of cached comment timestamps, a record
+// token and a comment ID. It returns a pointer to the cached
+// CommentTimestamp associated with the given token and comment ID if one
+// exists, and nil otherwsie.
+func timestampCacheEntry(cacheBlobs map[string][]byte, token []byte, commentID uint32) (*comments.CommentTimestamp, error) {
+	cacheKey, err := timestampCacheKey(token, commentID)
+	if err != nil {
+		return nil, err
+	}
+
+	if b, cacheEntryFound := cacheBlobs[cacheKey]; cacheEntryFound {
+		var cacheTimestamp comments.CommentTimestamp
+		err := json.Unmarshal(b, &cacheTimestamp)
+		if err != nil {
+			return nil, err
+		}
+
+		return &cacheTimestamp, nil
+	}
+
+	return nil, nil
+}
+
+// timestampCacheKeys returns the timestamps cache keys of the comment IDs.
+func timestampCacheKeys(token []byte, commentIDs []uint32) ([]string, error) {
+	keys := make([]string, 0, len(commentIDs))
+	for _, ID := range commentIDs {
+		key, err := timestampCacheKey(token, ID)
+		if err != nil {
+			return nil, err
+		}
+
+		keys = append(keys, key)
+	}
+
+	return keys, nil
+}
+
+// timestampCacheKey returns the timestamp cache key of the given comment ID.
+func timestampCacheKey(token []byte, commentID uint32) (string, error) {
+	key := cacheKeyPatternTimestamp
+
+	// Get short token
+	t, err := util.ShortTokenEncode(token)
+	if err != nil {
+		return "", err
+	}
+
+	// Replace short token
+	key = strings.Replace(key, "{shorttoken}", t, 1)
+
+	// Replace comment ID
+	key = strings.Replace(key, "{comment}", t, 1)
+
+	return key, nil
 }
 
 // voteScore returns the total number of downvotes and upvotes, respectively,
