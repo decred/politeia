@@ -456,10 +456,16 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 	}
 	if len(finalTimestamps) > 0 {
 		// Convert final timestamps to map of digests
-		cacheDigests, err := convertFinalTimestampsToDigests(finalTimestamps)
+		cacheDigests, keys, err := convertFinalTimestampsToDigests(finalTimestamps)
 		if err != nil {
 			return nil, err
 		}
+		// Delete exisiting digests
+		err = p.tstore.CacheDel(keys)
+		if err != nil {
+			return nil, err
+		}
+		// Store updated digests
 		err = p.tstore.CachePut(cacheDigests, false)
 		if err != nil {
 			return nil, err
@@ -474,17 +480,19 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 // convertFinalTimestampsToDigests accepts a map of final comment timestamps,
 // and it converts the map's values to []byte in order to cache the final
 // timestamps in the key-value store.
-func convertFinalTimestampsToDigests(ts map[string]comments.CommentTimestamp) (map[string][]byte, error) {
+func convertFinalTimestampsToDigests(ts map[string]comments.CommentTimestamp) (map[string][]byte, []string, error) {
 	ds := make(map[string][]byte, len(ts))
+	keys := make([]string, 0, len(ts))
 	for key, t := range ts {
 		b, err := json.Marshal(t)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		ds[key] = b
+		keys = append(keys, key)
 	}
 
-	return ds, nil
+	return ds, keys, nil
 }
 
 // finalCommentTimestamps accepts a map of comment timestamps, and it returns
@@ -512,6 +520,7 @@ func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byt
 					ct.Adds = make([]comments.Timestamp, 0, len(t.Adds))
 				}
 				ct.Adds = append(ct.Adds, at)
+				fts[cacheKey] = ct
 			}
 		}
 
@@ -524,6 +533,7 @@ func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byt
 					ct = comments.CommentTimestamp{}
 				}
 				ct.Del = t.Del
+				fts[cacheKey] = ct
 			}
 		}
 
@@ -539,6 +549,7 @@ func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byt
 					ct.Votes = make([]comments.Timestamp, 0, len(t.Votes))
 				}
 				ct.Votes = append(ct.Votes, vt)
+				fts[cacheKey] = ct
 			}
 		}
 	}
@@ -650,7 +661,8 @@ func timestampCacheKey(token []byte, commentID uint32) (string, error) {
 	key = strings.Replace(key, "{shorttoken}", t, 1)
 
 	// Replace comment ID
-	key = strings.Replace(key, "{comment}", t, 1)
+	key = strings.Replace(key, "{commentID}",
+		strconv.FormatUint(uint64(commentID), 10), 1)
 
 	return key, nil
 }
