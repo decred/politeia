@@ -633,3 +633,82 @@ func TestTimestampCacheKeys(t *testing.T) {
 		})
 	}
 }
+
+func TestTimestampCacheEntry(t *testing.T) {
+	token := "45154fb45664714b"
+
+	// Setup tests
+	tests := []struct {
+		name          string
+		commentIDs    []uint32
+		testCommentID uint32
+		token         string
+		shouldError   bool
+	}{
+		{
+			name:          "successful run",
+			commentIDs:    []uint32{1, 2},
+			testCommentID: 2,
+			token:         token,
+			shouldError:   false,
+		},
+		{
+			name:          "invalid token",
+			commentIDs:    nil,
+			testCommentID: 0,
+			token:         "",
+			shouldError:   true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				tokenb []byte
+				err    error
+			)
+			if tc.token != "" {
+				tokenb, err = hex.DecodeString(tc.token)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			cacheBlobs := make(map[string][]byte, len(tc.commentIDs))
+			for _, commentID := range tc.commentIDs {
+				cacheKey, err := timestampCacheKey(commentID, tokenb)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				blob, err := json.Marshal(comments.CommentTimestamp{})
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				cacheBlobs[cacheKey] = blob
+			}
+
+			ct, err := timestampCacheEntry(cacheBlobs, tc.testCommentID, tokenb)
+			switch {
+			case tc.shouldError && err == nil:
+				// Wanted an error but didn't get one
+				t.Errorf("want error got nil")
+				return
+
+			case !tc.shouldError && err != nil:
+				// Wanted success but got an error
+				t.Errorf("want error nil, got '%v'", err)
+				return
+
+			case !tc.shouldError && err == nil:
+				// Verify result
+				if ct == nil {
+					// Returned timestamp is nil, error
+					t.Errorf("expected an entry for commenID: %v", tc.testCommentID)
+				}
+				return
+			}
+		})
+	}
+}

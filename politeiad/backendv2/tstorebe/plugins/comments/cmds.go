@@ -371,7 +371,7 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		}
 
 		// Get comment's cache entry if exists.
-		cacheEntry, err := timestampCacheEntry(cacheBlobs, token, cid)
+		cacheEntry, err := timestampCacheEntry(cacheBlobs, cid, token)
 		if err != nil {
 			return nil, err
 		}
@@ -617,7 +617,7 @@ func commentAddCachedTimestamp(ct *comments.CommentTimestamp, digest []byte) *co
 // token and a comment ID. It returns a pointer to the cached
 // CommentTimestamp associated with the given token and comment ID if one
 // exists, and nil otherwsie.
-func timestampCacheEntry(cacheBlobs map[string][]byte, token []byte, commentID uint32) (*comments.CommentTimestamp, error) {
+func timestampCacheEntry(cacheBlobs map[string][]byte, commentID uint32, token []byte) (*comments.CommentTimestamp, error) {
 	cacheKey, err := timestampCacheKey(commentID, token)
 	if err != nil {
 		return nil, err
