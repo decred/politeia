@@ -644,6 +644,7 @@ func TestTimestampCacheEntry(t *testing.T) {
 		testCommentID uint32
 		token         string
 		shouldError   bool
+		expectRes     bool
 	}{
 		{
 			name:          "successful run",
@@ -651,6 +652,15 @@ func TestTimestampCacheEntry(t *testing.T) {
 			testCommentID: 2,
 			token:         token,
 			shouldError:   false,
+			expectRes:     true,
+		},
+		{
+			name:          "unknown comment ID",
+			commentIDs:    []uint32{1, 2},
+			testCommentID: 3,
+			token:         token,
+			shouldError:   false,
+			expectRes:     false,
 		},
 		{
 			name:          "invalid token",
@@ -658,6 +668,7 @@ func TestTimestampCacheEntry(t *testing.T) {
 			testCommentID: 0,
 			token:         "",
 			shouldError:   true,
+			expectRes:     false,
 		},
 	}
 
@@ -703,9 +714,14 @@ func TestTimestampCacheEntry(t *testing.T) {
 
 			case !tc.shouldError && err == nil:
 				// Verify result
-				if ct == nil {
+				if tc.expectRes && ct == nil {
 					// Returned timestamp is nil, error
 					t.Errorf("expected an entry for commenID: %v", tc.testCommentID)
+				}
+
+				if !tc.expectRes && ct != nil {
+					// Unexpected not nil res, error
+					t.Errorf("expected nil for commenID: %v", tc.testCommentID)
 				}
 				return
 			}
