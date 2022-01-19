@@ -469,3 +469,73 @@ func pluginError(e comments.ErrorCodeT) error {
 		ErrorCode: uint32(e),
 	}
 }
+
+func TestFinalCommentTimestamps(t *testing.T) {
+	tokenA := "45154fb45664714b"
+	tokenB := "55154fb45664714a"
+
+	// Setup tests
+	tests := []struct {
+		name        string
+		commentIDs  []uint32
+		token       []byte
+		shouldError bool
+		resultKeys  []string
+	}{
+		{
+			name:        "map with one comment",
+			commentIDs:  []uint32{1},
+			token:       []byte(tokenA),
+			shouldError: false,
+			resultKeys:  []string{"timestamp-45154fb-1"},
+		},
+		{
+			name:        "map with two comments",
+			commentIDs:  []uint32{1, 2},
+			token:       []byte(tokenB),
+			shouldError: false,
+			resultKeys:  []string{"timestamp-55154fb-1", "timestamp-55154fb-2"},
+		},
+		{
+			name:        "invalid token",
+			commentIDs:  []uint32{1},
+			token:       nil,
+			shouldError: true,
+			resultKeys:  nil,
+		},
+	}
+
+	// Run tests
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create input map
+			m := make(map[uint32]comments.CommentTimestamp, len(tc.commentIDs))
+			for i := 1; i <= len(tc.commentIDs); i++ {
+				m[uint32(i)] = comments.CommentTimestamp{
+					Adds: []comments.Timestamp{{TxID: "notemty"}},
+				}
+			}
+
+			fts, err := finalCommentTimestamps(m, tc.token)
+			switch {
+			case tc.shouldError && err == nil:
+				// Wanted an error but didn't get one
+				t.Errorf("want error got nil")
+				return
+
+			case !tc.shouldError && err != nil:
+				// Wanted success but got an error
+				t.Errorf("want error nil, got '%v'", err)
+				return
+
+			case !tc.shouldError && err == nil:
+				// Check expected result
+				if len(fts) != len(tc.resultKeys) {
+					t.Errorf("expected length of returned map; want: %v, got: %v",
+						len(tc.resultKeys), len(fts))
+				}
+				return
+			}
+		})
+	}
+}
