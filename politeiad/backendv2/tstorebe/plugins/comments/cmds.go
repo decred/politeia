@@ -497,8 +497,8 @@ func convertFinalTimestampsToDigests(ts map[string]comments.CommentTimestamp) (m
 
 // finalCommentTimestamps accepts a map of comment timestamps, and it returns
 // a new map with all final comment timestamps. A timestamp considered final
-// if it was successfully timestamped on the DCR chain and it's merkle root
-// was included in a confirmed DCR transaction.
+// if it was successfully timestamped on the DCR chain, meaning it's merkle
+// root was included in a confirmed DCR transaction.
 func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byte) (map[string]comments.CommentTimestamp, error) {
 	fts := make(map[string]comments.CommentTimestamp, len(ts))
 	for commentID, t := range ts {
@@ -510,7 +510,7 @@ func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byt
 
 		// Search for final comment add timestamps
 		for _, at := range t.Adds {
-			if at.TxID != "" {
+			if isFinalTimestamp(at) {
 				// Add final comment add to the final timestamps map.
 				ct, exists := fts[cacheKey]
 				if !exists {
@@ -525,21 +525,19 @@ func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byt
 		}
 
 		// Search for final comment del timestamp
-		if t.Del != nil {
-			if t.Del.TxID != "" {
-				// Add final comment del to final timestamps map.
-				ct, exists := fts[cacheKey]
-				if !exists {
-					ct = comments.CommentTimestamp{}
-				}
-				ct.Del = t.Del
-				fts[cacheKey] = ct
+		if t.Del != nil && isFinalTimestamp(*t.Del) {
+			// Add final comment del to final timestamps map.
+			ct, exists := fts[cacheKey]
+			if !exists {
+				ct = comments.CommentTimestamp{}
 			}
+			ct.Del = t.Del
+			fts[cacheKey] = ct
 		}
 
 		// Search for final comment vote timestamps
 		for _, vt := range t.Votes {
-			if vt.TxID != "" {
+			if isFinalTimestamp(vt) {
 				// Add final comment add to the final timestamps map.
 				ct, exists := fts[cacheKey]
 				if !exists {
@@ -555,6 +553,13 @@ func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byt
 	}
 
 	return fts, nil
+}
+
+// isFinalTimestamp returns whether the given Timestamp is final. it's
+// considered final if it was successfully timestamped on the DCR chain,
+// meaning it's merkle root was included in a confirmed DCR transaction.
+func isFinalTimestamp(t comments.Timestamp) bool {
+	return t.TxID != ""
 }
 
 // commentVoteCachedTimestamp accepts a pointer to a CommentTimestamp, and a
