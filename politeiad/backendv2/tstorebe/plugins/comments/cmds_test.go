@@ -478,28 +478,28 @@ func TestFinalCommentTimestamps(t *testing.T) {
 	tests := []struct {
 		name        string
 		commentIDs  []uint32
-		token       []byte
+		token       string
 		shouldError bool
 		resultKeys  []string
 	}{
 		{
 			name:        "map with one comment",
 			commentIDs:  []uint32{1},
-			token:       []byte(tokenA),
+			token:       tokenA,
 			shouldError: false,
 			resultKeys:  []string{"timestamp-45154fb-1"},
 		},
 		{
 			name:        "map with two comments",
 			commentIDs:  []uint32{1, 2},
-			token:       []byte(tokenB),
+			token:       tokenB,
 			shouldError: false,
 			resultKeys:  []string{"timestamp-55154fb-1", "timestamp-55154fb-2"},
 		},
 		{
 			name:        "invalid token",
 			commentIDs:  []uint32{1},
-			token:       nil,
+			token:       "",
 			shouldError: true,
 			resultKeys:  nil,
 		},
@@ -516,7 +516,18 @@ func TestFinalCommentTimestamps(t *testing.T) {
 				}
 			}
 
-			fts, err := finalCommentTimestamps(m, tc.token)
+			var (
+				tokenb []byte
+				err    error
+			)
+			if tc.token != "" {
+				tokenb, err = hex.DecodeString(tc.token)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			fts, err := finalCommentTimestamps(m, tokenb)
 			switch {
 			case tc.shouldError && err == nil:
 				// Wanted an error but didn't get one
@@ -529,10 +540,93 @@ func TestFinalCommentTimestamps(t *testing.T) {
 				return
 
 			case !tc.shouldError && err == nil:
-				// Check expected result
+				// Verify result
 				if len(fts) != len(tc.resultKeys) {
-					t.Errorf("expected length of returned map; want: %v, got: %v",
+					t.Errorf("unexpected length of returned map; want: %v, got: %v",
 						len(tc.resultKeys), len(fts))
+				}
+				for _, k := range tc.resultKeys {
+					if _, exists := fts[k]; !exists {
+						t.Errorf("expected key was not found: %v", k)
+					}
+				}
+				return
+			}
+		})
+	}
+}
+
+func TestTimestampCacheKeys(t *testing.T) {
+	token := "45154fb45664714b"
+
+	// Setup tests
+	tests := []struct {
+		name        string
+		commentIDs  []uint32
+		token       string
+		shouldError bool
+		cacheKeys   []string
+	}{
+		{
+			name:        "3 comment IDs",
+			commentIDs:  []uint32{1, 2, 3},
+			token:       token,
+			shouldError: false,
+			cacheKeys: []string{"timestamp-45154fb-1", "timestamp-45154fb-2",
+				"timestamp-45154fb-3"},
+		},
+		{
+			name:        "invalid token",
+			commentIDs:  []uint32{1, 2, 3},
+			token:       "",
+			shouldError: true,
+			cacheKeys:   nil,
+		},
+	}
+
+	// Run tests
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				tokenb []byte
+				err    error
+			)
+			if tc.token != "" {
+				tokenb, err = hex.DecodeString(tc.token)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			cacheKeys, err := timestampCacheKeys(tc.commentIDs, tokenb)
+			switch {
+			case tc.shouldError && err == nil:
+				// Wanted an error but didn't get one
+				t.Errorf("want error got nil")
+				return
+
+			case !tc.shouldError && err != nil:
+				// Wanted success but got an error
+				t.Errorf("want error nil, got '%v'", err)
+				return
+
+			case !tc.shouldError && err == nil:
+				// Verify result
+				if len(cacheKeys) != len(tc.cacheKeys) {
+					t.Errorf("expected length of returned slice; want: %v, got: %v",
+						len(tc.cacheKeys), len(cacheKeys))
+				}
+				for _, k := range tc.cacheKeys {
+					var found bool
+					for _, rk := range cacheKeys {
+						if rk == k {
+							// Expected cache key found, success
+							found = true
+						}
+					}
+					if !found {
+						// Expected key was not found, error
+						t.Errorf("expected cache key was not found: %v", k)
+					}
 				}
 				return
 			}

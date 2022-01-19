@@ -340,7 +340,7 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 	}
 
 	// Check if timestamps already exist in the key-value store
-	cacheKeys, err := timestampCacheKeys(token, commentIDs)
+	cacheKeys, err := timestampCacheKeys(commentIDs, token)
 	if err != nil {
 		return nil, err
 	}
@@ -503,7 +503,7 @@ func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byt
 	fts := make(map[string]comments.CommentTimestamp, len(ts))
 	for commentID, t := range ts {
 		// Generate comment specific cache key using the commentID & token
-		cacheKey, err := timestampCacheKey(token, commentID)
+		cacheKey, err := timestampCacheKey(commentID, token)
 		if err != nil {
 			return nil, err
 		}
@@ -618,7 +618,7 @@ func commentAddCachedTimestamp(ct *comments.CommentTimestamp, digest []byte) *co
 // CommentTimestamp associated with the given token and comment ID if one
 // exists, and nil otherwsie.
 func timestampCacheEntry(cacheBlobs map[string][]byte, token []byte, commentID uint32) (*comments.CommentTimestamp, error) {
-	cacheKey, err := timestampCacheKey(token, commentID)
+	cacheKey, err := timestampCacheKey(commentID, token)
 	if err != nil {
 		return nil, err
 	}
@@ -638,10 +638,10 @@ func timestampCacheEntry(cacheBlobs map[string][]byte, token []byte, commentID u
 
 // timestampCacheKeys returns the timestamps' cache keys of the given comment
 // IDs.
-func timestampCacheKeys(token []byte, commentIDs []uint32) ([]string, error) {
+func timestampCacheKeys(commentIDs []uint32, token []byte) ([]string, error) {
 	keys := make([]string, 0, len(commentIDs))
 	for _, ID := range commentIDs {
-		key, err := timestampCacheKey(token, ID)
+		key, err := timestampCacheKey(ID, token)
 		if err != nil {
 			return nil, err
 		}
@@ -653,7 +653,7 @@ func timestampCacheKeys(token []byte, commentIDs []uint32) ([]string, error) {
 }
 
 // timestampCacheKey returns the timestamp cache key of the given comment ID.
-func timestampCacheKey(token []byte, commentID uint32) (string, error) {
+func timestampCacheKey(commentID uint32, token []byte) (string, error) {
 	key := cacheKeyPatternTimestamp
 
 	// Get short token
