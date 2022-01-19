@@ -497,7 +497,7 @@ func convertFinalTimestampsToDigests(ts map[string]comments.CommentTimestamp) (m
 
 // finalCommentTimestamps accepts a map of comment timestamps, and it returns
 // a new map with all final comment timestamps. A timestamp considered final
-// when it was successfully timestamped on the DCR chain and it's merkle root
+// if it was successfully timestamped on the DCR chain and it's merkle root
 // was included in a confirmed DCR transaction.
 func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byte) (map[string]comments.CommentTimestamp, error) {
 	fts := make(map[string]comments.CommentTimestamp, len(ts))
@@ -527,7 +527,7 @@ func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byt
 		// Search for final comment del timestamp
 		if t.Del != nil {
 			if t.Del.TxID != "" {
-				// Add final cmment del to final timestamps map.
+				// Add final comment del to final timestamps map.
 				ct, exists := fts[cacheKey]
 				if !exists {
 					ct = comments.CommentTimestamp{}
@@ -557,10 +557,10 @@ func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byt
 	return fts, nil
 }
 
-// commentVoteCachedTimestamp accepts a pointer (can be nil) to a
-// CommentTimestamp, and a comment vote digest. It searches for the given
-// comment vote digest in the given cached comment vote timestamps. It
-// returns nil if the digest was not found.
+// commentVoteCachedTimestamp accepts a pointer to a CommentTimestamp, and a
+// comment vote digest. It searches for the given comment vote digest in the
+// given cached comment vote timestamps. It returns the timestamp if it finds
+// it and nil otherwise.
 func commentVoteCachedTimestamp(ct *comments.CommentTimestamp, digest []byte) *comments.Timestamp {
 	if ct == nil {
 		return nil
@@ -575,10 +575,9 @@ func commentVoteCachedTimestamp(ct *comments.CommentTimestamp, digest []byte) *c
 	return nil
 }
 
-// commentDelCachedTimestamp accepts a pointer (can be nil) to a
-// CommentTimestamp, and a comment del digest. It returns the timestamp
-// of the given comment del digest if it's already exist in cache, and nil
-// otherwise.
+// commentDelCachedTimestamp accepts a pointer to a CommentTimestamp, and a
+// comment del digest. It returns the timestamp of the given comment del digest
+// if it finds it, and nil otherwise.
 func commentDelCachedTimestamp(ct *comments.CommentTimestamp, digest []byte) *comments.Timestamp {
 	if ct == nil {
 		return nil
@@ -591,10 +590,10 @@ func commentDelCachedTimestamp(ct *comments.CommentTimestamp, digest []byte) *co
 	return nil
 }
 
-// commentAddCachedTimestamp accepts a pointer (can be nil) to a
-// CommentTimestamp, and a comment add digest. It searches for the given
-// comment add digest in the given cached comment add timestamps. It
-// returns nil if the digest was not found.
+// commentAddCachedTimestamp accepts a pointer to a CommentTimestamp, and a
+// comment add digest. It searches for the given comment add digest in the
+// given cached comment add timestamps. It returns the timestamp if it finds
+// it and nil otherwise.
 func commentAddCachedTimestamp(ct *comments.CommentTimestamp, digest []byte) *comments.Timestamp {
 	if ct == nil {
 		return nil
@@ -632,7 +631,8 @@ func timestampCacheEntry(cacheBlobs map[string][]byte, token []byte, commentID u
 	return nil, nil
 }
 
-// timestampCacheKeys returns the timestamps cache keys of the comment IDs.
+// timestampCacheKeys returns the timestamps' cache keys of the given comment
+// IDs.
 func timestampCacheKeys(token []byte, commentIDs []uint32) ([]string, error) {
 	keys := make([]string, 0, len(commentIDs))
 	for _, ID := range commentIDs {
