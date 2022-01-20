@@ -218,7 +218,7 @@ func (t *Tstore) Setup() error {
 }
 
 // New returns a new tstore instance.
-func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
+func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
 	// Setup datadir for this tstore instance
 	dataDir = filepath.Join(dataDir)
 	err := os.MkdirAll(dataDir, 0700)

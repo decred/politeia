@@ -277,12 +277,8 @@ See the MySQL/MariaDB installation section for more details.
    env variable. The encryption key used to encrypt non-public data at rest
    will be derived from the `DBPASS`. The `DBPASS` cannot change.
 
-   A password to derive the trillian signing key must be provided in the
-   `TLOGPASS` env variable. This password has not been created yet. You can
-   set it to whatever you want, but it cannot change once set.
-
    ```
-   $ env DBPASS=politeiadpass TLOGPASS=tlogpass politeiad
+   $ env DBPASS=politeiadpass politeiad
    ```
 
 ## Politeiad API
