@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
@@ -441,7 +442,15 @@ func (t *tstoreClient) CacheGet(keys []string) (map[string][]byte, error) {
 	// the data they own.
 	pkeys := prefixKeys(t.pluginID, keys)
 
-	return t.tstore.store.Get(pkeys)
+	prefixedBlobs, err := t.tstore.store.Get(pkeys)
+	if err != nil {
+		return nil, err
+	}
+
+	// Delete plugin specific prefix from returned keys.
+	blobs := unprefixMapKeys(t.pluginID, prefixedBlobs)
+
+	return blobs, nil
 }
 
 // Record is a wrapper of the tstore Record func.
@@ -528,4 +537,22 @@ func prefixKeys(prefix string, keys []string) []string {
 // prefixKey prefixes the given key with given prefix.
 func prefixKey(prefix, key string) string {
 	return prefix + "-" + key
+}
+
+// unprefixMapKeys accepts a map of []byte indexed by string keys which
+// are prefixed with a plugin specific prefix, it returns a new map without
+// the plugin specific prefixes.
+func unprefixMapKeys(prefix string, m map[string][]byte) map[string][]byte {
+	nm := make(map[string][]byte, len(m))
+
+	for k, v := range m {
+		nm[unprefixKey(prefix, k)] = v
+	}
+
+	return nm
+}
+
+// unprefixKey removes a given prefix from a given key.
+func unprefixKey(prefix, key string) string {
+	return strings.Replace(key, prefix+"-", "", 1)
 }
