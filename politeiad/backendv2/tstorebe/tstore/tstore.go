@@ -253,11 +253,7 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbTyp
 
 	// Setup trillian client
 	log.Infof("Tlog host: %v", tlogHost)
-	tlogKey, err := deriveTlogKey(kvstore, tlogPass)
-	if err != nil {
-		return nil, err
-	}
-	tlogClient, err := newTClient(tlogHost, tlogKey)
+	tlogClient, err := newTClient(tlogHost)
 	if err != nil {
 		return nil, err
 	}

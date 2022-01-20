@@ -7,25 +7,17 @@ package tstore
 import (
 	"bytes"
 	"context"
-	"crypto"
-	"crypto/ed25519"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
-	"github.com/decred/politeia/util"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/google/trillian"
 	"github.com/google/trillian/client"
-	"github.com/google/trillian/crypto/keys/der"
-	"github.com/google/trillian/crypto/keyspb"
 	"github.com/google/trillian/merkle/rfc6962"
 	"github.com/google/trillian/types"
-	"golang.org/x/crypto/argon2"
 	rstatus "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/genproto/protobuf/field_mask"
 	"google.golang.org/grpc"
@@ -38,7 +30,7 @@ var (
 	// hasher contains the log hasher that trillian uses to compute the
 	// merkle leaf hash for a log leaf. It can be used by tstore to
 	// compute the merkle leaf hash for a given leaf value.
-	hasher = rfc6962.New(crypto.SHA256)
+	hasher = rfc6962.DefaultHasher
 )
 
 const (
@@ -101,13 +93,11 @@ var (
 // tclient implements the tlogClient interface using the trillian provided
 // TrillianLogClient and TrillianAdminClient.
 type tclient struct {
-	host       string
-	grpc       *grpc.ClientConn
-	log        trillian.TrillianLogClient
-	admin      trillian.TrillianAdminClient
-	ctx        context.Context
-	privateKey *keyspb.PrivateKey // Trillian signing key
-	publicKey  crypto.PublicKey   // Trillian public key
+	host  string
+	grpc  *grpc.ClientConn
+	log   trillian.TrillianLogClient
+	admin trillian.TrillianAdminClient
+	ctx   context.Context
 }
 
 // TreeNew returns a new trillian tree and verifies that the signatures are
@@ -486,106 +476,8 @@ func newLogLeaf(leafValue []byte, extraData []byte) *trillian.LogLeaf {
 	}
 }
 
-// tlogKeyParams is saved to the kv store on initial derivation of the tlog
-// signing key. It contains the params that were used to derive the key and a
-// SHA256 digest of the key. Subsequent derivations, i.e. anytime politeiad is
-// restarted, will use the existing params to derive the key and will use the
-// digest to verify that the tlog key has not changed.
-type tlogKeyParams struct {
-	Digest []byte            `json:"digest"` // SHA256 digest
-	Params util.Argon2Params `json:"params"`
-}
-
-const (
-	// tlogKeyParamsKey is the kv store key for the tlogKeyParams
-	// structure that is saved to the kv store on initial tlog key
-	// derivation.
-	tlogKeyParamsKey = "tlogkeyparams"
-)
-
-// deriveTlogKey derives a ed25519 tlog private signing key using the provided
-// passphrase and the Aragon2id key derivation function. A random 16 byte salt
-// is created the first time the key is derived. The salt and the other argon2
-// params are saved to the kv store. Subsequent calls to this fuction will pull
-// the existing salt and params from the kv store and use them to derive the
-// key, then will use the saved private key digest to verify that the key has
-// not changed.
-func deriveTlogKey(kvstore store.BlobKV, passphrase string) (*keyspb.PrivateKey, error) {
-	log.Infof("Deriving tlog signing key")
-
-	// Check if argon2 params already exist in the kv store for the
-	// tlog key. Existing params means that the key has been derived
-	// previously. These params will be used if found. If no params
-	// exist then new ones will be created and saved to the kv store
-	// for future use.
-	blobs, err := kvstore.Get([]string{tlogKeyParamsKey})
-	if err != nil {
-		return nil, fmt.Errorf("get: %v", err)
-	}
-	var (
-		save bool
-		tkp  tlogKeyParams
-	)
-	b, ok := blobs[tlogKeyParamsKey]
-	if ok {
-		log.Debugf("Tlog signing key params found in kv store")
-		err = json.Unmarshal(b, &tkp)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		log.Infof("Tlog signing key params not found; creating new ones")
-		tkp = tlogKeyParams{
-			Params: util.NewArgon2Params(),
-		}
-		save = true
-	}
-
-	// Derive key
-	seed := argon2.IDKey([]byte(passphrase), tkp.Params.Salt,
-		tkp.Params.Time, tkp.Params.Memory, tkp.Params.Threads,
-		tkp.Params.KeyLen)
-	pk := ed25519.NewKeyFromSeed(seed)
-	util.Zero(seed)
-
-	derKey, err := der.MarshalPrivateKey(pk)
-	if err != nil {
-		return nil, err
-	}
-
-	keyDigest := util.Digest(derKey)
-	if save {
-		// This was the first time the key was derived. Save the params
-		// to the kv store.
-		tkp.Digest = keyDigest
-		b, err := json.Marshal(tkp)
-		if err != nil {
-			return nil, err
-		}
-		kv := map[string][]byte{
-			tlogKeyParamsKey: b,
-		}
-		err = kvstore.Put(kv, false)
-		if err != nil {
-			return nil, fmt.Errorf("put: %v", err)
-		}
-
-		log.Infof("Tlog signing key params saved to kv store")
-	} else {
-		// This was not the first time the key was derived. Verify that
-		// the key has not changed.
-		if !bytes.Equal(tkp.Digest, keyDigest) {
-			return nil, fmt.Errorf("attempting to use different tlog signing key")
-		}
-	}
-
-	return &keyspb.PrivateKey{
-		Der: derKey,
-	}, nil
-}
-
 // newTClient returns a new tclient.
-func newTClient(host string, privateKey *keyspb.PrivateKey) (*tclient, error) {
+func newTClient(host string) (*tclient, error) {
 	// Default gprc max message size is ~4MB (4194304 bytes). This is
 	// not large enough for trees with tens of thousands of leaves.
 	// Increase it to 20MB.
@@ -597,19 +489,11 @@ func newTClient(host string, privateKey *keyspb.PrivateKey) (*tclient, error) {
 		return nil, fmt.Errorf("grpc dial: %v", err)
 	}
 
-	// Setup signing key
-	signer, err := der.UnmarshalPrivateKey(privateKey.Der)
-	if err != nil {
-		return nil, err
-	}
-
 	t := tclient{
-		grpc:       g,
-		log:        trillian.NewTrillianLogClient(g),
-		admin:      trillian.NewTrillianAdminClient(g),
-		ctx:        context.Background(),
-		privateKey: privateKey,
-		publicKey:  signer.Public(),
+		grpc:  g,
+		log:   trillian.NewTrillianLogClient(g),
+		admin: trillian.NewTrillianAdminClient(g),
+		ctx:   context.Background(),
 	}
 
 	// The grpc dial requires a little time to connect
