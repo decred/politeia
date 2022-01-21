@@ -28,9 +28,6 @@ const (
 	dataDescriptorCommentAdd  = pluginID + "-add-v1"
 	dataDescriptorCommentDel  = pluginID + "-del-v1"
 	dataDescriptorCommentVote = pluginID + "-vote-v1"
-
-	// Key-value cache keys patterns
-	cacheKeyPatternTimestamp = "timestamp-{shorttoken}-{commentID}"
 )
 
 // commentAddSave saves a CommentAdd to the backend.
