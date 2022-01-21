@@ -471,37 +471,26 @@ func pluginError(e comments.ErrorCodeT) error {
 }
 
 func TestFinalCommentTimestamps(t *testing.T) {
-	tokenA := "45154fb45664714b"
-	tokenB := "55154fb45664714a"
+	token := "55154fb45664714a"
 
 	// Setup tests
 	tests := []struct {
-		name        string
-		commentIDs  []uint32
-		token       string
-		shouldError bool
-		resultKeys  []string
+		name       string
+		commentIDs []uint32
+		token      string
+		resultIDs  []uint32
 	}{
 		{
-			name:        "map with one comment",
-			commentIDs:  []uint32{1},
-			token:       tokenA,
-			shouldError: false,
-			resultKeys:  []string{"timestamp-45154fb-1"},
+			name:       "map with one comment",
+			commentIDs: []uint32{1},
+			token:      token,
+			resultIDs:  []uint32{1},
 		},
 		{
-			name:        "map with two comments",
-			commentIDs:  []uint32{1, 2},
-			token:       tokenB,
-			shouldError: false,
-			resultKeys:  []string{"timestamp-55154fb-1", "timestamp-55154fb-2"},
-		},
-		{
-			name:        "invalid token",
-			commentIDs:  []uint32{1},
-			token:       "",
-			shouldError: true,
-			resultKeys:  nil,
+			name:       "map with two comments",
+			commentIDs: []uint32{1, 2},
+			token:      token,
+			resultIDs:  []uint32{1, 2},
 		},
 	}
 
@@ -516,214 +505,27 @@ func TestFinalCommentTimestamps(t *testing.T) {
 				}
 			}
 
-			var (
-				tokenb []byte
-				err    error
-			)
-			if tc.token != "" {
-				tokenb, err = hex.DecodeString(tc.token)
-				if err != nil {
-					t.Fatal(err)
-				}
+			// Convert token to []byte
+			tokenb, err := hex.DecodeString(tc.token)
+			if err != nil {
+				t.Fatal(err)
 			}
 
+			// Call func
 			fts, err := finalCommentTimestamps(m, tokenb)
-			switch {
-			case tc.shouldError && err == nil:
-				// Wanted an error but didn't get one
-				t.Errorf("want error got nil")
-				return
-
-			case !tc.shouldError && err != nil:
-				// Wanted success but got an error
-				t.Errorf("want error nil, got '%v'", err)
-				return
-
-			case !tc.shouldError && err == nil:
-				// Verify result
-				if len(fts) != len(tc.resultKeys) {
-					t.Errorf("unexpected length of returned map; want: %v, got: %v",
-						len(tc.resultKeys), len(fts))
-				}
-				for _, k := range tc.resultKeys {
-					if _, exists := fts[k]; !exists {
-						t.Errorf("expected key was not found: %v", k)
-					}
-				}
-				return
-			}
-		})
-	}
-}
-
-func TestTimestampCacheKeys(t *testing.T) {
-	token := "45154fb45664714b"
-
-	// Setup tests
-	tests := []struct {
-		name        string
-		commentIDs  []uint32
-		token       string
-		shouldError bool
-		cacheKeys   []string
-	}{
-		{
-			name:        "3 comment IDs",
-			commentIDs:  []uint32{1, 2, 3},
-			token:       token,
-			shouldError: false,
-			cacheKeys: []string{"timestamp-45154fb-1", "timestamp-45154fb-2",
-				"timestamp-45154fb-3"},
-		},
-		{
-			name:        "invalid token",
-			commentIDs:  []uint32{1, 2, 3},
-			token:       "",
-			shouldError: true,
-			cacheKeys:   nil,
-		},
-	}
-
-	// Run tests
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			var (
-				tokenb []byte
-				err    error
-			)
-			if tc.token != "" {
-				tokenb, err = hex.DecodeString(tc.token)
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
-			cacheKeys, err := timestampCacheKeys(tc.commentIDs, tokenb)
-			switch {
-			case tc.shouldError && err == nil:
-				// Wanted an error but didn't get one
-				t.Errorf("want error got nil")
-				return
-
-			case !tc.shouldError && err != nil:
-				// Wanted success but got an error
-				t.Errorf("want error nil, got '%v'", err)
-				return
-
-			case !tc.shouldError && err == nil:
-				// Verify result
-				if len(cacheKeys) != len(tc.cacheKeys) {
-					t.Errorf("expected length of returned slice; want: %v, got: %v",
-						len(tc.cacheKeys), len(cacheKeys))
-				}
-				for _, k := range tc.cacheKeys {
-					var found bool
-					for _, rk := range cacheKeys {
-						if rk == k {
-							// Expected cache key found, success
-							found = true
-						}
-					}
-					if !found {
-						// Expected key was not found, error
-						t.Errorf("expected cache key was not found: %v", k)
-					}
-				}
-				return
-			}
-		})
-	}
-}
-
-func TestGetCachedCommentTimestamp(t *testing.T) {
-	token := "45154fb45664714b"
-
-	// Setup tests
-	tests := []struct {
-		name          string
-		commentIDs    []uint32
-		testCommentID uint32
-		token         string
-		shouldError   bool
-		expectRes     bool
-	}{
-		{
-			name:          "successful run",
-			commentIDs:    []uint32{1, 2},
-			testCommentID: 2,
-			token:         token,
-			shouldError:   false,
-			expectRes:     true,
-		},
-		{
-			name:          "unknown comment ID",
-			commentIDs:    []uint32{1, 2},
-			testCommentID: 3,
-			token:         token,
-			shouldError:   false,
-			expectRes:     false,
-		},
-		{
-			name:          "invalid token",
-			commentIDs:    nil,
-			testCommentID: 0,
-			token:         "",
-			shouldError:   true,
-			expectRes:     false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			var (
-				tokenb []byte
-				err    error
-			)
-			if tc.token != "" {
-				tokenb, err = hex.DecodeString(tc.token)
-				if err != nil {
-					t.Fatal(err)
-				}
+			if err != nil {
+				t.Fatal(err)
 			}
 
-			cacheBlobs := make(map[string][]byte, len(tc.commentIDs))
-			for _, commentID := range tc.commentIDs {
-				cacheKey, err := timestampCacheKey(tokenb, commentID)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				blob, err := json.Marshal(comments.CommentTimestamp{})
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				cacheBlobs[cacheKey] = blob
+			// Verify result
+			if len(fts) != len(tc.resultIDs) {
+				t.Errorf("unexpected length of returned map; want: %v, got: %v",
+					len(tc.resultIDs), len(fts))
 			}
-
-			ct, err := cachedCommentTimestamp(cacheBlobs, tokenb, tc.testCommentID)
-			switch {
-			case tc.shouldError && err == nil:
-				// Wanted an error but didn't get one
-				t.Errorf("want error got nil")
-				return
-
-			case !tc.shouldError && err != nil:
-				// Wanted success but got an error
-				t.Errorf("want error nil, got '%v'", err)
-				return
-
-			case !tc.shouldError && err == nil:
-				// Verify result
-				if tc.expectRes && ct == nil {
-					// Returned timestamp is nil, error
-					t.Errorf("expected an entry for commenID: %v", tc.testCommentID)
+			for _, cid := range tc.resultIDs {
+				if _, exists := fts[cid]; !exists {
+					t.Errorf("expected ID was not found: %v", cid)
 				}
-
-				if !tc.expectRes && ct != nil {
-					// Unexpected not nil res, error
-					t.Errorf("expected nil for commenID: %v", tc.testCommentID)
-				}
-				return
 			}
 		})
 	}

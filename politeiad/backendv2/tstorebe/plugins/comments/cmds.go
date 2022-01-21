@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
@@ -342,7 +341,7 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 	// Look for final timestamps in the key-value store. Caching final timestamps
 	// is necessary to improve the performance which is proportional to the tree
 	// size.
-	cacheBlobs, err := p.cachedTimestamps(token, commentIDs)
+	cacheTimestamps, err := p.cachedTimestamps(token, commentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -369,11 +368,8 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		}
 
 		// Get cached comment timestamp associated with current comment ID if one
-		// exists.
-		cacheCommentTimestamp, err := cachedCommentTimestamp(cacheBlobs, token, cid)
-		if err != nil {
-			return nil, err
-		}
+		// exists, nil otherwise.
+		cacheCommentTimestamp := cacheTimestamps[cid]
 
 		// Get comment add timestamps
 		adds := make([]comments.Timestamp, 0, len(cidx.Adds))
@@ -472,78 +468,22 @@ func (p *commentsPlugin) cacheFinalTimestamps(token []byte, cts map[uint32]comme
 	if err != nil {
 		return err
 	}
-	if len(finalTimestamps) > 0 {
-		// Convert final timestamps to map of digests
-		cacheDigests, keys, err := convertFinalTimestampsToDigests(finalTimestamps)
-		if err != nil {
-			return err
-		}
-		// Delete exisiting digests
-		err = p.tstore.CacheDel(keys)
-		if err != nil {
-			return err
-		}
-		// Store updated digests
-		err = p.tstore.CachePut(cacheDigests, false)
-		if err != nil {
-			return err
-		}
-	}
 
-	return nil
-}
-
-// cachedTimestamps retrieves all comment timestamps associated with the given
-// comment IDs from the key-value store.
-func (p *commentsPlugin) cachedTimestamps(token []byte, commentIDs []uint32) (map[string][]byte, error) {
-	cacheKeys, err := timestampCacheKeys(commentIDs, token)
-	if err != nil {
-		return nil, err
-	}
-	cacheBlobs, err := p.tstore.CacheGet(cacheKeys)
-	if err != nil {
-		return nil, err
-	}
-
-	return cacheBlobs, nil
-}
-
-// convertFinalTimestampsToDigests accepts a map of final comment timestamps,
-// and it converts the map's values to []byte in order to cache the final
-// timestamps in the key-value store.
-func convertFinalTimestampsToDigests(ts map[string]comments.CommentTimestamp) (map[string][]byte, []string, error) {
-	ds := make(map[string][]byte, len(ts))
-	keys := make([]string, 0, len(ts))
-	for key, t := range ts {
-		b, err := json.Marshal(t)
-		if err != nil {
-			return nil, nil, err
-		}
-		ds[key] = b
-		keys = append(keys, key)
-	}
-
-	return ds, keys, nil
+	return p.saveTimestamps(token, finalTimestamps)
 }
 
 // finalCommentTimestamps accepts a map of comment timestamps, and it returns
 // a new map with all final comment timestamps. A timestamp considered final
 // if it was successfully timestamped on the DCR chain, meaning it's merkle
 // root was included in a confirmed DCR transaction.
-func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byte) (map[string]comments.CommentTimestamp, error) {
-	fts := make(map[string]comments.CommentTimestamp, len(ts))
-	for commentID, t := range ts {
-		// Generate comment specific cache key using the commentID & token
-		cacheKey, err := timestampCacheKey(token, commentID)
-		if err != nil {
-			return nil, err
-		}
-
+func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byte) (map[uint32]comments.CommentTimestamp, error) {
+	fts := make(map[uint32]comments.CommentTimestamp, len(ts))
+	for cid, t := range ts {
 		// Search for final comment add timestamps
 		for _, at := range t.Adds {
-			if isFinalTimestamp(at) {
+			if timestampIsFinal(at) {
 				// Add final comment add to the final timestamps map.
-				ct, exists := fts[cacheKey]
+				ct, exists := fts[cid]
 				if !exists {
 					ct = comments.CommentTimestamp{}
 				}
@@ -551,26 +491,26 @@ func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byt
 					ct.Adds = make([]comments.Timestamp, 0, len(t.Adds))
 				}
 				ct.Adds = append(ct.Adds, at)
-				fts[cacheKey] = ct
+				fts[cid] = ct
 			}
 		}
 
 		// Search for final comment del timestamp
-		if t.Del != nil && isFinalTimestamp(*t.Del) {
+		if t.Del != nil && timestampIsFinal(*t.Del) {
 			// Add final comment del to final timestamps map.
-			ct, exists := fts[cacheKey]
+			ct, exists := fts[cid]
 			if !exists {
 				ct = comments.CommentTimestamp{}
 			}
 			ct.Del = t.Del
-			fts[cacheKey] = ct
+			fts[cid] = ct
 		}
 
 		// Search for final comment vote timestamps
 		for _, vt := range t.Votes {
-			if isFinalTimestamp(vt) {
+			if timestampIsFinal(vt) {
 				// Add final comment add to the final timestamps map.
-				ct, exists := fts[cacheKey]
+				ct, exists := fts[cid]
 				if !exists {
 					ct = comments.CommentTimestamp{}
 				}
@@ -578,19 +518,12 @@ func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byt
 					ct.Votes = make([]comments.Timestamp, 0, len(t.Votes))
 				}
 				ct.Votes = append(ct.Votes, vt)
-				fts[cacheKey] = ct
+				fts[cid] = ct
 			}
 		}
 	}
 
 	return fts, nil
-}
-
-// isFinalTimestamp returns whether the given Timestamp is final. it's
-// considered final if it was successfully timestamped on the DCR chain,
-// meaning it's merkle root was included in a confirmed DCR transaction.
-func isFinalTimestamp(t comments.Timestamp) bool {
-	return t.TxID != ""
 }
 
 // cachedCommentVoteTimestamp accepts a pointer to a CommentTimestamp, and a
@@ -642,65 +575,6 @@ func cachedCommentAddTimestamp(ct *comments.CommentTimestamp, digest []byte) *co
 	}
 
 	return nil
-}
-
-// cachedCommentTimestamp accepts a map of cached comment timestamps, a
-// record token and a comment ID. It returns a pointer to the cached
-// CommentTimestamp associated with the given token and comment ID if one
-// exists, and nil otherwsie.
-func cachedCommentTimestamp(cacheBlobs map[string][]byte, token []byte, commentID uint32) (*comments.CommentTimestamp, error) {
-	cacheKey, err := timestampCacheKey(token, commentID)
-	if err != nil {
-		return nil, err
-	}
-
-	if b, cacheEntryFound := cacheBlobs[cacheKey]; cacheEntryFound {
-		var cacheTimestamp comments.CommentTimestamp
-		err := json.Unmarshal(b, &cacheTimestamp)
-		if err != nil {
-			return nil, err
-		}
-
-		return &cacheTimestamp, nil
-	}
-
-	return nil, nil
-}
-
-// timestampCacheKeys returns the timestamps' cache keys of the given comment
-// IDs.
-func timestampCacheKeys(commentIDs []uint32, token []byte) ([]string, error) {
-	keys := make([]string, 0, len(commentIDs))
-	for _, ID := range commentIDs {
-		key, err := timestampCacheKey(token, ID)
-		if err != nil {
-			return nil, err
-		}
-
-		keys = append(keys, key)
-	}
-
-	return keys, nil
-}
-
-// timestampCacheKey returns the timestamp cache key of the given comment ID.
-func timestampCacheKey(token []byte, commentID uint32) (string, error) {
-	key := cacheKeyPatternTimestamp
-
-	// Get short token
-	t, err := util.ShortTokenEncode(token)
-	if err != nil {
-		return "", err
-	}
-
-	// Replace short token
-	key = strings.Replace(key, "{shorttoken}", t, 1)
-
-	// Replace comment ID
-	key = strings.Replace(key, "{commentID}",
-		strconv.FormatUint(uint64(commentID), 10), 1)
-
-	return key, nil
 }
 
 // voteScore returns the total number of downvotes and upvotes, respectively,
