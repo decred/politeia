@@ -634,7 +634,7 @@ func TestTimestampCacheKeys(t *testing.T) {
 	}
 }
 
-func TestTimestampCacheEntry(t *testing.T) {
+func TestGetCachedCommentTimestamp(t *testing.T) {
 	token := "45154fb45664714b"
 
 	// Setup tests
@@ -687,7 +687,7 @@ func TestTimestampCacheEntry(t *testing.T) {
 
 			cacheBlobs := make(map[string][]byte, len(tc.commentIDs))
 			for _, commentID := range tc.commentIDs {
-				cacheKey, err := timestampCacheKey(commentID, tokenb)
+				cacheKey, err := timestampCacheKey(tokenb, commentID)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -700,7 +700,7 @@ func TestTimestampCacheEntry(t *testing.T) {
 				cacheBlobs[cacheKey] = blob
 			}
 
-			ct, err := timestampCacheEntry(cacheBlobs, tc.testCommentID, tokenb)
+			ct, err := cachedCommentTimestamp(cacheBlobs, tokenb, tc.testCommentID)
 			switch {
 			case tc.shouldError && err == nil:
 				// Wanted an error but didn't get one
