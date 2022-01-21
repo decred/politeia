@@ -341,7 +341,7 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 	// Look for final timestamps in the key-value store. Caching final timestamps
 	// is necessary to improve the performance which is proportional to the tree
 	// size.
-	cacheTimestamps, err := p.cachedTimestamps(token, commentIDs)
+	cts, err := p.cachedTimestamps(token, commentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -359,7 +359,7 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 	}
 
 	// Get timestamps for each comment ID
-	cts := make(map[uint32]comments.CommentTimestamp, len(commentIDs))
+	r := make(map[uint32]comments.CommentTimestamp, len(commentIDs))
 	for _, cid := range commentIDs {
 		cidx, ok := ridx.Comments[cid]
 		if !ok {
@@ -369,18 +369,18 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 
 		// Get cached comment timestamp associated with current comment ID if one
 		// exists, nil otherwise.
-		cacheCommentTimestamp := cacheTimestamps[cid]
+		ct := cts[cid]
 
 		// Get comment add timestamps
 		adds := make([]comments.Timestamp, 0, len(cidx.Adds))
 		for _, v := range cidx.Adds {
 			// Check if the comment add digest timestamp is final and already exists
 			// in cache.
-			cachedTimestamp := cachedCommentAddTimestamp(cacheCommentTimestamp, v)
-			if cachedTimestamp != nil {
+			t := cachedCommentAddTimestamp(ct, v)
+			if t != nil {
 				// Cached timestamp found, collect it and continue to next comment
 				// add digest.
-				adds = append(adds, *cachedTimestamp)
+				adds = append(adds, *t)
 				continue
 			}
 
@@ -398,14 +398,14 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		if cidx.Del != nil {
 			// Check if the comment del digest timestamp is final and already exists
 			// in cache.
-			cachedTimestamp := cachedCommentDelTimestamp(cacheCommentTimestamp,
+			t := cachedCommentDelTimestamp(ct,
 				cidx.Del)
 			switch {
-			case cachedTimestamp != nil:
+			case t != nil:
 				// Comment del timestamp found in cache, collect it
-				del = cachedTimestamp
+				del = t
 
-			case cachedTimestamp == nil:
+			case t == nil:
 				// Comment del timestamp was not found in cache, get timestamp
 				ts, err := p.timestamp(token, cidx.Del)
 				if err != nil {
@@ -423,12 +423,12 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 				for _, v := range voteIdxs {
 					// Check if the comment vote digest timestamp is final and already
 					// exists in cache.
-					cachedTimestamp := cachedCommentVoteTimestamp(cacheCommentTimestamp,
+					t := cachedCommentVoteTimestamp(ct,
 						v.Digest)
-					if cachedTimestamp != nil {
+					if t != nil {
 						// Cached timestamp found, collect it and continue to next comment
 						// vote digest.
-						votes = append(votes, *cachedTimestamp)
+						votes = append(votes, *t)
 						continue
 					}
 
@@ -443,7 +443,7 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		}
 
 		// Save timestamp
-		cts[cid] = comments.CommentTimestamp{
+		r[cid] = comments.CommentTimestamp{
 			Adds:  adds,
 			Del:   del,
 			Votes: votes,
@@ -451,13 +451,13 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 	}
 
 	// Cache final timestamps
-	err = p.cacheFinalTimestamps(token, cts)
+	err = p.cacheFinalTimestamps(token, r)
 	if err != nil {
 		return nil, err
 	}
 
 	return &comments.TimestampsReply{
-		Comments: cts,
+		Comments: r,
 	}, nil
 }
 
