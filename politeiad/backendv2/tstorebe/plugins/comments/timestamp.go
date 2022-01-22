@@ -24,6 +24,7 @@ const (
 func (p *commentsPlugin) saveTimestamps(token []byte, ts map[uint32]comments.CommentTimestamp) error {
 	// Setup the blob entries
 	blobs := make(map[string][]byte, len(ts))
+	keys := make([]string, 0, len(ts))
 	for cid, v := range ts {
 		k, err := newTimestampKey(token, cid)
 		if err != nil {
@@ -34,6 +35,13 @@ func (p *commentsPlugin) saveTimestamps(token []byte, ts map[uint32]comments.Com
 			return err
 		}
 		blobs[k] = b
+		keys = append(keys, k)
+	}
+
+	// Delete exisiting digests
+	err := p.tstore.CacheDel(keys)
+	if err != nil {
+		return err
 	}
 
 	// Save the blob entries
