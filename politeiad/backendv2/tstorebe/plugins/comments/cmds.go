@@ -395,8 +395,7 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		if cidx.Del != nil {
 			// Check if the comment del digest timestamp is final and already exists
 			// in cache.
-			t := cachedCommentDelTimestamp(ct,
-				cidx.Del)
+			t := cachedCommentDelTimestamp(ct, cidx.Del)
 			switch {
 			case t != nil:
 				// Comment del timestamp found in cache, collect it
@@ -420,8 +419,7 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 				for _, v := range voteIdxs {
 					// Check if the comment vote digest timestamp is final and already
 					// exists in cache.
-					t := cachedCommentVoteTimestamp(ct,
-						v.Digest)
+					t := cachedCommentVoteTimestamp(ct, v.Digest)
 					if t != nil {
 						// Cached timestamp found, collect it and continue to next comment
 						// vote digest.
