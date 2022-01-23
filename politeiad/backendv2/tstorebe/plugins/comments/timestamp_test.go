@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestNewTimestampKey(t *testing.T) {
+func TestGetTimestampKey(t *testing.T) {
 	token := "45154fb45664714b"
 
 	// Setup tests
@@ -50,7 +50,7 @@ func TestNewTimestampKey(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			cacheKey, err := newTimestampKey(tokenb, tc.commentID)
+			cacheKey, err := getTimestampKey(tokenb, tc.commentID)
 			switch {
 			case tc.shouldError && err == nil:
 				// Wanted an error but didn't get one

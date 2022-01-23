@@ -26,7 +26,7 @@ func (p *commentsPlugin) saveTimestamps(token []byte, ts map[uint32]comments.Com
 	blobs := make(map[string][]byte, len(ts))
 	keys := make([]string, 0, len(ts))
 	for cid, v := range ts {
-		k, err := newTimestampKey(token, cid)
+		k, err := getTimestampKey(token, cid)
 		if err != nil {
 			return err
 		}
@@ -55,7 +55,7 @@ func (p *commentsPlugin) cachedTimestamps(token []byte, commentIDs []uint32) (ma
 	// Setup the timestamp keys
 	keys := make([]string, 0, len(commentIDs))
 	for _, cid := range commentIDs {
-		k, err := newTimestampKey(token, cid)
+		k, err := getTimestampKey(token, cid)
 		if err != nil {
 			return nil, err
 		}
@@ -86,9 +86,9 @@ func (p *commentsPlugin) cachedTimestamps(token []byte, commentIDs []uint32) (ma
 	return ts, nil
 }
 
-// newTimestampKey returns the key for a timestamp in the key-value store
+// getTimestampKey returns the key for a timestamp in the key-value store
 // cache.
-func newTimestampKey(token []byte, commentID uint32) (string, error) {
+func getTimestampKey(token []byte, commentID uint32) (string, error) {
 	t, err := util.ShortTokenEncode(token)
 	if err != nil {
 		return "", err
