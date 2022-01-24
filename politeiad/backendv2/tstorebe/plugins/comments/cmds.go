@@ -373,7 +373,14 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		for _, v := range cidx.Adds {
 			// Check if the comment add digest timestamp is final and already exists
 			// in cache.
-			t := cachedCommentAddTimestamp(ct, v)
+			var t *comments.Timestamp
+			if ct != nil {
+				for _, at := range ct.Adds {
+					if at.Digest == hex.EncodeToString(v) {
+						t = &at
+					}
+				}
+			}
 			if t != nil {
 				// Cached timestamp found, collect it and continue to next comment
 				// add digest.
@@ -395,7 +402,13 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		if cidx.Del != nil {
 			// Check if the comment del digest timestamp is final and already exists
 			// in cache.
-			t := cachedCommentDelTimestamp(ct, cidx.Del)
+			var t *comments.Timestamp
+			if ct != nil {
+				if ct.Del != nil && ct.Del.Digest == hex.EncodeToString(cidx.Del) {
+					t = ct.Del
+				}
+			}
+
 			switch {
 			case t != nil:
 				// Comment del timestamp found in cache, collect it
@@ -419,7 +432,14 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 				for _, v := range voteIdxs {
 					// Check if the comment vote digest timestamp is final and already
 					// exists in cache.
-					t := cachedCommentVoteTimestamp(ct, v.Digest)
+					var t *comments.Timestamp
+					if ct != nil {
+						for _, vt := range ct.Votes {
+							if vt.Digest == hex.EncodeToString(v.Digest) {
+								t = &vt
+							}
+						}
+					}
 					if t != nil {
 						// Cached timestamp found, collect it and continue to next comment
 						// vote digest.
@@ -454,122 +474,6 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 	return &comments.TimestampsReply{
 		Comments: r,
 	}, nil
-}
-
-// cacheFinalTimestamps accepts a map of comment timestamps, it collects the
-// final timestamps then stores them in the key-value store.
-func (p *commentsPlugin) cacheFinalTimestamps(token []byte, cts map[uint32]comments.CommentTimestamp) error {
-	finalTimestamps, err := finalCommentTimestamps(cts, token)
-	if err != nil {
-		return err
-	}
-
-	return p.saveTimestamps(token, finalTimestamps)
-}
-
-// finalCommentTimestamps accepts a map of comment timestamps, and it returns
-// a new map with all final comment timestamps. A timestamp considered final
-// if it was successfully timestamped on the DCR chain, meaning it's merkle
-// root was included in a confirmed DCR transaction.
-func finalCommentTimestamps(ts map[uint32]comments.CommentTimestamp, token []byte) (map[uint32]comments.CommentTimestamp, error) {
-	fts := make(map[uint32]comments.CommentTimestamp, len(ts))
-	for cid, t := range ts {
-		// Search for final comment add timestamps
-		for _, at := range t.Adds {
-			if timestampIsFinal(at) {
-				// Add final comment add to the final timestamps map.
-				ct, exists := fts[cid]
-				if !exists {
-					ct = comments.CommentTimestamp{}
-				}
-				if len(ct.Adds) == 0 {
-					ct.Adds = make([]comments.Timestamp, 0, len(t.Adds))
-				}
-				ct.Adds = append(ct.Adds, at)
-				fts[cid] = ct
-			}
-		}
-
-		// Search for final comment del timestamp
-		if t.Del != nil && timestampIsFinal(*t.Del) {
-			// Add final comment del to final timestamps map.
-			ct, exists := fts[cid]
-			if !exists {
-				ct = comments.CommentTimestamp{}
-			}
-			ct.Del = t.Del
-			fts[cid] = ct
-		}
-
-		// Search for final comment vote timestamps
-		for _, vt := range t.Votes {
-			if timestampIsFinal(vt) {
-				// Add final comment add to the final timestamps map.
-				ct, exists := fts[cid]
-				if !exists {
-					ct = comments.CommentTimestamp{}
-				}
-				if len(ct.Votes) == 0 {
-					ct.Votes = make([]comments.Timestamp, 0, len(t.Votes))
-				}
-				ct.Votes = append(ct.Votes, vt)
-				fts[cid] = ct
-			}
-		}
-	}
-
-	return fts, nil
-}
-
-// cachedCommentVoteTimestamp accepts a pointer to a CommentTimestamp, and a
-// comment vote digest. It searches for the given comment vote digest in the
-// given cached comment vote timestamps. It returns the timestamp if it finds
-// it and nil otherwise.
-func cachedCommentVoteTimestamp(ct *comments.CommentTimestamp, digest []byte) *comments.Timestamp {
-	if ct == nil {
-		return nil
-	}
-
-	for _, t := range ct.Votes {
-		if t.Digest == hex.EncodeToString(digest) {
-			return &t
-		}
-	}
-
-	return nil
-}
-
-// commentDelCachedTimestamp accepts a pointer to a CommentTimestamp, and a
-// comment del digest. It returns the timestamp of the given comment del digest
-// if it finds it, and nil otherwise.
-func cachedCommentDelTimestamp(ct *comments.CommentTimestamp, digest []byte) *comments.Timestamp {
-	if ct == nil {
-		return nil
-	}
-
-	if ct.Del != nil && ct.Del.Digest == hex.EncodeToString(digest) {
-		return ct.Del
-	}
-
-	return nil
-}
-
-// cachedCommentAddTimestamp accepts a pointer to a CommentTimestamp, and a
-// comment add digest. It searches for the given comment add digest in the
-// given cached comment add timestamps. It returns the timestamp if it finds
-// it and nil otherwise.
-func cachedCommentAddTimestamp(ct *comments.CommentTimestamp, digest []byte) *comments.Timestamp {
-	if ct == nil {
-		return nil
-	}
-
-	for _, t := range ct.Adds {
-		if t.Digest == hex.EncodeToString(digest) {
-			return &t
-		}
-	}
-
-	return nil
 }
 
 // voteScore returns the total number of downvotes and upvotes, respectively,
