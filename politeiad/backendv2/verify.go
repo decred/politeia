@@ -15,10 +15,8 @@ import (
 	"github.com/decred/dcrtime/merkle"
 	dmerkle "github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/util"
-	"github.com/google/trillian"
-	tmerkle "github.com/google/trillian/merkle"
-	"github.com/google/trillian/merkle/hashers/registry"
-	_ "github.com/google/trillian/merkle/rfc6962"
+	"github.com/google/trillian/merkle/logverifier"
+	"github.com/google/trillian/merkle/rfc6962"
 )
 
 const (
@@ -47,10 +45,7 @@ func verifyProofTrillian(p Proof) error {
 	// The digest of the data is stored in trillian as the leaf value.
 	// The digest of the leaf value is the digest that is included in
 	// the log merkle root.
-	h, err := registry.NewLogHasher(trillian.HashStrategy_RFC6962_SHA256)
-	if err != nil {
-		return err
-	}
+	h := rfc6962.DefaultHasher
 	leafValue, err := hex.DecodeString(p.Digest)
 	if err != nil {
 		return err
@@ -77,7 +72,7 @@ func verifyProofTrillian(p Proof) error {
 		return err
 	}
 
-	verifier := tmerkle.NewLogVerifier(h)
+	verifier := logverifier.New(h)
 	return verifier.VerifyInclusionProof(ed.LeafIndex, ed.TreeSize,
 		merklePath, merkleRoot, leafHash)
 }

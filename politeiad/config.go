@@ -51,8 +51,7 @@ const (
 	defaultTlogHost = "localhost:8090"
 
 	// Environment variables
-	envDBPass   = "DBPASS"
-	envTlogPass = "TLOGPASS"
+	envDBPass = "DBPASS"
 )
 
 var (
@@ -122,7 +121,6 @@ type config struct {
 	DBHost   string `long:"dbhost" description:"Database ip:port"`
 	DBPass   string // Provided in env variable "DBPASS"
 	TlogHost string `long:"tloghost" description:"Trillian log ip:port"`
-	TlogPass string // Provided in env variable "TLOGPASS"
 
 	// Plugin options
 	Plugins        []string `long:"plugin" description:"Plugins"`
@@ -602,12 +600,6 @@ func verifyTstoreSettings(cfg *config) error {
 	_, err := url.Parse(cfg.TlogHost)
 	if err != nil {
 		return fmt.Errorf("invalid tlog host '%v': %v", cfg.TlogHost, err)
-	}
-	cfg.TlogPass = os.Getenv(envTlogPass)
-	if cfg.TlogPass == "" {
-		return fmt.Errorf("tlogpass not found: a tlog password that "+
-			"be used to derive the tlog signing key must be provided in "+
-			"the env variable %v", envTlogPass)
 	}
 
 	return nil
