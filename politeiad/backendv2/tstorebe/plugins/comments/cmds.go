@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -335,6 +335,14 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		}, nil
 	}
 
+	// Look for final timestamps in the key-value store. Caching final timestamps
+	// is necessary to improve the performance which is proportional to the tree
+	// size.
+	cts, err := p.cachedTimestamps(token, commentIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	// Get record state
 	state, err := p.tstore.RecordState(token)
 	if err != nil {
@@ -348,7 +356,7 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 	}
 
 	// Get timestamps for each comment ID
-	cts := make(map[uint32]comments.CommentTimestamp, len(commentIDs))
+	r := make(map[uint32]comments.CommentTimestamp, len(commentIDs))
 	for _, cid := range commentIDs {
 		cidx, ok := ridx.Comments[cid]
 		if !ok {
@@ -356,9 +364,31 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 			continue
 		}
 
+		// Get cached comment timestamp associated with current comment ID if one
+		// exists, nil otherwise.
+		ct := cts[cid]
+
 		// Get comment add timestamps
 		adds := make([]comments.Timestamp, 0, len(cidx.Adds))
 		for _, v := range cidx.Adds {
+			// Check if the comment add digest timestamp is final and already exists
+			// in cache.
+			var t *comments.Timestamp
+			if ct != nil {
+				for _, at := range ct.Adds {
+					if at.Digest == hex.EncodeToString(v) {
+						t = &at
+					}
+				}
+			}
+			if t != nil {
+				// Cached timestamp found, collect it and continue to next comment
+				// add digest.
+				adds = append(adds, *t)
+				continue
+			}
+
+			// Comment add digest was not found in cache, get timestamp
 			ts, err := p.timestamp(token, v)
 			if err != nil {
 				return nil, err
@@ -370,11 +400,28 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		// comment has been deleted.
 		var del *comments.Timestamp
 		if cidx.Del != nil {
-			ts, err := p.timestamp(token, cidx.Del)
-			if err != nil {
-				return nil, err
+			// Check if the comment del digest timestamp is final and already exists
+			// in cache.
+			var t *comments.Timestamp
+			if ct != nil {
+				if ct.Del != nil && ct.Del.Digest == hex.EncodeToString(cidx.Del) {
+					t = ct.Del
+				}
 			}
-			del = ts
+
+			switch {
+			case t != nil:
+				// Comment del timestamp found in cache, collect it
+				del = t
+
+			case t == nil:
+				// Comment del timestamp was not found in cache, get timestamp
+				ts, err := p.timestamp(token, cidx.Del)
+				if err != nil {
+					return nil, err
+				}
+				del = ts
+			}
 		}
 
 		// Get comment vote timestamps
@@ -383,6 +430,24 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 			votes = make([]comments.Timestamp, 0, len(cidx.Votes))
 			for _, voteIdxs := range cidx.Votes {
 				for _, v := range voteIdxs {
+					// Check if the comment vote digest timestamp is final and already
+					// exists in cache.
+					var t *comments.Timestamp
+					if ct != nil {
+						for _, vt := range ct.Votes {
+							if vt.Digest == hex.EncodeToString(v.Digest) {
+								t = &vt
+							}
+						}
+					}
+					if t != nil {
+						// Cached timestamp found, collect it and continue to next comment
+						// vote digest.
+						votes = append(votes, *t)
+						continue
+					}
+
+					// Comment vote digest was not found in cache, get timestamp
 					ts, err := p.timestamp(token, v.Digest)
 					if err != nil {
 						return nil, err
@@ -393,15 +458,21 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		}
 
 		// Save timestamp
-		cts[cid] = comments.CommentTimestamp{
+		r[cid] = comments.CommentTimestamp{
 			Adds:  adds,
 			Del:   del,
 			Votes: votes,
 		}
 	}
 
+	// Cache final timestamps
+	err = p.cacheFinalTimestamps(token, r)
+	if err != nil {
+		return nil, err
+	}
+
 	return &comments.TimestampsReply{
-		Comments: cts,
+		Comments: r,
 	}, nil
 }
 

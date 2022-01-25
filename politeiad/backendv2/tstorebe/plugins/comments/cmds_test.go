@@ -469,3 +469,64 @@ func pluginError(e comments.ErrorCodeT) error {
 		ErrorCode: uint32(e),
 	}
 }
+
+func TestFinalCommentTimestamps(t *testing.T) {
+	token := "55154fb45664714a"
+
+	// Setup tests
+	tests := []struct {
+		name       string
+		commentIDs []uint32
+		token      string
+		resultIDs  []uint32
+	}{
+		{
+			name:       "map with one comment",
+			commentIDs: []uint32{1},
+			token:      token,
+			resultIDs:  []uint32{1},
+		},
+		{
+			name:       "map with two comments",
+			commentIDs: []uint32{1, 2},
+			token:      token,
+			resultIDs:  []uint32{1, 2},
+		},
+	}
+
+	// Run tests
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create input map
+			m := make(map[uint32]comments.CommentTimestamp, len(tc.commentIDs))
+			for i := 1; i <= len(tc.commentIDs); i++ {
+				m[uint32(i)] = comments.CommentTimestamp{
+					Adds: []comments.Timestamp{{TxID: "notemty"}},
+				}
+			}
+
+			// Convert token to []byte
+			tokenb, err := hex.DecodeString(tc.token)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Call func
+			fts, err := finalCommentTimestamps(m, tokenb)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Verify result
+			if len(fts) != len(tc.resultIDs) {
+				t.Errorf("unexpected length of returned map; want: %v, got: %v",
+					len(tc.resultIDs), len(fts))
+			}
+			for _, cid := range tc.resultIDs {
+				if _, exists := fts[cid]; !exists {
+					t.Errorf("expected ID was not found: %v", cid)
+				}
+			}
+		})
+	}
+}
