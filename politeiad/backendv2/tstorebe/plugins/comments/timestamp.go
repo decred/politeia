@@ -28,7 +28,14 @@ func (p *commentsPlugin) cacheFinalTimestamps(token []byte, cts map[uint32]comme
 		return err
 	}
 
-	return p.saveTimestamps(token, finalTimestamps)
+	err = p.saveTimestamps(token, finalTimestamps)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Cached final comment timestamps of %v/%v",
+		len(finalTimestamps), len(cts))
+	return nil
 }
 
 // finalCommentTimestamps accepts a map of comment timestamps, and it returns
@@ -112,13 +119,7 @@ func (p *commentsPlugin) saveTimestamps(token []byte, ts map[uint32]comments.Com
 	}
 
 	// Save the blob entries
-	err = p.tstore.CachePut(blobs, false)
-	if err != nil {
-		return err
-	}
-
-	log.Debugf("Cached final comment timestamps of %v", commentIDs)
-	return nil
+	return p.tstore.CachePut(blobs, false)
 }
 
 // cachedTimestamps returns cached comment timestamps if they exist. An entry
@@ -158,7 +159,8 @@ func (p *commentsPlugin) cachedTimestamps(token []byte, commentIDs []uint32) (ma
 		cacheIDs = append(cacheIDs, cid)
 	}
 
-	log.Debugf("Retrieved cached final comment timestamps of %v", cacheIDs)
+	log.Debugf("Retrieved cached final comment timestamps of %v/%v",
+		len(cacheIDs), len(commentIDs))
 	return ts, nil
 }
 
