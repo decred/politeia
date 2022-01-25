@@ -90,6 +90,7 @@ func (p *commentsPlugin) saveTimestamps(token []byte, ts map[uint32]comments.Com
 	// Setup the blob entries
 	blobs := make(map[string][]byte, len(ts))
 	keys := make([]string, 0, len(ts))
+	commentIDs := make([]uint32, 0, len(ts))
 	for cid, v := range ts {
 		k, err := getTimestampKey(token, cid)
 		if err != nil {
@@ -101,6 +102,7 @@ func (p *commentsPlugin) saveTimestamps(token []byte, ts map[uint32]comments.Com
 		}
 		blobs[k] = b
 		keys = append(keys, k)
+		commentIDs = append(commentIDs, cid)
 	}
 
 	// Delete exisiting digests
@@ -110,7 +112,13 @@ func (p *commentsPlugin) saveTimestamps(token []byte, ts map[uint32]comments.Com
 	}
 
 	// Save the blob entries
-	return p.tstore.CachePut(blobs, false)
+	err = p.tstore.CachePut(blobs, false)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Cached final comment timestamps of %v", commentIDs)
+	return nil
 }
 
 // cachedTimestamps returns cached comment timestamps if they exist. An entry
@@ -135,6 +143,7 @@ func (p *commentsPlugin) cachedTimestamps(token []byte, commentIDs []uint32) (ma
 
 	// Decode the timestamps
 	ts := make(map[uint32]*comments.CommentTimestamp, len(blobs))
+	cacheIDs := make([]uint32, 0, len(blobs))
 	for k, v := range blobs {
 		var t comments.CommentTimestamp
 		err := json.Unmarshal(v, &t)
@@ -146,8 +155,10 @@ func (p *commentsPlugin) cachedTimestamps(token []byte, commentIDs []uint32) (ma
 			return nil, err
 		}
 		ts[cid] = &t
+		cacheIDs = append(cacheIDs, cid)
 	}
 
+	log.Debugf("Retrieved cached final comment timestamps of %v", cacheIDs)
 	return ts, nil
 }
 
