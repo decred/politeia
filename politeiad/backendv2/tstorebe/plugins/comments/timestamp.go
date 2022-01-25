@@ -97,7 +97,6 @@ func (p *commentsPlugin) saveTimestamps(token []byte, ts map[uint32]comments.Com
 	// Setup the blob entries
 	blobs := make(map[string][]byte, len(ts))
 	keys := make([]string, 0, len(ts))
-	commentIDs := make([]uint32, 0, len(ts))
 	for cid, v := range ts {
 		k, err := getTimestampKey(token, cid)
 		if err != nil {
@@ -109,7 +108,6 @@ func (p *commentsPlugin) saveTimestamps(token []byte, ts map[uint32]comments.Com
 		}
 		blobs[k] = b
 		keys = append(keys, k)
-		commentIDs = append(commentIDs, cid)
 	}
 
 	// Delete exisiting digests

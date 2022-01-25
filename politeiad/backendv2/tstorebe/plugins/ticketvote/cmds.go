@@ -1863,6 +1863,14 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 	)
 	switch {
 	case t.VotesPage > 0:
+		// Look for final vote timestamps in the key-value store. Caching final
+		// timestamps is necessary to improve the performance which is proportional
+		// to the tree size.
+		cachedVotes, err := p.cachedVoteTimestamps(token, t.VotesPage, pageSize)
+		if err != nil {
+			return "", err
+		}
+
 		// Return a page of vote timestamps
 		digests, err := p.tstore.DigestsByDataDesc(token,
 			[]string{dataDescriptorCastVoteDetails})
@@ -1876,16 +1884,41 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 			if i < int(startAt) {
 				continue
 			}
+
+			// Check if current digest timestamp already exists in cache
+			var foundInCache bool
+			for _, t := range cachedVotes {
+				if t.Digest == hex.EncodeToString(v) {
+					// Digest timestamp found, collect it
+					votes = append(votes, t)
+					foundInCache = true
+					break
+				}
+			}
+			// If digest was found in cache, continue to next digest
+			if foundInCache {
+				continue
+			}
+
+			// Digest was not found in cache, get timestamp
 			ts, err := p.timestamp(token, v)
 			if err != nil {
 				return "", fmt.Errorf("timestamp %x %x: %v",
 					token, v, err)
 			}
 			votes = append(votes, *ts)
+
 			if len(votes) == int(pageSize) {
 				// We have a full page. We're done.
-				break
+				goto cachefinalts
 			}
+		}
+
+		// Cache final votes
+	cachefinalts:
+		err = p.cacheFinalVoteTimestamps(token, votes, t.VotesPage)
+		if err != nil {
+			return "", err
 		}
 
 	default:
