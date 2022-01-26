@@ -52,7 +52,7 @@ func (p *ticketVotePlugin) cacheFinalVoteTimestamps(token []byte, ts []ticketvot
 	return nil
 }
 
-// saveTimestamps saves a slice of vote timestamps to the key-value cache.
+// saveVoteTimestamps saves a slice of vote timestamps to the key-value cache.
 func (p *ticketVotePlugin) saveVoteTimestamps(token []byte, ts []ticketvote.Timestamp, page uint32) error {
 	// Setup the blob entries
 	blobs := make(map[string][]byte, len(ts))
@@ -116,7 +116,7 @@ func (p *ticketVotePlugin) cachedVoteTimestamps(token []byte, page, pageSize uin
 		ts[idx] = t
 	}
 
-	// XXX add debug statement
+	log.Debugf("Retrieved %v cached final vote timestamps", len(ts))
 	return ts, nil
 }
 
@@ -170,7 +170,7 @@ func (p *ticketVotePlugin) cacheFinalAuthTimestamps(token []byte, ts []ticketvot
 	return nil
 }
 
-// saveTimestamps saves a slice of vote timestamps to the key-value cache.
+// saveAuthTimestamps saves a slice of vote timestamps to the key-value cache.
 func (p *ticketVotePlugin) saveAuthTimestamps(token []byte, ts []ticketvote.Timestamp) error {
 	// Setup the blob entries
 	blobs := make(map[string][]byte, len(ts))
@@ -232,7 +232,7 @@ func (p *ticketVotePlugin) cachedAuthTimestamps(token []byte) ([]ticketvote.Time
 		ts[idx] = t
 	}
 
-	// XXX add debug statement
+	log.Debugf("Retrieved %v cached final auth timestamps", len(ts))
 	return ts, nil
 }
 
@@ -280,7 +280,7 @@ func (p *ticketVotePlugin) cacheFinalDetailsTimestamp(token []byte, t ticketvote
 	return nil
 }
 
-// saveTimestamps saves a slice of vote timestamps to the key-value cache.
+// saveDetailsTimestamp saves a slice of vote timestamps to the key-value cache.
 func (p *ticketVotePlugin) saveDetailsTimestamp(token []byte, t ticketvote.Timestamp) error {
 	// Setup the blob entry
 	blobs := make(map[string][]byte, 1)
@@ -332,8 +332,8 @@ func (p *ticketVotePlugin) cachedDetailsTimestamp(token []byte) (*ticketvote.Tim
 			return nil, err
 		}
 
-		// XXX add debug statement
-		// Return decoded timestamp
+		log.Debugf("Retrieved cached vote details for %v",
+			hex.EncodeToString(token))
 		return &t, nil
 	}
 
