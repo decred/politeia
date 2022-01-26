@@ -1863,15 +1863,13 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 	)
 	switch {
 	case t.VotesPage > 0:
-		// Look for final vote timestamps in the key-value store. Caching final
-		// timestamps is necessary to improve the performance which is proportional
-		// to the tree size.
+		// Look for final vote timestamps in the key-value cache
 		cachedVotes, err := p.cachedVoteTimestamps(token, t.VotesPage, pageSize)
 		if err != nil {
 			return "", err
 		}
 
-		// Return a page of vote timestamps
+		// Get all cast vote digests from tstore
 		digests, err := p.tstore.DigestsByDataDesc(token,
 			[]string{dataDescriptorCastVoteDetails})
 		if err != nil {
@@ -1914,7 +1912,7 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 			}
 		}
 
-		// Cache final votes
+		// Cache final vote timestamps
 	cachefinalts:
 		err = p.cacheFinalVoteTimestamps(token, votes, t.VotesPage)
 		if err != nil {
@@ -1925,7 +1923,13 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 		// Return authorization timestamps and the vote details
 		// timestamp.
 
-		// Auth timestamps
+		// Look for final auth timestamps in the key-value cache
+		cachedAuths, err := p.cachedAuthTimestamps(token)
+		if err != nil {
+			return "", err
+		}
+
+		// Get all auth digests from tstore
 		digests, err := p.tstore.DigestsByDataDesc(token,
 			[]string{dataDescriptorAuthDetails})
 		if err != nil {
@@ -1934,12 +1938,34 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 		}
 		auths = make([]ticketvote.Timestamp, 0, len(digests))
 		for _, v := range digests {
+			// Check if current digest timestamp already exists in cache
+			var foundInCache bool
+			for _, t := range cachedAuths {
+				if t.Digest == hex.EncodeToString(v) {
+					// Digest timestamp found, collect it
+					auths = append(auths, t)
+					foundInCache = true
+					break
+				}
+			}
+			// If digest was found in cache, continue to next digest
+			if foundInCache {
+				continue
+			}
+
+			// Digest was not found in cache, get timestamp
 			ts, err := p.timestamp(token, v)
 			if err != nil {
 				return "", fmt.Errorf("timestamp %x %x: %v",
 					token, v, err)
 			}
 			auths = append(auths, *ts)
+		}
+
+		// Cache final auth timestamps
+		err = p.cacheFinalAuthTimestamps(token, auths)
+		if err != nil {
+			return "", err
 		}
 
 		// Vote details timestamp
