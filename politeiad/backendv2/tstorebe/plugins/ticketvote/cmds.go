@@ -1863,6 +1863,8 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 	)
 	switch {
 	case t.VotesPage > 0:
+		// Return a page of vote timestamps
+
 		// Look for final vote timestamps in the key-value cache
 		cachedVotes, err := p.cachedVoteTimestamps(token, t.VotesPage, pageSize)
 		if err != nil {
@@ -1923,6 +1925,8 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 		// Return authorization timestamps and the vote details
 		// timestamp.
 
+		// Auth timestamps
+
 		// Look for final auth timestamps in the key-value cache
 		cachedAuths, err := p.cachedAuthTimestamps(token)
 		if err != nil {
@@ -1969,6 +1973,14 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 		}
 
 		// Vote details timestamp
+
+		// Look for final vote details timestamp in the key-value cache
+		cachedDetails, err := p.cachedDetailsTimestamp(token)
+		if err != nil {
+			return "", err
+		}
+
+		// Get vote details digests from tstore
 		digests, err = p.tstore.DigestsByDataDesc(token,
 			[]string{dataDescriptorVoteDetails})
 		if err != nil {
@@ -1981,12 +1993,31 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 				"got %v, want 1", len(digests))
 		}
 		for _, v := range digests {
-			ts, err := p.timestamp(token, v)
-			if err != nil {
-				return "", fmt.Errorf("timestamp %x %x: %v",
-					token, v, err)
+			// Check if vote details digest timestamp already exists in cache
+			switch {
+			case cachedDetails != nil:
+				if cachedDetails.Digest == hex.EncodeToString(v) {
+					// Digest timestamp found, collect it
+					details = cachedDetails
+				}
+
+			case cachedDetails == nil:
+				// Vote details timestamp was not found in cache, get timestamp
+				ts, err := p.timestamp(token, v)
+				if err != nil {
+					return "", fmt.Errorf("timestamp %x %x: %v",
+						token, v, err)
+				}
+				details = ts
 			}
-			details = ts
+		}
+
+		// Cache final vote details timestamp
+		if details != nil {
+			err = p.cacheFinalDetailsTimestamp(token, *details)
+			if err != nil {
+				return "", err
+			}
 		}
 	}
 

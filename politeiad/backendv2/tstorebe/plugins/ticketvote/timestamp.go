@@ -5,7 +5,9 @@
 package ticketvote
 
 import (
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -84,8 +86,8 @@ func (p *ticketVotePlugin) saveVoteTimestamps(token []byte, ts []ticketvote.Time
 func (p *ticketVotePlugin) cachedVoteTimestamps(token []byte, page, pageSize uint32) ([]ticketvote.Timestamp, error) {
 	// Setup the timestamp keys
 	keys := make([]string, 0, pageSize)
-	for i := uint32(1); i <= pageSize; i++ {
-		key, err := getAuthTimestampKey(token, i)
+	for i := uint32(0); i < pageSize; i++ {
+		key, err := getVoteTimestampKey(token, page, i)
 		if err != nil {
 			return nil, err
 		}
@@ -100,7 +102,7 @@ func (p *ticketVotePlugin) cachedVoteTimestamps(token []byte, page, pageSize uin
 	}
 
 	// Decode the timestamps
-	ts := make([]ticketvote.Timestamp, 0, len(blobs))
+	ts := make([]ticketvote.Timestamp, len(blobs))
 	for k, v := range blobs {
 		var t ticketvote.Timestamp
 		err := json.Unmarshal(v, &t)
@@ -137,7 +139,7 @@ func getVoteTimestampKey(token []byte, page, index uint32) (string, error) {
 func parseVoteTimestampKey(key string) (uint32, error) {
 	s := strings.Split(key, "-")
 	if len(s) != 5 {
-		return 0, errors.Errorf("invalid timestamp key")
+		return 0, errors.Errorf("invalid vote timestamp key")
 	}
 	index, err := strconv.ParseUint(s[4], 10, 64)
 	if err != nil {
@@ -200,7 +202,7 @@ func (p *ticketVotePlugin) saveAuthTimestamps(token []byte, ts []ticketvote.Time
 func (p *ticketVotePlugin) cachedAuthTimestamps(token []byte) ([]ticketvote.Timestamp, error) {
 	// Setup the timestamp keys
 	keys := make([]string, 0, 256)
-	for i := uint32(1); i <= 256; i++ {
+	for i := uint32(0); i < 256; i++ {
 		key, err := getAuthTimestampKey(token, i)
 		if err != nil {
 			return nil, err
@@ -216,7 +218,7 @@ func (p *ticketVotePlugin) cachedAuthTimestamps(token []byte) ([]ticketvote.Time
 	}
 
 	// Decode the timestamps
-	ts := make([]ticketvote.Timestamp, 0, len(blobs))
+	ts := make([]ticketvote.Timestamp, len(blobs))
 	for k, v := range blobs {
 		var t ticketvote.Timestamp
 		err := json.Unmarshal(v, &t)
@@ -251,13 +253,102 @@ func getAuthTimestampKey(token []byte, index uint32) (string, error) {
 func parseAuthTimestampKey(key string) (uint32, error) {
 	s := strings.Split(key, "-")
 	if len(s) != 4 {
-		return 0, errors.Errorf("invalid timestamp key")
+		return 0, errors.Errorf("invalid auth timestamp key")
 	}
 	index, err := strconv.ParseUint(s[3], 10, 64)
 	if err != nil {
 		return 0, err
 	}
 	return uint32(index), nil
+}
+
+// cacheFinalDetailsTimestamp accepts a vote details timestamp, if the given
+// vote details timestamp is final it stores in the key-value store.
+func (p *ticketVotePlugin) cacheFinalDetailsTimestamp(token []byte, t ticketvote.Timestamp) error {
+	// Check whether given timestamp is final
+	if timestampIsFinal(t) {
+		// Store final timestamp in cache
+		err := p.saveDetailsTimestamp(token, t)
+		if err != nil {
+			return err
+		}
+
+		log.Debugf("Cached final vote details timestamp of %v",
+			hex.EncodeToString(token))
+	}
+
+	return nil
+}
+
+// saveTimestamps saves a slice of vote timestamps to the key-value cache.
+func (p *ticketVotePlugin) saveDetailsTimestamp(token []byte, t ticketvote.Timestamp) error {
+	// Setup the blob entry
+	blobs := make(map[string][]byte, 1)
+	k, err := getDetailsTimestampKey(token)
+	if err != nil {
+		return err
+	}
+	b, err := json.Marshal(t)
+	if err != nil {
+		return err
+	}
+	blobs[k] = b
+
+	// Delete exisiting digests
+	err = p.tstore.CacheDel([]string{k})
+	if err != nil {
+		return err
+	}
+
+	// Save the blob entries
+	return p.tstore.CachePut(blobs, false)
+}
+
+// cachedDetailsTimestamp returns cached vote details timestamp if one exist.
+func (p *ticketVotePlugin) cachedDetailsTimestamp(token []byte) (*ticketvote.Timestamp, error) {
+	// Setup the timestamp key
+	key, err := getDetailsTimestampKey(token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the timestamp blob entry
+	blobs, err := p.tstore.CacheGet([]string{key})
+	if err != nil {
+		return nil, err
+	}
+
+	// There should never be more than a one cached vote details
+	if len(blobs) > 1 {
+		return nil, fmt.Errorf("invalid vote details count: "+
+			"got %v, want 1", len(blobs))
+	}
+
+	// Decode the timestamp if one found
+	if len(blobs) > 0 {
+		var t ticketvote.Timestamp
+		err = json.Unmarshal(blobs[key], &t)
+		if err != nil {
+			return nil, err
+		}
+
+		// XXX add debug statement
+		// Return decoded timestamp
+		return &t, nil
+	}
+
+	return nil, nil
+}
+
+// getDetailsTimestampVoteKey returns the key for a auth timestamp in the
+// key-value store cache.
+func getDetailsTimestampKey(token []byte) (string, error) {
+	t, err := util.ShortTokenEncode(token)
+	if err != nil {
+		return "", err
+	}
+	key := strings.Replace(detailsTimestampKey, "{shorttoken}", t, 1)
+	return key, nil
 }
 
 // timestampIsFinal returns whether the timestamp is considered to be final and

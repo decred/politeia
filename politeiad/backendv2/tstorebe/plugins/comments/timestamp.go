@@ -179,7 +179,7 @@ func getTimestampKey(token []byte, commentID uint32) (string, error) {
 func parseTimestampKey(key string) (uint32, error) {
 	s := strings.Split(key, "-")
 	if len(s) != 3 {
-		return 0, errors.Errorf("invalid timestamp key")
+		return 0, errors.Errorf("invalid comment timestamp key")
 	}
 	cid, err := strconv.ParseUint(s[2], 10, 64)
 	if err != nil {
