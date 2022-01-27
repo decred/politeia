@@ -1910,12 +1910,11 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 
 			if len(votes) == int(pageSize) {
 				// We have a full page. We're done.
-				goto cachefinalts
+				break
 			}
 		}
 
 		// Cache final vote timestamps
-	cachefinalts:
 		err = p.cacheFinalVoteTimestamps(token, votes, t.VotesPage)
 		if err != nil {
 			return "", err
