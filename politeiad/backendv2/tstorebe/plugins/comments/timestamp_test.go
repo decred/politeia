@@ -74,3 +74,53 @@ func TestGetTimestampKey(t *testing.T) {
 		})
 	}
 }
+
+func TestParseTimestampKey(t *testing.T) {
+	// Setup tests
+	tests := []struct {
+		name        string
+		cacheKey    string
+		shouldError bool
+		commentID   uint32
+	}{
+		{
+			name:        "success case",
+			cacheKey:    "timestamp-45154fb-8",
+			shouldError: false,
+			commentID:   8,
+		},
+		{
+			name:        "invalid key",
+			cacheKey:    "--",
+			shouldError: true,
+			commentID:   0,
+		},
+	}
+
+	// Run tests
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cid, err := parseTimestampKey(tc.cacheKey)
+			switch {
+			case tc.shouldError && err == nil:
+				// Wanted an error but didn't get one
+				t.Errorf("want error got nil")
+				return
+
+			case !tc.shouldError && err != nil:
+				// Wanted success but got an error
+				t.Errorf("want error nil, got '%v'", err)
+				return
+
+			case !tc.shouldError && err == nil:
+				// Verify result
+				if cid != tc.commentID {
+					// Expected key was not found, error
+					t.Errorf("unexpected comment ID; want: %v, got: %v", tc.commentID,
+						cid)
+				}
+				return
+			}
+		})
+	}
+}
