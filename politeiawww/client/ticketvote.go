@@ -203,7 +203,18 @@ func TicketVoteTimestampsVerify(tr tkv1.TimestampsReply) error {
 	// Verify authorization timestamps
 	for k, v := range tr.Auths {
 		err := TicketVoteTimestampVerify(v)
-		if err != nil {
+		switch {
+		case err == nil:
+			// Timestamp is valid and digest was included in a DCR tx.
+			continue
+
+		case err == backend.ErrNotTimestamped:
+			// Timestamp is valid but digest was not included in a DCR tx,
+			// continue.
+			continue
+
+		default:
+			// Unknown error
 			return fmt.Errorf("verify authorization %v timestamp: %v", k, err)
 		}
 	}
@@ -211,7 +222,16 @@ func TicketVoteTimestampsVerify(tr tkv1.TimestampsReply) error {
 	// Verify vote details timestamp
 	if tr.Details != nil {
 		err := TicketVoteTimestampVerify(*tr.Details)
-		if err != nil {
+		switch {
+		case err == nil:
+			// Timestamp is valid and digest was included in a DCR tx.
+
+		case err == backend.ErrNotTimestamped:
+			// Timestamp is valid but digest was not included in a DCR tx,
+			// continue.
+
+		default:
+			// Unknown error
 			return fmt.Errorf("verify vote details timestamp: %v", err)
 		}
 	}
@@ -219,7 +239,18 @@ func TicketVoteTimestampsVerify(tr tkv1.TimestampsReply) error {
 	// Verify vote timestamps
 	for k, v := range tr.Votes {
 		err := TicketVoteTimestampVerify(v)
-		if err != nil {
+		switch {
+		case err == nil:
+			// Timestamp is valid and digest was included in a DCR tx.
+			continue
+
+		case err == backend.ErrNotTimestamped:
+			// Timestamp is valid but digest was not included in a DCR tx,
+			// continue.
+			continue
+
+		default:
+			// Unknown error
 			return fmt.Errorf("verify vote %v timestamp: %v", k, err)
 		}
 	}
