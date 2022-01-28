@@ -60,18 +60,10 @@ func (p *piv) generateVoteAlarm(token, voteBit string, ctres *pb.CommittedTicket
 	}
 
 	bunches := int(p.cfg.Bunches)
-	duration := p.cfg.voteDuration
-	voteDuration := duration - time.Duration(p.cfg.HoursPrior)*time.Hour
-	vd := time.Duration(p.cfg.HoursPrior) * time.Hour
-	if voteDuration < vd {
-		return nil, fmt.Errorf("not enough time left to trickle "+
-			"votes: %v < %v, use --hoursprior to modify this "+
-			"behavior", voteDuration, vd)
-	}
+	voteDuration := p.cfg.voteDuration
 	fmt.Printf("Total number of votes  : %v\n", len(ctres.TicketAddresses))
 	fmt.Printf("Total number of bunches: %v\n", bunches)
-	fmt.Printf("Total vote duration    : %v\n", duration)
-	fmt.Printf("Duration calculated    : %v\n", voteDuration)
+	fmt.Printf("Vote duration          : %v\n", voteDuration)
 
 	// Initialize bunches
 	tStart := make([]time.Time, bunches)
@@ -120,7 +112,9 @@ func (p *piv) generateVoteAlarm(token, voteBit string, ctres *pb.CommittedTicket
 	return va, nil
 }
 
-func waitRandom(min, max byte) time.Duration {
+// randomDuration returns a randomly selected Duration between the provided
+// min and max (in seconds).
+func randomDuration(min, max byte) time.Duration {
 	var (
 		wait []byte
 		err  error
@@ -138,19 +132,16 @@ func waitRandom(min, max byte) time.Duration {
 		}
 		break
 	}
-	d := time.Duration(wait[0]) * time.Second
-	time.Sleep(d)
-	return d
+	return time.Duration(wait[0]) * time.Second
 }
 
 func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteAlarm) error {
 	voteID++ // make human readable
-	//fmt.Printf("bunchID: %v voterID: %v at: %v\n", bunchID, voteID, va.At)
 
 	// Wait
 	err := WaitUntil(ectx, va.At)
 	if err != nil {
-		return fmt.Errorf("%v bunch %v vote %v failed: %v\n",
+		return fmt.Errorf("%v bunch %v vote %v failed: %v",
 			time.Now(), bunchID, voteID, err)
 	}
 
@@ -159,8 +150,13 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 		var rmsg string
 		if retry != 0 {
 			// Wait between 1 and 17 seconds
-			d := waitRandom(3, 17)
+			d := randomDuration(3, 17)
 			rmsg = fmt.Sprintf("retry %v (%v) ", retry, d)
+			err = WaitFor(ectx, d)
+			if err != nil {
+				return fmt.Errorf("%v bunch %v vote %v failed: %v",
+					time.Now(), bunchID, voteID, err)
+			}
 		}
 
 		fmt.Printf("%v voting bunch %v vote %v %v%v\n",
@@ -176,7 +172,6 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 			err := p.jsonLog(failedJournal, va.Vote.Token, b, e)
 			if err != nil {
 				return fmt.Errorf("0 jsonLog: %v", err)
-
 			}
 
 			// Retry
@@ -186,16 +181,11 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 			// Unrecoverable error
 			return fmt.Errorf("unrecoverable error: %v",
 				err)
-		} else {
-			// XXX TODO(lukebp) please make this a pointer and only
-			// evaluate these errors when it is set. For now we
-			// have to treat VoteErrorInvalid as valid because of
-			// this.
-			switch vr.ErrorCode {
-			// Success
-			case tkv1.VoteErrorInvalid:
-				// XXX treat as success for now
+		}
 
+		// Evaluate errors when ErrorCode is set
+		if vr.ErrorCode != nil {
+			switch *vr.ErrorCode {
 			// Silently ignore.
 			case tkv1.VoteErrorTicketAlreadyVoted:
 				// This happens during network errors. Since
@@ -257,23 +247,27 @@ func (p *piv) voteTicket(ectx context.Context, bunchID, voteID, of int, va voteA
 
 				return nil
 			}
-
-			// Success, log it and exit
-			err = p.jsonLog(successJournal, va.Vote.Token, vr)
-			if err != nil {
-				return fmt.Errorf("3 jsonLog: %v", err)
-			}
-
-			// All done with this vote
-			// Vote completed
-			p.Lock()
-			p.ballotResults = append(p.ballotResults, *vr)
-			fmt.Printf("%v finished bunch %v vote %v -- "+
-				"total progress %v/%v\n", time.Now(), bunchID,
-				voteID, len(p.ballotResults), cap(p.ballotResults))
-			p.Unlock()
-			return nil
 		}
+
+		// Success, log it and exit
+		err = p.jsonLog(successJournal, va.Vote.Token, vr)
+		if err != nil {
+			return fmt.Errorf("3 jsonLog: %v", err)
+		}
+
+		// All done with this vote
+		// Vote completed
+		p.Lock()
+		p.ballotResults = append(p.ballotResults, *vr)
+
+		// This is required to be in the lock to prevent a
+		// ballotResults race
+		fmt.Printf("%v finished bunch %v vote %v -- "+
+			"total progress %v/%v\n", time.Now(), bunchID,
+			voteID, len(p.ballotResults), cap(p.ballotResults))
+		p.Unlock()
+
+		return nil
 	}
 
 	// Not reached
@@ -306,6 +300,7 @@ func randomTime(d time.Duration) (time.Time, time.Time, error) {
 }
 
 func (p *piv) alarmTrickler(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) error {
+	// Generate work queue
 	votes, err := p.generateVoteAlarm(token, voteBit, ctres, smr)
 	if err != nil {
 		return err
@@ -316,6 +311,9 @@ func (p *piv) alarmTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 	if err != nil {
 		return err
 	}
+
+	// Launch the voting stats handler
+	go p.statsHandler()
 
 	// Launch voting go routines
 	eg, ectx := errgroup.WithContext(p.ctx)

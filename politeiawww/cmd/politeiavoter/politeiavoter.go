@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020 The Decred developers
+// Copyright (c) 2018-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,7 +13,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -51,6 +50,14 @@ import (
 )
 
 const (
+	cmdInventory = "inventory"
+	cmdVote      = "vote"
+	cmdTally     = "tally"
+	cmdVerify    = "verify"
+	cmdHelp      = "help"
+)
+
+const (
 	failedJournal  = "failed.json"
 	successJournal = "success.json"
 	workJournal    = "work.json"
@@ -63,21 +70,6 @@ func generateSeed() (int64, error) {
 		return 0, err
 	}
 	return new(big.Int).SetBytes(seedBytes[:]).Int64(), nil
-}
-
-func usage() {
-	fmt.Fprintf(os.Stderr, "usage: politeiavoter [flags] <action> [arguments]\n")
-	fmt.Fprintf(os.Stderr, " flags:\n")
-	flag.PrintDefaults()
-	fmt.Fprintf(os.Stderr, "\n actions:\n")
-	fmt.Fprintf(os.Stderr, "  inventory - Retrieve all proposals"+
-		" that are being voted on\n")
-	fmt.Fprintf(os.Stderr, "  vote      - Vote on a proposal\n")
-	fmt.Fprintf(os.Stderr, "  tally     - Tally votes on a proposal\n")
-	fmt.Fprintf(os.Stderr, "  verify    - Verify votes on a proposal\n")
-	//fmt.Fprintf(os.Stderr, "  startvote          - Instruct vote to start "+
-	//	"(admin only)\n")
-	fmt.Fprintf(os.Stderr, "\n")
 }
 
 // walletPassphrase returns the wallet passphrase from the config if one was
@@ -624,6 +616,25 @@ func (p *piv) records(tokens []string, serverPubKey string) (*rcv1.RecordsReply,
 	return &rsr, nil
 }
 
+// votePolicy sends a ticketvote API Policy request and returns the reply.
+func (p *piv) votePolicy() (*tkv1.PolicyReply, error) {
+	// Send request
+	responseBody, err := p.makeRequest(http.MethodPost, tkv1.APIRoute,
+		tkv1.RoutePolicy, tkv1.Policy{})
+	if err != nil {
+		return nil, err
+	}
+
+	var pr tkv1.PolicyReply
+	err = json.Unmarshal(responseBody, &pr)
+	if err != nil {
+		return nil, fmt.Errorf("Could not unmarshal RecordsReply: %v",
+			err)
+	}
+
+	return &pr, nil
+}
+
 func (p *piv) inventory() error {
 	// Get server public key to verify replies.
 	version, err := p.getVersion()
@@ -631,9 +642,16 @@ func (p *piv) inventory() error {
 		return err
 	}
 	serverPubKey := version.PubKey
+
 	// Inventory route is paginated, therefore we keep fetching
 	// until we receive a patch with number of records smaller than the
-	// ticketvote's declared page size.
+	// ticketvote's declared page size. The page size is retrieved from
+	// the ticketvote API Policy route.
+	vp, err := p.votePolicy()
+	if err != nil {
+		return err
+	}
+	pageSize := vp.InventoryPageSize
 	page := uint32(1)
 	var tokens []string
 	for {
@@ -646,7 +664,7 @@ func (p *piv) inventory() error {
 		}
 		pageTokens := ir.Vetted[tkv1.VoteStatuses[tkv1.VoteStatusStarted]]
 		tokens = append(tokens, pageTokens...)
-		if uint32(len(pageTokens)) < tkv1.InventoryPageSize {
+		if uint32(len(pageTokens)) < pageSize {
 			break
 		}
 		page++
@@ -975,22 +993,20 @@ func (p *piv) _vote(token, voteID string) error {
 		return fmt.Errorf("signature failed index %v: %v", k, v.Error)
 	}
 
+	// Trickle in the votes if specified
 	if p.cfg.Trickle {
-		go p.statsHandler()
-
-		// Calculate vote duration if not set
-		if p.cfg.voteDuration.Seconds() == 0 {
-			blocksLeft := int64(vs.EndBlockHeight) - int64(bestBlock)
-			if blocksLeft < int64(p.cfg.HoursPrior*p.cfg.blocksPerHour) {
-				return fmt.Errorf("less than twelve hours " +
-					"left to vote, please set " +
-					"--voteduration manually")
-			}
-			p.cfg.voteDuration = activeNetParams.TargetTimePerBlock *
-				(time.Duration(blocksLeft) -
-					time.Duration(p.cfg.HoursPrior*p.cfg.blocksPerHour))
+		// Setup the trickler vote duration
+		var (
+			blocksLeft     = int64(vs.EndBlockHeight) - int64(bestBlock)
+			blockTime      = activeNetParams.TargetTimePerBlock
+			timeLeftInVote = time.Duration(blocksLeft) * blockTime
+		)
+		err = p.setupVoteDuration(timeLeftInVote)
+		if err != nil {
+			return err
 		}
 
+		// Trickle votes
 		return p.alarmTrickler(token, voteBit, ctres, smr)
 	}
 
@@ -1033,6 +1049,42 @@ func (p *piv) _vote(token, voteID string) error {
 	return nil
 }
 
+// setupVoteDuration sets up the duration that will be used for trickling
+// votes. The user can either set a duration manually using the --voteduration
+// setting or this function will calculate a duration. The calculated duration
+// is the remaining time left in the vote minus the --hoursprior setting.
+func (p *piv) setupVoteDuration(timeLeftInVote time.Duration) error {
+	switch {
+	case p.cfg.voteDuration.Seconds() > 0:
+		// A vote duration was provided
+		if p.cfg.voteDuration > timeLeftInVote {
+			return fmt.Errorf("the provided --voteduration of %v is "+
+				"greater than the remaining time in the vote of %v",
+				p.cfg.voteDuration, timeLeftInVote)
+		}
+
+	case p.cfg.voteDuration.Seconds() == 0:
+		// A vote duration was not provided. The vote duration is set to
+		// the remaining time in the vote minus the hours prior setting.
+		p.cfg.voteDuration = timeLeftInVote - p.cfg.hoursPrior
+
+		// Force the user to manually set the vote duration when the
+		// calculated duration is under 24h.
+		if p.cfg.voteDuration < (24 * time.Hour) {
+			return fmt.Errorf("there is only %v left in the vote; when "+
+				"the remaining time is this low you must use --voteduration "+
+				"to manually set the duration that will be used to trickle "+
+				"in your votes, example --voteduration=6h", timeLeftInVote)
+		}
+
+	default:
+		// Should not be possible
+		return fmt.Errorf("invalid vote duration %v", p.cfg.voteDuration)
+	}
+
+	return nil
+}
+
 func (p *piv) vote(args []string) error {
 	if len(args) != 2 {
 		return fmt.Errorf("vote: not enough arguments %v", args)
@@ -1041,15 +1093,31 @@ func (p *piv) vote(args []string) error {
 	err := p._vote(args[0], args[1])
 	// we return err after printing details
 
-	// Verify vote replies
+	// Verify vote replies. Already voted errors are not
+	// considered to be failures because they occur when
+	// a network error or dropped client connection causes
+	// politeiavoter to incorrectly think that the first
+	// attempt to cast the vote failed. politeiavoter will
+	// attempt to retry the vote that it has already
+	// successfully cast, resulting in the already voted
+	// error.
+	var alreadyVoted int
 	failedReceipts := make([]tkv1.CastVoteReply, 0,
 		len(p.ballotResults))
 	for _, v := range p.ballotResults {
-		if v.ErrorContext != "" {
-			failedReceipts = append(failedReceipts, v)
+		if v.ErrorCode == nil {
 			continue
 		}
+		if *v.ErrorCode == tkv1.VoteErrorTicketAlreadyVoted {
+			alreadyVoted++
+			continue
+		}
+		failedReceipts = append(failedReceipts, v)
 	}
+
+	log.Debugf("%v already voted errors found; these are "+
+		"counted as being successful", alreadyVoted)
+
 	fmt.Printf("Votes succeeded: %v\n", len(p.ballotResults)-
 		len(failedReceipts))
 	fmt.Printf("Votes failed   : %v\n", len(failedReceipts))
@@ -1640,14 +1708,28 @@ func (p *piv) verify(args []string) error {
 	return nil
 }
 
+func (p *piv) help(command string) {
+	switch command {
+	case cmdInventory:
+		fmt.Fprintf(os.Stdout, "%s\n", inventoryHelpMsg)
+	case cmdVote:
+		fmt.Fprintf(os.Stdout, "%s\n", voteHelpMsg)
+	case cmdTally:
+		fmt.Fprintf(os.Stdout, "%s\n", tallyHelpMsg)
+	case cmdVerify:
+		fmt.Fprintf(os.Stdout, "%s\n", verifyHelpMsg)
+	}
+}
+
 func _main() error {
 	cfg, args, err := loadConfig()
 	if err != nil {
 		return err
 	}
 	if len(args) == 0 {
-		usage()
-		return fmt.Errorf("must provide action")
+		fmt.Fprintln(os.Stderr, "No command specified")
+		fmt.Fprintln(os.Stderr, listCmdMessage)
+		os.Exit(1)
 	}
 	action := args[0]
 
@@ -1664,26 +1746,38 @@ func _main() error {
 	// Close GRPC
 	defer c.conn.Close()
 
-	// Get block height to validate GRPC creds
-	ar, err := c.wallet.Accounts(c.ctx, &pb.AccountsRequest{})
-	if err != nil {
-		return err
-	}
-	log.Debugf("Current wallet height: %v", ar.CurrentBlockHeight)
-
-	// Scan through command line arguments.
-
+	// Validate command
 	switch action {
-	case "inventory":
-		err = c.inventory()
-	case "tally":
-		err = c.tally(args[1:])
-	case "vote":
-		err = c.vote(args[1:])
-	case "verify":
-		err = c.verify(args[1:])
+	case cmdInventory, cmdTally, cmdVote:
+		// These commands require a connection to a dcrwallet instance. Get
+		// block height to validate GPRC creds.
+		ar, err := c.wallet.Accounts(c.ctx, &pb.AccountsRequest{})
+		if err != nil {
+			return err
+		}
+		log.Debugf("Current wallet height: %v", ar.CurrentBlockHeight)
+
+	case cmdVerify, cmdHelp:
+		// valid command, continue
+
 	default:
-		err = fmt.Errorf("invalid action: %v", action)
+		fmt.Fprintf(os.Stderr, "Unrecognized command %q\n", action)
+		fmt.Fprintln(os.Stderr, listCmdMessage)
+		os.Exit(1)
+	}
+
+	// Run command
+	switch action {
+	case cmdInventory:
+		err = c.inventory()
+	case cmdVote:
+		err = c.vote(args[1:])
+	case cmdTally:
+		err = c.tally(args[1:])
+	case cmdVerify:
+		err = c.verify(args[1:])
+	case cmdHelp:
+		c.help(args[1])
 	}
 
 	return err

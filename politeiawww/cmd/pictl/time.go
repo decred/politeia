@@ -9,44 +9,45 @@ import (
 )
 
 const (
-	// timeFormat contains the reference time format that is used
-	// throughout this CLI tool. This format is how timestamps are
-	// printed when we want to print the human readable version.
+	// dateAndTimeFormat contains the reference time format that is used
+	// to print a human readable date and time.
 	//
-	// Mon Jan 2 15:04:05 2006
-	timeFormat = "01/02/2006 3:04pm"
+	// Reference date: "Mon Jan 2 15:04:05 2006"
+	dateAndTimeFormat = "2 Jan 2006 3:04:05pm"
+
+	// userInputDateFormat contains the reference time format that is used to
+	// parse user input dates.
+	//
+	// Reference date: "Mon Jan 2 15:04:05 2006"
+	userInputDateFormat = "01/02/2006"
 
 	// locationName is the name of the time zone location that is used
 	// in the human readable timestamps.
 	locationName = "Local"
-
-	// userTimeFormat contains the reference time format that is expected
-	// from the user when a date value is provided.
-	//
-	// Jan 2 2006
-	userTimeFormat = "01/02/2006"
 )
 
-// timestampFromUnix converts a unix timestamp into a human readable timestamp
-// string formatted according to the timeFormat global variable.
-func timestampFromUnix(unixTime int64) string {
+// dateAndTimeFromUnix converts a unix timestamp into a human readable
+// timestamp string formatted according to the dateAndTime global variable.
+func dateAndTimeFromUnix(unixTime int64) string {
 	t := time.Unix(unixTime, 0)
-	return t.Format(timeFormat)
+	return t.Format(dateAndTimeFormat)
 }
 
+// dateFromUnix coverts a unix timestamp into a human readable timestamp string
+// formatted according to the userInputDateFormat global variable.
 func dateFromUnix(unixTime int64) string {
 	t := time.Unix(unixTime, 0)
-	return t.Format(userTimeFormat)
+	return t.Format(userInputDateFormat)
 }
 
-// unixFromTimestamp converts a human readable timestamp string formatted
-// according to the timeFormat global variable into a unix timestamp.
-func unixFromTimestamp(timestamp string) (int64, error) {
+// unixFromDate converts a human readable timestamp string formatted according
+// to the userInputDateFormat global variable into a unix timestamp.
+func unixFromDate(timestamp string) (int64, error) {
 	location, err := time.LoadLocation(locationName)
 	if err != nil {
 		return 0, err
 	}
-	t, err := time.ParseInLocation(userTimeFormat, timestamp, location)
+	t, err := time.ParseInLocation(userInputDateFormat, timestamp, location)
 	if err != nil {
 		return 0, err
 	}

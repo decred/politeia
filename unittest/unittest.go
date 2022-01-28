@@ -1,12 +1,15 @@
 // Copyright (c) 2021 The Decred developers
-// Use of this source code is governed by an ISC license that can be found in
-// the LICENSE file.
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
 
 package unittest
 
 import (
 	"fmt"
 	"reflect"
+	"strings"
+
+	"github.com/go-test/deep"
 )
 
 // TestGenericConstMap tests a map of an error constant type and verifies that
@@ -48,4 +51,26 @@ func TestGenericConstMap(errorsMap interface{}, lastError uint64) error {
 	}
 
 	return nil
+}
+
+// DeepEqual checks for deep equality between the provided structures. An empty
+// string is returned if the structures are deeply equal. A pretty printed
+// string that contains the differences is returned if the structures are not
+// deeply equal. The equality check goes a max of 10 levels deep.
+func DeepEqual(got, want interface{}) string {
+	diffs := deep.Equal(got, want)
+	if diffs == nil {
+		// got and want are deeply equal
+		return ""
+	}
+
+	// Not deeply equal. Pretty print the diffs.
+	var b strings.Builder
+	b.WriteString("value are not deeply equal; got != want: \n")
+	for _, v := range diffs {
+		b.WriteString(v)
+		b.WriteString("\n")
+	}
+
+	return b.String()
 }

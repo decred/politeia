@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	flags "github.com/jessevdk/go-flags"
 
@@ -84,6 +85,7 @@ type pictl struct {
 	// Comments commands
 	CommentsPolicy    cmdCommentPolicy     `command:"commentpolicy"`
 	CommentNew        cmdCommentNew        `command:"commentnew"`
+	CommentEdit       cmdCommentEdit       `command:"commentedit"`
 	CommentVote       cmdCommentVote       `command:"commentvote"`
 	CommentCensor     cmdCommentCensor     `command:"commentcensor"`
 	CommentCount      cmdCommentCount      `command:"commentcount"`
@@ -121,13 +123,15 @@ type pictl struct {
 }
 
 const helpMsg = `Application Options:
+  -V, --version     Display version information and exit
       --appdata=    Path to application home directory
       --host=       politeiawww host
-  -j, --json        Print raw JSON output
-      --version     Display version information and exit
+      --httscert    politeiawww https cert file path
       --skipverify  Skip verifying the server's certificate chain and host name
+  -j, --json        Print raw JSON output
   -v, --verbose     Print verbose output
       --silent      Suppress all output
+      --timer       Print command execution time stats
 
 Help commands
   help                         Print detailed help message for a command
@@ -179,6 +183,7 @@ Record commands
 Comment commands
   commentpolicy                (public) Get the comments api policy
   commentnew                   (user)   Submit a new comment
+  commentedit                  (user)   Edit a comment
   commentvote                  (user)   Upvote/downvote a comment
   commentcensor                (admin)  Censor a comment
   commentcount                 (public) Get the number of comments
@@ -247,6 +252,9 @@ func _main() error {
 		return fmt.Errorf("parse help flag: %v", err)
 	}
 
+	// Setup timer stats
+	startTime := time.Now()
+
 	// Parse CLI args and execute command
 	parser = flags.NewParser(&pictl{Config: *cfg}, flags.Default)
 	_, err = parser.Parse()
@@ -255,6 +263,15 @@ func _main() error {
 		// have already printed the error to os.Stdout. Exit with an
 		// error code.
 		os.Exit(1)
+	}
+
+	// Print timer stats
+	if cfg.Timer {
+		stopTime := time.Now()
+		printf("---Timer Stats---\n")
+		printf("  Start  : %v\n", dateAndTimeFromUnix(startTime.Unix()))
+		printf("  Stop   : %v\n", dateAndTimeFromUnix(stopTime.Unix()))
+		printf("  Elapsed: %v\n", stopTime.Sub(startTime))
 	}
 
 	return nil

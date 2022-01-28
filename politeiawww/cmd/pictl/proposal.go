@@ -20,6 +20,7 @@ import (
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
+	pi "github.com/decred/politeia/politeiad/plugins/pi"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
@@ -78,8 +79,8 @@ func printProposalFiles(files []rcv1.File) error {
 			printf("  Name      : %v\n", pm.Name)
 			printf("  Domain    : %v\n", pm.Domain)
 			printf("  Amount    : %v\n", dollars(int64(pm.Amount)))
-			printf("  Start Date: %v\n", timestampFromUnix(pm.StartDate))
-			printf("  End Date  : %v\n", timestampFromUnix(pm.EndDate))
+			printf("  Start Date: %v\n", dateAndTimeFromUnix(pm.StartDate))
+			printf("  End Date  : %v\n", dateAndTimeFromUnix(pm.EndDate))
 		case isRFP:
 			printf("  Name  : %v\n", pm.Name)
 			printf("  Domain: %v\n", pm.Domain)
@@ -93,7 +94,7 @@ func printProposalFiles(files []rcv1.File) error {
 			printf("  LinkTo: %v\n", vm.LinkTo)
 		}
 		if vm.LinkBy != 0 {
-			printf("  LinkBy: %v\n", timestampFromUnix(vm.LinkBy))
+			printf("  LinkBy: %v\n", dateAndTimeFromUnix(vm.LinkBy))
 		}
 	}
 
@@ -105,7 +106,7 @@ func printProposal(r rcv1.Record) error {
 	printf("Version  : %v\n", r.Version)
 	printf("State    : %v\n", rcv1.RecordStates[r.State])
 	printf("Status   : %v\n", rcv1.RecordStatuses[r.Status])
-	printf("Timestamp: %v\n", timestampFromUnix(r.Timestamp))
+	printf("Timestamp: %v\n", dateAndTimeFromUnix(r.Timestamp))
 	printf("Username : %v\n", r.Username)
 	printf("Merkle   : %v\n", r.CensorshipRecord.Merkle)
 	printf("Receipt  : %v\n", r.CensorshipRecord.Signature)
@@ -134,7 +135,7 @@ func printBillingStatusChange(bsc piv1.BillingStatusChange) {
 	printf("  PublicKey: %v\n", bsc.PublicKey)
 	printf("  Signature: %v\n", bsc.Signature)
 	printf("  Receipt  : %v\n", bsc.Receipt)
-	printf("  Timestamp: %v\n", timestampFromUnix(bsc.Timestamp))
+	printf("  Timestamp: %v\n", dateAndTimeFromUnix(bsc.Timestamp))
 }
 
 // indexFileRandom returns a proposal index file filled with random data.
@@ -274,4 +275,29 @@ func signedMerkleRoot(files []rcv1.File, fid *identity.FullIdentity) (string, er
 	mr := hex.EncodeToString(m[:])
 	sig := fid.SignMessage([]byte(mr))
 	return hex.EncodeToString(sig[:]), nil
+}
+
+// parseProposalStatus parses a pi PropStatusT from the provided string. A
+// PropStatusInvalid is returned if the provided string does not correspond to
+// a valid proposal status.
+func parseProposalStatus(status string) pi.PropStatusT {
+	switch pi.PropStatusT(status) {
+	// The following are valid proposal statuses
+	case pi.PropStatusUnvetted,
+		pi.PropStatusUnvettedAbandoned,
+		pi.PropStatusUnvettedCensored,
+		pi.PropStatusUnderReview,
+		pi.PropStatusAbandoned,
+		pi.PropStatusCensored,
+		pi.PropStatusVoteAuthorized,
+		pi.PropStatusVoteStarted,
+		pi.PropStatusApproved,
+		pi.PropStatusRejected,
+		pi.PropStatusActive,
+		pi.PropStatusCompleted,
+		pi.PropStatusClosed:
+	default:
+		return pi.PropStatusInvalid
+	}
+	return pi.PropStatusT(status)
 }

@@ -276,10 +276,13 @@ func (t *TicketVote) HandleTimestamps(w http.ResponseWriter, r *http.Request) {
 func New(cfg *config.Config, pdc *pdclient.Client, s *sessions.Sessions, e *events.Manager, plugins []pdv2.Plugin) (*TicketVote, error) {
 	// Parse plugin settings
 	var (
-		linkByPeriodMin int64
-		linkByPeriodMax int64
-		voteDurationMin uint32
-		voteDurationMax uint32
+		linkByPeriodMin    int64
+		linkByPeriodMax    int64
+		voteDurationMin    uint32
+		voteDurationMax    uint32
+		summariesPageSize  uint32
+		inventoryPageSize  uint32
+		timestampsPageSize uint32
 	)
 	for _, p := range plugins {
 		if p.ID != ticketvote.PluginID {
@@ -294,24 +297,49 @@ func New(cfg *config.Config, pdc *pdclient.Client, s *sessions.Sessions, e *even
 					return nil, err
 				}
 				linkByPeriodMin = i
+
 			case ticketvote.SettingKeyLinkByPeriodMax:
 				i, err := strconv.ParseInt(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				linkByPeriodMax = i
+
 			case ticketvote.SettingKeyVoteDurationMin:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				voteDurationMin = uint32(u)
+
 			case ticketvote.SettingKeyVoteDurationMax:
 				u, err := strconv.ParseUint(v.Value, 10, 64)
 				if err != nil {
 					return nil, err
 				}
 				voteDurationMax = uint32(u)
+
+			case ticketvote.SettingKeySummariesPageSize:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				summariesPageSize = uint32(u)
+
+			case ticketvote.SettingKeyInventoryPageSize:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				inventoryPageSize = uint32(u)
+
+			case ticketvote.SettingKeyTimestampsPageSize:
+				u, err := strconv.ParseUint(v.Value, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				timestampsPageSize = uint32(u)
+
 			default:
 				log.Warnf("Unknown plugin setting %v; Skipping...", v.Key)
 			}
@@ -332,6 +360,15 @@ func New(cfg *config.Config, pdc *pdclient.Client, s *sessions.Sessions, e *even
 	case voteDurationMax == 0:
 		return nil, fmt.Errorf("plugin setting not found: %v",
 			ticketvote.SettingKeyVoteDurationMax)
+	case summariesPageSize == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			ticketvote.SettingKeySummariesPageSize)
+	case inventoryPageSize == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			ticketvote.SettingKeyInventoryPageSize)
+	case timestampsPageSize == 0:
+		return nil, fmt.Errorf("plugin setting not found: %v",
+			ticketvote.SettingKeyTimestampsPageSize)
 	}
 
 	return &TicketVote{
@@ -344,9 +381,9 @@ func New(cfg *config.Config, pdc *pdclient.Client, s *sessions.Sessions, e *even
 			LinkByPeriodMax:    linkByPeriodMax,
 			VoteDurationMin:    voteDurationMin,
 			VoteDurationMax:    voteDurationMax,
-			SummariesPageSize:  v1.SummariesPageSize,
-			InventoryPageSize:  v1.InventoryPageSize,
-			TimestampsPageSize: v1.VoteTimestampsPageSize,
+			SummariesPageSize:  summariesPageSize,
+			InventoryPageSize:  inventoryPageSize,
+			TimestampsPageSize: timestampsPageSize,
 		},
 	}, nil
 }

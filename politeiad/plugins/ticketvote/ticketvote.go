@@ -41,6 +41,18 @@ const (
 	// SettingKeyVoteDurationMax is the plugin setting key for the
 	// SettingVoteDurationMax plugin setting.
 	SettingKeyVoteDurationMax = "votedurationmax"
+
+	// SettingKeySummariesPageSize is the plugin setting key for the
+	// SettingSummariesPageSize plugin setting.
+	SettingKeySummariesPageSize = "summariespagesize"
+
+	// SettingKeyInventoryPageSize is the plugin setting key for the
+	// SettingInventoryPageSize plugin setting.
+	SettingKeyInventoryPageSize = "inventorypagesize"
+
+	// SettingKeyTimestampsPageSize is the plugin setting key for the
+	// SettingTimestampsPageSize plugin setting.
+	SettingKeyTimestampsPageSize = "timestampspagesize"
 )
 
 // Plugin setting default values. These can be overridden by providing a plugin
@@ -84,6 +96,18 @@ const (
 	// SettingTestNetVoteDurationMax is the default maximum vote
 	// duration on testnet in blocks.
 	SettingTestNetVoteDurationMax uint32 = 4032
+
+	// SettingSummariesPageSize is the default maximum number of
+	// vote summaries that can be requested at any one time.
+	SettingSummariesPageSize uint32 = 5
+
+	// SettingInventoryPageSize is the default maximum number of tokens
+	// that will be returned for any single status in an InventoryReply.
+	SettingInventoryPageSize uint32 = 20
+
+	// SettingTimestampsPageSize is the default maximum number of comment
+	// timestamps that can be requested at any one time.
+	SettingTimestampsPageSize uint32 = 100
 )
 
 // ErrorCodeT represents and error that is caused by the user.
@@ -497,8 +521,8 @@ type CastVoteReply struct {
 
 	// The follwing fields will only be present if an error occurred
 	// while attempting to cast the vote.
-	ErrorCode    VoteErrorT `json:"errorcode,omitempty"`
-	ErrorContext string     `json:"errorcontext,omitempty"`
+	ErrorCode    *VoteErrorT `json:"errorcode,omitempty"`
+	ErrorContext string      `json:"errorcontext,omitempty"`
 }
 
 // CastBallot casts a ballot of votes. A ballot can only contain votes for a
@@ -629,12 +653,6 @@ type SubmissionsReply struct {
 	Submissions []string `json:"submissions"`
 }
 
-const (
-	// InventoryPageSize is the maximum number of tokens that will be
-	// returned for any single status in an InventoryReply.
-	InventoryPageSize uint32 = 20
-)
-
 // Inventory requests the tokens of public records in the inventory categorized
 // by vote status.
 //
@@ -695,17 +713,6 @@ type Timestamp struct {
 	MerkleRoot string  `json:"merkleroot"`
 	Proofs     []Proof `json:"proofs"`
 }
-
-const (
-	// VoteTimestampsPageSize is the maximum number of vote timestamps
-	// that will be returned for any single request. A vote timestamp
-	// is ~2000 bytes so a page of 100 votes will only be 0.2MB, but
-	// the bottleneck on this call is performance, not size. Its
-	// expensive to retrieve a large number of inclusion proofs from
-	// trillian. A 100 timestamps request will take ~1 second to
-	// complete.
-	VoteTimestampsPageSize uint32 = 100
-)
 
 // Timestamps requests the timestamps for a ticket vote.
 //

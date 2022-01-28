@@ -105,6 +105,8 @@ func (c *cmdHelp) Execute(args []string) error {
 		fmt.Printf("%s\n", commentPolicyHelpMsg)
 	case "commentnew":
 		fmt.Printf("%s\n", commentNewHelpMsg)
+	case "commentedit":
+		fmt.Printf("%s\n", commentEditHelpMsg)
 	case "commentvote":
 		fmt.Printf("%s\n", commentVoteHelpMsg)
 	case "commentcensor":

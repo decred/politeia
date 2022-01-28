@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -19,6 +18,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -219,20 +219,20 @@ func (p *commentsPlugin) comments(token []byte, ridx recordIndex, commentIDs []u
 	// Get comment add records
 	adds, err := p.commentAdds(token, digestAdds)
 	if err != nil {
-		return nil, fmt.Errorf("commentAdds: %v", err)
+		return nil, errors.Errorf("commentAdds: %v", err)
 	}
 	if len(adds) != len(digestAdds) {
-		return nil, fmt.Errorf("wrong comment adds count; got %v, want %v",
+		return nil, errors.Errorf("wrong comment adds count; got %v, want %v",
 			len(adds), len(digestAdds))
 	}
 
 	// Get comment del records
 	dels, err := p.commentDels(token, digestDels)
 	if err != nil {
-		return nil, fmt.Errorf("commentDels: %v", err)
+		return nil, errors.Errorf("commentDels: %v", err)
 	}
 	if len(dels) != len(digestDels) {
-		return nil, fmt.Errorf("wrong comment dels count; got %v, want %v",
+		return nil, errors.Errorf("wrong comment dels count; got %v, want %v",
 			len(dels), len(digestDels))
 	}
 
@@ -242,9 +242,15 @@ func (p *commentsPlugin) comments(token []byte, ridx recordIndex, commentIDs []u
 		c := convertCommentFromCommentAdd(v)
 		cidx, ok := ridx.Comments[c.CommentID]
 		if !ok {
-			return nil, fmt.Errorf("comment index not found %v", c.CommentID)
+			return nil, errors.Errorf("comment index not found %v", c.CommentID)
 		}
 		c.Downvotes, c.Upvotes = voteScore(cidx)
+		// Populate creation timestamp
+		c.CreatedAt, err = p.commentCreationTimestamp(c, cidx)
+		if err != nil {
+			return nil, err
+		}
+
 		cs[v.CommentID] = c
 	}
 	for _, v := range dels {
@@ -253,6 +259,29 @@ func (p *commentsPlugin) comments(token []byte, ridx recordIndex, commentIDs []u
 	}
 
 	return cs, nil
+}
+
+// commentCreationTimestamp accepts the latest version of a comment with the
+// comment index , and it returns the comment's creation timestamp.
+func (p *commentsPlugin) commentCreationTimestamp(c comments.Comment, cidx commentIndex) (int64, error) {
+	// If comment was not edited, then the comment creation timestamp is
+	// equal to the first version's timestamp.
+	if c.Version == 1 {
+		return c.Timestamp, nil
+	}
+
+	// If comment was edited, we need to get the first version of the
+	// comment in order to determine the creation timestamp.
+	b, err := tokenDecode(c.Token)
+	if err != nil {
+		return 0, err
+	}
+	cf, err := p.commentFirstVersion(b, c.CommentID, cidx)
+	if err != nil {
+		return 0, err
+	}
+
+	return cf.Timestamp, nil
 }
 
 // comment returns the latest version of a comment.
@@ -306,6 +335,14 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		}, nil
 	}
 
+	// Look for final timestamps in the key-value store. Caching final timestamps
+	// is necessary to improve the performance which is proportional to the tree
+	// size.
+	cts, err := p.cachedTimestamps(token, commentIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	// Get record state
 	state, err := p.tstore.RecordState(token)
 	if err != nil {
@@ -319,7 +356,7 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 	}
 
 	// Get timestamps for each comment ID
-	cts := make(map[uint32]comments.CommentTimestamp, len(commentIDs))
+	r := make(map[uint32]comments.CommentTimestamp, len(commentIDs))
 	for _, cid := range commentIDs {
 		cidx, ok := ridx.Comments[cid]
 		if !ok {
@@ -327,9 +364,31 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 			continue
 		}
 
+		// Get cached comment timestamp associated with current comment ID if one
+		// exists, nil otherwise.
+		ct := cts[cid]
+
 		// Get comment add timestamps
 		adds := make([]comments.Timestamp, 0, len(cidx.Adds))
 		for _, v := range cidx.Adds {
+			// Check if the comment add digest timestamp is final and already exists
+			// in cache.
+			var t *comments.Timestamp
+			if ct != nil {
+				for _, at := range ct.Adds {
+					if at.Digest == hex.EncodeToString(v) {
+						t = &at
+					}
+				}
+			}
+			if t != nil {
+				// Cached timestamp found, collect it and continue to next comment
+				// add digest.
+				adds = append(adds, *t)
+				continue
+			}
+
+			// Comment add digest was not found in cache, get timestamp
 			ts, err := p.timestamp(token, v)
 			if err != nil {
 				return nil, err
@@ -341,11 +400,28 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		// comment has been deleted.
 		var del *comments.Timestamp
 		if cidx.Del != nil {
-			ts, err := p.timestamp(token, cidx.Del)
-			if err != nil {
-				return nil, err
+			// Check if the comment del digest timestamp is final and already exists
+			// in cache.
+			var t *comments.Timestamp
+			if ct != nil {
+				if ct.Del != nil && ct.Del.Digest == hex.EncodeToString(cidx.Del) {
+					t = ct.Del
+				}
 			}
-			del = ts
+
+			switch {
+			case t != nil:
+				// Comment del timestamp found in cache, collect it
+				del = t
+
+			case t == nil:
+				// Comment del timestamp was not found in cache, get timestamp
+				ts, err := p.timestamp(token, cidx.Del)
+				if err != nil {
+					return nil, err
+				}
+				del = ts
+			}
 		}
 
 		// Get comment vote timestamps
@@ -354,6 +430,24 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 			votes = make([]comments.Timestamp, 0, len(cidx.Votes))
 			for _, voteIdxs := range cidx.Votes {
 				for _, v := range voteIdxs {
+					// Check if the comment vote digest timestamp is final and already
+					// exists in cache.
+					var t *comments.Timestamp
+					if ct != nil {
+						for _, vt := range ct.Votes {
+							if vt.Digest == hex.EncodeToString(v.Digest) {
+								t = &vt
+							}
+						}
+					}
+					if t != nil {
+						// Cached timestamp found, collect it and continue to next comment
+						// vote digest.
+						votes = append(votes, *t)
+						continue
+					}
+
+					// Comment vote digest was not found in cache, get timestamp
 					ts, err := p.timestamp(token, v.Digest)
 					if err != nil {
 						return nil, err
@@ -364,15 +458,21 @@ func (p *commentsPlugin) commentTimestamps(token []byte, commentIDs []uint32, in
 		}
 
 		// Save timestamp
-		cts[cid] = comments.CommentTimestamp{
+		r[cid] = comments.CommentTimestamp{
 			Adds:  adds,
 			Del:   del,
 			Votes: votes,
 		}
 	}
 
+	// Cache final timestamps
+	err = p.cacheFinalTimestamps(token, r)
+	if err != nil {
+		return nil, err
+	}
+
 	return &comments.TimestampsReply{
-		Comments: cts,
+		Comments: r,
 	}, nil
 }
 
@@ -554,6 +654,15 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 
 // cmdEdit edits an existing comment.
 func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
+	// Check if comment edits are allowed
+	if !p.allowEdits {
+		return "", backend.PluginError{
+			PluginID:     comments.PluginID,
+			ErrorCode:    uint32(comments.ErrorCodeEditNotAllowed),
+			ErrorContext: "comments plugin setting 'allowedits' is off",
+		}
+	}
+
 	// Decode payload
 	var e comments.Edit
 	err := json.Unmarshal([]byte(payload), &e)
@@ -575,8 +684,9 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 
 	// Verify signature
 	msg := strconv.FormatUint(uint64(e.State), 10) + e.Token +
-		strconv.FormatUint(uint64(e.ParentID), 10) + e.Comment +
-		e.ExtraData + e.ExtraDataHint
+		strconv.FormatUint(uint64(e.ParentID), 10) +
+		strconv.FormatUint(uint64(e.CommentID), 10) +
+		e.Comment + e.ExtraData + e.ExtraDataHint
 	err = util.VerifySignature(e.Signature, e.PublicKey, msg)
 	if err != nil {
 		return "", convertSignatureError(err)
@@ -611,6 +721,31 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 		return "", err
 	}
 
+	cidx, ok := ridx.Comments[e.CommentID]
+	if !ok {
+		// Comment not found
+		return "", backend.PluginError{
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeCommentNotFound),
+		}
+	}
+
+	// Get first version of the comment
+	cf, err := p.commentFirstVersion(token, e.CommentID, cidx)
+	if err != nil {
+		return "", err
+	}
+
+	// Comment edits are allowed only during the timeframe
+	// set by the editPeriod plugin setting.
+	if time.Now().Unix() > cf.Timestamp+int64(p.editPeriod) {
+		return "", backend.PluginError{
+			PluginID:     comments.PluginID,
+			ErrorCode:    uint32(comments.ErrorCodeEditNotAllowed),
+			ErrorContext: "comment edits timeframe has expired",
+		}
+	}
+
 	// Get the existing comment
 	cs, err := p.comments(token, *ridx, []uint32{e.CommentID})
 	if err != nil {
@@ -642,8 +777,22 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 		}
 	}
 
+	// Verify extra data hint. This doesn't really belong here, and should be
+	// left up to the application plugin (i.e. the pi plugin) to decide. It was
+	// put here to prevent application plugin from needing to pull the prior
+	// version of the comment, which is expensive since it causes a tlog tree
+	// retrieval.
+	if e.ExtraDataHint != existing.ExtraDataHint {
+		return "", backend.PluginError{
+			PluginID:     comments.PluginID,
+			ErrorCode:    uint32(comments.ErrorCodeEditNotAllowed),
+			ErrorContext: "extra data hint edits are not allowed",
+		}
+	}
+
 	// Verify comment changes
-	if e.Comment == existing.Comment {
+	if e.Comment == existing.Comment &&
+		e.ExtraData == existing.ExtraData {
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
 			ErrorCode: uint32(comments.ErrorCodeNoChanges),
@@ -699,6 +848,28 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	}
 
 	return string(reply), nil
+}
+
+// commentFirstVersion returns the first version of the specified comment. The
+// returned comment does not include the vote score.
+func (p *commentsPlugin) commentFirstVersion(token []byte, commentID uint32, cidx commentIndex) (*comments.Comment, error) {
+	// First version comment add digest
+	digest := cidx.Adds[1]
+
+	// Comment add record
+	adds, err := p.commentAdds(token, [][]byte{digest})
+	if err != nil {
+		return nil, errors.Errorf("commentAdds: %v", err)
+	}
+	if len(adds) != 1 {
+		return nil, errors.Errorf("wrong comment adds count; got %v, want %v",
+			len(adds), 1)
+	}
+
+	// Convert comment add
+	c := convertCommentFromCommentAdd(adds[0])
+
+	return &c, nil
 }
 
 // verifyExtraData ensures no extra data provided if it's not allowed.
@@ -1183,27 +1354,20 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 		return "", err
 	}
 
-	// Compile the comment vote digests for all votes that were cast
-	// by the specified user.
-	digests := make([][]byte, 0, 256)
-	for _, cidx := range ridx.Comments {
-		voteIdxs, ok := cidx.Votes[v.UserID]
-		if !ok {
-			// User has not cast any votes for this comment
-			continue
-		}
-
-		// User has cast votes on this comment
-		for _, vidx := range voteIdxs {
-			digests = append(digests, vidx.Digest)
-		}
-	}
+	// Collect the requested page of comment vote digests
+	digests := collectVoteDigestsPage(ridx.Comments, v.UserID, v.Page,
+		p.votesPageSize)
 
 	// Lookup votes
 	votes, err := p.commentVotes(token, digests)
 	if err != nil {
 		return "", fmt.Errorf("commentVotes: %v", err)
 	}
+
+	// Sort comment votes by timestamp from newest to oldest.
+	sort.SliceStable(votes, func(i, j int) bool {
+		return votes[i].Timestamp > votes[j].Timestamp
+	})
 
 	// Prepare reply
 	vr := comments.VotesReply{
@@ -1215,6 +1379,94 @@ func (p *commentsPlugin) cmdVotes(token []byte, payload string) (string, error) 
 	}
 
 	return string(reply), nil
+}
+
+// collectVoteDigestsPage accepts a map of all comment indexes with a
+// filtering criteria and it collects the requested page.
+func collectVoteDigestsPage(commentIdxes map[uint32]commentIndex, userID string, page, pageSize uint32) [][]byte {
+	// Default to first page if page is not provided
+	if page == 0 {
+		page = 1
+	}
+
+	digests := make([][]byte, 0, pageSize)
+	var (
+		pageFirstIndex uint32 = (page - 1) * pageSize
+		pageLastIndex  uint32 = page * pageSize
+		idx            uint32 = 0
+		filterByUserID        = userID != ""
+	)
+
+	// Iterate over record index comments map deterministically; start from
+	// comment id 1 upwards.
+	for commentID := 1; commentID <= len(commentIdxes); commentID++ {
+		cidx := commentIdxes[uint32(commentID)]
+		switch {
+		// User ID filtering criteria is applied. Collect the requested page of
+		// the user's comment votes.
+		case filterByUserID:
+			voteIdxs, ok := cidx.Votes[userID]
+			if !ok {
+				// User has not cast any votes for this comment
+				continue
+			}
+			for _, vidx := range voteIdxs {
+				// Add digest if it's part of the requested page
+				if isInPageRange(idx, pageFirstIndex, pageLastIndex) {
+					digests = append(digests, vidx.Digest)
+
+					// If digests page is full, then we are done
+					if len(digests) == int(pageSize) {
+						return digests
+					}
+				}
+				idx++
+			}
+
+		// No filtering criteria is applied. The votes are indexed by user ID and
+		// saved in a map. In order to return a page of votes in a deterministic
+		// manner, the user IDs must first be sorted, then the pagination is
+		// applied.
+		default:
+			userIDs := getSortedUserIDs(cidx.Votes)
+			for _, userID := range userIDs {
+				for _, vidx := range cidx.Votes[userID] {
+					// Add digest if it's part of the requested page
+					if isInPageRange(idx, pageFirstIndex, pageLastIndex) {
+						digests = append(digests, vidx.Digest)
+
+						// If digests page is full, then we are done
+						if len(digests) == int(pageSize) {
+							return digests
+						}
+					}
+					idx++
+				}
+			}
+		}
+	}
+
+	return digests
+}
+
+// getSortedUserIDs accepts a map of comment vote indexes indexed by user IDs,
+// it collects the keys, sorts them and finally returns them as sorted slice.
+func getSortedUserIDs(m map[string][]voteIndex) []string {
+	userIDs := make([]string, 0, len(m))
+	for userID := range m {
+		userIDs = append(userIDs, userID)
+	}
+
+	// Sort keys
+	sort.Strings(userIDs)
+
+	return userIDs
+}
+
+// isInPageRange determines whether the given index is part of the given
+// page range.
+func isInPageRange(idx, pageFirstIndex, pageLastIndex uint32) bool {
+	return idx >= pageFirstIndex && idx <= pageLastIndex
 }
 
 // cmdTimestamps retrieves the timestamps for the comments of a record.

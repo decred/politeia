@@ -38,10 +38,30 @@ const (
 	// SettingKeyAllowExtraData is the plugin setting key for the
 	// SettingAllowExtraData plugin setting.
 	SettingKeyAllowExtraData = "allowextradata"
+
+	// SettingKeyVotesPageSize is the plugin setting key for the
+	// SettingVotesPageSize plugin setting.
+	SettingKeyVotesPageSize = "votespagesize"
+
+	// SettingKeyCountPageSize is the plugin setting key for the
+	// SettingCountPageSize plugin setting.
+	SettingKeyCountPageSize = "countpagesize"
+
+	// SettingKeyTimestampsPageSize is the plugin setting key for the
+	// SettingTimestampsPageSize plugin setting.
+	SettingKeyTimestampsPageSize = "timestampspagesize"
+
+	// SettingKeyAllowEdits is the plugin setting key for the
+	// SettingAllowEdits plugin setting.
+	SettingKeyAllowEdits = "allowedits"
+
+	// SettingKeyEditPeriod is the plugin setting key for the
+	// SettingEditPeriod plugin setting.
+	SettingKeyEditPeriod = "editperiod"
 )
 
-// Plugin setting default values. These can be overridden by providing a plugin
-// setting key and value to the plugin on startup.
+// Plugin setting default values. These can be overridden by providing a
+// plugin setting key and value to the plugin on startup.
 const (
 	// SettingCommentLengthMax is the default maximum number of
 	// characters that are allowed in a comment.
@@ -55,6 +75,32 @@ const (
 	// SettingAllowExtraData is the default value of the bool flag which
 	// determines whether posting extra data along with the comment is allowed.
 	SettingAllowExtraData = false
+
+	// SettingVotesPageSize is the default maximum number of comment votes
+	// that can be returned at any one time. It defaults to 2500 to limit the
+	// comment votes route payload size to be ~1MiB, as each comment vote size
+	// is expected to be around 400 bytes which means:
+	// 2500 * 400 byte = 1000000 byte = ~1MiB.
+	SettingVotesPageSize uint32 = 2500
+
+	// SettingCountPageSize is the default maximum number of comment counts
+	// that can be requested at any one time.
+	SettingCountPageSize uint32 = 10
+
+	// SettingTimestampsPageSize is the default maximum number of comment
+	// timestamps that can be requested at any one time.
+	SettingTimestampsPageSize uint32 = 100
+
+	// SettingAllowEdits is the default value of the bool flag which
+	// determines whether comment edits are temporarily allowed during the
+	// timeframe set by SettingEditPeriod.
+	SettingAllowEdits = false
+
+	// SettingEditPeriod is the default maximum amount of time,
+	// in seconds, since the submission of a comment where it's still
+	// editable. It defaults to five minutes which should be enough time
+	// to spot typos and grammar mistakes.
+	SettingEditPeriod uint32 = 300
 )
 
 // ErrorCodeT represents a error that was caused by the user.
@@ -111,8 +157,12 @@ const (
 	// is found while comment plugin setting does not allow it.
 	ErrorCodeExtraDataNotAllowed = 12
 
+	// ErrorCodeEditNotAllowed is returned when comment edit is not
+	// allowed.
+	ErrorCodeEditNotAllowed = 13
+
 	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 13
+	ErrorCodeLast ErrorCodeT = 14
 )
 
 var (
@@ -131,6 +181,7 @@ var (
 		ErrorCodeVoteChangesMaxExceeded: "vote changes max exceeded",
 		ErrorCodeRecordStateInvalid:     "record state invalid",
 		ErrorCodeExtraDataNotAllowed:    "comment extra data not allowed",
+		ErrorCodeEditNotAllowed:         "comment edit is not allowed",
 	}
 )
 
@@ -183,6 +234,7 @@ type Comment struct {
 	Signature string       `json:"signature"` // Client signature
 	CommentID uint32       `json:"commentid"` // Comment ID
 	Version   uint32       `json:"version"`   // Comment version
+	CreatedAt int64        `json:"createdat"` // UNIX timestamp of creation time
 	Timestamp int64        `json:"timestamp"` // UNIX timestamp of last edit
 	Receipt   string       `json:"receipt"`   // Server sig of client sig
 	Downvotes uint64       `json:"downvotes"` // Tolal downvotes on comment
@@ -201,8 +253,14 @@ type Comment struct {
 //
 // PublicKey is the user's public key that is used to verify the signature.
 //
-// Signature is the user signature of the:
-// State + Token + ParentID + Comment + ExtraData + ExtraDataHint
+// The structure of the signature field depends on whether the CommentAdd is
+// associated with a new comment or a comment edit:
+//
+//   1. When a comment is created it's the user signature of the:
+//   State + Token + ParentID + Comment + ExtraData + ExtraDataHint.
+//
+//   2. When a comment is edited it's the user signature of the:
+//   State + Token + ParentID + CommentID + Comment + ExtraData + ExtraDataHint.
 //
 // Receipt is the server signature of the user signature.
 //
@@ -335,7 +393,7 @@ type NewReply struct {
 // PublicKey is the user's public key that is used to verify the signature.
 //
 // Signature is the user signature of the:
-// State + Token + ParentID + Comment + ExtraData + ExtraDataHint
+// State + Token + ParentID + CommentID + Comment + ExtraData + ExtraDataHint
 //
 // Receipt is the server signature of the user signature.
 //
@@ -463,9 +521,14 @@ type CountReply struct {
 	Count uint32 `json:"count"`
 }
 
-// Votes retrieves the comment votes that meet the provided filtering criteria.
+// Votes retrieves the record's comment votes that meet the provided filtering
+// criteria. If no filtering criteria is provided then it rerieves all comment
+// votes. This command is paginated, if no page is provided, then the first
+// page is returned. If the requested page does not exist an empty page
+// is returned.
 type Votes struct {
-	UserID string `json:"userid"`
+	UserID string `json:"userid,omitempty"`
+	Page   uint32 `json:"page,omitempty"`
 }
 
 // VotesReply is the reply to the Votes command.

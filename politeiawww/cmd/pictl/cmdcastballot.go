@@ -194,7 +194,7 @@ func (c *cmdCastBallot) Execute(args []string) error {
 		h := eligibleTickets[i]
 
 		// Check for vote error
-		if v.ErrorContext != "" {
+		if v.ErrorCode != nil {
 			failedReceipts = append(failedReceipts, v)
 			failedTickets = append(failedTickets, h)
 			continue

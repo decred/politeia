@@ -23,12 +23,12 @@ require (
 	github.com/decred/dcrtime/api/v2 v2.0.0-20200912200806-b1e4dbc46be9
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.1.0
-	github.com/go-sql-driver/mysql v1.5.0
+	github.com/go-sql-driver/mysql v1.6.0
 	github.com/go-test/deep v1.0.1
-	github.com/golang/protobuf v1.4.3
-	github.com/google/go-cmp v0.5.4
-	github.com/google/trillian v1.3.13
-	github.com/google/uuid v1.1.1
+	github.com/golang/protobuf v1.5.2
+	github.com/google/go-cmp v0.5.6
+	github.com/google/trillian v1.4.0
+	github.com/google/uuid v1.1.2
 	github.com/gorilla/csrf v1.6.2
 	github.com/gorilla/mux v1.7.3
 	github.com/gorilla/schema v1.1.0
@@ -39,9 +39,9 @@ require (
 	github.com/jessevdk/go-flags v1.4.1-0.20200711081900-c17162fe8fd7
 	github.com/jinzhu/gorm v1.9.12
 	github.com/jrick/logrotate v1.0.0
+	github.com/lib/pq v1.9.0 // indirect
 	github.com/marcopeereboom/sbox v1.1.0
-	github.com/otiai10/copy v1.0.1
-	github.com/otiai10/curr v0.0.0-20190513014714-f5a3d24e5776 // indirect
+	github.com/otiai10/copy v1.2.0
 	github.com/pkg/errors v0.9.1
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/pquerna/otp v1.2.0
@@ -49,9 +49,10 @@ require (
 	github.com/subosito/gozaru v0.0.0-20190625071150-416082cce636
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83
-	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
-	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
-	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
-	google.golang.org/genproto v0.0.0-20200707001353-8e8330bf89df
-	google.golang.org/grpc v1.32.0
+	golang.org/x/net v0.0.0-20210503060351-7fd8e65b6420
+	golang.org/x/oauth2 v0.0.0-20210805134026-6f1e6394065a
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+	google.golang.org/genproto v0.0.0-20210821163610-241b8fcbd6c8
+	google.golang.org/grpc v1.40.0
+	google.golang.org/protobuf v1.27.1 // indirect
 )

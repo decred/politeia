@@ -832,8 +832,11 @@ func convertVoteTypeToWWW(t tkplugin.VoteT) www.VoteT {
 	}
 }
 
-func convertVoteErrorCodeToWWW(e tkplugin.VoteErrorT) decredplugin.ErrorStatusT {
-	switch e {
+func convertVoteErrorCodeToWWW(e *tkplugin.VoteErrorT) decredplugin.ErrorStatusT {
+	if e == nil {
+		return decredplugin.ErrorStatusInvalid
+	}
+	switch *e {
 	case tkplugin.VoteErrorInvalid:
 		return decredplugin.ErrorStatusInvalid
 	case tkplugin.VoteErrorInternalError:

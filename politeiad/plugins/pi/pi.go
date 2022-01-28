@@ -57,11 +57,11 @@ const (
 	// the SettingProposalAmountMax plugin setting.
 	SettingKeyProposalAmountMax = "proposalamountmax"
 
-	// SettingKeyProposalStartDateMin is the plugin settings key for
+	// SettingKeyProposalStartDateMin is the plugin setting key for
 	// the SettingProposalStartDateMin plugin setting.
 	SettingKeyProposalStartDateMin = "proposalstartdatemin"
 
-	// SettingKeyProposalEndDateMax is the plugin settings key for
+	// SettingKeyProposalEndDateMax is the plugin setting key for
 	// the SettingProposalEndDateMax plugin setting.
 	SettingKeyProposalEndDateMax = "proposalenddatemax"
 
@@ -72,6 +72,14 @@ const (
 	// SettingKeyBillingStatusChangesMax is the plugin setting
 	// key for the SettingBillingStatusChangesMax plugin setting.
 	SettingKeyBillingStatusChangesMax = "billingstatuschangesmax"
+
+	// SettingKeySummariesPageSize is the plugin setting key for the
+	// SettingSummariesPageSize plugin setting.
+	SettingKeySummariesPageSize = "summariespagesize"
+
+	// SettingKeyBillingStatusChangesPageSize is the plugin key for
+	// the SettingBillingStatusChangesPageSize plugin setting.
+	SettingKeyBillingStatusChangesPageSize = "billingstatuschangespagesize"
 )
 
 // Plugin setting default values. These can be overridden by providing a plugin
@@ -116,6 +124,14 @@ const (
 	// SettingBillingStatusChangesMax is the default maximum allowed
 	// billing status changes.
 	SettingBillingStatusChangesMax uint32 = 1
+
+	// SettingSummariesPageSize is the default maximum number of proposal
+	// summaries that can be requested at any one time.
+	SettingSummariesPageSize uint32 = 5
+
+	// SettingBillingStatusChangesPageSize is the default maximum number of
+	// billing status changes that can be requested at any one time.
+	SettingBillingStatusChangesPageSize uint32 = 5
 )
 
 var (
@@ -457,6 +473,12 @@ const (
 	// voting period has been started, but some plugin data (e.g. comments) can
 	// still be added.
 	PropStatusVoteStarted PropStatusT = "vote-started"
+
+	// PropStatusApproved represents a proposal that was voted on by the Decred
+	// stakeholders, met the approval criteria, but is not being actively billed
+	// against. An example is an RFP proposal. RFP proposals do not request
+	// funding and are not billed against once approved.
+	PropStatusApproved PropStatusT = "approved"
 
 	// PropStatusRejected represents a proposal that was voted on by the Decred
 	// stakeholders and did not meet the approval criteria. A rejected proposal

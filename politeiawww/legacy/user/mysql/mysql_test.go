@@ -209,7 +209,7 @@ func TestUserUpdate(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// Upsert user identities query
-	iq := "INSERT INTO identities(public_key, user_id, activated, deactivated) " +
+	iq := "INSERT INTO identities (public_key, user_id, activated, deactivated) " +
 		"VALUES ON DUPLICATE KEY UPDATE " +
 		"activated=VALUES(activated), deactivated=VALUES(deactivated)"
 
