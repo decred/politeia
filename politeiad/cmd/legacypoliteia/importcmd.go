@@ -38,7 +38,6 @@ Fields that need to be updated:
 const (
 	// Default command settings
 	defaultTlogHost = "localhost:8090"
-	defaultTlogPass = "tlogpass"
 	defaultDBType   = "mysql"
 	defaultDBHost   = "localhost:3306"
 	defaultDBPass   = "politeiadpass"
@@ -48,7 +47,6 @@ var (
 	// CLI flags for the import command
 	importFlags = flag.NewFlagSet(importCmdName, flag.ContinueOnError)
 	tlogHost    = importFlags.String("tloghost", defaultTlogHost, "")
-	tlogPass    = importFlags.String("tlogpass", defaultTlogPass, "")
 	dbHost      = importFlags.String("dbhost", defaultDBHost, "")
 	dbPass      = importFlags.String("dbpass", defaultDBPass, "")
 
@@ -106,7 +104,7 @@ func execImportCmd(args []string) error {
 
 	// Setup tstore connection
 	ts, err := tstore.New(politeiadHomeDir, politeiadDataDir,
-		config.MainNetParams.Params, *tlogHost, *tlogPass, dbType,
+		config.MainNetParams.Params, *tlogHost, dbType,
 		*dbHost, *dbPass, "", "")
 	if err != nil {
 		return err
