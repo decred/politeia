@@ -43,6 +43,5 @@ Command Usage
 
     Flags
     --tloghost (string) Host for tlog. (default: localhost:8090)
-    --tlogpass (srting) Password for tlog host. (default: tlogpass)
     --dbhost   (string) Host for mysql db. (default: localhost:3306)
     --dbpass   (string) Password for tlog host. (default: politeiadpass)`

@@ -36,11 +36,12 @@ const (
 var (
 	// CLI flags for the convert command
 	convertFlags = flag.NewFlagSet(convertCmdName, flag.ContinueOnError)
-	legacyDir    = convertFlags.String("legacydir", defaultLegacyDir, "")
-	skipComments = convertFlags.Bool("skipcomments", false, "")
-	skipBallots  = convertFlags.Bool("skipballots", false, "")
-	ballotLimit  = convertFlags.Int("ballotlimit", 0, "")
-	userID       = convertFlags.String("userid", "", "")
+	legacyDir    = convertFlags.String("legacydir", defaultLegacyDir,
+		"default legacy data dir")
+	skipComments = convertFlags.Bool("skipcomments", false, "skip comments")
+	skipBallots  = convertFlags.Bool("skipballots", false, "skip ballots")
+	ballotLimit  = convertFlags.Int("ballotlimit", 0, "limit parsed votes")
+	userID       = convertFlags.String("userid", "", "replace user IDs")
 )
 
 type convertCmd struct {
@@ -58,12 +59,6 @@ type convertCmd struct {
 // supported by the tstore backend, then writes the converted JSON data to
 // disk. This data can be imported into tstore using the 'import' command.
 func execConvertCmd(args []string) error {
-	// Parse the CLI flags
-	err := convertFlags.Parse(args)
-	if err != nil {
-		return err
-	}
-
 	// Verify the git repo exists
 	if len(args) == 0 {
 		return fmt.Errorf("missing git repo argument")
@@ -71,6 +66,12 @@ func execConvertCmd(args []string) error {
 	gitRepo := util.CleanAndExpandPath(args[0])
 	if _, err := os.Stat(gitRepo); err != nil {
 		return fmt.Errorf("git repo not found: %v", gitRepo)
+	}
+
+	// Parse the CLI flags
+	err := convertFlags.Parse(args[1:])
+	if err != nil {
+		return err
 	}
 
 	// Clean the legacy directory path
