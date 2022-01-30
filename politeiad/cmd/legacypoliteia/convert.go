@@ -206,7 +206,7 @@ func convertUserMetadata(proposalDir string) (*usermd.UserMetadata, error) {
 	fmt.Printf("    Signature: %v\n", p.Signature)
 
 	return &usermd.UserMetadata{
-		UserID:    "", // TODO pull user ID from prod using pubkey
+		UserID:    "", // Intentionally omitted
 		PublicKey: p.PublicKey,
 		Signature: p.Signature,
 	}, nil

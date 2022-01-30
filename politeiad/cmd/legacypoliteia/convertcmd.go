@@ -5,8 +5,11 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -20,7 +23,6 @@ import (
 TODO
 -[ ] Handle standard proposal
 -[ ] Handle dup cast votes and comments
--[ ] Pull user IDs from prod by pubkey and hardcode
 -[ ] Handle RFPs
 */
 
@@ -45,6 +47,7 @@ var (
 )
 
 type convertCmd struct {
+	client       *http.Client
 	gitRepo      string
 	legacyDir    string
 	skipComments bool
@@ -91,8 +94,14 @@ func execConvertCmd(args []string) error {
 		return err
 	}
 
+	client, err := util.NewHTTPClient(false, "")
+	if err != nil {
+		return err
+	}
+
 	// Setup the cmd context
 	c := convertCmd{
+		client:       client,
 		gitRepo:      gitRepo,
 		legacyDir:    *legacyDir,
 		skipComments: *skipComments,
@@ -180,6 +189,21 @@ func (c *convertCmd) convertGitProposals() error {
 		if err != nil {
 			return err
 		}
+		// Populate user ID
+		switch {
+		case c.userID != "":
+			// Replacement user ID is not empty, hardcode it
+			userMD.UserID = c.userID
+
+		case c.userID == "":
+			// No replacement user ID is given, pull user ID using the
+			// present public key.
+			u, err := c.fetchUserByPubKey(userMD.PublicKey)
+			if err != nil {
+				return err
+			}
+			userMD.UserID = u.ID
+		}
 		statusChanges, err := convertStatusChanges(proposalDir)
 		if err != nil {
 			return err
@@ -231,6 +255,48 @@ func (c *convertCmd) convertGitProposals() error {
 	}
 
 	return nil
+}
+
+// userReply is politeiawww's reply to the users request.
+type usersReply struct {
+	TotalUsers   uint64 `json:"totalusers,omitempty"`
+	TotalMatches uint64 `json:"totalmatches"`
+	Users        []user `json:"users"`
+}
+
+// user is returned from the politeiawww API.
+type user struct {
+	ID       string `json:"id"`
+	Email    string `json:"email,omitempty"`
+	Username string `json:"username"`
+}
+
+// fetchUserByPubKey makes a call to the politeia API requesting the user
+// with the provided public key.
+func (c *convertCmd) fetchUserByPubKey(pubkey string) (*user, error) {
+	url := "https://proposals.decred.org/api/v1/users?publickey=" + pubkey
+	r, err := c.client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var ur usersReply
+	err = json.Unmarshal(body, &ur)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(ur.Users) == 0 {
+		return nil, fmt.Errorf("no user found for pubkey %v", pubkey)
+	}
+
+	return &ur.Users[0], nil
 }
 
 // sanityChecks performs some basic sanity checks on the proposal data.
