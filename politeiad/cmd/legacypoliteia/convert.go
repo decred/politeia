@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/decred/politeia/decredplugin"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/cmd/legacypoliteia/gitbe"
 	"github.com/decred/politeia/politeiad/plugins/comments"
@@ -608,8 +609,204 @@ type commentTypes struct {
 	Votes []comments.CommentVote
 }
 
-func convertComments(proposalDir string) (*commentTypes, error) {
-	return &commentTypes{}, nil
+// likeCommentV1 unmarshals the like action data from the gitbe's comments
+// journal.
+type likeCommentV1 struct {
+	Token     string `json:"token"`               // Censorship token
+	CommentID string `json:"commentid"`           // Comment ID
+	Action    string `json:"action"`              // Up or downvote (1, -1)
+	Signature string `json:"signature"`           // Client Signature of Token+CommentID+Action
+	PublicKey string `json:"publickey"`           // Pubkey used for Signature
+	Receipt   string `json:"receipt,omitempty"`   // Signature of Signature
+	Timestamp int64  `json:"timestamp,omitempty"` // Received UNIX timestamp
+}
+
+func (c *convertCmd) convertComments(proposalDir, userID string) (*commentTypes, error) {
+	path := commentsJournalPath(proposalDir)
+
+	fh, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0664)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		parentIDs = make(map[string]string)
+
+		adds  []comments.CommentAdd
+		dels  []comments.CommentDel
+		votes []comments.CommentVote
+	)
+
+	s := bufio.NewScanner(fh)
+	for i := 0; s.Scan(); i++ {
+		ss := bytes.NewReader([]byte(s.Text()))
+		d := json.NewDecoder(ss)
+
+		var action gitbe.JournalAction
+		err := d.Decode(&action)
+		if err != nil {
+			return nil, err
+		}
+
+		switch action.Action {
+		case "add":
+			var cm decredplugin.Comment
+			err = d.Decode(&cm)
+			if err != nil {
+				return nil, err
+			}
+
+			// Get user ID
+			switch {
+			case userID != "":
+				// Replacement user ID is not empty, hardcode it
+
+			case userID == "":
+				// No replacement user ID is given, pull user ID using the
+				// present public key.
+				u, err := c.fetchUserByPubKey(cm.PublicKey)
+				if err != nil {
+					return nil, err
+				}
+				userID = u.ID
+			}
+
+			// Parse IDs.
+			pid, err := strconv.Atoi(cm.ParentID)
+			if err != nil {
+				return nil, err
+			}
+			cid, err := strconv.Atoi(cm.CommentID)
+			if err != nil {
+				return nil, err
+			}
+
+			// Append add blob.
+			adds = append(adds, comments.CommentAdd{
+				UserID:    userID,
+				State:     comments.RecordStateVetted,
+				Token:     cm.Token,
+				ParentID:  uint32(pid),
+				Comment:   cm.Comment,
+				PublicKey: cm.PublicKey,
+				Signature: cm.Signature,
+				CommentID: uint32(cid),
+				Version:   1,
+				Timestamp: cm.Timestamp,
+				Receipt:   cm.Receipt,
+			})
+
+			parentIDs[cm.CommentID] = cm.ParentID
+
+		case "del":
+			var cc decredplugin.CensorComment
+			err = d.Decode(&cc)
+			if err != nil {
+				return nil, err
+			}
+
+			// Get user ID
+			switch {
+			case userID != "":
+				// Replacement user ID is not empty, hardcode it
+
+			case userID == "":
+				// No replacement user ID is given, pull user ID using the
+				// present public key.
+				u, err := c.fetchUserByPubKey(cc.PublicKey)
+				if err != nil {
+					return nil, err
+				}
+				userID = u.ID
+			}
+
+			// Parse IDs.
+			parentID := parentIDs[cc.CommentID]
+			pid, err := strconv.Atoi(parentID)
+			if err != nil {
+				return nil, err
+			}
+			cid, err := strconv.Atoi(cc.CommentID)
+			if err != nil {
+				return nil, err
+			}
+
+			// Append del blob.
+			dels = append(dels, comments.CommentDel{
+				Token:     cc.Token,
+				State:     comments.RecordStateVetted,
+				CommentID: uint32(cid),
+				Reason:    cc.Reason,
+				PublicKey: cc.PublicKey,
+				Signature: cc.Signature,
+				ParentID:  uint32(pid),
+				UserID:    userID,
+				Timestamp: cc.Timestamp,
+				Receipt:   cc.Receipt,
+			})
+
+		case "addlike":
+			var lc likeCommentV1
+			err = d.Decode(&lc)
+			if err != nil {
+				return nil, err
+			}
+
+			// Get user ID
+			switch {
+			case userID != "":
+				// Replacement user ID is not empty, hardcode it
+
+			case userID == "":
+				// No replacement user ID is given, pull user ID using the
+				// present public key.
+				u, err := c.fetchUserByPubKey(lc.PublicKey)
+				if err != nil {
+					return nil, err
+				}
+				userID = u.ID
+			}
+
+			// Parse comment ID.
+			cid, err := strconv.Atoi(lc.CommentID)
+			if err != nil {
+				return nil, err
+			}
+
+			// Parse comment vote.
+			var vote comments.VoteT
+			switch {
+			case lc.Action == "1":
+				vote = comments.VoteUpvote
+			case lc.Action == "-1":
+				vote = comments.VoteDownvote
+			default:
+				return nil, fmt.Errorf("invalid comment vote code")
+			}
+
+			// Append vote blob.
+			votes = append(votes, comments.CommentVote{
+				UserID:    userID,
+				State:     comments.RecordStateVetted,
+				Token:     lc.Token,
+				CommentID: uint32(cid),
+				Vote:      vote,
+				PublicKey: lc.PublicKey,
+				Signature: lc.Signature,
+				Timestamp: lc.Timestamp,
+				Receipt:   lc.Receipt,
+			})
+
+		default:
+			return nil, err
+		}
+	}
+
+	return &commentTypes{
+		Adds:  adds,
+		Dels:  dels,
+		Votes: votes,
+	}, nil
 }
 
 func convertMDStatus(s gitbe.MDStatusT) backend.StatusT {
@@ -705,6 +902,11 @@ func decredPluginPath(proposalDir string) string {
 func ballotsJournalPath(proposalDir string) string {
 	return filepath.Join(decredPluginPath(proposalDir),
 		gitbe.BallotJournalFilename)
+}
+
+func commentsJournalPath(proposalDir string) string {
+	return filepath.Join(decredPluginPath(proposalDir),
+		gitbe.CommentsJournalFilename)
 }
 
 // parseProposalName parses and returns the proposal name from the proposal

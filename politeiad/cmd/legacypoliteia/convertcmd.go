@@ -15,6 +15,7 @@ import (
 	"strconv"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 )
@@ -216,13 +217,19 @@ func (c *convertCmd) convertGitProposals() error {
 		if err != nil {
 			return err
 		}
-		castVotes, err := convertCastVotes(proposalDir)
-		if err != nil {
-			return err
+		var cv []ticketvote.CastVoteDetails
+		if !c.skipBallots {
+			cv, err = convertCastVotes(proposalDir)
+			if err != nil {
+				return err
+			}
 		}
-		commentData, err := convertComments(proposalDir)
-		if err != nil {
-			return err
+		ct := &commentTypes{}
+		if !c.skipComments {
+			ct, err = c.convertComments(proposalDir, c.userID)
+			if err != nil {
+				return err
+			}
 		}
 
 		// Build the proposal
@@ -235,10 +242,10 @@ func (c *convertCmd) convertGitProposals() error {
 			StatusChanges:    statusChanges,
 			AuthDetails:      authDetails,
 			VoteDetails:      voteDetails,
-			CastVotes:        castVotes,
-			CommentAdds:      commentData.Adds,
-			CommentDels:      commentData.Dels,
-			CommentVotes:     commentData.Votes,
+			CastVotes:        cv,
+			CommentAdds:      ct.Adds,
+			CommentDels:      ct.Dels,
+			CommentVotes:     ct.Votes,
 		}
 		err = sanityChecks(&p)
 		if err != nil {

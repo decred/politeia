@@ -166,7 +166,7 @@ func DecodeCensorComment(payload []byte) (*CensorComment, error) {
 	return &cc, nil
 }
 
-// CommentCensorReply returns the receipt for the censoring action. The
+// CensorCommentReply returns the receipt for the censoring action. The
 // receipt is the server side signature of CommentCensor.Signature.
 type CensorCommentReply struct {
 	Receipt string `json:"receipt"` // Server signature of client signature
@@ -177,7 +177,7 @@ func EncodeCensorCommentReply(ccr CensorCommentReply) ([]byte, error) {
 	return json.Marshal(ccr)
 }
 
-// DecodeCensorComment decodes a JSON byte slice into a CensorCommentReply.
+// DecodeCensorCommentReply decodes a JSON byte slice into a CensorCommentReply.
 func DecodeCensorCommentReply(payload []byte) (*CensorCommentReply, error) {
 	var ccr CensorCommentReply
 	err := json.Unmarshal(payload, &ccr)
