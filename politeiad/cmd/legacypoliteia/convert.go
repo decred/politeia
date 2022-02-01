@@ -501,7 +501,7 @@ func convertVoteType(t gitbe.VoteT) ticketvote.VoteT {
 	panic(fmt.Sprintf("invalid vote type %v", t))
 }
 
-func convertCastVotes(proposalDir string) ([]ticketvote.CastVoteDetails, error) {
+func convertCastVotes(proposalDir string, addrs map[string]string, ts map[string]map[string]int64, limit int) ([]ticketvote.CastVoteDetails, error) {
 	fmt.Printf("  Cast votes\n")
 
 	// Verify that the ballots journal exists. This
@@ -545,17 +545,30 @@ func convertCastVotes(proposalDir string) ([]ticketvote.CastVoteDetails, error) 
 			Ticket:    cvj.CastVote.Ticket,
 			VoteBit:   cvj.CastVote.VoteBit,
 			Signature: cvj.CastVote.Signature,
-			Address:   "", // TODO
-			Receipt:   "", // Intentionally omitted
-			Timestamp: 0,  // TODO
+			Receipt:   cvj.Receipt,
+		}
+		// If parsed ballot is limited, ticket address and vote timestamp won't be
+		// present as we avoid fetching to speed up testing.
+		if limit == 0 {
+			cvd.Address = addrs[cvj.CastVote.Ticket]
+			cvd.Timestamp = ts[cvj.CastVote.Token][cvj.CastVote.Ticket]
+
+			// Verify cast vote details signature
+			err = client.CastVoteDetailsVerify(convertCastVoteDetailsToV1(cvd),
+				serverPubkey)
+			if err != nil {
+				return nil, err
+			}
 		}
 
-		// TODO Verify the cast vote
-
 		// Save the cast vote
-		votes[cvd.Token] = cvd
+		votes[cvd.Ticket] = cvd
 
 		printInPlace(fmt.Sprintf("    Vote %v", count))
+
+		if len(votes) == limit {
+			break
+		}
 	}
 	err = scanner.Err()
 	if err != nil {
@@ -574,6 +587,20 @@ func convertCastVotes(proposalDir string) ([]ticketvote.CastVoteDetails, error) 
 	})
 
 	return castVotes, nil
+}
+
+// convertCastVoteDetailsToV1 is used to verify the cast vote details signature
+// through the www client.
+func convertCastVoteDetailsToV1(vote ticketvote.CastVoteDetails) v1.CastVoteDetails {
+	return v1.CastVoteDetails{
+		Token:     vote.Token,
+		Ticket:    vote.Ticket,
+		VoteBit:   vote.VoteBit,
+		Address:   vote.Address,
+		Signature: vote.Signature,
+		Receipt:   vote.Receipt,
+		Timestamp: vote.Timestamp,
+	}
 }
 
 // decodeBallotJournalLine decodes a line from a proposal's ballot journal. The
