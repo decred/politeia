@@ -25,8 +25,6 @@ import (
 
 /*
 TODO
--[ ] Handle standard proposal
--[ ] Handle dup cast votes and comments
 -[ ] Handle RFPs
 */
 
@@ -122,26 +120,6 @@ func execConvertCmd(args []string) error {
 	return c.convertGitProposals()
 }
 
-var (
-	// TODO Remove this. It's hardcoded in for now to help with testing.
-	doNotSkip = map[string]struct{}{
-		// Proposal with image attachments. Standard vote that was approved.
-		//
-		// https://proposals-archive.decred.org/proposals/0230918
-		"023091831f6434f743f3a317aacf8c73a123b30d758db854a2f294c0b3341bcc": {},
-
-		// Abandoned proposal
-		//
-		// https://proposals-archive.decred.org/proposals/8a09324
-		"8a0932475eba2139df82f885fbdff9845e98551b47c44c378bf51840ae616334": {},
-
-		// RFP parent proposal
-		//
-		// https://proposals-archive.decred.org/proposals/91becea
-		"91beceac460d9b790a01fb2e537320820bab66babfeb5eb49a022ea5952b5d73": {},
-	}
-)
-
 // convertGitProposals converts the git proposals to tstore proposals, saving
 // the tstore proposals to disk as the conversion is finished.
 func (c *convertCmd) convertGitProposals() error {
@@ -156,11 +134,6 @@ func (c *convertCmd) convertGitProposals() error {
 	// Convert the data for each proposal into tstore supported types.
 	count := 1
 	for token := range tokens {
-		// TODO Remove this. It's hardcoded in for now to help with testing.
-		if _, ok := doNotSkip[token]; !ok {
-			continue
-		}
-
 		fmt.Printf("Converting proposal (%v/%v)\n", count, len(tokens))
 
 		// Get the path to the most recent version of the proposal.
@@ -216,9 +189,13 @@ func (c *convertCmd) convertGitProposals() error {
 		if err != nil {
 			return err
 		}
-		authDetails, err := convertAuthDetails(proposalDir)
-		if err != nil {
-			return err
+		// If proposal was censored  no need to convert legacy vote details
+		var authDetails *ticketvote.AuthDetails
+		if recordMD.Status != backend.StatusArchived {
+			authDetails, err = convertAuthDetails(proposalDir)
+			if err != nil {
+				return err
+			}
 		}
 		voteDetails, err := convertVoteDetails(proposalDir)
 		if err != nil {
