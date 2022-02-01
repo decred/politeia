@@ -395,7 +395,7 @@ var (
 	// It starts where the journalSelection on a text line matches and ends where
 	// the line ending characters at matched at on the same text line.
 	patchSelection = func() PiRegExp {
-		return PiRegExp(`(` + journalSelection() + `[[:ascii:]]*(}\n?))`)
+		return `(` + journalSelection() + `[[:ascii:]]*(}\n?))`
 	}
 
 	// anyTokenSelection matches any proposal token. A proposal token is
