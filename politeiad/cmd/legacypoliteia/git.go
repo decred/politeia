@@ -185,6 +185,7 @@ func proposalAttachmentFilenames(proposalDir string) ([]string, error) {
 // the provided git record repository path. It returns a double map of the form
 // [legacyToken][ticket]timestamp.
 func parseVoteTimestamps(path string) (map[string]map[string]int64, error) {
+	fmt.Printf("Fetching git timestamps, this might take a while...\n")
 	args := []string{"log", "--reverse", "-p"}
 
 	cmd := exec.Command("git", args...)
@@ -194,6 +195,7 @@ func parseVoteTimestamps(path string) (map[string]map[string]int64, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("Fetched git log, parsing commits history...\n")
 
 	data := strings.Split(string(out), "commit")
 	var items []*History

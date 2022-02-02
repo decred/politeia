@@ -126,6 +126,16 @@ func (c *convertCmd) convertGitProposals() error {
 
 	fmt.Printf("Found %v legacy git proposals\n", len(tokens))
 
+	// Parse git vote timestamps using git log. If parsed ballot is limited
+	// avoid fetching.
+	var ts map[string]map[string]int64
+	if c.ballotLimit == 0 {
+		ts, err = parseVoteTimestamps(c.gitRepo)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Convert the data for each proposal into tstore supported types.
 	count := 1
 	for token := range tokens {
@@ -200,18 +210,15 @@ func (c *convertCmd) convertGitProposals() error {
 		if err != nil {
 			return err
 		}
+		// Convert cast vote details, skip if the skip ballot flag is on.
 		var cv []ticketvote.CastVoteDetails
-		var ts map[string]map[string]int64
 		if !c.skipBallots {
-			// Fetch tickets' largest commitment addresses and vote timestamps. If
-			// parsed ballot is limited avoid fetching.
+			// Fetch largest commitment addresses of eligible tickets. If parsed
+			// ballot is limited avoid fetching.
 			var addrs map[string]string
-			if c.ballotLimit == 0 {
+			if c.ballotLimit == 0 && voteDetails != nil &&
+				len(voteDetails.EligibleTickets) > 0 {
 				addrs, err = c.fetchLargestCommitmentAddrs(voteDetails.EligibleTickets)
-				if err != nil {
-					return err
-				}
-				ts, err = parseVoteTimestamps(c.gitRepo)
 				if err != nil {
 					return err
 				}

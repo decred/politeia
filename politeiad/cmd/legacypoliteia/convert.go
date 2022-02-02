@@ -596,6 +596,7 @@ func convertCastVotes(proposalDir string, addrs map[string]string, ts map[string
 
 		printInPlace(fmt.Sprintf("    Vote %v", count))
 
+		// If the number of converted cast votes hits the limit, we are done
 		if len(votes) == limit {
 			break
 		}
