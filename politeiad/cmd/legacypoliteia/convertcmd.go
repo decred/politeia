@@ -127,7 +127,7 @@ func (c *convertCmd) convertGitProposals() error {
 	fmt.Printf("Found %v legacy git proposals\n", len(tokens))
 
 	// Parse git vote timestamps using git log. If parsed ballot is limited
-	// avoid fetching.
+	// skip this.
 	var ts map[string]map[string]int64
 	if c.ballotLimit == 0 {
 		ts, err = parseVoteTimestamps(c.gitRepo)
