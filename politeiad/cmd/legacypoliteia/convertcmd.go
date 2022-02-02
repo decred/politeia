@@ -23,11 +23,6 @@ import (
 	"github.com/google/uuid"
 )
 
-/*
-TODO
--[ ] Handle RFPs
-*/
-
 const (
 	// Default command settings
 	defaultLegacyDir = "./legacy-politeia-data"
@@ -197,7 +192,11 @@ func (c *convertCmd) convertGitProposals() error {
 				return err
 			}
 		}
-		voteDetails, err := convertVoteDetails(proposalDir)
+		var parent string
+		if voteMD != nil {
+			parent = voteMD.LinkTo
+		}
+		voteDetails, err := convertVoteDetails(proposalDir, parent)
 		if err != nil {
 			return err
 		}

@@ -156,7 +156,15 @@ func convertVoteMetadata(proposalDir string) (*ticketvote.VoteMetadata, error) {
 	// will only exist for some gitbe proposals.
 	fp := proposalMetadataPath(proposalDir)
 	if _, err := os.Stat(fp); err != nil {
-		return nil, nil
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			// File does not exist
+			return nil, nil
+
+		default:
+			// Unknown error
+			return nil, err
+		}
 	}
 
 	// Read the proposal metadata file from disk
@@ -277,8 +285,15 @@ func convertAuthDetails(proposalDir string) (*ticketvote.AuthDetails, error) {
 	// abandoned proposals.
 	fp := authorizeVotePath(proposalDir)
 	if _, err := os.Stat(fp); err != nil {
-		// Authorize vote doesn't exist
-		return nil, nil
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			// File does not exist
+			return nil, nil
+
+		default:
+			// Unknown error
+			return nil, err
+		}
 	}
 
 	// Read the authorize vote mdstream from disk
@@ -329,7 +344,7 @@ func convertAuthDetails(proposalDir string) (*ticketvote.AuthDetails, error) {
 	return &ad, nil
 }
 
-func convertVoteDetails(proposalDir string) (*ticketvote.VoteDetails, error) {
+func convertVoteDetails(proposalDir, linkto string) (*ticketvote.VoteDetails, error) {
 	fmt.Printf("  Vote details\n")
 
 	// Verify that vote mdstreams exists. These
@@ -337,8 +352,15 @@ func convertVoteDetails(proposalDir string) (*ticketvote.VoteDetails, error) {
 	// as abandoned proposals.
 	fp := startVotePath(proposalDir)
 	if _, err := os.Stat(fp); err != nil {
-		// Vote mdstreams don't exist
-		return nil, nil
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			// File does not exist
+			return nil, nil
+
+		default:
+			// Unknown error
+			return nil, err
+		}
 	}
 
 	// Pull the proposal version from the proposal dir path
@@ -416,7 +438,7 @@ func convertVoteDetails(proposalDir string) (*ticketvote.VoteDetails, error) {
 		quorum = sv.Vote.QuorumPercentage
 		pass = sv.Vote.PassPercentage
 		options = convertVoteOptions(sv.Vote.Options)
-		parent = "" // TODO pull these from prod and hardcode them
+		parent = linkto
 		publicKey = sv.PublicKey
 
 	default:
@@ -509,7 +531,15 @@ func convertCastVotes(proposalDir string, addrs map[string]string, ts map[string
 	// abandoned proposals.
 	fp := ballotsJournalPath(proposalDir)
 	if _, err := os.Stat(fp); err != nil {
-		return nil, nil
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			// File does not exist
+			return nil, nil
+
+		default:
+			// Unknown error
+			return nil, err
+		}
 	}
 
 	// Open the ballots journal
