@@ -4,11 +4,11 @@
 
 package v1
 
-// Authorizer provides user authorization for plugin commands.
+// AuthManager provides user authorization for plugin commands.
 //
 // Any changes made to the Session or User during method execution will be
 // persisted by the caller.
-type Authorizer interface {
+type AuthManager interface {
 	// ID returns the plugin ID.
 	ID() string
 
@@ -33,13 +33,13 @@ type AuthorizeArgs struct {
 // Session contains the data that is saved as part of a user session.
 //
 // Plugins do not have direct access to the sessions database, but the
-// Authorizer plugin is able to update fields on this session struct. Updates
+// AuthManager plugin is able to update fields on this session struct. Updates
 // are saved to the sessions database by the backend.
 type Session struct {
 	UserID    string
 	CreatedAt int64
 
-	// Delete can be set by the Authorizer plugin to instruct the backend to
+	// Delete can be set by the AuthManager plugin to instruct the backend to
 	// delete the session.
 	Delete bool
 }

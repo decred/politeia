@@ -11,7 +11,7 @@ var (
 	// been registered with this pacakge.
 	pluginInitFns      = make(map[string]func(InitArgs) (Plugin, error))
 	userManagerInitFns = make(map[string]func(InitArgs) (UserManager, error))
-	authorizerInitFns  = make(map[string]func(InitArgs) (Authorizer, error))
+	authManagerInitFns = make(map[string]func(InitArgs) (AuthManager, error))
 )
 
 // InitArgs contains the arguments used to initialize the plugin interface
@@ -45,12 +45,12 @@ func RegisterUserManagerInitFn(pluginID string, fn func(InitArgs) (UserManager, 
 	userManagerInitFns[pluginID] = fn
 }
 
-// RegisterAuthorizerInitFn registers an Authorizer initialization function
+// RegisterAuthManagerInitFn registers an AuthManager initialization function
 // with this package. This should be done by the plugin implementation as part
 // of its package level init() function. The registered function is called at
-// runtime to intialize the Authorizer.
-func RegisterAuthorizerInitFn(pluginID string, fn func(InitArgs) (Authorizer, error)) {
-	authorizerInitFns[pluginID] = fn
+// runtime to intialize the AuthManager.
+func RegisterAuthManagerInitFn(pluginID string, fn func(InitArgs) (AuthManager, error)) {
+	authManagerInitFns[pluginID] = fn
 }
 
 // NewPlugin uses the registered plugin initialization function to initialize
@@ -75,13 +75,13 @@ func NewUserManager(pluginID string, args InitArgs) (UserManager, error) {
 	return fn(args)
 }
 
-// NewAuthorizer uses the registered authorizer initialization function to
-// initialize and return an Authorizer.
-func NewAuthorizer(pluginID string, args InitArgs) (Authorizer, error) {
-	fn, ok := authorizerInitFns[pluginID]
+// NewAuthManager uses the registered authManager initialization function to
+// initialize and return an AuthManager.
+func NewAuthManager(pluginID string, args InitArgs) (AuthManager, error) {
+	fn, ok := authManagerInitFns[pluginID]
 	if !ok {
 		return nil, errors.Errorf("plugin '%v' did not register "+
-			"an authorizer initialization function", pluginID)
+			"an auth manager initialization function", pluginID)
 	}
 	return fn(args)
 }

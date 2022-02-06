@@ -66,7 +66,7 @@ type politeiawww struct {
 	// authManager handles user authorization. The plugin that is set as the
 	// cfg.AuthPlugin must implement the Authorizer interface. A cfg.AuthPlugin
 	// must be specified if the user layer is enabled.
-	authManager plugin.Authorizer
+	authManager plugin.AuthManager
 
 	// Legacy fields
 	politeiad *pdclient.Client
@@ -350,7 +350,7 @@ func (p *politeiawww) setupPlugins() error {
 	// Initialize the user plugin interfaces
 	var (
 		um  plugin.UserManager
-		am  plugin.Authorizer
+		am  plugin.AuthManager
 		err error
 	)
 	if !p.cfg.DisableUsers {
@@ -385,7 +385,7 @@ func (p *politeiawww) setupPlugins() error {
 		args = plugin.InitArgs{
 			Settings: s,
 		}
-		am, err = plugin.NewAuthorizer(p.cfg.AuthPlugin, args)
+		am, err = plugin.NewAuthManager(p.cfg.AuthPlugin, args)
 		if err != nil {
 			return errors.Errorf("failed to intialize the auth manager plugin %v",
 				p.cfg.AuthPlugin)
