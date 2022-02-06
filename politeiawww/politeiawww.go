@@ -58,12 +58,12 @@ type politeiawww struct {
 
 	// userPlugin is the only plugin that is allowed to use routes that result
 	// in user database insertions or deletions, e.g. the NewUser route. A user
-	// plugin MUST be specified in the config if the user layer is enabled.
+	// plugin must be specified in the config if the user layer is enabled.
 	userPlugin plugin.UserManager
 
 	// authPlugin is the plugin that handles user authorization. User
 	// authorization is verified prior to the execution of all plugin commands.
-	// An auth plugin MUST be specified in the config if the user layer is
+	// An auth plugin must be specified in the config if the user layer is
 	// enabled.
 	authPlugin plugin.Authorizer
 

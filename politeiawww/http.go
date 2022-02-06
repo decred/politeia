@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"runtime/debug"
-	"strings"
 	"time"
 
 	v1 "github.com/decred/politeia/politeiawww/api/http/v1"
@@ -26,18 +25,16 @@ import (
 
 // setupRoutes sets up the routes for the politeia http API.
 func (p *politeiawww) setupRoutes() {
-	/*
-		// NOTE: This will override the legacy version route.
-		// Disable it until we are ready to switch over.
+	// NOTE: This will override the legacy version route.
+	// Disable it until we are ready to switch over.
+	// addRoute(p.protected, http.MethodGet, "", "/", p.handleVersion)
 
-		// The version routes set the CSRF header token and thus needs
-		// to be part of the CSRF protected auth router so that the
-		// cookie CSRF is set too. The CSRF cookie is set on all auth
-		// routes. The header token is only set on the version route.
-		addRoute(p.protected, http.MethodGet, "", "/", p.handleVersion)
-		addRoute(p.protected, http.MethodGet, v1.APIRoute,
-		  v1.VersionRoute, p.handleVersion)
-	*/
+	// The version routes set the CSRF header token and thus needs
+	// to be part of the CSRF protected auth router so that the
+	// cookie CSRF is set too. The CSRF cookie is set on all auth
+	// routes. The header token is only set on the version route.
+	addRoute(p.protected, http.MethodGet, v1.APIRoute,
+		v1.VersionRoute, p.handleVersion)
 
 	// Unprotected routes
 	addRoute(p.router, http.MethodGet, v1.APIRoute,
@@ -126,10 +123,10 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 		pluginSession = convertSession(s)
 		pluginCmd     = convertCmdFromHTTP(cmd)
 	)
-	pluginReply, err := p.execNewUser(r.Context(), pluginSession, pluginCmd)
+	pluginReply, err := p.pluginNewUser(r.Context(), pluginSession, pluginCmd)
 	if err != nil {
 		respondWithError(w, r,
-			"handleNewUser: execNewUser: %v", err)
+			"handleNewUser: pluginNewUser: %v", err)
 		return
 	}
 
@@ -164,7 +161,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify plugin exists
+	// Verify the plugin exists
 	_, ok := p.plugins[cmd.PluginID]
 	if !ok {
 		util.RespondWithJSON(w, http.StatusOK,
@@ -189,10 +186,10 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 		pluginSession = convertSession(s)
 		pluginCmd     = convertCmdFromHTTP(cmd)
 	)
-	pluginReply, err := p.execWrite(r.Context(), pluginSession, pluginCmd)
+	pluginReply, err := p.pluginWrite(r.Context(), pluginSession, pluginCmd)
 	if err != nil {
 		respondWithError(w, r,
-			"handleWrite: execWrite: %v", err)
+			"handleWrite: pluginWrite: %v", err)
 		return
 	}
 
@@ -252,10 +249,10 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 		pluginSession = convertSession(s)
 		pluginCmd     = convertCmdFromHTTP(cmd)
 	)
-	pluginReply, err := p.execRead(r.Context(), pluginSession, pluginCmd)
+	pluginReply, err := p.pluginRead(r.Context(), pluginSession, pluginCmd)
 	if err != nil {
 		respondWithError(w, r,
-			"handleRead: execRead: %v", err)
+			"handleRead: pluginRead: %v", err)
 		return
 	}
 
@@ -289,10 +286,15 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 			})
 		return
 	}
-	cmds, err := decodeCmds(batch.Cmds, p.cfg.PluginBatchLimit)
-	if err != nil {
-		respondWithError(w, r,
-			"handleReadBatch: decodeCmds: %v", err)
+	if len(batch.Cmds) > int(p.cfg.PluginBatchLimit) {
+		util.RespondWithJSON(w, http.StatusOK,
+			v1.CmdReply{
+				Error: v1.UserError{
+					ErrorCode: v1.ErrorCodeBatchLimitExceeded,
+					ErrorContext: fmt.Sprintf("max number of cmds is %v",
+						p.cfg.PluginBatchLimit),
+				},
+			})
 		return
 	}
 
@@ -308,7 +310,7 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 		pluginSession = convertSession(s)
 		replies       = make([]v1.CmdReply, len(batch.Cmds))
 	)
-	for i, cmd := range cmds {
+	for i, cmd := range batch.Cmds {
 		// Verify plugin exists
 		_, ok := p.plugins[cmd.PluginID]
 		if !ok {
@@ -322,10 +324,10 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 
 		// Execute the plugin command
 		pluginCmd := convertCmdFromHTTP(cmd)
-		pluginReply, err := p.execRead(r.Context(), pluginSession, pluginCmd)
+		pluginReply, err := p.pluginRead(r.Context(), pluginSession, pluginCmd)
 		if err != nil {
 			respondWithError(w, r,
-				"handleReadBatch: execRead: %v", err)
+				"handleReadBatch: pluginRead: %v", err)
 			return
 		}
 
@@ -420,54 +422,6 @@ func handleNotFound(w http.ResponseWriter, r *http.Request) {
 	}))
 
 	util.RespondWithJSON(w, http.StatusNotFound, nil)
-}
-
-func decodeCmds(payload string, batchLimit uint32) ([]v1.Cmd, error) {
-	var (
-		r    = strings.NewReader(payload)
-		d    = json.NewDecoder(r)
-		cmds = make([]v1.Cmd, 0, batchLimit)
-	)
-
-	// Read the opening bracket
-	_, err := d.Token()
-	if err != nil {
-		return nil, v1.UserError{
-			ErrorCode: v1.ErrorCodeInvalidInput,
-		}
-	}
-
-	// Decode the commands
-	var count uint32
-	for d.More() {
-		count++
-		if count > batchLimit {
-			return nil, v1.UserError{
-				ErrorCode:    v1.ErrorCodeBatchLimitExceeded,
-				ErrorContext: fmt.Sprintf("max number of cmds is %v", batchLimit),
-			}
-		}
-
-		var cmd v1.Cmd
-		err := d.Decode(&cmd)
-		if err != nil {
-			return nil, v1.UserError{
-				ErrorCode: v1.ErrorCodeInvalidInput,
-			}
-		}
-
-		cmds = append(cmds, cmd)
-	}
-
-	// Read the closing bracket
-	_, err = d.Token()
-	if err != nil {
-		return nil, v1.UserError{
-			ErrorCode: v1.ErrorCodeInvalidInput,
-		}
-	}
-
-	return cmds, nil
 }
 
 // convertCmdFromHTTP converts a http v1 Cmd to a plugin Cmd.

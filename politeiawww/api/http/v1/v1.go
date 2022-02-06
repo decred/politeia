@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,11 +11,11 @@ const (
 	APIVersion uint32 = 1
 
 	// APIRoute is prefixed onto all routes defined in this package.
-	APIRoute = "/v1"
+	APIRoute = "/v1/plugin"
 
 	// VersionRoute is a GET request route that returns the server version
 	// information and sets CSRF tokens for the client. The VersionReply can be
-	// retrieved from both the "/" route and the "/v1/version" route. This allows
+	// retrieved from both the "/" route and the "/v1/plugin/" route. This allows
 	// clients to be able to determine version information without needing to
 	// have any prior knowledge of the API.
 	//
@@ -25,7 +25,7 @@ const (
 	// use CSRF protected routes.
 	//
 	// This route returns a VersionReply.
-	VersionRoute = "/version"
+	VersionRoute = "/"
 
 	// PolicyRoute is a GET request route that returns API policy information.
 	//
@@ -134,8 +134,7 @@ type CmdReply struct {
 
 // Batch is used to execute a batch of plugin commands.
 type Batch struct {
-	// Cmds is a JSON encoded string that decodes to []Cmd.
-	Cmds string `json:"cmds"`
+	Cmds []Cmd `json:"cmds"`
 }
 
 // BatchReply is the reply to a Batch request.
@@ -194,9 +193,11 @@ var (
 )
 
 // UserError is the reply that the server returns when it encounters an error
-// prior to plugin command execution and that is caused by something that the
-// user did, such as a invalid request body. The HTTP status code will be 200
-// and the error will be returned in the PluginReply Error field.
+// prior to plugin command execution that is caused by something that the user
+// did, such as a invalid request body.
+//
+// If an error occurs during plugin command execution then the error will be
+// sent back in the CmdReply and the HTTP status code will be 200.
 type UserError struct {
 	ErrorCode    ErrorCodeT `json:"errorcode"`
 	ErrorContext string     `json:"errorcontext,omitempty"`
