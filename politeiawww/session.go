@@ -7,7 +7,7 @@ package main
 import (
 	"net/http"
 
-	v1 "github.com/decred/politeia/politeiawww/api/http/v1"
+	v3 "github.com/decred/politeia/politeiawww/api/http/v3"
 	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
 	"github.com/gorilla/sessions"
 )
@@ -20,7 +20,7 @@ const (
 // extractSession extracts and returns the session from the http request
 // cookie.
 func (p *politeiawww) extractSession(r *http.Request) (*sessions.Session, error) {
-	return p.sessions.Get(r, v1.SessionCookieName)
+	return p.sessions.Get(r, v3.SessionCookieName)
 }
 
 // saveUserSession saves the encoded session values to the database and the

@@ -13,7 +13,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	v1 "github.com/decred/politeia/politeiawww/api/http/v1"
+	v3 "github.com/decred/politeia/politeiawww/api/http/v3"
 	"github.com/decred/politeia/politeiawww/logger"
 	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
 	"github.com/decred/politeia/util"
@@ -33,31 +33,31 @@ func (p *politeiawww) setupRoutes() {
 	// to be part of the CSRF protected auth router so that the
 	// cookie CSRF is set too. The CSRF cookie is set on all auth
 	// routes. The header token is only set on the version route.
-	addRoute(p.protected, http.MethodGet, v1.APIRoute,
-		v1.VersionRoute, p.handleVersion)
+	addRoute(p.protected, http.MethodGet, v3.APIRoute,
+		v3.VersionRoute, p.handleVersion)
 
 	// Unprotected routes
-	addRoute(p.router, http.MethodGet, v1.APIRoute,
-		v1.PolicyRoute, p.handlePolicy)
-	addRoute(p.router, http.MethodPost, v1.APIRoute,
-		v1.ReadRoute, p.handleRead)
-	addRoute(p.router, http.MethodPost, v1.APIRoute,
-		v1.ReadBatchRoute, p.handleReadBatch)
+	addRoute(p.router, http.MethodGet, v3.APIRoute,
+		v3.PolicyRoute, p.handlePolicy)
+	addRoute(p.router, http.MethodPost, v3.APIRoute,
+		v3.ReadRoute, p.handleRead)
+	addRoute(p.router, http.MethodPost, v3.APIRoute,
+		v3.ReadBatchRoute, p.handleReadBatch)
 
 	// CSRF protected routes
-	addRoute(p.protected, http.MethodPost, v1.APIRoute,
-		v1.NewUserRoute, p.handleNewUser)
-	addRoute(p.protected, http.MethodPost, v1.APIRoute,
-		v1.WriteRoute, p.handleWrite)
+	addRoute(p.protected, http.MethodPost, v3.APIRoute,
+		v3.NewUserRoute, p.handleNewUser)
+	addRoute(p.protected, http.MethodPost, v3.APIRoute,
+		v3.WriteRoute, p.handleWrite)
 }
 
-// handleVersion is the request handler for the http v1 VersionRoute.
+// handleVersion is the request handler for the http v3 VersionRoute.
 func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleVersion")
 
 	// Set the CSRF header. This is the only route
 	// that sets the CSRF header.
-	w.Header().Set(v1.CSRFTokenHeader, csrf.Token(r))
+	w.Header().Set(v3.CSRFTokenHeader, csrf.Token(r))
 
 	plugins := make(map[string]uint32, len(p.plugins))
 	for _, plugin := range p.plugins {
@@ -65,35 +65,35 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	util.RespondWithJSON(w, http.StatusOK,
-		v1.VersionReply{
-			APIVersion:   v1.APIVersion,
+		v3.VersionReply{
+			APIVersion:   v3.APIVersion,
 			BuildVersion: version.String(),
 			Plugins:      plugins,
 		})
 }
 
-// handlePolicy is the request handler for the http v1 PolicyRoute.
+// handlePolicy is the request handler for the http v3 PolicyRoute.
 func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePolicy")
 
 	util.RespondWithJSON(w, http.StatusOK,
-		v1.PolicyReply{
+		v3.PolicyReply{
 			ReadBatchLimit: p.cfg.PluginBatchLimit,
 		})
 }
 
-// handleNewUser is the request handler for the http v1 NewUserRoute.
+// handleNewUser is the request handler for the http v3 NewUserRoute.
 func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleNewUser")
 
 	// Decode the request body
-	var cmd v1.Cmd
+	var cmd v3.Cmd
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cmd); err != nil {
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.CmdReply{
-				Error: v1.UserError{
-					ErrorCode: v1.ErrorCodeInvalidInput,
+			v3.CmdReply{
+				Error: v3.UserError{
+					ErrorCode: v3.ErrorCodeInvalidInput,
 				},
 			})
 		return
@@ -102,9 +102,9 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	// Verify the plugin is the user plugin
 	if p.userManager.ID() != cmd.PluginID {
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.CmdReply{
-				Error: v1.UserError{
-					ErrorCode: v1.ErrorCodePluginNotAuthorized,
+			v3.CmdReply{
+				Error: v3.UserError{
+					ErrorCode: v3.ErrorCodePluginNotAuthorized,
 				},
 			})
 		return
@@ -144,18 +144,18 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleWrite is the request handler for the http v1 WriteRoute.
+// handleWrite is the request handler for the http v3 WriteRoute.
 func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleWrite")
 
 	// Decode the request body
-	var cmd v1.Cmd
+	var cmd v3.Cmd
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cmd); err != nil {
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.CmdReply{
-				Error: v1.UserError{
-					ErrorCode: v1.ErrorCodeInvalidInput,
+			v3.CmdReply{
+				Error: v3.UserError{
+					ErrorCode: v3.ErrorCodeInvalidInput,
 				},
 			})
 		return
@@ -165,9 +165,9 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	_, ok := p.plugins[cmd.PluginID]
 	if !ok {
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.CmdReply{
-				Error: v1.UserError{
-					ErrorCode: v1.ErrorCodePluginNotFound,
+			v3.CmdReply{
+				Error: v3.UserError{
+					ErrorCode: v3.ErrorCodePluginNotFound,
 				},
 			})
 		return
@@ -207,18 +207,18 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleRead is the request handler for the http v1 ReadRoute.
+// handleRead is the request handler for the http v3 ReadRoute.
 func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleRead")
 
 	// Decode the request body
-	var cmd v1.Cmd
+	var cmd v3.Cmd
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cmd); err != nil {
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.CmdReply{
-				Error: v1.UserError{
-					ErrorCode: v1.ErrorCodeInvalidInput,
+			v3.CmdReply{
+				Error: v3.UserError{
+					ErrorCode: v3.ErrorCodeInvalidInput,
 				},
 			})
 		return
@@ -228,9 +228,9 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	_, ok := p.plugins[cmd.PluginID]
 	if !ok {
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.CmdReply{
-				Error: v1.UserError{
-					ErrorCode: v1.ErrorCodePluginNotFound,
+			v3.CmdReply{
+				Error: v3.UserError{
+					ErrorCode: v3.ErrorCodePluginNotFound,
 				},
 			})
 		return
@@ -270,27 +270,27 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK, reply)
 }
 
-// handleReadBatch is the request handler for the http v1 ReadBatchRoute.
+// handleReadBatch is the request handler for the http v3 ReadBatchRoute.
 func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleReadBatch")
 
 	// Decode the request body
-	var batch v1.Batch
+	var batch v3.Batch
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&batch); err != nil {
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.CmdReply{
-				Error: v1.UserError{
-					ErrorCode: v1.ErrorCodeInvalidInput,
+			v3.CmdReply{
+				Error: v3.UserError{
+					ErrorCode: v3.ErrorCodeInvalidInput,
 				},
 			})
 		return
 	}
 	if len(batch.Cmds) > int(p.cfg.PluginBatchLimit) {
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.CmdReply{
-				Error: v1.UserError{
-					ErrorCode: v1.ErrorCodeBatchLimitExceeded,
+			v3.CmdReply{
+				Error: v3.UserError{
+					ErrorCode: v3.ErrorCodeBatchLimitExceeded,
 					ErrorContext: fmt.Sprintf("max number of cmds is %v",
 						p.cfg.PluginBatchLimit),
 				},
@@ -308,15 +308,15 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 
 	var (
 		pluginSession = convertSession(s)
-		replies       = make([]v1.CmdReply, len(batch.Cmds))
+		replies       = make([]v3.CmdReply, len(batch.Cmds))
 	)
 	for i, cmd := range batch.Cmds {
 		// Verify plugin exists
 		_, ok := p.plugins[cmd.PluginID]
 		if !ok {
-			replies[i] = v1.CmdReply{
-				Error: v1.UserError{
-					ErrorCode: v1.ErrorCodePluginNotFound,
+			replies[i] = v3.CmdReply{
+				Error: v3.UserError{
+					ErrorCode: v3.ErrorCodePluginNotFound,
 				},
 			}
 			continue
@@ -344,7 +344,7 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 
 	// Send the response
 	util.RespondWithJSON(w, http.StatusOK,
-		v1.BatchReply{
+		v3.BatchReply{
 			Replies: replies,
 		})
 }
@@ -363,17 +363,17 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 	}
 
 	// Check if this a user error
-	var ue v1.UserError
+	var ue v3.UserError
 	if errors.As(err, &ue) {
 		m := fmt.Sprintf("%v User error: %v %v",
-			util.RemoteAddr(r), ue.ErrorCode, v1.ErrorCodes[ue.ErrorCode])
+			util.RemoteAddr(r), ue.ErrorCode, v3.ErrorCodes[ue.ErrorCode])
 		if ue.ErrorContext != "" {
 			m += fmt.Sprintf(": %v", ue.ErrorContext)
 		}
 		log.Infof(m)
 
 		util.RespondWithJSON(w, http.StatusOK,
-			v1.CmdReply{
+			v3.CmdReply{
 				Error: ue,
 			})
 		return
@@ -396,7 +396,7 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 	log.Errorf("Stacktrace (NOT A REAL CRASH): %v", stack)
 
 	util.RespondWithJSON(w, http.StatusInternalServerError,
-		v1.InternalError{
+		v3.InternalError{
 			ErrorCode: t,
 		})
 }
@@ -424,8 +424,8 @@ func handleNotFound(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusNotFound, nil)
 }
 
-// convertCmdFromHTTP converts a http v1 Cmd to a plugin Cmd.
-func convertCmdFromHTTP(c v1.Cmd) plugin.Cmd {
+// convertCmdFromHTTP converts a http v3 Cmd to a plugin Cmd.
+func convertCmdFromHTTP(c v3.Cmd) plugin.Cmd {
 	return plugin.Cmd{
 		PluginID: c.PluginID,
 		Version:  c.Version,
@@ -434,9 +434,9 @@ func convertCmdFromHTTP(c v1.Cmd) plugin.Cmd {
 	}
 }
 
-// convertCmdFromHTTP converts a plugin Reply to a http v1 CmdReply.
-func convertReplyToHTTP(c plugin.Cmd, r plugin.Reply) v1.CmdReply {
-	return v1.CmdReply{
+// convertCmdFromHTTP converts a plugin Reply to a http v3 CmdReply.
+func convertReplyToHTTP(c plugin.Cmd, r plugin.Reply) v3.CmdReply {
+	return v3.CmdReply{
 		PluginID: c.PluginID,
 		Version:  c.Version,
 		Cmd:      c.Cmd,

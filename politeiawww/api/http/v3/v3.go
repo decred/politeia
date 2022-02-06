@@ -2,20 +2,20 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package v1
+package v3
 
 import "fmt"
 
 const (
 	// APIVersion if the version of the API that this package represents.
-	APIVersion uint32 = 1
+	APIVersion uint32 = 3
 
 	// APIRoute is prefixed onto all routes defined in this package.
-	APIRoute = "/v1/plugin"
+	APIRoute = "/v3"
 
 	// VersionRoute is a GET request route that returns the server version
 	// information and sets CSRF tokens for the client. The VersionReply can be
-	// retrieved from both the "/" route and the "/v1/plugin/" route. This allows
+	// retrieved from both the "/" route and the "/v3/version" route. This allows
 	// clients to be able to determine version information without needing to
 	// have any prior knowledge of the API.
 	//
@@ -25,7 +25,7 @@ const (
 	// use CSRF protected routes.
 	//
 	// This route returns a VersionReply.
-	VersionRoute = "/"
+	VersionRoute = "/version"
 
 	// PolicyRoute is a GET request route that returns API policy information.
 	//
