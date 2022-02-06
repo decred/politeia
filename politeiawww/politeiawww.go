@@ -211,7 +211,7 @@ func _main() error {
 	for _, pluginID := range cfg.Plugins {
 		p, err := plugin.NewPlugin(pluginID)
 		if err != nil {
-			return errors.Errorf("new '%v' plugin: %v", pluginID)
+			return errors.Errorf("new '%v' plugin: %v", pluginID, err)
 		}
 		plugins[pluginID] = p
 	}
