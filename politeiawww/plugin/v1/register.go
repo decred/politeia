@@ -8,7 +8,7 @@ import "github.com/pkg/errors"
 
 var (
 	// The following maps store the various initialization functions that have
-	// been registered with this pacakge.
+	// been registered with this package.
 	pluginInitFns      = make(map[string]func(InitArgs) (Plugin, error))
 	userManagerInitFns = make(map[string]func(InitArgs) (UserManager, error))
 	authManagerInitFns = make(map[string]func(InitArgs) (AuthManager, error))
@@ -32,7 +32,7 @@ type Setting struct {
 // RegisterPluginInitFn registers a Plugin initialization function with this
 // package. This should be done by the plugin implementation as part of its
 // package level init() function. The registered function is called at runtime
-// to intialize the Plugin.
+// to initialize the Plugin.
 func RegisterPluginInitFn(pluginID string, fn func(InitArgs) (Plugin, error)) {
 	pluginInitFns[pluginID] = fn
 }
@@ -40,7 +40,7 @@ func RegisterPluginInitFn(pluginID string, fn func(InitArgs) (Plugin, error)) {
 // RegisterUserManagerInitFn registers a UserManager initialization function
 // with this package. This should be done by the plugin implementation as part
 // of its package level init() function. The registered function is called at
-// runtime to intialize the UserManager .
+// runtime to initialize the UserManager .
 func RegisterUserManagerInitFn(pluginID string, fn func(InitArgs) (UserManager, error)) {
 	userManagerInitFns[pluginID] = fn
 }
@@ -48,7 +48,7 @@ func RegisterUserManagerInitFn(pluginID string, fn func(InitArgs) (UserManager, 
 // RegisterAuthManagerInitFn registers an AuthManager initialization function
 // with this package. This should be done by the plugin implementation as part
 // of its package level init() function. The registered function is called at
-// runtime to intialize the AuthManager.
+// runtime to initialize the AuthManager.
 func RegisterAuthManagerInitFn(pluginID string, fn func(InitArgs) (AuthManager, error)) {
 	authManagerInitFns[pluginID] = fn
 }

@@ -387,7 +387,7 @@ func (p *politeiawww) setupPlugins() error {
 		}
 		am, err = plugin.NewAuthManager(p.cfg.AuthPlugin, args)
 		if err != nil {
-			return errors.Errorf("failed to intialize the auth manager plugin %v",
+			return errors.Errorf("failed to initialize the auth manager plugin %v",
 				p.cfg.AuthPlugin)
 		}
 	}
