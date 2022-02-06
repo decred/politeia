@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	"github.com/decred/politeia/politeiad/plugins/comments"
@@ -92,6 +91,71 @@ func (c *Comments) processNew(ctx context.Context, n v1.New, u user.User) (*v1.N
 		})
 
 	return &v1.NewReply{
+		Comment: cm,
+	}, nil
+}
+
+func (c *Comments) processEdit(ctx context.Context, e v1.Edit, u user.User) (*v1.EditReply, error) {
+	log.Tracef("processEdit: %v %v", e.Token, e.CommentID)
+
+	// Verify state
+	state := convertStateToPlugin(e.State)
+	if state == comments.RecordStateInvalid {
+		return nil, v1.UserErrorReply{
+			ErrorCode: v1.ErrorCodeRecordStateInvalid,
+		}
+	}
+
+	// Verify user signed using active identity
+	if u.PublicKey() != e.PublicKey {
+		return nil, v1.UserErrorReply{
+			ErrorCode:    v1.ErrorCodePublicKeyInvalid,
+			ErrorContext: "not active identity",
+		}
+	}
+
+	// Ensure that session user ID is identical to the user ID included in the
+	// edit request payload.
+	if u.ID.String() != e.UserID {
+		return nil, v1.UserErrorReply{
+			ErrorCode:    v1.ErrorCodeUnauthorized,
+			ErrorContext: "user is not comment author",
+		}
+	}
+
+	// Execute pre plugin hooks. Checking the mode is a temporary
+	// measure until user plugins have been properly implemented.
+	switch c.cfg.Mode {
+	case config.PiWWWMode:
+		err := c.piHookEditPre(u)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Send plugin command
+	ce := comments.Edit{
+		UserID:        u.ID.String(),
+		State:         state,
+		Token:         e.Token,
+		ParentID:      e.ParentID,
+		CommentID:     e.CommentID,
+		Comment:       e.Comment,
+		PublicKey:     e.PublicKey,
+		Signature:     e.Signature,
+		ExtraData:     e.ExtraData,
+		ExtraDataHint: e.ExtraDataHint,
+	}
+	pdc, err := c.politeiad.CommentEdit(ctx, ce)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare reply
+	cm := convertComment(*pdc)
+	commentPopulateUserData(&cm, u)
+
+	return &v1.EditReply{
 		Comment: cm,
 	}, nil
 }
@@ -209,10 +273,10 @@ func (c *Comments) processCount(ctx context.Context, ct v1.Count) (*v1.CountRepl
 			Counts: map[string]uint32{},
 		}, nil
 
-	case len(ct.Tokens) > int(v1.CountPageSize):
+	case len(ct.Tokens) > int(c.policy.CountPageSize):
 		return nil, v1.UserErrorReply{
 			ErrorCode:    v1.ErrorCodePageSizeExceeded,
-			ErrorContext: fmt.Sprintf("max page size is %v", v1.CountPageSize),
+			ErrorContext: fmt.Sprintf("max page size is %v", c.policy.CountPageSize),
 		}
 	}
 
@@ -306,6 +370,7 @@ func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply
 	// comments are public.
 	cm := comments.Votes{
 		UserID: v.UserID,
+		Page:   v.Page,
 	}
 	votes, err := c.politeiad.CommentVotes(ctx, v.Token, cm)
 	if err != nil {
@@ -314,24 +379,96 @@ func (c *Comments) processVotes(ctx context.Context, v v1.Votes) (*v1.VotesReply
 	cv := convertCommentVotes(votes)
 
 	// Populate comment votes with user data
-	uid, err := uuid.Parse(v.UserID)
+	err = c.commentVotesPopulateUserData(cv, v.UserID)
 	if err != nil {
 		return nil, err
 	}
-	u, err := c.userdb.UserGetById(uid)
-	if err != nil {
-		return nil, err
-	}
-	commentVotePopulateUserData(cv, *u)
-
-	// Sort comment votes by timestamp from newest to oldest.
-	sort.SliceStable(cv, func(i, j int) bool {
-		return cv[i].Timestamp > cv[j].Timestamp
-	})
 
 	return &v1.VotesReply{
 		Votes: cv,
 	}, nil
+}
+
+// usersBatchSize is the maximum number of users which can be fetched from
+// politeiawww and stored in memory while populating the comment votes structs
+// with the missing users data.
+var usersBatchSize = 10
+
+// commentVotePopulateUserData populates the comment votes with user data that
+// is not stored in politeiad. If all votes are associated with one user it
+// expects to get the user's ID as a parameter.
+func (c *Comments) commentVotesPopulateUserData(votes []v1.CommentVote, userID string) error {
+	// If given votes slice is emptry, nothing to do
+	if len(votes) == 0 {
+		return nil
+	}
+
+	// Collect the users public keys in a map to prevent duplicates and to
+	// retrieve the users in a batched db call.
+	var mPubkeys map[string]bool // map[pubkey]bool
+	if userID != "" {
+		// If user ID filter is applied, we have only one user
+		// to fetch.
+		mPubkeys = make(map[string]bool, 1)
+		mPubkeys[votes[0].PublicKey] = true
+	} else {
+		// If user ID filter is not applied, we need to collect all
+		// the user public keys from comment votes.
+		mPubkeys = make(map[string]bool, len(votes))
+		for _, vote := range votes {
+			if ok := mPubkeys[vote.UserID]; ok {
+				// If user uuid already known, skip
+				continue
+			}
+			mPubkeys[vote.PublicKey] = true
+		}
+	}
+
+	// Store public keys in a slice
+	pubkeys := make([]string, 0, len(mPubkeys))
+	for pubkey := range mPubkeys {
+		pubkeys = append(pubkeys, pubkey)
+	}
+
+	// Get users from db in batchs to avoid reading too many
+	// users into memory.
+	var batchStartIdx int
+	usernames := make(map[string]string, len(pubkeys))
+	for batchStartIdx < len(pubkeys) {
+		batchEndIdx := batchStartIdx + usersBatchSize
+		if batchEndIdx > len(pubkeys) {
+			// We've reached the end of the slice
+			batchEndIdx = len(pubkeys)
+		}
+
+		// batchStartIdx is included. batchEndIdx is excluded.
+		batch := pubkeys[batchStartIdx:batchEndIdx]
+
+		// Get batch of users
+		users, err := c.userdb.UsersGetByPubKey(batch)
+		if err != nil {
+			return err
+		}
+
+		// Map user IDs to usernames
+		for _, u := range users {
+			usernames[u.ID.String()] = u.Username
+		}
+
+		log.Debugf("Fetched a batch of %v users out of %v required users",
+			len(batch), len(pubkeys))
+
+		// Next batch start index
+		batchStartIdx = batchEndIdx
+	}
+
+	// Populate comment votes with usernames
+	for k := range votes {
+		username := usernames[votes[k].UserID]
+		votes[k].Username = username
+	}
+
+	return nil
 }
 
 func (c *Comments) processTimestamps(ctx context.Context, t v1.Timestamps, isAdmin bool) (*v1.TimestampsReply, error) {
@@ -345,11 +482,11 @@ func (c *Comments) processTimestamps(ctx context.Context, t v1.Timestamps, isAdm
 			Comments: map[uint32]v1.CommentTimestamp{},
 		}, nil
 
-	case len(t.CommentIDs) > int(v1.TimestampsPageSize):
+	case len(t.CommentIDs) > int(c.policy.TimestampsPageSize):
 		return nil, v1.UserErrorReply{
 			ErrorCode: v1.ErrorCodePageSizeExceeded,
 			ErrorContext: fmt.Sprintf("max page size is %v",
-				v1.TimestampsPageSize),
+				c.policy.TimestampsPageSize),
 		}
 	}
 
@@ -442,14 +579,6 @@ func commentPopulateUserData(c *v1.Comment, u user.User) {
 	c.Username = u.Username
 }
 
-// commentVotePopulateUserData populates the comment vote with user data that
-// is not stored in politeiad.
-func commentVotePopulateUserData(votes []v1.CommentVote, u user.User) {
-	for k := range votes {
-		votes[k].Username = u.Username
-	}
-}
-
 func convertStateToPlugin(s v1.RecordStateT) comments.RecordStateT {
 	switch s {
 	case v1.RecordStateUnvetted:
@@ -483,6 +612,8 @@ func convertComment(c comments.Comment) v1.Comment {
 		PublicKey:     c.PublicKey,
 		Signature:     c.Signature,
 		CommentID:     c.CommentID,
+		Version:       c.Version,
+		CreatedAt:     c.CreatedAt,
 		Timestamp:     c.Timestamp,
 		Receipt:       c.Receipt,
 		Downvotes:     c.Downvotes,

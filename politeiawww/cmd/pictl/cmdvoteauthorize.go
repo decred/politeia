@@ -115,7 +115,7 @@ func (c *cmdVoteAuthorize) Execute(args []string) error {
 	// Print receipt
 	printf("Token    : %v\n", a.Token)
 	printf("Action   : %v\n", a.Action)
-	printf("Timestamp: %v\n", timestampFromUnix(ar.Timestamp))
+	printf("Timestamp: %v\n", dateAndTimeFromUnix(ar.Timestamp))
 	printf("Receipt  : %v\n", ar.Receipt)
 
 	return nil

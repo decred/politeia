@@ -372,7 +372,7 @@ func (p *ticketVotePlugin) invByStatusAll(bestBlock, pageSize uint32) (*invBySta
 // inventoryByStatus returns a page of tokens for the provided status. If no
 // status is provided then a page for each status will be returned.
 func (p *ticketVotePlugin) inventoryByStatus(bestBlock uint32, s ticketvote.VoteStatusT, page uint32) (*invByStatus, error) {
-	pageSize := ticketvote.InventoryPageSize
+	pageSize := p.inventoryPageSize
 
 	// If no status is provided a page of tokens for each status should
 	// be returned.

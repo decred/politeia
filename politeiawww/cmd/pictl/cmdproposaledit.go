@@ -163,8 +163,8 @@ func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 		}
 		c.Name = pm.Name
 		c.Amount = pm.Amount
-		c.StartDate = timestampFromUnix(pm.StartDate)
-		c.EndDate = timestampFromUnix(pm.EndDate)
+		c.StartDate = dateAndTimeFromUnix(pm.StartDate)
+		c.EndDate = dateAndTimeFromUnix(pm.EndDate)
 		c.Domain = pm.Domain
 	// Set random metadata values in case no specific value is provided.
 	case c.Random:
@@ -206,13 +206,13 @@ func proposalEdit(c *cmdProposalEdit) (*rcv1.Record, error) {
 	}
 	if c.StartDate != "" {
 		// Parse start & end dates string timestamps.
-		pm.StartDate, err = unixFromTimestamp(c.StartDate)
+		pm.StartDate, err = unixFromDate(c.StartDate)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if c.EndDate != "" {
-		pm.EndDate, err = unixFromTimestamp(c.EndDate)
+		pm.EndDate, err = unixFromDate(c.EndDate)
 		if err != nil {
 			return nil, err
 		}

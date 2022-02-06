@@ -49,11 +49,11 @@ func (p *Pi) processBillingStatusChanges(ctx context.Context, bscs v1.BillingSta
 	log.Tracef("processBillingStatusChanges: %v", bscs.Tokens)
 
 	// Verify request size
-	if len(bscs.Tokens) > int(v1.BillingStatusChangesPageSize) {
+	if len(bscs.Tokens) > int(p.policy.BillingStatusChangesPageSize) {
 		return nil, v1.UserErrorReply{
 			ErrorCode: v1.ErrorCodePageSizeExceeded,
 			ErrorContext: fmt.Sprintf("max page size is %v",
-				v1.BillingStatusChangesPageSize),
+				p.policy.BillingStatusChangesPageSize),
 		}
 	}
 
@@ -84,11 +84,11 @@ func (p *Pi) processSummaries(ctx context.Context, s v1.Summaries) (*v1.Summarie
 	log.Tracef("processSummaries: %v", s.Tokens)
 
 	// Verify request size
-	if len(s.Tokens) > int(v1.SummariesPageSize) {
+	if len(s.Tokens) > int(p.policy.SummariesPageSize) {
 		return nil, v1.UserErrorReply{
 			ErrorCode: v1.ErrorCodePageSizeExceeded,
 			ErrorContext: fmt.Sprintf("max page size is %v",
-				v1.SummariesPageSize),
+				p.policy.SummariesPageSize),
 		}
 	}
 

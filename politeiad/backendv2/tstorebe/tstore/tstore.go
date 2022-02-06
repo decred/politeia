@@ -14,7 +14,6 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	backend "github.com/decred/politeia/politeiad/backendv2"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/mysql"
@@ -37,10 +36,6 @@ const (
 
 	// MySQL settings
 	dbUser = "politeiad"
-)
-
-var (
-	_ plugins.TstoreClient = (*Tstore)(nil)
 )
 
 // Tstore is a data store that automatically timestamps all data saved to it
@@ -218,7 +213,7 @@ func (t *Tstore) Setup() error {
 }
 
 // New returns a new tstore instance.
-func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
+func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
 	// Setup datadir for this tstore instance
 	dataDir = filepath.Join(dataDir)
 	err := os.MkdirAll(dataDir, 0700)
@@ -253,11 +248,7 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, tlogPass, dbTyp
 
 	// Setup trillian client
 	log.Infof("Tlog host: %v", tlogHost)
-	tlogKey, err := deriveTlogKey(kvstore, tlogPass)
-	if err != nil {
-		return nil, err
-	}
-	tlogClient, err := newTClient(tlogHost, tlogKey)
+	tlogClient, err := newTClient(tlogHost)
 	if err != nil {
 		return nil, err
 	}

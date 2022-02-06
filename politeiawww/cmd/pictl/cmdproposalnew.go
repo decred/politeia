@@ -173,13 +173,13 @@ func proposalNew(c *cmdProposalNew) (*rcv1.Record, error) {
 	}
 	// Parse start & end dates string timestamps.
 	if c.StartDate != "" {
-		pm.StartDate, err = unixFromTimestamp(c.StartDate)
+		pm.StartDate, err = unixFromDate(c.StartDate)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if c.EndDate != "" {
-		pm.EndDate, err = unixFromTimestamp(c.EndDate)
+		pm.EndDate, err = unixFromDate(c.EndDate)
 		if err != nil {
 			return nil, err
 		}

@@ -10,12 +10,10 @@ import (
 	"errors"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/plugins/pi"
-	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
 
 func TestCmdBillingStatus(t *testing.T) {
@@ -241,167 +239,85 @@ func TestCmdBillingStatus(t *testing.T) {
 	}
 }
 
-func TestProposalStatus(t *testing.T) {
+func TestCmdSummary(t *testing.T) {
+	// Setup pi plugin
+	p, cleanup := newTestPiPlugin(t)
+	defer cleanup()
+
 	// Setup tests
 	var tests = []struct {
-		name           string // Test name
-		state          backend.StateT
-		status         backend.StatusT
-		voteStatus     ticketvote.VoteStatusT
-		voteMD         *ticketvote.VoteMetadata
-		bscs           []pi.BillingStatusChange
-		proposalStatus pi.PropStatusT // Expected proposal status
+		name       string // Test name
+		token      string
+		propStatus pi.PropStatusT // expected proposal status
 	}{
 		{
-			"unvetted",
-			backend.StateUnvetted,
-			backend.StatusUnreviewed,
-			ticketvote.VoteStatusInvalid,
-			nil,
-			nil,
-			pi.PropStatusUnvetted,
+			name:       string(pi.PropStatusUnvettedAbandoned),
+			token:      "45154fb45664714b",
+			propStatus: pi.PropStatusUnvettedAbandoned,
 		},
 		{
-			"unvetted-censored",
-			backend.StateUnvetted,
-			backend.StatusCensored,
-			ticketvote.VoteStatusInvalid,
-			nil,
-			nil,
-			pi.PropStatusUnvettedCensored,
+			name:       string(pi.PropStatusUnvettedCensored),
+			token:      "45154fb45664714a",
+			propStatus: pi.PropStatusUnvettedCensored,
 		},
 		{
-			"unvetted-abandoned",
-			backend.StateUnvetted,
-			backend.StatusArchived,
-			ticketvote.VoteStatusInvalid,
-			nil,
-			nil,
-			pi.PropStatusUnvettedAbandoned,
+			name:       string(pi.PropStatusAbandoned),
+			token:      "45154fb45664714c",
+			propStatus: pi.PropStatusAbandoned,
 		},
 		{
-			"abandoned",
-			backend.StateVetted,
-			backend.StatusArchived,
-			ticketvote.VoteStatusInvalid,
-			nil,
-			nil,
-			pi.PropStatusAbandoned,
+			name:       string(pi.PropStatusCensored),
+			token:      "45154fb45664714d",
+			propStatus: pi.PropStatusCensored,
 		},
 		{
-			"censored",
-			backend.StateVetted,
-			backend.StatusCensored,
-			ticketvote.VoteStatusInvalid,
-			nil,
-			nil,
-			pi.PropStatusCensored,
+			name:       string(pi.PropStatusAbandoned),
+			token:      "45154fb45664714e",
+			propStatus: pi.PropStatusAbandoned,
 		},
 		{
-			"under-review",
-			backend.StateVetted,
-			backend.StatusPublic,
-			ticketvote.VoteStatusUnauthorized,
-			nil,
-			nil,
-			pi.PropStatusUnderReview,
-		},
-		{
-			"vote-authorized",
-			backend.StateVetted,
-			backend.StatusPublic,
-			ticketvote.VoteStatusAuthorized,
-			nil,
-			nil,
-			pi.PropStatusVoteAuthorized,
-		},
-		{
-			"vote-started",
-			backend.StateVetted,
-			backend.StatusPublic,
-			ticketvote.VoteStatusStarted,
-			nil,
-			nil,
-			pi.PropStatusVoteStarted,
-		},
-		{
-			"approved",
-			backend.StateVetted,
-			backend.StatusPublic,
-			ticketvote.VoteStatusApproved,
-			&ticketvote.VoteMetadata{
-				LinkBy: time.Now().Unix() + 600, // 10m in the future
-			},
-			nil,
-			pi.PropStatusApproved,
-		},
-		{
-			"closed",
-			backend.StateVetted,
-			backend.StatusPublic,
-			ticketvote.VoteStatusApproved,
-			nil,
-			[]pi.BillingStatusChange{
-				{
-					Status: pi.BillingStatusClosed,
-				},
-			},
-			pi.PropStatusClosed,
-		},
-		{
-			"completed",
-			backend.StateVetted,
-			backend.StatusPublic,
-			ticketvote.VoteStatusApproved,
-			nil,
-			[]pi.BillingStatusChange{
-				{
-					Status: pi.BillingStatusCompleted,
-				},
-			},
-			pi.PropStatusCompleted,
-		},
-		{
-			"multi_active",
-			backend.StateVetted,
-			backend.StatusPublic,
-			ticketvote.VoteStatusApproved,
-			nil,
-			[]pi.BillingStatusChange{
-				{
-					Status: pi.BillingStatusCompleted,
-				},
-				{
-					Status: pi.BillingStatusActive,
-				},
-			},
-			pi.PropStatusActive,
-		},
-		{
-			"invalid",
-			backend.StateUnvetted,
-			backend.StatusPublic,
-			ticketvote.VoteStatusApproved,
-			nil,
-			nil,
-			pi.PropStatusInvalid,
+			name:       string(pi.PropStatusCensored),
+			token:      "45154fb45664714f",
+			propStatus: pi.PropStatusCensored,
 		},
 	}
 
 	// Run tests
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			// Decode string token
+			bt, err := hex.DecodeString(tc.token)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Cache final status
+			p.statuses.set(tc.token, statusEntry{
+				propStatus: tc.propStatus,
+			})
+
 			// Run test
-			status, _ := proposalStatus(tc.state, tc.status,
-				tc.voteStatus, tc.voteMD, tc.bscs)
+			r, err := p.cmdSummary(bt)
+			if err != nil {
+				// Unexpected error
+				t.Fatal(err)
+			}
+
+			// Unmarshal command reply
+			var sr pi.SummaryReply
+			err = json.Unmarshal([]byte(r), &sr)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			// Check if received proposal status euqal to the expected.
-			if tc.proposalStatus != status {
-				t.Errorf("want proposal status %v, got '%v'", tc.proposalStatus,
-					status)
+			if sr.Summary.Status != tc.propStatus {
+				t.Errorf("want proposal status %v, got '%v'", tc.propStatus,
+					sr.Summary.Status)
 			}
 		})
 	}
+
 }
 
 // setBillingStatus uses the provided arguments to return a SetBillingStatus

@@ -57,10 +57,13 @@ type ticketVotePlugin struct {
 	mtxSubs    sync.Mutex   // Runoff vote submission cache
 
 	// Plugin settings
-	linkByPeriodMin int64  // In seconds
-	linkByPeriodMax int64  // In seconds
-	voteDurationMin uint32 // In blocks
-	voteDurationMax uint32 // In blocks
+	linkByPeriodMin    int64  // In seconds
+	linkByPeriodMax    int64  // In seconds
+	voteDurationMin    uint32 // In blocks
+	voteDurationMax    uint32 // In blocks
+	summariesPageSize  uint32
+	inventoryPageSize  uint32
+	timestampsPageSize uint32
 }
 
 // Setup performs any plugin setup that is required.
@@ -487,16 +490,31 @@ func (p *ticketVotePlugin) Settings() []backend.PluginSetting {
 			Key:   ticketvote.SettingKeyVoteDurationMax,
 			Value: strconv.FormatUint(uint64(p.voteDurationMax), 10),
 		},
+		{
+			Key:   ticketvote.SettingKeySummariesPageSize,
+			Value: strconv.FormatUint(uint64(p.summariesPageSize), 10),
+		},
+		{
+			Key:   ticketvote.SettingKeyInventoryPageSize,
+			Value: strconv.FormatUint(uint64(p.inventoryPageSize), 10),
+		},
+		{
+			Key:   ticketvote.SettingKeyTimestampsPageSize,
+			Value: strconv.FormatUint(uint64(p.timestampsPageSize), 10),
+		},
 	}
 }
 
 func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backend.PluginSetting, dataDir string, id *identity.FullIdentity, activeNetParams *chaincfg.Params) (*ticketVotePlugin, error) {
 	// Plugin settings
 	var (
-		linkByPeriodMin int64
-		linkByPeriodMax int64
-		voteDurationMin uint32
-		voteDurationMax uint32
+		linkByPeriodMin    int64
+		linkByPeriodMax    int64
+		voteDurationMin    uint32
+		voteDurationMax    uint32
+		summariesPageSize  = ticketvote.SettingSummariesPageSize
+		inventoryPageSize  = ticketvote.SettingInventoryPageSize
+		timestampsPageSize = ticketvote.SettingTimestampsPageSize
 	)
 
 	// Set plugin settings to defaults. These will be overwritten if
@@ -565,6 +583,36 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 			log.Infof("Plugin setting updated: ticketvote %v %v",
 				ticketvote.SettingKeyVoteDurationMax, voteDurationMax)
 
+		case ticketvote.SettingKeySummariesPageSize:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("plugin setting '%v': ParseUint(%v): %v",
+					v.Key, v.Value, err)
+			}
+			summariesPageSize = uint32(u)
+			log.Infof("Plugin setting updated: ticketvote %v %v",
+				ticketvote.SettingKeySummariesPageSize, summariesPageSize)
+
+		case ticketvote.SettingKeyInventoryPageSize:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("plugin setting '%v': ParseUint(%v): %v",
+					v.Key, v.Value, err)
+			}
+			inventoryPageSize = uint32(u)
+			log.Infof("Plugin setting updated: ticketvote %v %v",
+				ticketvote.SettingKeyInventoryPageSize, inventoryPageSize)
+
+		case ticketvote.SettingKeyTimestampsPageSize:
+			u, err := strconv.ParseUint(v.Value, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("plugin setting '%v': ParseUint(%v): %v",
+					v.Key, v.Value, err)
+			}
+			timestampsPageSize = uint32(u)
+			log.Infof("Plugin setting updated: ticketvote %v %v",
+				ticketvote.SettingKeyTimestampsPageSize, timestampsPageSize)
+
 		default:
 			return nil, fmt.Errorf("invalid plugin setting '%v'", v.Key)
 		}
@@ -578,15 +626,18 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 	}
 
 	return &ticketVotePlugin{
-		activeNetParams: activeNetParams,
-		backend:         backend,
-		tstore:          tstore,
-		dataDir:         dataDir,
-		identity:        id,
-		activeVotes:     newActiveVotes(),
-		linkByPeriodMin: linkByPeriodMin,
-		linkByPeriodMax: linkByPeriodMax,
-		voteDurationMin: voteDurationMin,
-		voteDurationMax: voteDurationMax,
+		activeNetParams:    activeNetParams,
+		backend:            backend,
+		tstore:             tstore,
+		dataDir:            dataDir,
+		identity:           id,
+		activeVotes:        newActiveVotes(),
+		linkByPeriodMin:    linkByPeriodMin,
+		linkByPeriodMax:    linkByPeriodMax,
+		voteDurationMin:    voteDurationMin,
+		voteDurationMax:    voteDurationMax,
+		summariesPageSize:  summariesPageSize,
+		inventoryPageSize:  inventoryPageSize,
+		timestampsPageSize: timestampsPageSize,
 	}, nil
 }

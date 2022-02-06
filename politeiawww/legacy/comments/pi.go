@@ -25,6 +25,7 @@ func userHasPaid(u user.User) bool {
 	return u.NewUserPaywallTx != ""
 }
 
+// piHookNewPre hook runs before each New command.
 func (c *Comments) piHookNewPre(u user.User) error {
 	if !c.paywallIsEnabled() {
 		return nil
@@ -41,6 +42,24 @@ func (c *Comments) piHookNewPre(u user.User) error {
 	return nil
 }
 
+// piHookEditPre hook runs before each Edit command.
+func (c *Comments) piHookEditPre(u user.User) error {
+	if !c.paywallIsEnabled() {
+		return nil
+	}
+
+	// Verify user has paid registration paywall
+	if !userHasPaid(u) {
+		return v1.PluginErrorReply{
+			PluginID:  user.PiUserPluginID,
+			ErrorCode: user.ErrorCodeUserRegistrationNotPaid,
+		}
+	}
+
+	return nil
+}
+
+// piHookVotePre hook runs before each Vote command.
 func (c *Comments) piHookVotePre(u user.User) error {
 	if !c.paywallIsEnabled() {
 		return nil

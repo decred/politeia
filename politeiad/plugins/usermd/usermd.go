@@ -10,9 +10,11 @@ const (
 	// PluginID is the unique identifier for this plugin.
 	PluginID = "usermd"
 
-	// Plugin commands
-	CmdAuthor      = "author"      // Get record author
-	CmdUserRecords = "userrecords" // Get user submitted records
+	// CmdAuthor command retrieves the record author.
+	CmdAuthor = "author"
+
+	// CmdUserRecords command returns all records submitted by the given user.
+	CmdUserRecords = "userrecords"
 )
 
 // Stream IDs are the metadata stream IDs for metadata defined in this package.

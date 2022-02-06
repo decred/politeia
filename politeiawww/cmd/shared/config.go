@@ -46,14 +46,15 @@ var (
 
 // Config represents the CLI configuration settings.
 type Config struct {
+	ShowVersion bool   `short:"V" long:"version" description:"Display version information and exit"`
 	HomeDir     string `long:"appdata" description:"Path to application home directory"`
 	Host        string `long:"host" description:"politeiawww host"`
 	HTTPSCert   string `long:"httpscert" description:"politeiawww https cert"`
-	RawJSON     bool   `short:"j" long:"json" description:"Print raw JSON output"`
-	ShowVersion bool   `short:"V" long:"version" description:"Display version information and exit"`
 	SkipVerify  bool   `long:"skipverify" description:"Skip verifying the server's certifcate chain and host name"`
+	RawJSON     bool   `short:"j" long:"json" description:"Print raw JSON output"`
 	Verbose     bool   `short:"v" long:"verbose" description:"Print verbose output"`
 	Silent      bool   `long:"silent" description:"Suppress all output"`
+	Timer       bool   `long:"timer" description:"Print command execution time stats"`
 
 	ClientCert string `long:"clientcert" description:"Path to TLS certificate for client authentication"`
 	ClientKey  string `long:"clientkey" description:"Path to TLS client authentication key"`

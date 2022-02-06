@@ -398,6 +398,9 @@ func (p *Politeiawww) setPiRoutes(r *records.Records, c *comments.Comments, t *t
 		cmv1.RouteNew, c.HandleNew,
 		permissionLogin)
 	p.addRoute(http.MethodPost, cmv1.APIRoute,
+		cmv1.RouteEdit, c.HandleEdit,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
 		cmv1.RouteVote, c.HandleVote,
 		permissionLogin)
 	p.addRoute(http.MethodPost, cmv1.APIRoute,

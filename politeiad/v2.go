@@ -546,76 +546,72 @@ func (p *politeia) handlePluginReads(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Execute the batch of read cmds
+	batch := newBatch(pr.Cmds)
+	batch.execConcurrently(p.backendv2.PluginRead)
+
+	// Prepare the replies
 	replies := make([]v2.PluginCmdReply, len(pr.Cmds))
-	for k, v := range pr.Cmds {
-		// Decode token. The token is optional on plugin reads.
-		var token []byte
-		if v.Token != "" {
-			token, err = decodeTokenAnyLength(v.Token)
-			if err != nil {
-				// Invalid token. Save the reply and continue to next cmd.
-				replies[k] = v2.PluginCmdReply{
-					UserError: &v2.UserErrorReply{
-						ErrorCode:    v2.ErrorCodeTokenInvalid,
-						ErrorContext: util.TokenRegexp(),
-					},
-				}
-				continue
+	for k, v := range batch.entries {
+		if v.err == nil {
+			// Command executed successfully
+			replies[k] = v2.PluginCmdReply{
+				Token:   v.cmd.Token,
+				ID:      v.cmd.ID,
+				Command: v.cmd.Command,
+				Payload: v.reply,
 			}
+			continue
 		}
 
-		// Execute plugin cmd
-		replyPayload, err := p.backendv2.PluginRead(token, v.ID,
-			v.Command, v.Payload)
-		if err != nil {
-			var (
-				errCode = convertErrorToV2(err)
-				pe      backendv2.PluginError
-			)
-			switch {
-			case errCode != v2.ErrorCodeInvalid:
-				// User error. Save the reply and continue to next cmd.
-				replies[k] = v2.PluginCmdReply{
-					UserError: &v2.UserErrorReply{
-						ErrorCode: errCode,
-					},
-				}
-				continue
-
-			case errors.As(err, &pe):
-				// Plugin error. Save the reply and continue to next cmd.
-				replies[k] = v2.PluginCmdReply{
-					PluginError: &v2.PluginErrorReply{
-						PluginID:     pe.PluginID,
-						ErrorCode:    pe.ErrorCode,
-						ErrorContext: pe.ErrorContext,
-					},
-				}
-
-			default:
-				// Internal server error. Log it and return a 500.
-				t := time.Now().Unix()
-				e := fmt.Sprintf("PluginRead %v %v %v: %v",
-					v.ID, v.Command, v.Payload, err)
-				log.Errorf("%v %v %v %v Internal error %v: %v",
-					util.RemoteAddr(r), r.Method, r.URL, r.Proto, t, e)
-				log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
-
-				util.RespondWithJSON(w, http.StatusInternalServerError,
-					v2.ServerErrorReply{
-						ErrorCode: t,
-					})
-				return
+		// An error was encountered. Plugin and user errors
+		// are returned in valid replies. Unexpected errors
+		// cause a 500 and the whole batch to be aborted.
+		var (
+			pluginErr   backendv2.PluginError
+			userErr     v2.UserErrorReply
+			userErrCode = convertErrorToV2(v.err)
+		)
+		switch {
+		case errors.As(v.err, &pluginErr):
+			// A plugin error was returned
+			replies[k] = v2.PluginCmdReply{
+				PluginError: &v2.PluginErrorReply{
+					PluginID:     pluginErr.PluginID,
+					ErrorCode:    pluginErr.ErrorCode,
+					ErrorContext: pluginErr.ErrorContext,
+				},
 			}
-		}
 
-		// Successful cmd execution. Save the reply and continue to
-		// the next cmd.
-		replies[k] = v2.PluginCmdReply{
-			Token:   v.Token,
-			ID:      v.ID,
-			Command: v.Command,
-			Payload: replyPayload,
+		case errors.As(v.err, &userErr):
+			// A user error was returned
+			replies[k] = v2.PluginCmdReply{
+				UserError: &userErr,
+			}
+
+		case userErrCode != v2.ErrorCodeInvalid:
+			// Backend error was returned that was
+			// converted into a valid user error.
+			replies[k] = v2.PluginCmdReply{
+				UserError: &v2.UserErrorReply{
+					ErrorCode: userErrCode,
+				},
+			}
+
+		default:
+			// Internal server error. Log it and return a 500.
+			t := time.Now().Unix()
+			e := fmt.Sprintf("PluginRead %v %v %v: %v",
+				v.cmd.ID, v.cmd.Command, v.cmd.Payload, v.err)
+			log.Errorf("%v %v %v %v Internal error %v: %v",
+				util.RemoteAddr(r), r.Method, r.URL, r.Proto, t, e)
+			log.Errorf("Stacktrace (NOT A REAL CRASH): %s", debug.Stack())
+
+			util.RespondWithJSON(w, http.StatusInternalServerError,
+				v2.ServerErrorReply{
+					ErrorCode: t,
+				})
+			return
 		}
 	}
 

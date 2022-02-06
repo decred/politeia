@@ -37,7 +37,7 @@ func fakeTickets(x uint) (*pb.CommittedTicketsResponse, *pb.SignMessagesResponse
 	return &ctres, &smr
 }
 
-func fakePiv(t *testing.T, d time.Duration, x uint, hoursPrior uint64) (*piv, func()) {
+func fakePiv(t *testing.T, d time.Duration, x uint) (*piv, func()) {
 	// Setup temp home dir
 	homeDir, err := ioutil.TempDir("", "politeiavoter.test")
 	if err != nil {
@@ -61,29 +61,15 @@ func fakePiv(t *testing.T, d time.Duration, x uint, hoursPrior uint64) (*piv, fu
 			HomeDir:      homeDir,
 			voteDir:      filepath.Join(homeDir, defaultVoteDirname),
 			voteDuration: d,
-			HoursPrior:   hoursPrior,
 			Bunches:      x,
 			testing:      true,
 		},
 	}, cleanup
 }
 
-func TestTrickleNotEnoughTime(t *testing.T) {
-	x := uint(10)
-	c, cleanup := fakePiv(t, time.Hour, x, 1)
-	defer cleanup()
-
-	ctres, smr := fakeTickets(x)
-	err := c.alarmTrickler("token", "voteBit", ctres, smr)
-	t.Logf("error received: %v", err)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-}
-
 func TestTrickleWorkers(t *testing.T) {
 	bunches := uint(3)
-	c, cleanup := fakePiv(t, time.Minute, bunches, 0)
+	c, cleanup := fakePiv(t, time.Minute, bunches)
 	defer cleanup()
 
 	nrVotes := uint(20)
@@ -95,7 +81,7 @@ func TestTrickleWorkers(t *testing.T) {
 }
 
 func TestUnrecoverableTrickleWorkers(t *testing.T) {
-	c, cleanup := fakePiv(t, 10*time.Second, 1, 0)
+	c, cleanup := fakePiv(t, 10*time.Second, 1)
 	defer cleanup()
 
 	c.cfg.testingMode = testFailUnrecoverable
@@ -113,7 +99,7 @@ func TestManyTrickleWorkers(t *testing.T) {
 	}
 
 	bunches := uint(10)
-	c, cleanup := fakePiv(t, 2*time.Minute, bunches, 0)
+	c, cleanup := fakePiv(t, 2*time.Minute, bunches)
 	defer cleanup()
 
 	nrVotes := uint(20000)

@@ -49,6 +49,23 @@ func (c *Client) CommentNew(n cmv1.New) (*cmv1.NewReply, error) {
 	return &nr, nil
 }
 
+// CommentEdit sends a comments v1 Edit request to politeiawww.
+func (c *Client) CommentEdit(e cmv1.Edit) (*cmv1.EditReply, error) {
+	resBody, err := c.makeReq(http.MethodPost,
+		cmv1.APIRoute, cmv1.RouteEdit, e)
+	if err != nil {
+		return nil, err
+	}
+
+	var er cmv1.EditReply
+	err = json.Unmarshal(resBody, &er)
+	if err != nil {
+		return nil, err
+	}
+
+	return &er, nil
+}
+
 // CommentVote sends a comments v1 Vote request to politeiawww.
 func (c *Client) CommentVote(v cmv1.Vote) (*cmv1.VoteReply, error) {
 	resBody, err := c.makeReq(http.MethodPost,
@@ -174,6 +191,32 @@ func commentDelVerify(c cmv1.Comment, serverPublicKey string) error {
 	err = util.VerifySignature(c.Receipt, serverPublicKey, c.Signature)
 	if err != nil {
 		return fmt.Errorf("unable to verify comment %v receipt: %v",
+			c.CommentID, err)
+	}
+
+	return nil
+}
+
+// CommentEditVerify verifies the edited comment signature and receipt.
+func CommentEditVerify(c cmv1.Comment, serverPublicKey string) error {
+	// Verify comment. The signature is the client signature of the:
+	// State + Token + ParentID + CommentID + Comment +
+	// ExtraData + ExtraDataHint.
+	msg := strconv.FormatUint(uint64(c.State), 10) + c.Token +
+		strconv.FormatUint(uint64(c.ParentID), 10) +
+		strconv.FormatUint(uint64(c.CommentID), 10) +
+		c.Comment + c.ExtraData + c.ExtraDataHint
+	err := util.VerifySignature(c.Signature, c.PublicKey, msg)
+	if err != nil {
+		return fmt.Errorf("unable to verify edited comment %v signature: %v",
+			c.CommentID, err)
+	}
+
+	// Verify receipt. The receipt is the server signature of the
+	// client signature.
+	err = util.VerifySignature(c.Receipt, serverPublicKey, c.Signature)
+	if err != nil {
+		return fmt.Errorf("unable to verify edited comment %v receipt: %v",
 			c.CommentID, err)
 	}
 

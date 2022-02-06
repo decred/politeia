@@ -43,6 +43,36 @@ func (c *Client) CommentNew(ctx context.Context, n comments.New) (*comments.Comm
 	return &nr.Comment, nil
 }
 
+// CommentEdit sends the comments plugin Edit command to the politeiad v2 API.
+func (c *Client) CommentEdit(ctx context.Context, e comments.Edit) (*comments.Comment, error) {
+	// Setup request
+	b, err := json.Marshal(e)
+	if err != nil {
+		return nil, err
+	}
+	cmd := pdv2.PluginCmd{
+		Token:   e.Token,
+		ID:      comments.PluginID,
+		Command: comments.CmdEdit,
+		Payload: string(b),
+	}
+
+	// Send request
+	reply, err := c.PluginWrite(ctx, cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode reply
+	var er comments.EditReply
+	err = json.Unmarshal([]byte(reply), &er)
+	if err != nil {
+		return nil, err
+	}
+
+	return &er.Comment, nil
+}
+
 // CommentVote sends the comments plugin Vote command to the politeiad v2 API.
 func (c *Client) CommentVote(ctx context.Context, v comments.Vote) (*comments.VoteReply, error) {
 	// Setup request
