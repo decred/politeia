@@ -100,7 +100,7 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify the plugin is the user plugin
-	if p.userPlugin.ID() != cmd.PluginID {
+	if p.userManager.ID() != cmd.PluginID {
 		util.RespondWithJSON(w, http.StatusOK,
 			v1.CmdReply{
 				Error: v1.UserError{

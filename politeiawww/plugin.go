@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,7 +7,10 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 
 	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
 	"github.com/decred/politeia/politeiawww/user"
@@ -65,7 +68,7 @@ func (p *politeiawww) pluginNewUser(ctx context.Context, session *plugin.Session
 
 	// Execute the new user plugin command
 	pluginUser := convertUser(usr, cmd.PluginID)
-	reply, err = p.userPlugin.NewUser(tx,
+	reply, err = p.userManager.NewUser(tx,
 		plugin.WriteArgs{
 			Cmd:  cmd,
 			User: pluginUser,
@@ -350,10 +353,10 @@ func (p *politeiawww) pluginHooks(tx *sql.Tx, h plugin.HookArgs, usr *user.User)
 
 func (p *politeiawww) authorize(s *plugin.Session, usr *user.User, cmd plugin.Cmd) (*plugin.Reply, error) {
 	// Setup the plugin user
-	pluginUser := convertUser(usr, p.authPlugin.ID())
+	pluginUser := convertUser(usr, p.authManager.ID())
 
 	// Check user authorization
-	err := p.authPlugin.Authorize(
+	err := p.authManager.Authorize(
 		plugin.AuthorizeArgs{
 			Session:  s,
 			User:     pluginUser,
@@ -403,4 +406,90 @@ func convertUser(u *user.User, pluginID string) *plugin.User {
 		PluginData: plugin.NewPluginData(pluginData.ClearText,
 			pluginData.Encrypted),
 	}
+}
+
+var (
+	// regexpPluginSettingMulti matches against the plugin setting
+	// value when it contains multiple values.
+	//
+	// pluginID,key,["value1","value2"] matches ["value1","value2"]
+	regexpPluginSettingMulti = regexp.MustCompile(`(\[.*\]$)`)
+)
+
+// parsePluginSetting parses a plugin setting. Plugin settings will be in
+// following format. The value may be a single value or an array of values.
+//
+// pluginID,key,value
+// pluginID,key,["value1","value2","value3"...]
+//
+// When multiple values are provided, the values must be formatted as a JSON
+// encoded []string. Both of the following JSON formats are acceptable.
+//
+// pluginID,key,["value1","value2","value3"]
+// pluginsetting="pluginID,key,[\"value1\",\"value2\",\"value3\"]"
+func parsePluginSetting(setting string) (string, *plugin.Setting, error) {
+	formatMsg := `expected plugin setting format is ` +
+		`pluginID,key,value OR pluginID,key,["value1","value2","value3"]`
+
+	// Parse the plugin setting
+	var (
+		parsed = strings.Split(setting, ",")
+
+		// isMulti indicates whether the plugin setting contains
+		// multiple values. If the setting only contains a single
+		// value then isMulti will be false.
+		isMulti = regexpPluginSettingMulti.MatchString(setting)
+	)
+	switch {
+	case len(parsed) < 3:
+		return "", nil, errors.Errorf("missing csv entry '%v'; %v",
+			setting, formatMsg)
+	case len(parsed) == 3:
+		// This is expected; continue
+	case len(parsed) > 3 && isMulti:
+		// This is expected; continue
+	default:
+		return "", nil, errors.Errorf("invalid format '%v'; %v",
+			setting, formatMsg)
+	}
+
+	var (
+		pluginID     = parsed[0]
+		settingKey   = parsed[1]
+		settingValue = parsed[2]
+	)
+
+	// Clean the strings. The setting value is allowed to be case
+	// sensitive.
+	pluginID = strings.ToLower(strings.TrimSpace(pluginID))
+	settingKey = strings.ToLower(strings.TrimSpace(settingKey))
+	settingValue = strings.TrimSpace(settingValue)
+
+	// Handle multiple values
+	if isMulti {
+		// Parse values
+		values := regexpPluginSettingMulti.FindString(setting)
+
+		// Verify the values are formatted as valid JSON
+		var s []string
+		err := json.Unmarshal([]byte(values), &s)
+		if err != nil {
+			return "", nil, err
+		}
+
+		// Re-encode the JSON. This will remove any funny
+		// formatting like whitespaces.
+		b, err := json.Marshal(s)
+		if err != nil {
+			return "", nil, err
+		}
+
+		// Save the value
+		settingValue = string(b)
+	}
+
+	return pluginID, &plugin.Setting{
+		Key:   settingKey,
+		Value: settingValue,
+	}, nil
 }

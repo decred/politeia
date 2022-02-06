@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 The Decred developers
+// Copyright (c) 2017-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -56,16 +56,17 @@ type politeiawww struct {
 	// plugins contains all registered plugins.
 	plugins map[string]plugin.Plugin // [pluginID]plugin
 
-	// userPlugin is the only plugin that is allowed to use routes that result
-	// in user database insertions or deletions, e.g. the NewUser route. A user
-	// plugin must be specified in the config if the user layer is enabled.
-	userPlugin plugin.UserManager
+	// userManager handles user database insertions and deletions. The plugin
+	// that is set as the cfg.UserPlugin must implement the UserManager
+	// interface. This is the only plugin that is allowed to make user database
+	// insertions and deletions, e.g. the NewUser route. A cfg.UserPlugin must
+	// be specified if the user layer is enabled.
+	userManager plugin.UserManager
 
-	// authPlugin is the plugin that handles user authorization. User
-	// authorization is verified prior to the execution of all plugin commands.
-	// An auth plugin must be specified in the config if the user layer is
-	// enabled.
-	authPlugin plugin.Authorizer
+	// authManager handles user authorization. The plugin that is set as the
+	// cfg.AuthPlugin must implement the Authorizer interface. A cfg.AuthPlugin
+	// must be specified if the user layer is enabled.
+	authManager plugin.Authorizer
 
 	// Legacy fields
 	politeiad *pdclient.Client
@@ -74,8 +75,8 @@ type politeiawww struct {
 }
 
 func _main() error {
-	// Load configuration and parse command line. This function also
-	// initializes logging and configures it accordingly.
+	// Load the configuration and parse the command line. This
+	// also initializes logging and configures it accordingly.
 	cfg, _, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("Could not load configuration file: %v", err)
@@ -202,24 +203,6 @@ func _main() error {
 		return err
 	}
 
-	// Setup the plugins
-	var (
-		plugins    = make(map[string]plugin.Plugin, 64)
-		userPlugin plugin.UserManager
-		authPlugin plugin.Authorizer
-	)
-	for _, pluginID := range cfg.Plugins {
-		p, err := plugin.NewPlugin(pluginID)
-		if err != nil {
-			return errors.Errorf("new '%v' plugin: %v", pluginID, err)
-		}
-		plugins[pluginID] = p
-	}
-	userPlugin, authPlugin, err = setupUserPlugins(cfg)
-	if err != nil {
-		return err
-	}
-
 	// Setup the legacy politeiawww context
 	var legacywww *legacy.Politeiawww
 	if !cfg.DisableLegacy {
@@ -232,20 +215,27 @@ func _main() error {
 
 	// Setup application context
 	p := &politeiawww{
-		cfg:        cfg,
-		router:     router,
-		protected:  protected,
-		politeiad:  pdc,
-		events:     events.NewManager(),
-		legacy:     legacywww,
-		pluginIDs:  cfg.Plugins,
-		plugins:    plugins,
-		userPlugin: userPlugin,
-		authPlugin: authPlugin,
+		cfg:       cfg,
+		router:    router,
+		protected: protected,
+		politeiad: pdc,
+		events:    events.NewManager(),
+		legacy:    legacywww,
+
+		// The plugin fields are setup by setupPlugins()
+		pluginIDs:   cfg.Plugins,
+		plugins:     nil,
+		userManager: nil,
+		authManager: nil,
 	}
 
-	// Setup API routes. For now, only set these up
-	// if the legacy routes have been disabled.
+	err = p.setupPlugins()
+	if err != nil {
+		return err
+	}
+
+	// Setup API routes. For now, only set these
+	// up if the legacy routes have been disabled.
 	if cfg.DisableLegacy {
 		p.setupRoutes()
 	}
@@ -321,10 +311,92 @@ func main() {
 	}
 }
 
-func setupUserPlugins(cfg *config.Config) (plugin.UserManager, plugin.Authorizer, error) {
-	if cfg.DisableUsers {
-		return nil, nil, nil
+// setupPlugins initializes the plugins that have been specified in the
+// politeiawww config. The config plugin settings are parsed during this
+// process and passed to the appropriate plugin on initialization.
+func (p *politeiawww) setupPlugins() error {
+	// Parse the plugin settings
+	settings := make(map[string][]plugin.Setting)
+	for _, rawSetting := range p.cfg.PluginSettings {
+		pluginID, s, err := parsePluginSetting(rawSetting)
+		if err != nil {
+			return errors.Errorf("failed to parse %v", rawSetting)
+		}
+		ss, ok := settings[pluginID]
+		if !ok {
+			ss = make([]plugin.Setting, 0, 16)
+		}
+		ss = append(ss, *s)
+		settings[pluginID] = ss
 	}
 
-	return nil, nil, nil
+	// Initialize the plugins
+	plugins := make(map[string]plugin.Plugin, len(p.cfg.Plugins))
+	for _, pluginID := range p.cfg.Plugins {
+		s, ok := settings[pluginID]
+		if !ok {
+			s = []plugin.Setting{}
+		}
+		args := plugin.InitArgs{
+			Settings: s,
+		}
+		pp, err := plugin.NewPlugin(pluginID, args)
+		if err != nil {
+			return errors.Errorf("failed to initialize %v", pluginID)
+		}
+		plugins[pluginID] = pp
+	}
+
+	// Initialize the user plugin interfaces
+	var (
+		um  plugin.UserManager
+		am  plugin.Authorizer
+		err error
+	)
+	if !p.cfg.DisableUsers {
+		if p.cfg.UserPlugin == "" {
+			return errors.Errorf("user plugin not provided; a user " +
+				"plugin must be provided when the user layer is enabled")
+		}
+		if p.cfg.AuthPlugin == "" {
+			return errors.Errorf("auth plugin not provided; an auth " +
+				"plugin must be provided when the user layer is enabled")
+		}
+
+		// Initialize the user manager
+		s, ok := settings[p.cfg.UserPlugin]
+		if !ok {
+			s = []plugin.Setting{}
+		}
+		args := plugin.InitArgs{
+			Settings: s,
+		}
+		um, err = plugin.NewUserManager(p.cfg.UserPlugin, args)
+		if err != nil {
+			return errors.Errorf("failed to initialize the user manager plugin %v",
+				p.cfg.UserPlugin)
+		}
+
+		// Initialize the authorizer
+		s, ok = settings[p.cfg.AuthPlugin]
+		if !ok {
+			s = []plugin.Setting{}
+		}
+		args = plugin.InitArgs{
+			Settings: s,
+		}
+		am, err = plugin.NewAuthorizer(p.cfg.AuthPlugin, args)
+		if err != nil {
+			return errors.Errorf("failed to intialize the auth manager plugin %v",
+				p.cfg.AuthPlugin)
+		}
+	}
+
+	// Set the user plugin fields
+	p.pluginIDs = p.cfg.Plugins
+	p.plugins = plugins
+	p.userManager = um
+	p.authManager = am
+
+	return nil
 }
