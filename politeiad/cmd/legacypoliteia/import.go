@@ -69,6 +69,12 @@ func importProposals(legacyDir string, cmd *importCmd) error {
 				return err
 			}
 
+			// filepath.Walk() walks the directory tree including the root,
+			// skip it.
+			if path == legacyDir {
+				return nil
+			}
+
 			// Read json content and unmarshal proposal struct
 			jsonFile, err := os.Open(path)
 			if err != nil {
@@ -91,35 +97,16 @@ func importProposals(legacyDir string, cmd *importCmd) error {
 				// _parent_ references before inserting the submissions into tstore.
 				rfps = append(rfps, prop)
 
-				// Store RFP startRunoffRecord so we could import it later after
-				srr := &startRunoffRecord{
-					// Submissions field will be populated with the submissions tokens
-					// when parsing the submissions, and will get updated with the
-					// tstore tokens when the submissions are imported to the tstore,
-					// only then the startRunoffRecord blobs will be imported.
-					Submissions:      []string{},
-					Mask:             prop.VoteDetails.Params.Mask,
-					Duration:         prop.VoteDetails.Params.Duration,
-					QuorumPercentage: prop.VoteDetails.Params.QuorumPercentage,
-					PassPercentage:   prop.VoteDetails.Params.PassPercentage,
-					StartBlockHeight: prop.VoteDetails.StartBlockHeight,
-					StartBlockHash:   prop.VoteDetails.StartBlockHash,
-					EndBlockHeight:   prop.VoteDetails.EndBlockHeight,
-					EligibleTickets:  prop.VoteDetails.EligibleTickets,
-				}
-				cmd.setStartRunoffRecord(prop.RecordMetadata.Token, srr)
+				// Store RFP startRunoffRecord so we could import it later when we
+				// are done importing the RFP submissions.
+				storeStartRunoffRecord(prop.RecordMetadata.Token,
+					prop.VoteDetails, cmd)
 
 			case prop.VoteMetadata.LinkTo != "":
 				// Current proposal is a RFP submission, add proposal token to the
 				// startRunoffRecord submissions list.
-				var srr *startRunoffRecord
-				if srr =
-					cmd.getStartRunoffRecord(prop.VoteMetadata.LinkTo); srr == nil {
-					return errors.Errorf("RFP's startRunoffRecord not found; "+
-						"RFP token: %v", prop.VoteMetadata.LinkTo)
-				}
-				srr.Submissions = append(srr.Submissions, prop.RecordMetadata.Token)
-				cmd.setStartRunoffRecord(prop.VoteMetadata.LinkTo, srr)
+				collectRFPSubmissionToken(prop.VoteMetadata.LinkTo,
+					prop.RecordMetadata.Token, cmd)
 
 				rest = append(rest, prop)
 
@@ -163,6 +150,46 @@ func importProposals(legacyDir string, cmd *importCmd) error {
 	}
 
 	return nil
+}
+
+func storeStartRunoffRecord(rfpToken string, vd *ticketvote.VoteDetails, cmd *importCmd) {
+	var srr *startRunoffRecord
+	if srr = cmd.getStartRunoffRecord(rfpToken); srr == nil {
+		// No startRunoffRecord was found for the given RFP token, initiate
+		// new one with with empty Submissions field which will be populated
+		// with the tokens when parsing the submissions. It will be updated
+		// with the tstore tokens when the submissions are imported to the
+		// tstore, only then the startRunoffRecord blobs will be ready to be
+		// imported.
+		srr = &startRunoffRecord{
+			Submissions: []string{},
+		}
+	}
+	// Populate vote details fields
+	srr.Mask = vd.Params.Mask
+	srr.Duration = vd.Params.Duration
+	srr.QuorumPercentage = vd.Params.QuorumPercentage
+	srr.PassPercentage = vd.Params.PassPercentage
+	srr.StartBlockHeight = vd.StartBlockHeight
+	srr.StartBlockHash = vd.StartBlockHash
+	srr.EndBlockHeight = vd.EndBlockHeight
+	srr.EligibleTickets = vd.EligibleTickets
+
+	cmd.setStartRunoffRecord(rfpToken, srr)
+}
+
+func collectRFPSubmissionToken(rfpToken, submissionToken string, cmd *importCmd) {
+	var srr *startRunoffRecord
+	if srr = cmd.getStartRunoffRecord(rfpToken); srr == nil {
+		// RFP has no startRunoffRecord yet, initiate a new one. this func only
+		// populates the Submissions field, all other fields will be populated
+		// in later stage when we meet the legacy RFP directory.
+		srr = &startRunoffRecord{
+			Submissions: []string{},
+		}
+	}
+	srr.Submissions = append(srr.Submissions, submissionToken)
+	cmd.setStartRunoffRecord(rfpToken, srr)
 }
 
 func importStartRunoffRecords(cmd *importCmd) error {
@@ -269,6 +296,8 @@ func importProposal(legacyDir, gitToken string, cmd *importCmd) error {
 		return err
 	}
 
+	fmt.Printf("Importing legacy proposal: %v\n", prop.RecordMetadata.Token)
+
 	// Create a new tlog tree for the legacy record
 	token, err := cmd.tstoreClient.Tstore.RecordNew()
 	if err != nil {
@@ -321,6 +350,9 @@ func importProposal(legacyDir, gitToken string, cmd *importCmd) error {
 
 	// Set git token to tstore token mapping
 	cmd.setTstoreToken(gitToken, hex.EncodeToString(token))
+
+	fmt.Printf("Legacy proposal imported successfully; old token: %v, "+
+		"new token: %v\n", gitToken, hex.EncodeToString(token))
 
 	return nil
 }
@@ -394,6 +426,10 @@ func importRecord(p *proposal, tstoreToken []byte, cmd *importCmd) error {
 		isPublic = true
 		p.RecordMetadata.Status = backend.StatusUnreviewed
 	}
+
+	// Hardcode version and iteration to 1.
+	p.RecordMetadata.Version = 1
+	p.RecordMetadata.Iteration = 1
 
 	// Save record to tstore.
 	err = cmd.tstoreClient.Tstore.RecordSave(tstoreToken, p.RecordMetadata,

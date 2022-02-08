@@ -29,10 +29,6 @@ Signatures that are broken:
 - ticketvote VoteDetails signature (wrong message)
 - ticketvote VoteDetails receipt (wrong message, wrong server pubkey)
 
-Fields that need to be updated:
-- ProposalMetadata
-  - Version and iteration may need to be hardcoded to 1
-
 */
 
 const (
@@ -106,12 +102,6 @@ func (c *importCmd) getStartRunoffRecord(gitToken string) *startRunoffRecord {
 
 // execImportCmd executes the import command.
 func execImportCmd(args []string) error {
-	// Parse the cmd CLI flags
-	err := importFlags.Parse(args)
-	if err != nil {
-		return err
-	}
-
 	// Verify the legacy directory exists
 	if len(args) == 0 {
 		return fmt.Errorf("missing legacy directory argument")
@@ -119,6 +109,12 @@ func execImportCmd(args []string) error {
 	legacyDir := util.CleanAndExpandPath(args[0])
 	if _, err := os.Stat(legacyDir); err != nil {
 		return fmt.Errorf("legacy directory not found: %v", legacyDir)
+	}
+
+	// Parse the CLI flags
+	err := importFlags.Parse(args[1:])
+	if err != nil {
+		return err
 	}
 
 	// Setup tstore connection
@@ -135,7 +131,8 @@ func execImportCmd(args []string) error {
 			PluginID: "import tool",
 			Tstore:   ts,
 		},
-		tstoreTokens: make(map[string]string, 115),
+		tstoreTokens:       make(map[string]string, 115),
+		startRunoffRecords: make(map[string]*startRunoffRecord, 1),
 	}
 
 	// Import the legacy proposals
