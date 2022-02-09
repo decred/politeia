@@ -124,17 +124,11 @@ func importProposals(legacyDir string, cmd *importCmd) error {
 	// XXX Add fsck step here!
 
 	// Import missing legacy RFPs into tstore concurrently
-	err = importProposalsConcurrently(legacyDir, rfps, cmd)
-	if err != nil {
-		return err
-	}
+	importProposalsConcurrently(legacyDir, rfps, cmd)
 
 	// Import missing standard proposals & RFP submissions into tstore
 	// concurrently.
-	err = importProposalsConcurrently(legacyDir, rest, cmd)
-	if err != nil {
-		return err
-	}
+	importProposalsConcurrently(legacyDir, rest, cmd)
 
 	// Update RFP submissions tstore tokens in the RFPs startRunoffRecord
 	// structs.
@@ -238,7 +232,7 @@ func updateRFPSubmissionsTokens(cmd *importCmd) error {
 	return nil
 }
 
-func importProposalsConcurrently(legacyDir string, props []proposal, cmd *importCmd) error {
+func importProposalsConcurrently(legacyDir string, props []proposal, cmd *importCmd) {
 	var wg sync.WaitGroup
 	for _, prop := range props {
 		// Increment the wait group.
@@ -250,7 +244,7 @@ func importProposalsConcurrently(legacyDir string, props []proposal, cmd *import
 			defer wg.Done()
 
 			// Import proposal
-			err := importProposal(legacyDir, p.RecordMetadata.Token, cmd)
+			err := importProposal(&p, cmd)
 			if err != nil {
 				panic(err)
 			}
@@ -259,8 +253,6 @@ func importProposalsConcurrently(legacyDir string, props []proposal, cmd *import
 
 	// Wait for all proposal imports to finish
 	wg.Wait()
-
-	return nil
 }
 
 // importProposal imports the specified legacy proposal into tstore.
@@ -289,14 +281,9 @@ func importProposalsConcurrently(legacyDir string, props []proposal, cmd *import
 // 6. Add git token to tstore token mapping to the memory cache for all RFP
 // 	  parent proposals. The parent token of all RFP submissions are updated
 //    with the tstore RFP parent token.
-func importProposal(legacyDir, gitToken string, cmd *importCmd) error {
-	// Read and unmarshal proposal from json file
-	prop, err := loadProposal(legacyDir, gitToken)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Importing legacy proposal: %v\n", prop.RecordMetadata.Token)
+func importProposal(prop *proposal, cmd *importCmd) error {
+	gitToken := prop.RecordMetadata.Token
+	fmt.Printf("Importing legacy proposal: %v\n", gitToken)
 
 	// Create a new tlog tree for the legacy record
 	token, err := cmd.tstoreClient.Tstore.RecordNew()
@@ -319,7 +306,7 @@ func importProposal(legacyDir, gitToken string, cmd *importCmd) error {
 		if t == "" {
 			return errors.Errorf("tstore token for RFP parent %v not found "+
 				"in cache while parsing the RFP submission %v",
-				prop.VoteMetadata.LinkTo, gitToken)
+				prop.VoteMetadata.LinkTo, prop.RecordMetadata.Token)
 		}
 		prop.VoteMetadata.LinkTo = t
 	}
