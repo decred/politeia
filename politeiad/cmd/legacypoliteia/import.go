@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -22,6 +23,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 	"github.com/decred/politeia/util"
 	"github.com/pkg/errors"
+	"github.com/subosito/gozaru"
 )
 
 const (
@@ -405,6 +407,16 @@ func importRecord(p *proposal, tstoreToken []byte, cmd *importCmd) error {
 	}
 	metadatas = append(metadatas, *umd)
 
+	// Verify metadata streams and files data.
+	err = metadataStreamsVerify(metadatas)
+	if err != nil {
+		return err
+	}
+	err = filesVerify(p.Files, nil)
+	if err != nil {
+		return err
+	}
+
 	// Check if record status is public. If so, we need to first save it as
 	// unreviewed, and then save it as public. This is done to bypass the
 	// validations from the RecordSave function.
@@ -433,6 +445,176 @@ func importRecord(p *proposal, tstoreToken []byte, cmd *importCmd) error {
 			metadatas, p.Files)
 		if err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+// metadataStreamsVerify verifies that all provided metadata streams are sane.
+func metadataStreamsVerify(metadata []backend.MetadataStream) error {
+	// Verify metadata
+	md := make(map[string]map[uint32]struct{}, len(metadata))
+	for i, v := range metadata {
+		// Verify all fields are provided
+		switch {
+		case v.PluginID == "":
+			e := fmt.Sprintf("plugin id missing at index %v", i)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorMetadataStreamInvalid,
+				ErrorContext: e,
+			}
+		case v.StreamID == 0:
+			e := fmt.Sprintf("stream id missing at index %v", i)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorMetadataStreamInvalid,
+				ErrorContext: e,
+			}
+		case v.Payload == "":
+			e := fmt.Sprintf("payload missing on %v %v", v.PluginID, v.StreamID)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorMetadataStreamInvalid,
+				ErrorContext: e,
+			}
+		}
+
+		// Verify no duplicates
+		m, ok := md[v.PluginID]
+		if !ok {
+			m = make(map[uint32]struct{}, len(metadata))
+			md[v.PluginID] = m
+		}
+		if _, ok := m[v.StreamID]; ok {
+			e := fmt.Sprintf("%v %v", v.PluginID, v.StreamID)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorMetadataStreamDuplicate,
+				ErrorContext: e,
+			}
+		}
+
+		// Add to metadata list
+		m[v.StreamID] = struct{}{}
+		md[v.PluginID] = m
+	}
+
+	return nil
+}
+
+// filesVerify verifies that all provided files are sane.
+func filesVerify(files []backend.File, filesDel []string) error {
+	// Verify files are being updated
+	if len(files) == 0 && len(filesDel) == 0 {
+		return backend.ContentError{
+			ErrorCode: backend.ContentErrorFilesEmpty,
+		}
+	}
+
+	// Prevent paths
+	for i := range files {
+		if filepath.Base(files[i].Name) != files[i].Name {
+			e := fmt.Sprintf("%v contains a file path", files[i].Name)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileNameInvalid,
+				ErrorContext: e,
+			}
+		}
+	}
+	for _, v := range filesDel {
+		if filepath.Base(v) != v {
+			e := fmt.Sprintf("%v contains a file path", v)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileNameInvalid,
+				ErrorContext: e,
+			}
+		}
+	}
+
+	// Prevent duplicate filenames
+	fn := make(map[string]struct{}, len(files)+len(filesDel))
+	for i := range files {
+		if _, ok := fn[files[i].Name]; ok {
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileNameDuplicate,
+				ErrorContext: files[i].Name,
+			}
+		}
+		fn[files[i].Name] = struct{}{}
+	}
+	for _, v := range filesDel {
+		if _, ok := fn[v]; ok {
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileNameDuplicate,
+				ErrorContext: v,
+			}
+		}
+		fn[v] = struct{}{}
+	}
+
+	// Prevent bad filenames
+	for i := range files {
+		if gozaru.Sanitize(files[i].Name) != files[i].Name {
+			e := fmt.Sprintf("%v is not sanitized", files[i].Name)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileNameInvalid,
+				ErrorContext: e,
+			}
+		}
+
+		// Verify digest
+		d, ok := util.ConvertDigest(files[i].Digest)
+		if !ok {
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileDigestInvalid,
+				ErrorContext: files[i].Name,
+			}
+		}
+
+		// Verify payload is not empty
+		if files[i].Payload == "" {
+			e := fmt.Sprintf("%v payload empty", files[i].Name)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFilePayloadInvalid,
+				ErrorContext: e,
+			}
+		}
+
+		// Decode base64 payload
+		payload, err := base64.StdEncoding.DecodeString(files[i].Payload)
+		if err != nil {
+			e := fmt.Sprintf("%v invalid base64", files[i].Name)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFilePayloadInvalid,
+				ErrorContext: e,
+			}
+		}
+
+		// Calculate payload digest
+		dp := util.Digest(payload)
+		if !bytes.Equal(d[:], dp) {
+			e := fmt.Sprintf("%v digest got %x, want %x",
+				files[i].Name, d[:], dp)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileDigestInvalid,
+				ErrorContext: e,
+			}
+		}
+
+		// Verify MIME
+		detectedMIMEType := mime.DetectMimeType(payload)
+		if detectedMIMEType != files[i].MIME {
+			e := fmt.Sprintf("%v mime got %v, want %v",
+				files[i].Name, files[i].MIME, detectedMIMEType)
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileMIMETypeInvalid,
+				ErrorContext: e,
+			}
+		}
+
+		if !mime.MimeValid(files[i].MIME) {
+			return backend.ContentError{
+				ErrorCode:    backend.ContentErrorFileMIMETypeUnsupported,
+				ErrorContext: files[i].Name,
+			}
 		}
 	}
 
@@ -609,7 +791,7 @@ func saveBlobsConcurrently(data []interface{}, dataDescriptor string, token []by
 				// Save the blob to tstore.
 				err := saveBlob(b, dataDescriptor, token, cmd)
 				if err != nil {
-					e := fmt.Sprintf("err:%v descritor:%v blob:%v",
+					e := errors.Errorf("err:%v descritor:%v blob:%v",
 						err, dataDescriptor, b)
 					panic(e)
 				}

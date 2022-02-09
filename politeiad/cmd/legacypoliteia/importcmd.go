@@ -120,7 +120,7 @@ func execImportCmd(args []string) error {
 	// Setup tstore connection
 	ts, err := tstore.New(politeiadHomeDir, politeiadDataDir,
 		config.MainNetParams.Params, *tlogHost, dbType,
-		*dbHost, *dbPass, "", "")
+		*dbHost, *dbPass, dcrtimeHost, dcrtimeCert)
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func execImportCmd(args []string) error {
 	// Setup the import cmd context
 	cmd := &importCmd{
 		tstoreClient: &tstore.Client{
-			PluginID: "import tool",
+			PluginID: importCmdName,
 			Tstore:   ts,
 		},
 		tstoreTokens:       make(map[string]string, 115),
