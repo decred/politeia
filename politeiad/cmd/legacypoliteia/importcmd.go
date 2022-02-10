@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	"github.com/decred/politeia/politeiawww/config"
@@ -45,6 +46,7 @@ var (
 	tlogHost    = importFlags.String("tloghost", defaultTlogHost, "")
 	dbHost      = importFlags.String("dbhost", defaultDBHost, "")
 	dbPass      = importFlags.String("dbpass", defaultDBPass, "")
+	testnet     = importFlags.Bool("testnet", false, "")
 
 	// tstore settings
 	politeiadHomeDir = dcrutil.AppDataDir("politeiad", false)
@@ -117,10 +119,18 @@ func execImportCmd(args []string) error {
 		return err
 	}
 
+	// Network params
+	var p *chaincfg.Params
+	switch {
+	case *testnet:
+		p = config.MainNetParams.Params
+	default:
+		p = config.TestNet3Params.Params
+	}
+
 	// Setup tstore connection
-	ts, err := tstore.New(politeiadHomeDir, politeiadDataDir,
-		config.MainNetParams.Params, *tlogHost, dbType,
-		*dbHost, *dbPass, dcrtimeHost, dcrtimeCert)
+	ts, err := tstore.New(politeiadHomeDir, politeiadDataDir, p, *tlogHost,
+		dbType, *dbHost, *dbPass, dcrtimeHost, dcrtimeCert)
 	if err != nil {
 		return err
 	}

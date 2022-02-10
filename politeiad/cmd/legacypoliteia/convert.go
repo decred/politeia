@@ -869,6 +869,8 @@ func (c *convertCmd) convertComments(proposalDir, userID string) (*commentTypes,
 
 func convertMDStatus(s gitbe.MDStatusT) backend.StatusT {
 	switch s {
+	case gitbe.MDStatusInvalid:
+		return backend.StatusInvalid
 	case gitbe.MDStatusUnvetted:
 		return backend.StatusUnreviewed
 	case gitbe.MDStatusVetted:
