@@ -123,9 +123,9 @@ func execImportCmd(args []string) error {
 	var p *chaincfg.Params
 	switch {
 	case *testnet:
-		p = config.MainNetParams.Params
-	default:
 		p = config.TestNet3Params.Params
+	default:
+		p = config.MainNetParams.Params
 	}
 
 	// Setup tstore connection
