@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	v2 "github.com/decred/politeia/politeiawww/api/cms/v2"
@@ -14,7 +15,8 @@ import (
 )
 
 const (
-	tableNameCMSUser = "cms_user"
+	tableNameCMSUser      = "cms_user"
+	tableNameCMSCodeStats = "cms_code_stats"
 )
 
 type CMSUser struct {
@@ -34,6 +36,28 @@ type CMSUser struct {
 	UpdatedAt time.Time // Time of last record update
 }
 
+// CMSCodeStats struct contains information per month/year per repo for
+// a given users' code statistics for merged pull requests and completed
+// reviews over that time period.
+type CMSCodeStats struct {
+	ID               string
+	GitHubName       string
+	Repository       string
+	Month            int
+	Year             int
+	PRs              string
+	Reviews          string
+	Commits          string
+	MergedAdditions  int64
+	MergedDeletions  int64
+	UpdatedAdditions int64
+	UpdatedDeletions int64
+	ReviewAdditions  int64
+	ReviewDeletions  int64
+	CommitAdditions  int64
+	CommitDeletions  int64
+}
+
 // tableCMSuser defines the cms_user table.
 const tableCMSuser = `
 id VARCHAR(36) NOT NULL PRIMARY KEY,
@@ -49,6 +73,26 @@ proposals_owned VARCHAR(640),
 created_at INT(11) NOT NULL,
 updated_at INT(11),
 FOREIGN KEY (id) REFERENCES users(id)
+`
+
+// tableCMSuser defines the cms_user table.
+const tableCMSCodeStats = `
+id VARCHAR(36) NOT NULL PRIMARY KEY,
+github_name VARCHAR(255) NOT NULL,
+repository VARCHAR(255) NOT NULL,
+month INT(11) NOT NULL,
+year INT(11) NOT NULL,
+prs VARCHAR(255) NOT NULL,
+reviews VARCHAR(255) NOT NULL,
+commits VARCHAR(255) NOT NULL,
+merged_additions INT(11) NOT NULL,
+merged_deletions INT(11) NOT NULL,
+updated_additions INT(11) NOT NULL,
+updated_deletions INT(11) NOT NULL,
+review_additions INT(11) NOT NULL,
+review_deletions INT(11) NOT NULL,
+commit_additions INT(11) NOT NULL,
+commit_deletions INT(11) NOT NULL
 `
 
 // newCMSUser creates a new User record and a corresponding CMSUser record
@@ -334,7 +378,7 @@ func (m *mysql) cmdCMSUsersByDomain(payload string) (string, error) {
 			return "", err
 		}
 		cmsUser.Domain = ud.Domain
-		convertedUser, err := m.convertCMSUserFromDatabase(cmsUser)
+		convertedUser, err := convertCMSUserFromDatabase(cmsUser)
 		if err != nil {
 			return "", err
 		}
@@ -394,7 +438,7 @@ func (m *mysql) cmdCMSUsersByContractorType(payload string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		convertedUser, err := m.convertCMSUserFromDatabase(cmsUser)
+		convertedUser, err := convertCMSUserFromDatabase(cmsUser)
 		if err != nil {
 			return "", err
 		}
@@ -412,8 +456,8 @@ func (m *mysql) cmdCMSUsersByContractorType(payload string) (string, error) {
 	return string(reply), nil
 }
 
-// cmdCMSUsersByProposalToken returns all CMS users within the provided
-// contractor type.
+// cmdCMSUsersByProposalToken returns all CMS that have a given proposal token
+// set for proposals owned.
 func (m *mysql) cmdCMSUsersByProposalToken(payload string) (string, error) {
 	// Decode payload
 	upt, err := user.DecodeCMSUsersByProposalToken([]byte(payload))
@@ -424,7 +468,7 @@ func (m *mysql) cmdCMSUsersByProposalToken(payload string) (string, error) {
 	ctx, cancel := ctxWithTimeout()
 	defer cancel()
 
-	// Lookup users by domain.
+	// Lookup users by proposaltoken.
 	q := `SELECT 
 		  id,
 		  domain,
@@ -437,7 +481,7 @@ func (m *mysql) cmdCMSUsersByProposalToken(payload string) (string, error) {
 		  supervisor_user_id,
 		  proposals_owned
           FROM cms_user
-          WHERE domain = ?`
+          WHERE ANY(string_to_array(proposals_owned, ',') = ?`
 
 	rows, err := m.userDB.QueryContext(ctx, q, upt.Token)
 	if err != nil {
@@ -456,7 +500,7 @@ func (m *mysql) cmdCMSUsersByProposalToken(payload string) (string, error) {
 			return "", err
 		}
 
-		convertedUser, err := m.convertCMSUserFromDatabase(cmsUser)
+		convertedUser, err := convertCMSUserFromDatabase(cmsUser)
 		if err != nil {
 			return "", err
 		}
@@ -507,7 +551,7 @@ func (m *mysql) cmdCMSUserByID(payload string) (string, error) {
 		return "", err
 	}
 
-	convertedUser, err := m.convertCMSUserFromDatabase(cmsUser)
+	convertedUser, err := convertCMSUserFromDatabase(cmsUser)
 	if err != nil {
 		return "", err
 	}
@@ -524,11 +568,55 @@ func (m *mysql) cmdCMSUserByID(payload string) (string, error) {
 
 func (m *mysql) cmdCMSUserSubContractors(payload string) (string, error) {
 	// Decode payload
-	_, err := user.DecodeCMSUserByID([]byte(payload))
+	sbc, err := user.DecodeCMSUserSubContractors([]byte(payload))
 	if err != nil {
 		return "", err
 	}
-	r := user.CMSUserSubContractorsReply{}
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Lookup users by proposaltoken.
+	q := `SELECT 
+		  id,
+		  domain,
+		  github_name,
+		  matrix_name,
+		  contractor_type,
+		  contractor_name,
+		  contractor_contact,
+		  contractor_location,
+		  supervisor_user_id,
+		  proposals_owned
+          FROM cms_user
+          WHERE ANY(string_to_array(supervisor_user_id, ',') = ?`
+
+	rows, err := m.userDB.QueryContext(ctx, q, sbc.ID)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	cmsUsers := make([]user.CMSUser, 0)
+	for rows.Next() {
+		cmsUser := CMSUser{}
+		err := rows.Scan(&cmsUser.ID, &cmsUser.Domain, &cmsUser.GitHubName,
+			&cmsUser.MatrixName, &cmsUser.ContractorType,
+			&cmsUser.ContractorContact, &cmsUser.ContractorLocation,
+			&cmsUser.SupervisorUserID, &cmsUser.ProposalsOwned)
+		if err != nil {
+			return "", err
+		}
+
+		convertedUser, err := convertCMSUserFromDatabase(cmsUser)
+		if err != nil {
+			return "", err
+		}
+		cmsUsers = append(cmsUsers, *convertedUser)
+	}
+
+	r := user.CMSUserSubContractorsReply{
+		Users: cmsUsers,
+	}
 	reply, err := user.EncodeCMSUserSubContractorsReply(r)
 	if err != nil {
 		return "", err
@@ -537,20 +625,105 @@ func (m *mysql) cmdCMSUserSubContractors(payload string) (string, error) {
 	return string(reply), nil
 }
 
-// NewCMSCodeStats is an exported function (for testing) to insert a new
-// code stats row into the cms_code_stats table.
-func (m *mysql) NewCMSCodeStats(nu *user.NewCMSCodeStats) error {
-
+func (m *mysql) newCMSCodeStats(ctx context.Context, tx *sql.Tx, nu *user.NewCMSCodeStats) error {
+	for _, ncs := range nu.UserCodeStats {
+		var prs string
+		for i, pr := range ncs.PRs {
+			if i == 0 {
+				prs = pr
+			} else {
+				prs += ", " + pr
+			}
+		}
+		var reviews string
+		for i, review := range ncs.Reviews {
+			if i == 0 {
+				reviews = review
+			} else {
+				reviews += ", " + review
+			}
+		}
+		var commits string
+		for i, commit := range ncs.Commits {
+			if i == 0 {
+				commits = commit
+			} else {
+				commits += ", " + commit
+			}
+		}
+		id := fmt.Sprintf("%v-%v-%v-%v", ncs.GitHubName, ncs.Repository,
+			strconv.Itoa(ncs.Month), strconv.Itoa(ncs.Year))
+		log.Tracef("newCMSCodeStats: %v", id)
+		_, err := tx.ExecContext(ctx,
+			`INSERT INTO cms_code_stats (
+				id,
+				github_name,
+				repository,
+				month,
+				year,
+				prs,
+				reviews,
+				commits,
+				merged_additions,
+				merged_deletions,
+				updated_additions,
+				updated_deletions,
+				review_additions,
+				review_deletions,
+				commit_additions,
+				commit_deletions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			id, ncs.GitHubName, ncs.Repository, ncs.Month, ncs.Year, prs,
+			reviews, commits, ncs.MergedAdditions, ncs.MergedDeletions,
+			ncs.UpdatedAdditions, ncs.UpdatedDeletions, ncs.ReviewAdditions,
+			ncs.ReviewDeletions, ncs.CommitAdditions, ncs.CommitDeletions)
+		if err != nil {
+			return fmt.Errorf("create user: %v", err)
+		}
+	}
 	return nil
 }
 
 // cmdNewCMSCodeStats inserts a new CMSUser record into the database.
 func (m *mysql) cmdNewCMSCodeStats(payload string) (string, error) {
 	// Decode payload
-	_, err := user.DecodeNewCMSCodeStats([]byte(payload))
+	ncs, err := user.DecodeNewCMSCodeStats([]byte(payload))
 	if err != nil {
 		return "", err
 	}
+
+	if m.isShutdown() {
+		return "", user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Start transaction.
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := m.userDB.BeginTx(ctx, opts)
+	if err != nil {
+		return "", fmt.Errorf("begin tx: %v", err)
+	}
+	defer tx.Rollback()
+
+	err = m.newCMSCodeStats(ctx, tx, ncs)
+	if err != nil {
+		tx.Rollback()
+		return "", err
+	}
+
+	// Commit transaction.
+	if err := tx.Commit(); err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return "", fmt.Errorf("commit tx: %v", err)
+	}
+
 	var nur user.NewCMSCodeStatsReply
 	reply, err := user.EncodeNewCMSCodeStatsReply(nur)
 	if err != nil {
@@ -563,9 +736,42 @@ func (m *mysql) cmdNewCMSCodeStats(payload string) (string, error) {
 // cmdUpdateCMSCodeStats updates an existing CMSUser record into the database.
 func (m *mysql) cmdUpdateCMSCodeStats(payload string) (string, error) {
 	// Decode payload
-	_, err := user.DecodeUpdateCMSCodeStats([]byte(payload))
+	ucs, err := user.DecodeUpdateCMSCodeStats([]byte(payload))
 	if err != nil {
 		return "", err
+	}
+
+	if m.isShutdown() {
+		return "", user.ErrShutdown
+	}
+
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	// Start transaction.
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := m.userDB.BeginTx(ctx, opts)
+	if err != nil {
+		return "", fmt.Errorf("begin tx: %v", err)
+	}
+	defer tx.Rollback()
+
+	err = m.updateCMSCodeStats(ctx, tx, ucs.UserCodeStats)
+	if err != nil {
+		tx.Rollback()
+		return "", err
+	}
+
+	// Commit transaction.
+	if err := tx.Commit(); err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Errorf("rollback tx failed: commit:'%v' rollback:'%v'",
+				err, err2))
+		}
+		return "", fmt.Errorf("commit tx: %v", err)
 	}
 
 	// Prepare reply
@@ -578,41 +784,132 @@ func (m *mysql) cmdUpdateCMSCodeStats(payload string) (string, error) {
 	return string(reply), nil
 }
 
-/*
 // updateCMSCodeStats updates a CMS Code stats record
 //
 // This function must be called using a transaction.
-func (m *mysql) updateCMSCodeStats(tx *gorm.DB, cs CMSCodeStats) error {
-	return nil
-}
+func (m *mysql) updateCMSCodeStats(ctx context.Context, tx *sql.Tx, ucs []user.CodeStats) error {
+	for _, cs := range ucs {
+		var prs string
+		for i, pr := range cs.PRs {
+			if i == 0 {
+				prs = pr
+			} else {
+				prs += ", " + pr
+			}
+		}
+		var reviews string
+		for i, review := range cs.Reviews {
+			if i == 0 {
+				reviews = review
+			} else {
+				reviews += ", " + review
+			}
+		}
+		var commits string
+		for i, commit := range cs.Commits {
+			if i == 0 {
+				commits = commit
+			} else {
+				commits += ", " + commit
+			}
+		}
+		id := fmt.Sprintf("%v-%v-%v-%v", cs.GitHubName, cs.Repository,
+			strconv.Itoa(cs.Month), strconv.Itoa(cs.Year))
+		log.Tracef("newCMSCodeStats: %v", id)
+		_, err := tx.ExecContext(ctx,
+			`UPDATE cms_code_stats SET ,
+			github_name = ?,
+			repository = ?,
+			month = ?,
+			year = ?,
+			prs = ?,
+			reviews = ?,
+			commits = ?,
+			merged_additions = ?,
+			merged_deletions = ?,
+			updated_additions = ?,
+			updated_deletions = ?,
+			review_additions = ?,
+			review_deletions = ?,
+			commit_additions = ?,
+			commit_deletions = ? WHERE id = ?`,
+			id, cs.GitHubName, cs.Repository, cs.Month, cs.Year, prs, reviews,
+			commits, cs.MergedAdditions, cs.MergedDeletions,
+			cs.UpdatedAdditions, cs.UpdatedDeletions, cs.ReviewAdditions,
+			cs.ReviewDeletions, cs.CommitAdditions, cs.CommitDeletions)
+		if err != nil {
+			return fmt.Errorf("update user: %v", err)
+		}
+	}
 
-// newCMSCodeStats creates a new User record and a corresponding CMSUser record
-// with the provided user info.
-//
-// This function must be called using a transaction.
-func (m *mysql) newCMSCodeStats(tx *gorm.DB, cs CMSCodeStats) error {
 	return nil
 }
-*/
 
 func (m *mysql) cmdCMSCodeStatsByUserMonthYear(payload string) (string, error) {
 	// Decode payload
-	_, err := user.DecodeCMSCodeStatsByUserMonthYear([]byte(payload))
+	csumy, err := user.DecodeCMSCodeStatsByUserMonthYear([]byte(payload))
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := ctxWithTimeout()
+	defer cancel()
+
+	q := `SELECT 
+		id,
+		github_name,
+		repository,
+		month,
+		year,
+		prs,
+		reviews,
+		commits,
+		merged_additions,
+		merged_deletions,
+		updated_additions,
+		updated_deletions,
+		review_additions,
+		review_deletions,
+		commit_additions,
+		commit_deletions
+		WHERE github_name = ? AND month = ? AND year = ?`
 	if err != nil {
 		return "", err
 	}
 
-	r := user.CMSCodeStatsByUserMonthYearReply{}
+	rows, err := m.userDB.QueryContext(ctx, q, csumy.GithubName, csumy.Month, csumy.Year)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	cmsCodeStats := make([]user.CodeStats, 0)
+	for rows.Next() {
+		cs := CMSCodeStats{}
+		err := rows.Scan(cs.ID, cs.GitHubName, cs.Repository, cs.Month, cs.Year,
+			cs.PRs, cs.Reviews, cs.Commits, cs.MergedAdditions,
+			cs.MergedDeletions, cs.UpdatedAdditions, cs.UpdatedDeletions,
+			cs.ReviewAdditions, cs.ReviewDeletions, cs.CommitAdditions,
+			cs.CommitDeletions)
+		if err != nil {
+			return "", err
+		}
+
+		convertedUser := convertCodestatsFromDatabase(cs)
+		if err != nil {
+			return "", err
+		}
+		cmsCodeStats = append(cmsCodeStats, convertedUser)
+	}
+
+	r := user.CMSCodeStatsByUserMonthYearReply{
+		UserCodeStats: cmsCodeStats,
+	}
 	reply, err := user.EncodeCMSCodeStatsByUserMonthYearReply(r)
 	if err != nil {
 		return "", err
 	}
 
 	return string(reply), nil
-}
-
-func (m *mysql) CMSCodeStatsByUserMonthYear(p *user.CMSCodeStatsByUserMonthYear) ([]user.CodeStats, error) {
-	return nil, nil
 }
 
 // Exec executes a cms plugin command.
@@ -652,8 +949,13 @@ func (m *mysql) cmsPluginCreateTables(tx *sql.Tx) error {
 		tableNameCMSUser, tableCMSuser)
 	_, err := tx.Exec(q)
 	if err != nil {
-		return fmt.Errorf("create %v table: %v",
-			tableNameCMSUser, err)
+		return fmt.Errorf("create %v table: %v", tableNameCMSUser, err)
+	}
+	q = fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (%v)`,
+		tableNameCMSCodeStats, tableCMSCodeStats)
+	_, err = tx.Exec(q)
+	if err != nil {
+		return fmt.Errorf("create %v table: %v", tableNameCMSCodeStats, err)
 	}
 	return nil
 }
