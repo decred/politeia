@@ -80,7 +80,10 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 	)
 	switch p.ID {
 	case cmsplugin.PluginID:
-		client, err = cms.New(b, t, p.Settings, dataDir, p.Identity, t.activeNetParams)
+		client, err = cms.New(b, &tstoreClient{
+			pluginID: cmplugin.PluginID,
+			tstore:   t,
+		}, p.Settings, dataDir, p.Identity, t.activeNetParams)
 		if err != nil {
 			return err
 		}
