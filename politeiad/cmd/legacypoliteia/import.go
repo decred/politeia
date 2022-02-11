@@ -123,6 +123,12 @@ func importProposals(legacyDir string, cmd *importCmd) error {
 		return err
 	}
 
+	// Collect rfp legacy tokens
+	rfpTokens := make([]string, 0, len(rfps))
+	for _, rfp := range rfps {
+		rfpTokens = append(rfpTokens, rfp.RecordMetadata.Token)
+	}
+
 	// XXX Add fsck step here!
 
 	// Import missing legacy RFPs into tstore concurrently
@@ -134,7 +140,7 @@ func importProposals(legacyDir string, cmd *importCmd) error {
 
 	// Update RFP submissions tstore tokens in the RFPs startRunoffRecord
 	// structs.
-	err = updateRFPSubmissionsTokens(cmd)
+	err = updateRFPSubmissionsTokens(rfpTokens, cmd)
 	if err != nil {
 		return err
 	}
@@ -152,7 +158,7 @@ func storeStartRunoffRecord(rfpToken string, vd *ticketvote.VoteDetails, cmd *im
 	var srr *startRunoffRecord
 	if srr = cmd.getStartRunoffRecord(rfpToken); srr == nil {
 		// No startRunoffRecord was found for the given RFP token, initiate
-		// new one with with empty Submissions field which will be populated
+		// new one with empty Submissions field which will be populated
 		// with the tokens when parsing the submissions. It will be updated
 		// with the tstore tokens when the submissions are imported to the
 		// tstore, only then the startRunoffRecord blobs will be ready to be
@@ -192,7 +198,8 @@ func importStartRunoffRecords(cmd *importCmd) error {
 	cmd.Lock()
 	defer cmd.Unlock()
 
-	for gitToken, srr := range cmd.startRunoffRecords {
+	fmt.Printf("Importing startRunoffRecords\n")
+	for gitToken, sr := range cmd.startRunoffRecords {
 		tstoreToken := cmd.tstoreTokens[gitToken]
 		if tstoreToken == "" {
 			return errors.Errorf("RFP tstore token was not found while importing "+
@@ -203,20 +210,17 @@ func importStartRunoffRecords(cmd *importCmd) error {
 			return err
 		}
 
-		err = saveBlob(srr, dataDescriptorStartRunoffRecord, b, cmd)
-		if err != nil {
-			return err
-		}
+		saveBlobsConcurrently([]interface{}{sr}, dataDescriptorStartRunoffRecord,
+			b, cmd)
 	}
 
+	fmt.Printf("Imported startRunoffRecords successfully\n")
 	return nil
 }
 
-func updateRFPSubmissionsTokens(cmd *importCmd) error {
-	cmd.Lock()
-	defer cmd.Unlock()
-
-	for gitToken, srr := range cmd.startRunoffRecords {
+func updateRFPSubmissionsTokens(rfpTokens []string, cmd *importCmd) error {
+	for _, rfpToken := range rfpTokens {
+		srr := cmd.getStartRunoffRecord(rfpToken)
 		// Update submissions tokens with their new tlog tokens.
 		var subs []string
 		for _, s := range srr.Submissions {
@@ -226,9 +230,10 @@ func updateRFPSubmissionsTokens(cmd *importCmd) error {
 			}
 			subs = append(subs, tstoreToken)
 		}
+		fmt.Printf("Updated RFP %v submissions tokens\n", rfpToken)
 		srr.Submissions = subs
 
-		cmd.startRunoffRecords[gitToken] = srr
+		cmd.setStartRunoffRecord(rfpToken, srr)
 	}
 
 	return nil
@@ -310,7 +315,12 @@ func importProposal(prop *proposal, cmd *importCmd) error {
 				"in cache while parsing the RFP submission %v",
 				prop.VoteMetadata.LinkTo, prop.RecordMetadata.Token)
 		}
+		legacyToken := prop.VoteMetadata.LinkTo
 		prop.VoteMetadata.LinkTo = t
+		prop.VoteDetails.Params.Parent = t
+
+		fmt.Printf("RFP submission parent token %v was replaced with "+
+			"the new tstore token %v\n", legacyToken, prop.VoteMetadata.LinkTo)
 	}
 
 	// Save proposal to tstore
@@ -340,8 +350,8 @@ func importProposal(prop *proposal, cmd *importCmd) error {
 	// Set git token to tstore token mapping
 	cmd.setTstoreToken(gitToken, hex.EncodeToString(token))
 
-	fmt.Printf("Legacy proposal imported successfully; old token: %v, "+
-		"new token: %v\n", gitToken, hex.EncodeToString(token))
+	fmt.Printf("Legacy proposal %v imported successfully; new token: %v\n",
+		gitToken, hex.EncodeToString(token))
 
 	return nil
 }
