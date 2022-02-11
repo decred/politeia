@@ -30,10 +30,6 @@ const (
 	// filePermissions is the file permissions that are used for all directory
 	// and file creation in this tool.
 	filePermissions = 0755
-
-	// serverPubkey is the former politeia public key from when it ran the git
-	// backend.
-	serverPubkey = "a70134196c3cdf3f85f8af6abaa38c15feb7bccf5e6d3db6212358363465e502"
 )
 
 var (

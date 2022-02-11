@@ -21,7 +21,9 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
+	"github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/subosito/gozaru"
 )
@@ -416,6 +418,12 @@ func importRecord(p *proposal, tstoreToken []byte, cmd *importCmd) error {
 		metadatas = append(metadatas, *scmd)
 	}
 
+	// Verify user metadata
+	err = userMetadataVerify(p.UserMetadata, p.Files)
+	if err != nil {
+		return err
+	}
+
 	// Prepare user metadata stream.
 	b, err = json.Marshal(p.UserMetadata)
 	if err != nil {
@@ -467,6 +475,33 @@ func importRecord(p *proposal, tstoreToken []byte, cmd *importCmd) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// userMetadataVerify parses a UserMetadata from the metadata streams and
+// verifies its contents are valid.
+func userMetadataVerify(um usermd.UserMetadata, files []backend.File) error {
+	// Verify user ID
+	_, err := uuid.Parse(um.UserID)
+	if err != nil {
+		return errors.Errorf("invalid user ID")
+	}
+
+	// Verify signature
+	digests := make([]string, 0, len(files))
+	for _, v := range files {
+		digests = append(digests, v.Digest)
+	}
+	m, err := util.MerkleRoot(digests)
+	if err != nil {
+		return err
+	}
+	mr := hex.EncodeToString(m[:])
+	err = util.VerifySignature(um.Signature, um.PublicKey, mr)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -647,7 +682,13 @@ func filesVerify(files []backend.File, filesDel []string) error {
 func importAuthDetails(auth *ticketvote.AuthDetails, tstoreToken []byte, cmd *importCmd) error {
 	// Save auth details blob, if it exists.
 	if auth != nil {
-		err := saveBlob(auth, dataDescriptorAuthDetails, tstoreToken, cmd)
+		// Verify auth details signature.
+		err := client.AuthDetailsVerify(convertAuthDetailsToV1(*auth),
+			serverPubkey)
+		if err != nil {
+			return err
+		}
+		err = saveBlob(auth, dataDescriptorAuthDetails, tstoreToken, cmd)
 		if err != nil {
 			return err
 		}
@@ -673,22 +714,35 @@ func importVoteDetails(vote *ticketvote.VoteDetails, tstoreToken []byte, cmd *im
 // importVotes saves all cast vote details blobs from the legacy proposal into
 // tstore. For every cast vote blob, it also saves a vote collider blob. The
 // blobs are saved concurrently.
-func importVotes(p *proposal, tstoreToken []byte, cmd *importCmd) {
+func importVotes(p *proposal, tstoreToken []byte, cmd *importCmd) error {
 	// Import cast vote details blob concurrently.
-	importCastVoteDetails(p.CastVotes, tstoreToken, cmd)
+	err := importCastVoteDetails(p.CastVotes, tstoreToken, cmd)
+	if err != nil {
+		return err
+	}
 
 	// Import vote collider blob concurrently.
 	importVoteCollider(p.CastVotes, tstoreToken, cmd)
+
+	return nil
 }
 
-// importCastVoteDetails saves a cast vote details blob into tstore for the
+// importCastVoteDetails saves the given cast vote details into tstore for the
 // provided proposal token.
-func importCastVoteDetails(votes []ticketvote.CastVoteDetails, tstoreToken []byte, cmd *importCmd) {
+func importCastVoteDetails(votes []ticketvote.CastVoteDetails, tstoreToken []byte, cmd *importCmd) error {
 	votesParam := make([]interface{}, len(votes))
 	for i, vote := range votes {
+		// Verify cast vote details signature.
+		err := client.CastVoteDetailsVerify(convertCastVoteDetailsToV1(vote),
+			serverPubkey)
+		if err != nil {
+			return err
+		}
 		votesParam[i] = vote
 	}
 	saveBlobsConcurrently(votesParam, dataDescriptorCastVoteDetails, tstoreToken, cmd)
+
+	return nil
 }
 
 // importVoteCollider saves a vote collider blob into tstore for the provided

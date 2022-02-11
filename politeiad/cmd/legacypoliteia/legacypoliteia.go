@@ -14,6 +14,10 @@ const (
 	// Command names. See the usage.go file for details on command usage.
 	convertCmdName = "convert"
 	importCmdName  = "import"
+
+	// serverPubkey is the former politeia public key from when it ran the git
+	// backend.
+	serverPubkey = "a70134196c3cdf3f85f8af6abaa38c15feb7bccf5e6d3db6212358363465e502"
 )
 
 func _main() error {

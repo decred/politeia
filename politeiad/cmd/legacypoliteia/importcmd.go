@@ -18,20 +18,6 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-/*
-TODO
-
-Check if signature is broken
-- usermd UserMetadata signature
-
-Signatures that are broken:
-- usermd StatusChangeMetadata signature (wrong message)
-- ticketvote AuthDetails receipt (wrong server pubkey)
-- ticketvote VoteDetails signature (wrong message)
-- ticketvote VoteDetails receipt (wrong message, wrong server pubkey)
-
-*/
-
 const (
 	// Default command settings
 	defaultTlogHost = "localhost:8090"
