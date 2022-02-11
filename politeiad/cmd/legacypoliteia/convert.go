@@ -148,6 +148,9 @@ func convertProposalMetadata(proposalDir string) (*pi.ProposalMetadata, error) {
 	}, nil
 }
 
+// convertVoteMetadata reads the git backend data from disk that is
+// required to build a ticketvote plugin VoteMetadata structure, then
+// returns the VoteMetadata.
 func convertVoteMetadata(proposalDir string) (*ticketvote.VoteMetadata, error) {
 	fmt.Printf("  Vote metadata\n")
 
@@ -191,6 +194,9 @@ func convertVoteMetadata(proposalDir string) (*ticketvote.VoteMetadata, error) {
 	return &vm, nil
 }
 
+// convertUserMetadata reads the git backend data from disk that is
+// required to build a usermd plugin UserMetadata structure, then
+// returns the UserMetadata.
 func convertUserMetadata(proposalDir string) (*usermd.UserMetadata, error) {
 	fmt.Printf("  User metadata\n")
 
@@ -221,6 +227,9 @@ func convertUserMetadata(proposalDir string) (*usermd.UserMetadata, error) {
 	}, nil
 }
 
+// convertStatusChanges reads the git backend data from disk that is
+// required to build the usermd plugin StatusChangeMetadata structures,
+// then returns the StateChangeMetadatas.
 func convertStatusChanges(proposalDir string) ([]usermd.StatusChangeMetadata, error) {
 	fmt.Printf("  Status changes\n")
 
@@ -277,6 +286,9 @@ func convertStatusChanges(proposalDir string) ([]usermd.StatusChangeMetadata, er
 	return statuses, nil
 }
 
+// convertAuthDetails reads the git backend data from disk that is
+// required to build a ticketvote plugin AuthDetails structure, then
+// returns the AuthDetails.
 func convertAuthDetails(proposalDir string) (*ticketvote.AuthDetails, error) {
 	fmt.Printf("  AuthDetails\n")
 
@@ -344,6 +356,9 @@ func convertAuthDetails(proposalDir string) (*ticketvote.AuthDetails, error) {
 	return &ad, nil
 }
 
+// convertVoteDetails reads the git backend data from disk that is
+// required to build a ticketvote plugin VoteDetails structure, then
+// returns the VoteDetails.
 func convertVoteDetails(proposalDir, linkto string) (*ticketvote.VoteDetails, error) {
 	fmt.Printf("  Vote details\n")
 
@@ -501,6 +516,8 @@ func convertVoteDetails(proposalDir, linkto string) (*ticketvote.VoteDetails, er
 	return &vd, nil
 }
 
+// convertVoteOptions converts the given git backend vote options to
+// ticketvote plugin vote options.
 func convertVoteOptions(options []gitbe.VoteOption) []ticketvote.VoteOption {
 	opts := make([]ticketvote.VoteOption, 0, len(options))
 	for _, v := range options {
@@ -513,6 +530,8 @@ func convertVoteOptions(options []gitbe.VoteOption) []ticketvote.VoteOption {
 	return opts
 }
 
+// convertVoteType converts a git backend vote type to a ticketvote plugin
+// vote type.
 func convertVoteType(t gitbe.VoteT) ticketvote.VoteT {
 	switch t {
 	case gitbe.VoteTypeStandard:
@@ -523,6 +542,9 @@ func convertVoteType(t gitbe.VoteT) ticketvote.VoteT {
 	panic(fmt.Sprintf("invalid vote type %v", t))
 }
 
+// convertCastVotes reads the git backend data from disk that is
+// required to build the ticketvote plugin CastVoteDetails structures,
+// then returns the CastVoteDetails slice.
 func convertCastVotes(proposalDir string, addrs map[string]string, ts map[string]map[string]int64, limit int) ([]ticketvote.CastVoteDetails, error) {
 	fmt.Printf("  Cast votes\n")
 

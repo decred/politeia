@@ -307,6 +307,8 @@ func (c *convertCmd) fetchLargestCommitmentAddrs(eligibleTickets []string) (map[
 	return addrs, nil
 }
 
+// largestCommitmentAddrs calls the dcrdata API to retrieve the largest
+// commitment addresses of the given transaction hashes.
 func (c *convertCmd) largestCommitmentAddrs(hashes []string) (map[string]string, error) {
 	// Batch request all of the transaction info from dcrdata.
 	reqBody, err := json.Marshal(dcrdata.Txns{

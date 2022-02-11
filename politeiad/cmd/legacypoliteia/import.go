@@ -154,6 +154,9 @@ func importProposals(legacyDir string, cmd *importCmd) error {
 	return nil
 }
 
+// storeStartRunoffRecord accepts a legacy token of a RFP and it's vote
+// details struct, it stores the vote details information into the RFP's
+// startRunoffRecord struct in memory.
 func storeStartRunoffRecord(rfpToken string, vd *ticketvote.VoteDetails, cmd *importCmd) {
 	var srr *startRunoffRecord
 	if srr = cmd.getStartRunoffRecord(rfpToken); srr == nil {
@@ -180,6 +183,8 @@ func storeStartRunoffRecord(rfpToken string, vd *ticketvote.VoteDetails, cmd *im
 	cmd.setStartRunoffRecord(rfpToken, srr)
 }
 
+// collectRFPSubmissionToken adds the given RFP submission token to Submissions
+// field of the RFP's startRunoffRecord struct.
 func collectRFPSubmissionToken(rfpToken, submissionToken string, cmd *importCmd) {
 	var srr *startRunoffRecord
 	if srr = cmd.getStartRunoffRecord(rfpToken); srr == nil {
@@ -194,6 +199,8 @@ func collectRFPSubmissionToken(rfpToken, submissionToken string, cmd *importCmd)
 	cmd.setStartRunoffRecord(rfpToken, srr)
 }
 
+// importStartRunoffRecords imports all the startRunoffRecord blobs found in
+// memory into tstore.
 func importStartRunoffRecords(cmd *importCmd) error {
 	cmd.Lock()
 	defer cmd.Unlock()
@@ -218,6 +225,8 @@ func importStartRunoffRecords(cmd *importCmd) error {
 	return nil
 }
 
+// updateRFPSubmissionsTokens replaces RFP submissions' legacy tokens stored
+// in memory with the RFP submissions' new tstore tokens.
 func updateRFPSubmissionsTokens(rfpTokens []string, cmd *importCmd) error {
 	for _, rfpToken := range rfpTokens {
 		srr := cmd.getStartRunoffRecord(rfpToken)
@@ -239,6 +248,8 @@ func updateRFPSubmissionsTokens(rfpTokens []string, cmd *importCmd) error {
 	return nil
 }
 
+// importProposalsConcurrently imports the given proposals into tstore
+// concurrently.
 func importProposalsConcurrently(legacyDir string, props []proposal, cmd *importCmd) {
 	var wg sync.WaitGroup
 	for _, prop := range props {

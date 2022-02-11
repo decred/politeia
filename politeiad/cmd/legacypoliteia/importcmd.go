@@ -88,6 +88,8 @@ func (c *importCmd) getTstoreToken(gitToken string) string {
 	return tstoreToken
 }
 
+// setStartRunoffRecord sets a startRunoffRecord blob mapping in the memory
+// cache.
 func (c *importCmd) setStartRunoffRecord(gitToken string, srr *startRunoffRecord) {
 	c.Lock()
 	defer c.Unlock()
@@ -95,6 +97,8 @@ func (c *importCmd) setStartRunoffRecord(gitToken string, srr *startRunoffRecord
 	c.startRunoffRecords[gitToken] = srr
 }
 
+// getStartRunoffRecord gets a startRunoffRecord blob from the memory cache,
+// returns nil if no entry was found.
 func (c *importCmd) getStartRunoffRecord(gitToken string) *startRunoffRecord {
 	c.Lock()
 	defer c.Unlock()
