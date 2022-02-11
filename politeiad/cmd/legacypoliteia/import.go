@@ -230,10 +230,10 @@ func updateRFPSubmissionsTokens(rfpTokens []string, cmd *importCmd) error {
 			}
 			subs = append(subs, tstoreToken)
 		}
-		fmt.Printf("Updated RFP %v submissions tokens\n", rfpToken)
 		srr.Submissions = subs
 
 		cmd.setStartRunoffRecord(rfpToken, srr)
+		fmt.Printf("Updated RFP %v submissions tokens\n", rfpToken)
 	}
 
 	return nil
