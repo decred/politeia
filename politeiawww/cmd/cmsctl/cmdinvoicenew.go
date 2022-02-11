@@ -45,7 +45,7 @@ var (
 	// errInvoiceCSVNotFound is emitted when a invoice csv file is
 	// required but has not been passed into the command.
 	errInvoiceCSVNotFound = errors.New("invoice csv file not found. " +
-		"You must either provide a csv file or use the --random flag.")
+		"You must either provide a csv file or use the --random flag")
 )
 
 // This function satisfies the go-flags Commander interface.
@@ -133,7 +133,7 @@ func invoiceNew(c *cmdInvoiceNew) (*rcv1.Record, error) {
 
 	invInput, err := validateParseCSV(csv)
 	if err != nil {
-		return nil, fmt.Errorf("Parsing CSV failed: %v", err)
+		return nil, fmt.Errorf("parsing CSV failed: %v", err)
 	}
 
 	// Print request details
@@ -143,7 +143,7 @@ func invoiceNew(c *cmdInvoiceNew) (*rcv1.Record, error) {
 	}
 	b, err := json.Marshal(invInput)
 	if err != nil {
-		return nil, fmt.Errorf("Marshal: %v", err)
+		return nil, fmt.Errorf("marshal: %v", err)
 	}
 
 	f := rcv1.File{
@@ -160,7 +160,7 @@ func invoiceNew(c *cmdInvoiceNew) (*rcv1.Record, error) {
 		path := util.CleanAndExpandPath(file)
 		attachment, err := ioutil.ReadFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("ReadFile %v: %v", path, err)
+			return nil, fmt.Errorf("readFile %v: %v", path, err)
 		}
 
 		f := rcv1.File{

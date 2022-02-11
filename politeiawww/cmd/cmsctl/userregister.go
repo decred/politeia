@@ -14,9 +14,9 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// RegisterUserCmd allows invited contractors to complete the registration
+// cmdUserRegister allows invited contractors to complete the registration
 // process and will allow them to login and submit invoices to receive payment.
-type userRegisterCmd struct {
+type cmdUserRegister struct {
 	Args struct {
 		Email    string `positional-arg-name:"email"`
 		Username string `positional-arg-name:"username"`
@@ -26,7 +26,7 @@ type userRegisterCmd struct {
 }
 
 // Execute executes the register user command
-func (cmd *userRegisterCmd) Execute(args []string) error {
+func (cmd *cmdUserRegister) Execute(args []string) error {
 	// Fetch  policy for password requirements
 	pr, err := client.Policy()
 	if err != nil {

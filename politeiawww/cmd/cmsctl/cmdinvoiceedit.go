@@ -100,7 +100,7 @@ func invoiceEdit(c *cmdInvoiceEdit) (*rcv1.Record, error) {
 	}
 	invInput, err := validateParseCSV(csv)
 	if err != nil {
-		return nil, fmt.Errorf("Parsing CSV failed: %v", err)
+		return nil, fmt.Errorf("parsing CSV failed: %v", err)
 	}
 
 	// Print request details
@@ -110,7 +110,7 @@ func invoiceEdit(c *cmdInvoiceEdit) (*rcv1.Record, error) {
 	}
 	b, err := json.Marshal(invInput)
 	if err != nil {
-		return nil, fmt.Errorf("Marshal: %v", err)
+		return nil, fmt.Errorf("marshal: %v", err)
 	}
 
 	f := rcv1.File{
@@ -127,7 +127,7 @@ func invoiceEdit(c *cmdInvoiceEdit) (*rcv1.Record, error) {
 		path := util.CleanAndExpandPath(file)
 		attachment, err := ioutil.ReadFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("ReadFile %v: %v", path, err)
+			return nil, fmt.Errorf("readFile %v: %v", path, err)
 		}
 
 		f := rcv1.File{

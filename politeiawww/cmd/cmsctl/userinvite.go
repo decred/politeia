@@ -11,8 +11,8 @@ import (
 	"github.com/decred/politeia/politeiawww/cmd/shared"
 )
 
-// userInviteCmd allows administrators to invite contractors to join CMS.
-type userInviteCmd struct {
+// cmdUserInvite allows administrators to invite contractors to join CMS.
+type cmdUserInvite struct {
 	Args struct {
 		Email string `positional-arg-name:"email" `
 	} `positional-args:"true"`
@@ -20,7 +20,7 @@ type userInviteCmd struct {
 }
 
 // Execute executes the invite new user command.
-func (cmd *userInviteCmd) Execute(args []string) error {
+func (cmd *cmdUserInvite) Execute(args []string) error {
 	inu := &v1.InviteNewUser{
 		Email:     cmd.Args.Email,
 		Temporary: cmd.Temporary,

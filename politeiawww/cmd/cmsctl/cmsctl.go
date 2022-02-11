@@ -46,19 +46,23 @@ type cmsctl struct {
 	Me      shared.MeCmd      `command:"me"`
 
 	// User commands
-	UserInvite   userInviteCmd   `command:"userinvite"`
-	UserRegister userRegisterCmd `command:"userregister"`
+	UserInvite   cmdUserInvite   `command:"userinvite"`
+	UserRegister cmdUserRegister `command:"userregister"`
+	UserManage   cmdUserManage   `command:"usermanage"`
 
 	// Invoice commands
-	InvoicePolicy  cmdInvoicePolicy  `command:"invoicepolicy"`
-	InvoiceNew     cmdInvoiceNew     `command:"invoicenew"`
-	InvoiceDetails cmdInvoiceDetails `command:"invoicedetails"`
-	InvoiceEdit    cmdInvoiceEdit    `command:"invoiceedit"`
+	InvoicePolicy    cmdInvoicePolicy    `command:"invoicepolicy"`
+	InvoiceNew       cmdInvoiceNew       `command:"invoicenew"`
+	InvoiceDetails   cmdInvoiceDetails   `command:"invoicedetails"`
+	InvoiceEdit      cmdInvoiceEdit      `command:"invoiceedit"`
+	InvoiceSetStatus cmdInvoiceSetStatus `command:"invoicesetstatus"`
 
 	// Records commands
 	RecordPolicy cmdRecordPolicy `command:"recordpolicy"`
 
 	// Comments commands
+
+	TestRun cmdTestRun `command:"testrun"`
 }
 
 const helpMsg = `Application Options:

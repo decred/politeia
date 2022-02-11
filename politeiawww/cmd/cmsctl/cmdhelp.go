@@ -55,6 +55,12 @@ func (c *cmdHelp) Execute(args []string) error {
 		fmt.Printf("%s\n", invoicePolicyHelpMsg)
 	case "invoicenew":
 		fmt.Printf("%s\n", invoiceNewHelpMsg)
+	case "invoiceedit":
+		fmt.Printf("%s\n", invoiceEditHelpMsg)
+	case "invoicesetstatus":
+		fmt.Printf("%s\n", setInvoiceStatusHelpMsg)
+	case "invoicedetails":
+		fmt.Printf("%s\n", invoiceDetailsHelpMsg)
 
 		// Record commands
 	case "recordpolicy":
