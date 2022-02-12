@@ -95,7 +95,7 @@ func importProposals(legacyDir string, cmd *importCmd) error {
 			}
 
 			switch {
-			case prop.VoteMetadata.LinkBy != 0:
+			case prop.VoteMetadata != nil && prop.VoteMetadata.LinkBy != 0:
 				// Current proposal is a RFP, collect it in a separate slice in
 				// order to import RFPs first, so we could update their submissions
 				// _parent_ references before inserting the submissions into tstore.
@@ -106,7 +106,7 @@ func importProposals(legacyDir string, cmd *importCmd) error {
 				storeStartRunoffRecord(prop.RecordMetadata.Token,
 					prop.VoteDetails, cmd)
 
-			case prop.VoteMetadata.LinkTo != "":
+			case prop.VoteMetadata != nil && prop.VoteMetadata.LinkTo != "":
 				// Current proposal is a RFP submission, add proposal token to the
 				// startRunoffRecord submissions list.
 				collectRFPSubmissionToken(prop.VoteMetadata.LinkTo,
@@ -319,7 +319,7 @@ func importProposal(prop *proposal, cmd *importCmd) error {
 		// Proposal has vote details metadata, replace params token
 		prop.VoteDetails.Params.Token = hex.EncodeToString(token)
 	}
-	if prop.VoteMetadata.LinkTo != "" {
+	if prop.VoteMetadata != nil && prop.VoteMetadata.LinkTo != "" {
 		// Proposal is a RFP submission, replace linkTo with the new tstore
 		// token of its RFP parent.
 		t := cmd.getTstoreToken(prop.VoteMetadata.LinkTo)
@@ -418,12 +418,6 @@ func importRecord(p *proposal, tstoreToken []byte, cmd *importCmd) error {
 		metadatas = append(metadatas, *scmd)
 	}
 
-	// Verify user metadata
-	err = userMetadataVerify(p.UserMetadata, p.Files)
-	if err != nil {
-		return err
-	}
-
 	// Prepare user metadata stream.
 	b, err = json.Marshal(p.UserMetadata)
 	if err != nil {
@@ -445,6 +439,12 @@ func importRecord(p *proposal, tstoreToken []byte, cmd *importCmd) error {
 	if err != nil {
 		return err
 	}
+
+	// Verify user metadata
+	/*err = userMetadataVerify(p.UserMetadata, p.Files)
+	if err != nil {
+		return err
+	}*/
 
 	// Check if record status is public. If so, we need to first save it as
 	// unreviewed, and then save it as public. This is done to bypass the
