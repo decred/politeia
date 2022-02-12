@@ -274,12 +274,6 @@ Unvetted record tokens are only returned to admins and the record author.
 
 | Field | Type | Description |
 |-|-|-|
-| tokens | []string | Page of tokens.  |
-
-**Reply**:
-
-| Field | Type | Description |
-|-|-|-|
 | unvetted | []string | User's unvetted records.  |
 | vetted | []string | User's vetted records.  |
 
