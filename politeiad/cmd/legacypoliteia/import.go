@@ -388,7 +388,7 @@ func importRecord(p *proposal, tstoreToken []byte, cmd *importCmd) error {
 
 	// Prepare vote metadata file, if needed.
 	if p.VoteMetadata != nil &&
-		p.VoteMetadata.LinkBy != 0 || p.VoteMetadata.LinkTo != "" {
+		(p.VoteMetadata.LinkBy != 0 || p.VoteMetadata.LinkTo != "") {
 		b, err := json.Marshal(p.VoteMetadata)
 		if err != nil {
 			return err
