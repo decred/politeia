@@ -227,10 +227,10 @@ func convertUserMetadata(proposalDir string) (*usermd.UserMetadata, error) {
 	}, nil
 }
 
-// convertStatusChanges reads the git backend data from disk that is
+// convertStatusChange reads the git backend data from disk that is
 // required to build the usermd plugin StatusChangeMetadata structures,
-// then returns the StateChangeMetadatas.
-func convertStatusChanges(proposalDir string) ([]usermd.StatusChangeMetadata, error) {
+// then returns the latest StateChangeMetadata.
+func convertStatusChange(proposalDir string) (*usermd.StatusChangeMetadata, error) {
 	fmt.Printf("  Status changes\n")
 
 	// Read the status changes mdstream from disk
@@ -283,7 +283,13 @@ func convertStatusChanges(proposalDir string) ([]usermd.StatusChangeMetadata, er
 		statuses = append(statuses, scm)
 	}
 
-	return statuses, nil
+	// Sort status changes from oldest to newest
+	sort.SliceStable(statuses, func(i, j int) bool {
+		return statuses[i].Timestamp < statuses[j].Timestamp
+	})
+
+	latestStatusChange := statuses[len(statuses)-1]
+	return &latestStatusChange, nil
 }
 
 // convertAuthDetails reads the git backend data from disk that is

@@ -405,9 +405,9 @@ func importRecord(p *proposal, tstoreToken []byte, cmd *importCmd) error {
 	// Create the metadata streams for the proposal.
 	var metadatas []backend.MetadataStream
 
-	// Prepare status changes metadata streams.
-	for _, scmd := range p.StatusChanges {
-		b, err := json.Marshal(scmd)
+	// Prepare status change metadata stream.
+	if p.StatusChange != nil {
+		b, err := json.Marshal(p.StatusChange)
 		if err != nil {
 			return err
 		}

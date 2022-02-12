@@ -186,7 +186,7 @@ func (c *convertCmd) convertGitProposals() error {
 			}
 			userMD.UserID = u.ID
 		}
-		statusChanges, err := convertStatusChanges(proposalDir)
+		statusChange, err := convertStatusChange(proposalDir)
 		if err != nil {
 			return err
 		}
@@ -240,7 +240,7 @@ func (c *convertCmd) convertGitProposals() error {
 			ProposalMetadata: *proposalMD,
 			VoteMetadata:     voteMD,
 			UserMetadata:     *userMD,
-			StatusChanges:    statusChanges,
+			StatusChange:     statusChange,
 			AuthDetails:      authDetails,
 			VoteDetails:      voteDetails,
 			CastVotes:        cv,
@@ -427,9 +427,10 @@ func sanityChecks(p *proposal) error {
 	switch p.RecordMetadata.Status {
 	case backend.StatusArchived:
 		// Archived proposals will have two status
-		// changes and no vote data.
-		if len(p.StatusChanges) != 2 {
-			return fmt.Errorf("invalid status changes")
+		// changes and no vote data, we convert the latest
+		// status change.
+		if p.StatusChange == nil {
+			return fmt.Errorf("invalid status change")
 		}
 		if p.AuthDetails != nil {
 			return fmt.Errorf("auth details invalid")
@@ -445,8 +446,8 @@ func sanityChecks(p *proposal) error {
 		// All non-archived proposals will be public,
 		// with a single status change, and will have
 		// the vote data populated.
-		if len(p.StatusChanges) != 1 {
-			return fmt.Errorf("invalid status changes")
+		if p.StatusChange == nil {
+			return fmt.Errorf("invalid status change")
 		}
 		if p.AuthDetails == nil {
 			return fmt.Errorf("auth details missing")
