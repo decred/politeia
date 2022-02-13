@@ -253,26 +253,48 @@ func updateRFPSubmissionsTokens(rfpTokens []string, cmd *importCmd) error {
 // importProposalsConcurrently imports the given proposals into tstore
 // concurrently.
 func importProposalsConcurrently(legacyDir string, props []proposal, cmd *importCmd) {
-	var wg sync.WaitGroup
-	for _, prop := range props {
-		// Increment the wait group.
-		wg.Add(1)
-
-		// Spin routine to import proposal.
-		go func(p proposal) {
-			// Decrement the wait group once the proposal has been imported
-			defer wg.Done()
-
-			// Import proposal
-			err := importProposal(&p, cmd)
-			if err != nil {
-				panic(err)
-			}
-		}(prop)
+	var (
+		batchSize = 5
+		queue     = make([][]proposal, 0, len(props)/batchSize)
+		batch     = make([]proposal, 0, batchSize)
+	)
+	// Setup the batches
+	for _, v := range props {
+		if len(batch) == batchSize {
+			// The batch is full. Add it to the queue and start a new one.
+			queue = append(queue, batch)
+			batch = make([]proposal, 0, batchSize)
+		}
+		batch = append(batch, v)
+	}
+	if len(batch) != 0 {
+		// Add the leftover batch to the queue
+		queue = append(queue, batch)
 	}
 
-	// Wait for all proposal imports to finish
-	wg.Wait()
+	// Import the data. The contents of each batch are imported concurrently.
+	for _, batch := range queue {
+		var wg sync.WaitGroup
+		for _, prop := range batch {
+			// Increment the wait group.
+			wg.Add(1)
+
+			// Spin routine to import proposal.
+			go func(p proposal) {
+				// Decrement the wait group once the proposal has been imported
+				defer wg.Done()
+
+				// Import proposal
+				err := importProposal(&p, cmd)
+				if err != nil {
+					panic(err)
+				}
+			}(prop)
+		}
+
+		// Wait for all proposal imports to finish
+		wg.Wait()
+	}
 }
 
 // importProposal imports the specified legacy proposal into tstore.
@@ -867,7 +889,7 @@ func saveBlobsConcurrently(data []interface{}, dataDescriptor string, token []by
 				// Save the blob to tstore.
 				err := saveBlob(b, dataDescriptor, token, cmd)
 				if err != nil {
-					e := errors.Errorf("err:%v descritor:%v blob:%v",
+					e := errors.Errorf("err: %v descriptor: %v blob: %+v",
 						err, dataDescriptor, b)
 					panic(e)
 				}

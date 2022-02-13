@@ -718,9 +718,11 @@ func (c *convertCmd) convertComments(proposalDir, userID string) (*commentTypes,
 	var (
 		parentIDs = make(map[string]string)
 
-		adds  []comments.CommentAdd
-		dels  []comments.CommentDel
-		votes []comments.CommentVote
+		// There are some duplicates in the comment data, we store each
+		// type in a map to with the signatures as keys to avoid duplicates.
+		mAdds  = make(map[string]comments.CommentAdd)  // map[signature]CommentAdd
+		mDels  = make(map[string]comments.CommentDel)  // map[signature]CommentDel
+		mVotes = make(map[string]comments.CommentVote) // map[signature]CommentVote
 	)
 
 	s := bufio.NewScanner(fh)
@@ -768,7 +770,7 @@ func (c *convertCmd) convertComments(proposalDir, userID string) (*commentTypes,
 			}
 
 			// Append add blob.
-			adds = append(adds, comments.CommentAdd{
+			mAdds[cm.Signature] = comments.CommentAdd{
 				UserID:    userID,
 				State:     comments.RecordStateVetted,
 				Token:     cm.Token,
@@ -780,7 +782,7 @@ func (c *convertCmd) convertComments(proposalDir, userID string) (*commentTypes,
 				Version:   1,
 				Timestamp: cm.Timestamp,
 				Receipt:   cm.Receipt,
-			})
+			}
 
 			parentIDs[cm.CommentID] = cm.ParentID
 
@@ -818,7 +820,7 @@ func (c *convertCmd) convertComments(proposalDir, userID string) (*commentTypes,
 			}
 
 			// Append del blob.
-			dels = append(dels, comments.CommentDel{
+			mDels[cc.Signature] = comments.CommentDel{
 				Token:     cc.Token,
 				State:     comments.RecordStateVetted,
 				CommentID: uint32(cid),
@@ -829,7 +831,7 @@ func (c *convertCmd) convertComments(proposalDir, userID string) (*commentTypes,
 				UserID:    userID,
 				Timestamp: cc.Timestamp,
 				Receipt:   cc.Receipt,
-			})
+			}
 
 		case "addlike":
 			var lc likeCommentV1
@@ -871,7 +873,7 @@ func (c *convertCmd) convertComments(proposalDir, userID string) (*commentTypes,
 			}
 
 			// Append vote blob.
-			votes = append(votes, comments.CommentVote{
+			mVotes[lc.Signature] = comments.CommentVote{
 				UserID:    userID,
 				State:     comments.RecordStateVetted,
 				Token:     lc.Token,
@@ -881,11 +883,27 @@ func (c *convertCmd) convertComments(proposalDir, userID string) (*commentTypes,
 				Signature: lc.Signature,
 				Timestamp: lc.Timestamp,
 				Receipt:   lc.Receipt,
-			})
+			}
 
 		default:
 			return nil, err
 		}
+	}
+
+	// Convert maps to slices.
+	var (
+		adds  = make([]comments.CommentAdd, 0, len(mAdds))
+		dels  = make([]comments.CommentDel, 0, len(mDels))
+		votes = make([]comments.CommentVote, 0, len(mVotes))
+	)
+	for _, add := range mAdds {
+		adds = append(adds, add)
+	}
+	for _, del := range mDels {
+		dels = append(dels, del)
+	}
+	for _, vote := range mVotes {
+		votes = append(votes, vote)
 	}
 
 	return &commentTypes{
