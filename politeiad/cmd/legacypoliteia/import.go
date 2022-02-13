@@ -254,7 +254,7 @@ func updateRFPSubmissionsTokens(rfpTokens []string, cmd *importCmd) error {
 // concurrently.
 func importProposalsConcurrently(legacyDir string, props []proposal, cmd *importCmd) {
 	var (
-		batchSize = 5
+		batchSize = 8
 		queue     = make([][]proposal, 0, len(props)/batchSize)
 		batch     = make([]proposal, 0, batchSize)
 	)
