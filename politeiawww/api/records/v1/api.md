@@ -86,7 +86,7 @@ Submit a new record.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| files | []File | Record files. | Yes |
+| files | [][`File`](#file) | Record files. | Yes |
 | publickey | string | Signing user public key. | Yes |
 | signature | string | Client signature of the record merkle root. The merkle root is the ordered merkle root of all record Files. | Yes |
 
@@ -94,7 +94,7 @@ Submit a new record.
 
 | Field | Type | Description |
 |-|-|-|
-| record | Record | Submitted record. |
+| record | [`Record`](#record) | Submitted record. |
 
 ### `Edit`
 
@@ -107,7 +107,7 @@ Edit an existing record.
 | Parameter | Type | Description | Required |
 |-|-|-|-|
 | token | string | Existing record token. | Yes |
-| files | []File | Record files. | Yes |
+| files | [][`File`](#file) | Record files. | Yes |
 | publickey | string | Signing user public key. | Yes |
 | signature | string | Client signature of the record merkle root. The merkle root is the ordered merkle root of all record Files. | Yes |
 
@@ -115,7 +115,7 @@ Edit an existing record.
 
 | Field | Type | Description |
 |-|-|-|
-| record | Record | Submitted record. |
+| record | [`Record`](#record) | Submitted record. |
 
 ### `Set Status`
 
@@ -129,7 +129,7 @@ Set the status of a record. Some status changes require a reason to be included.
 |-|-|-|-|
 | token | string | Record token. | Yes |
 | version | number | Record version. | Yes |
-| status | RecordStatusT | Record's new status. | Yes |
+| status | [`RecordStatusT`](#record-statuses) | Record's new status. | Yes |
 | reason | string | Status change reason. | Required for some statuses |
 | publickey | string | Signing user public key. | Yes |
 | signature | string | Client signature of the Token+Version+Status+Reason. | Yes |
@@ -138,7 +138,7 @@ Set the status of a record. Some status changes require a reason to be included.
 
 | Field | Type | Description |
 |-|-|-|
-| record | Record | Record after status change. |
+| record | [`Record`](#record) | Record after status change. |
 
 ### `Details`
 
@@ -158,7 +158,7 @@ If no version is specified then the most recent version will be returned.
 
 | Field | Type | Description |
 |-|-|-|
-| record | Record | Record after status change. |
+| record | [`Record`](#record) | Record after status change. |
 
 ### `Timestamps`
 
@@ -179,9 +179,9 @@ returned.
 
 | Field | Type | Description |
 |-|-|-|
-| recordmetadata | Timestamp | Record metadata timestamp. |
-| metadata | map[string]map[number]Timestamp | Map of metadata streams timestamps. map[pluginID]map[streamID]Timestamp. |
-| files | map[string]Timestamp | Map of record files timestamps. map[filename]Timestamp. |
+| recordmetadata | [`Timestamp`](#timestamp) | Record metadata timestamp. |
+| metadata | map[string]map[number][`Timestamp`](#timestamp) | Map of metadata streams timestamps. map[pluginID]map[streamID]timestamp. |
+| files | map[string][`Timestamp`](#timestamp) | Map of record files timestamps. map[filename]timestamp. |
 
 ### `Records`
 
@@ -200,13 +200,13 @@ the record's merkle all files must be present.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| requests | []RecordRequest | Select content from a record. | Yes |
+| requests | [][`RecordRequest`](#record-request) | Select content from a record. | Yes |
 
 **Reply**:
 
 | Field | Type | Description |
 |-|-|-|
-| records | map[string]Record | Map of requested records.  |
+| records | map[string][`Record`](#record) | Map of requested records.  |
 
 ### `Inventory`
 
@@ -228,9 +228,9 @@ Unvetted record tokens will only be returned to admins.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| state | RecordStateT | Record state. | No |
-| status | RecordStatusT | Record status. | No |
-| page | Number | Requested page. | No |
+| state | [`RecordStateT`](#record-states) | Record state. | No |
+| status | [`RecordStatusT`](#record-statuses) | Record status. | No |
+| page | number | Requested page. | No |
 
 **Reply**:
 
@@ -250,8 +250,8 @@ returned to admins.
 
 | Parameter | Type | Description | Required |
 |-|-|-|-|
-| state | RecordStateT | Record state. | Yes |
-| page | Number | Requested page. | Yes |
+| state | [`RecordStateT`](#record-states) | Record state. | Yes |
+| page | number | Requested page. | Yes |
 
 **Reply**:
 
@@ -277,3 +277,30 @@ Unvetted record tokens are only returned to admins and the record author.
 | unvetted | []string | User's unvetted records.  |
 | vetted | []string | User's vetted records.  |
 
+
+### `Record`
+
+This represents a record and all of its content.
+
+| Field | Type | Description |
+|-|-|-|
+| state | [`RecordStateT`](#record-states) | Record state.  |
+| status | [`RecordStatusT`](#record-statuses) | Record status.  |
+| version | number | Record version.  |
+| timestamp | number | Last update.  |
+| username | string | Author username.  |
+| metadata | [][`MetadataStream`](#metadata-stream) | Metadata streams.  |
+| files | [][`File`](#file) | User submitted files.  |
+| censorshiprecord | [`CensorshipRecord`](#censorship-record) | Contains 
+ cryptographic proof that a record was accepted for review by the server. The 
+ proof is verifiable by the client.  |
+
+ ### `Record statuses`
+
+ ### `Record states`
+
+ ### `Metadata stream`
+
+ ### `File`
+
+ ### `Censorship record`
