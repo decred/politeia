@@ -254,7 +254,7 @@ func updateRFPSubmissionsTokens(rfpTokens []string, cmd *importCmd) error {
 // concurrently.
 func importProposalsConcurrently(legacyDir string, props []proposal, cmd *importCmd) {
 	var (
-		batchSize = 8
+		batchSize = 10
 		queue     = make([][]proposal, 0, len(props)/batchSize)
 		batch     = make([]proposal, 0, batchSize)
 	)
@@ -856,7 +856,7 @@ func saveBlob(data interface{}, dataDescriptor string, token []byte, cmd *import
 // routines is limited by the max routines constant.
 func saveBlobsConcurrently(data []interface{}, dataDescriptor string, token []byte, cmd *importCmd) {
 	var (
-		batchSize = 10
+		batchSize = 5
 		queue     = make([][]interface{}, 0, len(data)/batchSize)
 		batch     = make([]interface{}, 0, batchSize)
 	)
