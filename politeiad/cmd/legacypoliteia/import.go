@@ -133,12 +133,17 @@ func importProposals(legacyDir string, cmd *importCmd) error {
 
 	// XXX Add fsck step here!
 
-	// Import missing legacy RFPs into tstore concurrently
-	importProposalsConcurrently(legacyDir, rfps, cmd)
+	// Import missing legacy RFPs into tstore
+	err = importProposalsSlice(legacyDir, rfps, cmd)
+	if err != nil {
+		return err
+	}
 
 	// Import missing standard proposals & RFP submissions into tstore
-	// concurrently.
-	importProposalsConcurrently(legacyDir, rest, cmd)
+	err = importProposalsSlice(legacyDir, rest, cmd)
+	if err != nil {
+		return err
+	}
 
 	// Update RFP submissions tstore tokens in the RFPs startRunoffRecord
 	// structs.
@@ -250,51 +255,17 @@ func updateRFPSubmissionsTokens(rfpTokens []string, cmd *importCmd) error {
 	return nil
 }
 
-// importProposalsConcurrently imports the given proposals into tstore
-// concurrently.
-func importProposalsConcurrently(legacyDir string, props []proposal, cmd *importCmd) {
-	var (
-		batchSize = 10
-		queue     = make([][]proposal, 0, len(props)/batchSize)
-		batch     = make([]proposal, 0, batchSize)
-	)
-	// Setup the batches
-	for _, v := range props {
-		if len(batch) == batchSize {
-			// The batch is full. Add it to the queue and start a new one.
-			queue = append(queue, batch)
-			batch = make([]proposal, 0, batchSize)
+// importProposalsSlice imports the given proposals into tstore
+func importProposalsSlice(legacyDir string, props []proposal, cmd *importCmd) error {
+	for _, prop := range props {
+		// Import proposal
+		err := importProposal(&prop, cmd)
+		if err != nil {
+			return err
 		}
-		batch = append(batch, v)
-	}
-	if len(batch) != 0 {
-		// Add the leftover batch to the queue
-		queue = append(queue, batch)
 	}
 
-	// Import the data. The contents of each batch are imported concurrently.
-	for _, batch := range queue {
-		var wg sync.WaitGroup
-		for _, prop := range batch {
-			// Increment the wait group.
-			wg.Add(1)
-
-			// Spin routine to import proposal.
-			go func(p proposal) {
-				// Decrement the wait group once the proposal has been imported
-				defer wg.Done()
-
-				// Import proposal
-				err := importProposal(&p, cmd)
-				if err != nil {
-					panic(err)
-				}
-			}(prop)
-		}
-
-		// Wait for all proposal imports to finish
-		wg.Wait()
-	}
+	return nil
 }
 
 // importProposal imports the specified legacy proposal into tstore.
@@ -856,7 +827,7 @@ func saveBlob(data interface{}, dataDescriptor string, token []byte, cmd *import
 // routines is limited by the max routines constant.
 func saveBlobsConcurrently(data []interface{}, dataDescriptor string, token []byte, cmd *importCmd) {
 	var (
-		batchSize = 5
+		batchSize = 500
 		queue     = make([][]interface{}, 0, len(data)/batchSize)
 		batch     = make([]interface{}, 0, batchSize)
 	)
