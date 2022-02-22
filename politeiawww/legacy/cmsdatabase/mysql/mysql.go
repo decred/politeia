@@ -89,7 +89,8 @@ func (m *mysql) isShutdown() bool {
 // This function must be called using a transaction.
 func (m *mysql) exchangeRateNew(ctx context.Context, tx *sql.Tx, rate *database.ExchangeRate) error {
 	_, err := tx.ExecContext(ctx,
-		"INSERT INTO exchange_rates (month, year, rate, created_at) VALUES (?, ?, ?, ?)",
+		"INSERT INTO exchange_rates (month, year, rate, created_at)"+
+			"VALUES (?, ?, ?, ?)",
 		rate.Month, rate.Year, rate.ExchangeRate, time.Now().Unix())
 	if err != nil {
 		return fmt.Errorf("exchangeRateNew: %v", err)
@@ -102,7 +103,8 @@ func (m *mysql) exchangeRateNew(ctx context.Context, tx *sql.Tx, rate *database.
 //
 // ExchangeRateNew satisfies the Database interface.
 func (m *mysql) ExchangeRateNew(dbExchangeRate *database.ExchangeRate) error {
-	log.Tracef("ExchangeRateNew: %v %v", dbExchangeRate.Month, dbExchangeRate.Year)
+	log.Tracef("ExchangeRateNew: %v %v", dbExchangeRate.Month,
+		dbExchangeRate.Year)
 
 	if m.isShutdown() {
 		return user.ErrShutdown
@@ -152,7 +154,8 @@ func (m *mysql) ExchangeRate(month, year int) (*database.ExchangeRate, error) {
 
 	var rate uint
 	err := m.cmsDB.QueryRowContext(ctx,
-		"SELECT rate FROM exchange_rates WHERE month = ? AND year = ?", month, year).Scan(&rate)
+		"SELECT rate FROM exchange_rates WHERE month = ? AND year = ?", month,
+		year).Scan(&rate)
 	switch {
 	case err == sql.ErrNoRows:
 		return nil, database.ErrExchangeRateNotFound

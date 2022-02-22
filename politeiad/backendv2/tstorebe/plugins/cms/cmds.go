@@ -85,10 +85,12 @@ func (c *cmsPlugin) cmdSetInvoiceStatus(token []byte, payload string) (string, e
 
 	// CHECK TO SEE IF THE PREVIOUSLY SET STATUS ALLOWS TO BE SET TO REQUESTED
 	switch bscs[len(bscs)-1].Status {
-	case cms.InvoiceStatusNew, cms.InvoiceStatusUpdated, cms.InvoiceStatusDisputed:
+	case cms.InvoiceStatusNew, cms.InvoiceStatusUpdated,
+		cms.InvoiceStatusDisputed:
 		// These statuses allow for any updating.
 	case cms.InvoiceStatusApproved:
-		// Should we allow for the status to be updated if it was set to approved already?
+		// Should we allow for the status to be updated if it was set to
+		// approved already?
 	case cms.InvoiceStatusPaid, cms.InvoiceStatusRejected:
 		return "", backend.PluginError{
 			PluginID:     cms.PluginID,
@@ -236,13 +238,13 @@ func statusChangesDecode(metadata []backend.MetadataStream) ([]usermd.StatusChan
 func invoiceStatus(state backend.StateT, status backend.StatusT, bsc *cms.InvoiceStatusChange) (cms.InvoiceStatusT, error) {
 	switch state {
 	case backend.StateUnvetted:
-		return cms.InvoiceStatusInvalid, nil // Just say invalid, since they shouldn't be here?
+		return cms.InvoiceStatusInvalid, nil
 	case backend.StateVetted:
 		switch status {
 		case backend.StatusArchived:
-			return cms.InvoiceStatusInvalid, nil // Just say invalid, since they shouldn't be here?
+			return cms.InvoiceStatusInvalid, nil
 		case backend.StatusCensored:
-			return cms.InvoiceStatusInvalid, nil // Just say invalid, since they shouldn't be here?
+			return cms.InvoiceStatusInvalid, nil
 		case backend.StatusPublic:
 			return bsc.Status, nil
 		}

@@ -244,13 +244,13 @@ var (
 	SettingContactSupportedChars = []string{
 		"A-z", "0-9", "&", ".", ":", "-", "_", "@", "+", ",", " "}
 
-	// SettingSponsorStatementSupportedChars is the regular expression of a valid
-	// sponsor statement for DCC in cms.
+	// SettingSponsorStatementSupportedChars is the regular expression of a
+	// valid sponsor statement for DCC in cms.
 	SettingSponsorStatementSupportedChars = []string{
 		"A-z", "0-9", "&", ".", ",", ":", ";", "-", " ", "@", "+", "#", "/",
 		"(", ")", "!", "?", "\"", "'", "\n"}
 
-	// SettingInvoiceDomains contains the default invoice domains.
+	// SettingInvoiceDomains contains the acceptable invoice domains.
 	SettingInvoiceDomains = []string{
 		"development",
 		"marketing",
@@ -258,6 +258,8 @@ var (
 		"design",
 	}
 
+	// SettingLineItemTypes contains the acceptable line item types that
+	// can be used.
 	SettingLineItemTypes = []string{
 		"labor",
 		"expense",
@@ -324,9 +326,9 @@ const (
 	// is provided.
 	ErrorCodeInvoiceStatusInvalid = 12
 
-	// ErrorCodeCommentWriteNotAllowed is returned when a user attempts to submit
-	// a new comment or a comment vote, but does not have permission to. This
-	// could be because the invoice's status does not allow for any
+	// ErrorCodeCommentWriteNotAllowed is returned when a user attempts to
+	// submit a new comment or a comment vote, but does not have permission to.
+	// This could be because the invoice's status does not allow for any
 	// additional changes.
 	ErrorCodeCommentWriteNotAllowed = 13
 

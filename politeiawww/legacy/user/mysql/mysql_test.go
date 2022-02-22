@@ -242,8 +242,6 @@ func TestUserUpdate(t *testing.T) {
 	}
 }
 
-//INSERT INTO identities (public_key, user_id, activated, deactivated) VALUES (?, ?, ?, ?)ON DUPLICATE KEY UPDATE activated=VALUES(activated), deactivated=VALUES(deactivated)
-//INSERT INTO identities \(public_key, user_id, activated, deactivated\) VALUES ON DUPLICATE KEY UPDATE activated=VALUES\(activated\), deactivated=VALUES\(deactivated\)
 func TestUserGetByUsername(t *testing.T) {
 	mdb, mock, close := setupTestDB(t)
 	defer close()

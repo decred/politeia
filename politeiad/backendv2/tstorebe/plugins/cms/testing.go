@@ -61,8 +61,8 @@ func newTestCmsPlugin(t *testing.T) (*cmsPlugin, func()) {
 	validMimeTypesString := string(b)
 
 	// Setup invoice field regex
-	invoiceFieldRegexp, err := util.Regexp(invoiceFieldSupportedChars, uint64(lineItemColLengthMin),
-		uint64(lineItemColLengthMax))
+	invoiceFieldRegexp, err := util.Regexp(invoiceFieldSupportedChars,
+		uint64(lineItemColLengthMin), uint64(lineItemColLengthMax))
 	if err != nil {
 		t.Fatal(fmt.Errorf("invoice field regexp: %v", err))
 	}
@@ -76,15 +76,15 @@ func newTestCmsPlugin(t *testing.T) (*cmsPlugin, func()) {
 	invoiceFieldSupportedCharsString := string(b)
 
 	// Setup name field regex
-	nameRegexp, err := util.Regexp(nameLocationSupportedChars, uint64(nameLengthMin),
-		uint64(nameLengthMax))
+	nameRegexp, err := util.Regexp(nameLocationSupportedChars,
+		uint64(nameLengthMin), uint64(nameLengthMax))
 	if err != nil {
 		t.Fatal(fmt.Errorf("name field regexp: %v", err))
 	}
 
 	// Setup location field regex
-	locationRegexp, err := util.Regexp(nameLocationSupportedChars, uint64(nameLengthMin),
-		uint64(locationLengthMax))
+	locationRegexp, err := util.Regexp(nameLocationSupportedChars,
+		uint64(nameLengthMin), uint64(locationLengthMax))
 	if err != nil {
 		t.Fatal(fmt.Errorf("location field regexp: %v", err))
 	}
@@ -98,8 +98,8 @@ func newTestCmsPlugin(t *testing.T) (*cmsPlugin, func()) {
 	nameLocationSupportedCharsString := string(b)
 
 	// Setup contact field regex
-	contactRegexp, err := util.Regexp(contactSupportedChars, uint64(contactLengthMin),
-		uint64(contactLengthMax))
+	contactRegexp, err := util.Regexp(contactSupportedChars,
+		uint64(contactLengthMin), uint64(contactLengthMax))
 	if err != nil {
 		t.Fatal(fmt.Errorf("contact field regexp: %v", err))
 	}
