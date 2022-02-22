@@ -627,6 +627,9 @@ func (m *mysql) cmdCMSUserSubContractors(payload string) (string, error) {
 		cmsUsers = append(cmsUsers, *convertedUser)
 	}
 
+	if err = rows.Err(); err != nil {
+		return "", err
+	}
 	r := user.CMSUserSubContractorsReply{
 		Users: cmsUsers,
 	}
@@ -912,6 +915,10 @@ func (m *mysql) cmdCMSCodeStatsByUserMonthYear(payload string) (string, error) {
 			return "", err
 		}
 		cmsCodeStats = append(cmsCodeStats, convertedUser)
+	}
+
+	if err = rows.Err(); err != nil {
+		return "", err
 	}
 
 	r := user.CMSCodeStatsByUserMonthYearReply{
