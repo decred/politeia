@@ -384,6 +384,11 @@ func (m *mysql) cmdCMSUsersByDomain(payload string) (string, error) {
 		}
 		cmsUsers = append(cmsUsers, *convertedUser)
 	}
+
+	if err = rows.Err(); err != nil {
+		return err
+	}
+
 	r := user.CMSUsersByDomainReply{
 		Users: cmsUsers,
 	}
@@ -443,6 +448,10 @@ func (m *mysql) cmdCMSUsersByContractorType(payload string) (string, error) {
 			return "", err
 		}
 		cmsUsers = append(cmsUsers, *convertedUser)
+	}
+
+	if err = rows.Err(); err != nil {
+		return err
 	}
 
 	r := user.CMSUsersByContractorTypeReply{
@@ -505,6 +514,10 @@ func (m *mysql) cmdCMSUsersByProposalToken(payload string) (string, error) {
 			return "", err
 		}
 		cmsUsers = append(cmsUsers, *convertedUser)
+	}
+
+	if err = rows.Err(); err != nil {
+		return err
 	}
 
 	r := user.CMSUsersByProposalTokenReply{
