@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022 The Decred developers
+// Copyright (c) 2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -19,36 +19,25 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
-	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 )
 
-// setupRoutes sets up the routes for the politeia http API.
-func (p *politeiawww) setupRoutes() {
-	// NOTE: This will override the legacy version route.
-	// Disable it until we are ready to switch over.
-	// addRoute(p.protected, http.MethodGet, "", "/", p.handleVersion)
+// handleNotFound handles all invalid routes and returns a 404 to the client.
+func (p *politeiawww) handleNotFound(w http.ResponseWriter, r *http.Request) {
+	// Log incoming connection
+	log.Debugf("Invalid route: %v %v %v %v",
+		util.RemoteAddr(r), r.Method, r.URL, r.Proto)
 
-	// The version routes set the CSRF header token and thus needs
-	// to be part of the CSRF protected auth router so that the
-	// cookie CSRF is set too. The CSRF cookie is set on all auth
-	// routes. The header token is only set on the version route.
-	addRoute(p.protected, http.MethodGet, v3.APIRoute,
-		v3.VersionRoute, p.handleVersion)
+	// Trace incoming request
+	log.Tracef("%v", logger.NewLogClosure(func() string {
+		trace, err := httputil.DumpRequest(r, true)
+		if err != nil {
+			trace = []byte(fmt.Sprintf("handleNotFound: DumpRequest %v", err))
+		}
+		return string(trace)
+	}))
 
-	// Unprotected routes
-	addRoute(p.router, http.MethodGet, v3.APIRoute,
-		v3.PolicyRoute, p.handlePolicy)
-	addRoute(p.router, http.MethodPost, v3.APIRoute,
-		v3.ReadRoute, p.handleRead)
-	addRoute(p.router, http.MethodPost, v3.APIRoute,
-		v3.ReadBatchRoute, p.handleReadBatch)
-
-	// CSRF protected routes
-	addRoute(p.protected, http.MethodPost, v3.APIRoute,
-		v3.NewUserRoute, p.handleNewUser)
-	addRoute(p.protected, http.MethodPost, v3.APIRoute,
-		v3.WriteRoute, p.handleWrite)
+	util.RespondWithJSON(w, http.StatusNotFound, nil)
 }
 
 // handleVersion is the request handler for the http v3 VersionRoute.
@@ -123,7 +112,8 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 		pluginSession = convertSession(s)
 		pluginCmd     = convertCmdFromHTTP(cmd)
 	)
-	pluginReply, err := p.pluginNewUser(r.Context(), pluginSession, pluginCmd)
+	pluginReply, err := p.newUserCmd(r.Context(),
+		pluginSession, pluginCmd)
 	if err != nil {
 		respondWithError(w, r,
 			"handleNewUser: pluginNewUser: %v", err)
@@ -186,7 +176,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 		pluginSession = convertSession(s)
 		pluginCmd     = convertCmdFromHTTP(cmd)
 	)
-	pluginReply, err := p.pluginWrite(r.Context(), pluginSession, pluginCmd)
+	pluginReply, err := p.writeCmd(r.Context(), pluginSession, pluginCmd)
 	if err != nil {
 		respondWithError(w, r,
 			"handleWrite: pluginWrite: %v", err)
@@ -249,10 +239,10 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 		pluginSession = convertSession(s)
 		pluginCmd     = convertCmdFromHTTP(cmd)
 	)
-	pluginReply, err := p.pluginRead(r.Context(), pluginSession, pluginCmd)
+	pluginReply, err := p.readCmd(r.Context(), pluginSession, pluginCmd)
 	if err != nil {
 		respondWithError(w, r,
-			"handleRead: pluginRead: %v", err)
+			"handleRead: readCmd: %v", err)
 		return
 	}
 
@@ -324,10 +314,10 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 
 		// Execute the plugin command
 		pluginCmd := convertCmdFromHTTP(cmd)
-		pluginReply, err := p.pluginRead(r.Context(), pluginSession, pluginCmd)
+		pluginReply, err := p.readCmd(r.Context(), pluginSession, pluginCmd)
 		if err != nil {
 			respondWithError(w, r,
-				"handleReadBatch: pluginRead: %v", err)
+				"handleReadBatch: readCmd: %v", err)
 			return
 		}
 
@@ -399,29 +389,6 @@ func respondWithError(w http.ResponseWriter, r *http.Request, format string, err
 		v3.InternalError{
 			ErrorCode: t,
 		})
-}
-
-// addRoute adds a route to the provided router.
-func addRoute(router *mux.Router, method string, routePrefix, route string, handler http.HandlerFunc) {
-	router.HandleFunc(routePrefix+route, handler).Methods(method)
-}
-
-// handleNotFound handles all invalid routes and returns a 404 to the client.
-func handleNotFound(w http.ResponseWriter, r *http.Request) {
-	// Log incoming connection
-	log.Debugf("Invalid route: %v %v %v %v",
-		util.RemoteAddr(r), r.Method, r.URL, r.Proto)
-
-	// Trace incoming request
-	log.Tracef("%v", logger.NewLogClosure(func() string {
-		trace, err := httputil.DumpRequest(r, true)
-		if err != nil {
-			trace = []byte(fmt.Sprintf("handleNotFound: DumpRequest %v", err))
-		}
-		return string(trace)
-	}))
-
-	util.RespondWithJSON(w, http.StatusNotFound, nil)
 }
 
 // convertCmdFromHTTP converts a http v3 Cmd to a plugin Cmd.

@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022 The Decred developers
+// Copyright (c) 2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,11 +7,11 @@ package v3
 import "fmt"
 
 const (
-	// APIVersion if the version of the API that this package represents.
+	// APIVersion is the version of the API that this package represents.
 	APIVersion uint32 = 3
 
-	// APIRoute is prefixed onto all routes defined in this package.
-	APIRoute = "/v3"
+	// APIVersionPrefix is prefixed onto all routes defined in this package.
+	APIVersionPrefix = "/v3"
 
 	// VersionRoute is a GET request route that returns the server version
 	// information and sets CSRF tokens for the client. The VersionReply can be

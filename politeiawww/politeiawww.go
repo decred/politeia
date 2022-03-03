@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -25,15 +24,8 @@ import (
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
-	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
-	"github.com/pkg/errors"
-)
-
-const (
-	csrfKeyLength    = 32    // In bytes
-	csrfCookieMaxAge = 86400 // 1 day in seconds
 )
 
 // politeiawww represents the politeiawww server.
@@ -117,85 +109,6 @@ func _main() error {
 		log.Infof("HTTPS keypair created")
 	}
 
-	// Load or create new CSRF key
-	log.Infof("Load CSRF key")
-	csrfKeyFilename := filepath.Join(cfg.DataDir, "csrf.key")
-	fCSRF, err := os.Open(csrfKeyFilename)
-	if err != nil {
-		if os.IsNotExist(err) {
-			key, err := util.Random(csrfKeyLength)
-			if err != nil {
-				return err
-			}
-
-			// Persist key
-			fCSRF, err = os.OpenFile(csrfKeyFilename,
-				os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-			if err != nil {
-				return err
-			}
-			_, err = fCSRF.Write(key)
-			if err != nil {
-				return err
-			}
-			_, err = fCSRF.Seek(0, 0)
-			if err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
-	}
-	csrfKey := make([]byte, csrfKeyLength)
-	r, err := fCSRF.Read(csrfKey)
-	if err != nil {
-		return err
-	}
-	if r != csrfKeyLength {
-		return fmt.Errorf("CSRF key corrupt")
-	}
-	fCSRF.Close()
-
-	// Setup the router
-	router := mux.NewRouter()
-	router.StrictSlash(true) // Ignore trailing slashes
-
-	// Add a 404 handler
-	router.NotFoundHandler = http.HandlerFunc(handleNotFound)
-
-	// Add router middleware. Middleware is executed
-	// in the same order that they are registered in.
-	m := middleware{
-		reqBodySizeLimit: cfg.ReqBodySizeLimit,
-	}
-	router.Use(closeBodyMiddleware) // MUST be registered first
-	router.Use(m.reqBodySizeLimitMiddleware)
-	router.Use(loggingMiddleware)
-	router.Use(recoverMiddleware)
-
-	// Setup a subrouter that is CSRF protected. Authenticated routes are
-	// required to use the protected router. The subrouter takes on the
-	// configuration of the router that it was spawned from, including all
-	// of the middleware that has already been registered.
-	protected := router.NewRoute().Subrouter()
-
-	// The CSRF middleware uses the double submit cookie method. The server
-	// provides clients with two CSRF tokens: a cookie token and a header
-	// token. The cookie token is set automatically by the CSRF protected
-	// subrouter anytime one of the protected routes it hit. The header token
-	// must be set manually by a request handler. Clients MUST provide both
-	// tokens in their request if they want to access a CSRF protected route.
-	// The CSRF protected subrouter returns a 403 HTTP status code if a client
-	// attempts to access a protected route without providing the proper CSRF
-	// tokens.
-	csrfMiddleware := csrf.Protect(
-		csrfKey,
-		// Set the CSRF cookie on all auth router paths and subpaths.
-		csrf.Path("/"),
-		csrf.MaxAge(csrfCookieMaxAge),
-	)
-	protected.Use(csrfMiddleware)
-
 	// Setup the politeiad client
 	pdc, err := pdclient.New(cfg.RPCHost, cfg.RPCCert,
 		cfg.RPCUser, cfg.RPCPass, cfg.Identity)
@@ -203,41 +116,54 @@ func _main() error {
 		return err
 	}
 
-	// Setup the legacy politeiawww context
-	var legacywww *legacy.Politeiawww
-	if !cfg.DisableLegacy {
-		legacywww, err = legacy.NewPoliteiawww(cfg, router,
-			protected, cfg.ActiveNet.Params, pdc)
-		if err != nil {
-			return err
-		}
-	}
-
 	// Setup application context
 	p := &politeiawww{
 		cfg:       cfg,
-		router:    router,
-		protected: protected,
-		politeiad: pdc,
-		events:    events.NewManager(),
-		legacy:    legacywww,
+		router:    nil, // Set in setupRouter()
+		protected: nil, // Set in setupRouter()
+
+		// Not implemented yet
+		db:       nil,
+		sessions: nil,
+		userDB:   nil,
 
 		// The plugin fields are setup by setupPlugins()
 		pluginIDs:   cfg.Plugins,
 		plugins:     nil,
 		userManager: nil,
 		authManager: nil,
+
+		// Legacy fields
+		politeiad: pdc,
+		events:    events.NewManager(),
+		legacy:    nil, // Set below
 	}
 
-	err = p.setupPlugins()
+	// Setup the HTTP router
+	err = p.setupRouter()
 	if err != nil {
 		return err
 	}
 
-	// Setup API routes. For now, only set these
-	// up if the legacy routes have been disabled.
+	// Setup the API routes. The legacy routes are
+	// used by default. If the legacy routes have been
+	// disabled then the plugin routes will be setup.
 	if cfg.DisableLegacy {
-		p.setupRoutes()
+		// Legacy routes have been disabled
+		p.setupPluginRoutes()
+		err = p.setupPlugins()
+		if err != nil {
+			return err
+		}
+	} else {
+		// Legacy routes are not disabled
+		legacywww, err := legacy.NewPoliteiawww(p.cfg,
+			p.router, p.protected, cfg.ActiveNet.Params,
+			pdc)
+		if err != nil {
+			return err
+		}
+		p.legacy = legacywww
 	}
 
 	// Bind to a port and pass our router in
@@ -309,94 +235,4 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-}
-
-// setupPlugins initializes the plugins that have been specified in the
-// politeiawww config. The config plugin settings are parsed during this
-// process and passed to the appropriate plugin on initialization.
-func (p *politeiawww) setupPlugins() error {
-	// Parse the plugin settings
-	settings := make(map[string][]plugin.Setting)
-	for _, rawSetting := range p.cfg.PluginSettings {
-		pluginID, s, err := parsePluginSetting(rawSetting)
-		if err != nil {
-			return errors.Errorf("failed to parse %v", rawSetting)
-		}
-		ss, ok := settings[pluginID]
-		if !ok {
-			ss = make([]plugin.Setting, 0, 16)
-		}
-		ss = append(ss, *s)
-		settings[pluginID] = ss
-	}
-
-	// Initialize the plugins
-	plugins := make(map[string]plugin.Plugin, len(p.cfg.Plugins))
-	for _, pluginID := range p.cfg.Plugins {
-		s, ok := settings[pluginID]
-		if !ok {
-			s = []plugin.Setting{}
-		}
-		args := plugin.InitArgs{
-			Settings: s,
-		}
-		pp, err := plugin.NewPlugin(pluginID, args)
-		if err != nil {
-			return errors.Errorf("failed to initialize %v", pluginID)
-		}
-		plugins[pluginID] = pp
-	}
-
-	// Initialize the user plugin interfaces
-	var (
-		um  plugin.UserManager
-		am  plugin.AuthManager
-		err error
-	)
-	if !p.cfg.DisableUsers {
-		if p.cfg.UserPlugin == "" {
-			return errors.Errorf("user plugin not provided; a user " +
-				"plugin must be provided when the user layer is enabled")
-		}
-		if p.cfg.AuthPlugin == "" {
-			return errors.Errorf("auth plugin not provided; an auth " +
-				"plugin must be provided when the user layer is enabled")
-		}
-
-		// Initialize the user manager
-		s, ok := settings[p.cfg.UserPlugin]
-		if !ok {
-			s = []plugin.Setting{}
-		}
-		args := plugin.InitArgs{
-			Settings: s,
-		}
-		um, err = plugin.NewUserManager(p.cfg.UserPlugin, args)
-		if err != nil {
-			return errors.Errorf("failed to initialize the user manager plugin %v",
-				p.cfg.UserPlugin)
-		}
-
-		// Initialize the authorizer
-		s, ok = settings[p.cfg.AuthPlugin]
-		if !ok {
-			s = []plugin.Setting{}
-		}
-		args = plugin.InitArgs{
-			Settings: s,
-		}
-		am, err = plugin.NewAuthManager(p.cfg.AuthPlugin, args)
-		if err != nil {
-			return errors.Errorf("failed to initialize the auth manager plugin %v",
-				p.cfg.AuthPlugin)
-		}
-	}
-
-	// Set the user plugin fields
-	p.pluginIDs = p.cfg.Plugins
-	p.plugins = plugins
-	p.userManager = um
-	p.authManager = am
-
-	return nil
 }
