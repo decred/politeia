@@ -161,6 +161,10 @@ and [politeiawww client](https://github.com/decred/politeia/tree/master/politeia
 can be treated as stable. All other APIs and libraries should be treated as
 unstable and subject to breaking changes.
 
+**Docs**:
+
+ - Records API [docs](api/records/v1/api.md).
+ - Legacy Politeiwww API [docs](api/www/v1/api.md) - will be deprecated.
 
 ## Tools and reference clients
 
@@ -170,6 +174,6 @@ unstable and subject to breaking changes.
   Tool for verifying data and timestamps downloaded from politeiagui.
 * [politeiawww_dbutil](https://github.com/decred/politeia/tree/master/politeiawww/cmd/politeiawww_dbutil) - 
   Tool for making manual changes to the user database.
-* [piclt](https://github.com/decred/politeia/tree/master/politeiawww/cmd/pictl) -
+* [pictl](https://github.com/decred/politeia/tree/master/politeiawww/cmd/pictl) -
   Reference client for pi, Decred's proposal system.
 
