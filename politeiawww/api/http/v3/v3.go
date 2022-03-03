@@ -161,7 +161,7 @@ func (e PluginError) Error() string {
 
 // UserError is returned in the response body when the server encounters an
 // error that is caused by something that the user did, such as a invalid
-// request body, and the error occured prior to execution of the plugin
+// request body, and the error occurred prior to execution of the plugin
 // command. The HTTP status code will be 400.
 type UserError struct {
 	ErrorCode    ErrorCodeT `json:"errorcode"`

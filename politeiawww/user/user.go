@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -44,19 +44,19 @@ type PluginData struct {
 
 // DB represents the user database API.
 type DB interface {
-	// InsertTx inserts a user into the database using a transaction.
-	InsertTx(*sql.Tx, User) error
+	// TxInsert inserts a user into the database using a transaction.
+	TxInsert(*sql.Tx, User) error
 
-	// UpdateTx updates a user in the database using a transaction.
-	UpdateTx(*sql.Tx, User) error
+	// TxUpdate updates a user in the database using a transaction.
+	TxUpdate(*sql.Tx, User) error
 
-	// GetTx gets a user from the database using a transactions.
+	// TxGet gets a user from the database using a transactions.
 	//
 	// An ErrNotFound error is returned if a user is not found for the provided
 	// user ID.
-	GetTx(tx *sql.Tx, userID string) (*User, error)
+	TxGet(tx *sql.Tx, userID string) (*User, error)
 
-	// GetTx gets a user from the database.
+	// Get gets a user from the database.
 	//
 	// An ErrNotFound error is returned if a user is not found for the provided
 	// user ID.

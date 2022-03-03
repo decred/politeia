@@ -55,7 +55,7 @@ func (p *politeiawww) newUserCmd(ctx context.Context, session *plugin.Session, c
 			Type:  plugin.HookPreNewUser,
 			Cmd:   cmd,
 			Reply: nil,
-			User:  nil, // User is set by hook()
+			User:  nil, // User is set in preHooks()
 		})
 	if err != nil {
 		return nil, err
@@ -90,14 +90,14 @@ func (p *politeiawww) newUserCmd(ctx context.Context, session *plugin.Session, c
 			Type:  plugin.HookPostNewUser,
 			Cmd:   cmd,
 			Reply: reply,
-			User:  nil, // User is set by hook()
+			User:  nil, // User is set in postHooks()
 		})
 	if err != nil {
 		return nil, err
 	}
 
 	// Insert the user into the database
-	err = p.userDB.InsertTx(tx, *usr)
+	err = p.userDB.TxInsert(tx, *usr)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (p *politeiawww) writeCmd(ctx context.Context, session *plugin.Session, cmd
 	// be empty.
 	var usr *user.User
 	if session.UserID != "" {
-		usr, err = p.userDB.GetTx(tx, session.UserID)
+		usr, err = p.userDB.TxGet(tx, session.UserID)
 		if err != nil {
 			return nil, err
 		}
@@ -160,7 +160,7 @@ func (p *politeiawww) writeCmd(ctx context.Context, session *plugin.Session, cmd
 			Type:  plugin.HookPreWrite,
 			Cmd:   cmd,
 			Reply: nil,
-			User:  nil, // User is set by hook()
+			User:  nil, // User is set in preHooks()
 		})
 	if err != nil {
 		return nil, err
@@ -200,7 +200,7 @@ func (p *politeiawww) writeCmd(ctx context.Context, session *plugin.Session, cmd
 			Type:  plugin.HookPostWrite,
 			Cmd:   cmd,
 			Reply: reply,
-			User:  nil, // User is set by hook()
+			User:  nil, // User is set in postHooks()
 		})
 	if err != nil {
 		return nil, err
@@ -209,7 +209,7 @@ func (p *politeiawww) writeCmd(ctx context.Context, session *plugin.Session, cmd
 	// Update the user in the database if any
 	// updates were made to the user data.
 	if usr != nil && usr.Updated {
-		err = p.userDB.UpdateTx(tx, *usr)
+		err = p.userDB.TxUpdate(tx, *usr)
 		if err != nil {
 			return nil, err
 		}
