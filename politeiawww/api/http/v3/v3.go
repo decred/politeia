@@ -14,10 +14,10 @@ const (
 	APIVersionPrefix = "/v3"
 
 	// VersionRoute is a GET request route that returns the server version
-	// information and sets CSRF tokens for the client. The VersionReply can be
-	// retrieved from both the "/" route and the "/v3/version" route. This allows
-	// clients to be able to determine version information without needing to
-	// have any prior knowledge of the API.
+	// information and sets the CSRF tokens for the client. The VersionReply can
+	// be retrieved from both the "/" route and the "/v3/version" route. This
+	// allows clients to be able to determine version information without needing
+	// to have any prior knowledge of the API.
 	//
 	// This route sets CSRF tokens for clients using the double submit cookie
 	// technique. A token is set in a cookie and a token is set in a header.
@@ -27,7 +27,8 @@ const (
 	// This route returns a VersionReply.
 	VersionRoute = "/version"
 
-	// PolicyRoute is a GET request route that returns API policy information.
+	// PolicyRoute is a GET request route that returns the API policy
+	// information.
 	//
 	// This route returns a PolicyReply.
 	PolicyRoute = "/policy"
@@ -43,7 +44,8 @@ const (
 	// This route accepts a PluginCmd and returns a PluginReply.
 	NewUserRoute = "/newuser"
 
-	// WriteRoute is a POST request route that executes a plugin write command.
+	// WriteRoute is a POST request route that executes a plugin command that
+	// writes data to the backend.
 	//
 	// This route is CSRF protected. Clients must obtain CSRF tokens from the
 	// Version route before they'll be able to use this route. A 403 is returned
@@ -52,17 +54,17 @@ const (
 	// This route accepts a PluginCmd and returns a PluginReply.
 	WriteRoute = "/write"
 
-	// ReadRoute is a POST request route that executes an individual plugin read
-	// command. This route is intended to be used for expensive plugin read
-	// commands that should not be batched due to their memory or performance
+	// ReadRoute is a POST request route that executes an individual read-only
+	// plugin command. This route is intended to be used for expensive plugin
+	// read commands that cannot be batched due to their memory or performance
 	// requirements. This allows the sysadmin to set different rate limiting
-	// constrains for these expensive commands.
+	// constraints for expensive commands.
 	//
 	// This route accepts a PluginCmd and returns a PluginReply.
 	ReadRoute = "/read"
 
-	// ReadBatchRoute is a POST request route that executes a batch of plugin
-	// read commands. This route is intended to be used for inexpensive plugin
+	// ReadBatchRoute is a POST request route that executes a batch of read-only
+	// plugin commands. This route is intended to be used for inexpensive plugin
 	// commands that will not cause performance issues during the execution of
 	// large batches.
 	//
@@ -132,7 +134,7 @@ type CmdReply struct {
 	Error    error  `json:"error,omitempty"`
 }
 
-// Batch is used to execute a batch of plugin commands.
+// Batch contains a batch of read-only plugin commands.
 type Batch struct {
 	Cmds []Cmd `json:"cmds"`
 }
@@ -142,10 +144,10 @@ type BatchReply struct {
 	Replies []CmdReply `json:"replies"`
 }
 
-// PluginError is the reply that is returned when a plugin command encounters
-// an error that was caused by the user (ex. malformed input, bad timing, etc).
-// The HTTP status code will be 200 and the error will be returned in the
-// PluginReply Error field.
+// PluginError is returned when a plugin command encounters an error that was
+// caused by the user (ex. malformed input, bad timing, etc). The HTTP status
+// code will be 200 and the error will be returned in the Error field of the
+// PluginReply.
 type PluginError struct {
 	PluginID     string `json:"pluginid"`
 	ErrorCode    uint32 `json:"errorcode"`
@@ -155,6 +157,25 @@ type PluginError struct {
 // Error satisfies the error interface.
 func (e PluginError) Error() string {
 	return fmt.Sprintf("%v plugin error code: %v", e.PluginID, e.ErrorCode)
+}
+
+// UserError is returned in the response body when the server encounters an
+// error that is caused by something that the user did, such as a invalid
+// request body, and the error occured prior to execution of the plugin
+// command. The HTTP status code will be 400.
+type UserError struct {
+	ErrorCode    ErrorCodeT `json:"errorcode"`
+	ErrorContext string     `json:"errorcontext,omitempty"`
+}
+
+// Error satisfies the error interface.
+func (e UserError) Error() string {
+	if e.ErrorContext == "" {
+		return fmt.Sprintf("user error (%v): %v",
+			e.ErrorCode, ErrorCodes[e.ErrorCode])
+	}
+	return fmt.Sprintf("user error (%v): %v, %v",
+		e.ErrorCode, ErrorCodes[e.ErrorCode], e.ErrorContext)
 }
 
 // ErrorCodeT represents a user error code.
@@ -192,32 +213,10 @@ var (
 	}
 )
 
-// UserError is the reply that the server returns when it encounters an error
-// prior to plugin command execution that is caused by something that the user
-// did, such as a invalid request body.
-//
-// If an error occurs during plugin command execution then the error will be
-// sent back in the CmdReply and the HTTP status code will be 200.
-type UserError struct {
-	ErrorCode    ErrorCodeT `json:"errorcode"`
-	ErrorContext string     `json:"errorcontext,omitempty"`
-}
-
-// Error satisfies the error interface.
-func (e UserError) Error() string {
-	if e.ErrorContext == "" {
-		return fmt.Sprintf("user error (%v): %v",
-			e.ErrorCode, ErrorCodes[e.ErrorCode])
-	}
-	return fmt.Sprintf("user error (%v): %v, %v",
-		e.ErrorCode, ErrorCodes[e.ErrorCode], e.ErrorContext)
-}
-
-// InternalError is the reply that the server returns when it encounters an
-// unrecoverable error while executing a command. The HTTP status code will be
-// 500 and the InternalError will be returned as the response body. The
-// ErrorCode field will contain a Unix timestamp that the user can provide to
-// the server operator to track down the error details in the logs.
+// InternalError is returned in the response body when the server encounters an
+// unrecoverable error. The ErrorCode field will contain a Unix timestamp that
+// the user can provide to the server operator to track down the error details
+// in the logs. The HTTP status code will be 500.
 type InternalError struct {
 	ErrorCode int64 `json:"errorcode"`
 }
