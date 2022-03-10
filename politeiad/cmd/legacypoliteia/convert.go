@@ -194,6 +194,28 @@ func convertVoteMetadata(proposalDir string) (*ticketvote.VoteMetadata, error) {
 	return &vm, nil
 }
 
+// populateUserID populates the user ID of the given user metadata by fetching
+// it from production using the public key. If test user ID is not empty, it
+// hardcodes it instead of fetching.
+func populateUserID(userMD *usermd.UserMetadata, c *convertCmd) error {
+	switch {
+	case c.userID != "":
+		// Replacement user ID is not empty, hardcode it
+		userMD.UserID = c.userID
+
+	case c.userID == "":
+		// No replacement user ID is given, pull user ID using the
+		// present public key.
+		u, err := c.fetchUserByPubKey(userMD.PublicKey)
+		if err != nil {
+			return err
+		}
+		userMD.UserID = u.ID
+	}
+
+	return nil
+}
+
 // convertUserMetadata reads the git backend data from disk that is
 // required to build a usermd plugin UserMetadata structure, then
 // returns the UserMetadata.
@@ -295,8 +317,15 @@ func convertStatusChange(proposalDir string) (*usermd.StatusChangeMetadata, erro
 // convertAuthDetails reads the git backend data from disk that is
 // required to build a ticketvote plugin AuthDetails structure, then
 // returns the AuthDetails.
-func convertAuthDetails(proposalDir string) (*ticketvote.AuthDetails, error) {
+func convertAuthDetails(proposalDir string, recordMD *backend.RecordMetadata) (*ticketvote.AuthDetails, error) {
 	fmt.Printf("  AuthDetails\n")
+
+	// One censored legacy proposal has an empty vote details, it shouldn't be
+	// imported to tstore as we don't delete all of the proposal's data once it
+	// censored.
+	if recordMD.Status != backend.StatusArchived {
+		return nil, nil
+	}
 
 	// Verify that an authorize vote mdstream exists.
 	// This will not exist for some proposals, e.g.
@@ -365,7 +394,7 @@ func convertAuthDetails(proposalDir string) (*ticketvote.AuthDetails, error) {
 // convertVoteDetails reads the git backend data from disk that is
 // required to build a ticketvote plugin VoteDetails structure, then
 // returns the VoteDetails.
-func convertVoteDetails(proposalDir, linkto string) (*ticketvote.VoteDetails, error) {
+func convertVoteDetails(proposalDir string, voteMD *ticketvote.VoteMetadata) (*ticketvote.VoteDetails, error) {
 	fmt.Printf("  Vote details\n")
 
 	// Verify that vote mdstreams exists. These
@@ -407,7 +436,6 @@ func convertVoteDetails(proposalDir, linkto string) (*ticketvote.VoteDetails, er
 		quorum          uint32
 		pass            uint32
 		options         []ticketvote.VoteOption
-		parent          string
 		publicKey       string
 	)
 	structVersion, err := decodeVersion(b)
@@ -432,7 +460,6 @@ func convertVoteDetails(proposalDir, linkto string) (*ticketvote.VoteDetails, er
 		quorum = sv.Vote.QuorumPercentage
 		pass = sv.Vote.PassPercentage
 		options = convertVoteOptions(sv.Vote.Options)
-		parent = "" // Parent only exist on RFP submissions
 		publicKey = sv.PublicKey
 
 	case 2:
@@ -459,12 +486,17 @@ func convertVoteDetails(proposalDir, linkto string) (*ticketvote.VoteDetails, er
 		quorum = sv.Vote.QuorumPercentage
 		pass = sv.Vote.PassPercentage
 		options = convertVoteOptions(sv.Vote.Options)
-		parent = linkto
 		publicKey = sv.PublicKey
 
 	default:
 		return nil, fmt.Errorf("invalid start vote version '%v'",
 			structVersion)
+	}
+
+	// Populate parent if it's a RFP submission
+	var parent string
+	if voteMD != nil {
+		parent = voteMD.LinkTo
 	}
 
 	// Read the start vote reply from disk
@@ -551,8 +583,13 @@ func convertVoteType(t gitbe.VoteT) ticketvote.VoteT {
 // convertCastVotes reads the git backend data from disk that is
 // required to build the ticketvote plugin CastVoteDetails structures,
 // then returns the CastVoteDetails slice.
-func convertCastVotes(proposalDir string, addrs map[string]string, ts map[string]map[string]int64, limit int) ([]ticketvote.CastVoteDetails, error) {
+func convertCastVotes(proposalDir string, addrs map[string]string, ts map[string]map[string]int64, skipBallots bool, limit int) ([]ticketvote.CastVoteDetails, error) {
 	fmt.Printf("  Cast votes\n")
+
+	var castVotes []ticketvote.CastVoteDetails
+	if skipBallots {
+		return castVotes, nil
+	}
 
 	// Verify that the ballots journal exists. This
 	/// will not exist for some proposals, such as
@@ -637,7 +674,7 @@ func convertCastVotes(proposalDir string, addrs map[string]string, ts map[string
 
 	// Put the votes into a slice and sort them by timestamp,
 	// from oldest to newest.
-	castVotes := make([]ticketvote.CastVoteDetails, 0, len(votes))
+	castVotes = make([]ticketvote.CastVoteDetails, 0, len(votes))
 	for _, vote := range votes {
 		castVotes = append(castVotes, vote)
 	}
@@ -707,7 +744,12 @@ type likeCommentV1 struct {
 	Timestamp int64  `json:"timestamp,omitempty"` // Received UNIX timestamp
 }
 
-func (c *convertCmd) convertComments(proposalDir, userID string) (*commentTypes, error) {
+func (c *convertCmd) convertComments(proposalDir string, skipComments bool, userID string) (*commentTypes, error) {
+	// If skip comments flag is on, noting to do
+	if skipComments {
+		return &commentTypes{}, nil
+	}
+
 	path := commentsJournalPath(proposalDir)
 
 	fh, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0664)

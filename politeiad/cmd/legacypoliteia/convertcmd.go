@@ -172,65 +172,40 @@ func (c *convertCmd) convertGitProposals() error {
 			return err
 		}
 		// Populate user ID
-		switch {
-		case c.userID != "":
-			// Replacement user ID is not empty, hardcode it
-			userMD.UserID = c.userID
-
-		case c.userID == "":
-			// No replacement user ID is given, pull user ID using the
-			// present public key.
-			u, err := c.fetchUserByPubKey(userMD.PublicKey)
-			if err != nil {
-				return err
-			}
-			userMD.UserID = u.ID
+		err = populateUserID(userMD, c)
+		if err != nil {
+			return err
 		}
 		statusChange, err := convertStatusChange(proposalDir)
 		if err != nil {
 			return err
 		}
-		// If proposal was censored  no need to convert legacy vote details
-		var authDetails *ticketvote.AuthDetails
-		if recordMD.Status != backend.StatusArchived {
-			authDetails, err = convertAuthDetails(proposalDir)
-			if err != nil {
-				return err
-			}
-		}
-		var parent string
-		if voteMD != nil {
-			parent = voteMD.LinkTo
-		}
-		voteDetails, err := convertVoteDetails(proposalDir, parent)
+		authDetails, err := convertAuthDetails(proposalDir, recordMD)
 		if err != nil {
 			return err
 		}
-		// Convert cast vote details, skip if the skip ballot flag is on.
-		var cv []ticketvote.CastVoteDetails
-		if !c.skipBallots {
-			// Fetch largest commitment addresses of eligible tickets. If parsed
-			// ballot is limited avoid fetching.
-			var addrs map[string]string
-			if c.ballotLimit == 0 && voteDetails != nil &&
-				len(voteDetails.EligibleTickets) > 0 {
-				addrs, err = c.fetchLargestCommitmentAddrs(voteDetails.EligibleTickets)
-				if err != nil {
-					return err
-				}
-			}
-
-			cv, err = convertCastVotes(proposalDir, addrs, ts, c.ballotLimit)
-			if err != nil {
-				return err
-			}
+		voteDetails, err := convertVoteDetails(proposalDir, voteMD)
+		if err != nil {
+			return err
 		}
-		ct := &commentTypes{}
-		if !c.skipComments {
-			ct, err = c.convertComments(proposalDir, c.userID)
-			if err != nil {
-				return err
-			}
+
+		// Fetch largest commitment addresses of eligible tickets
+		addrs, err := c.fetchLargestCommitmentAddrs(voteDetails.EligibleTickets,
+			c.skipBallots, c.ballotLimit, voteDetails)
+		if err != nil {
+			return err
+		}
+
+		// Convert cast vote details
+		cv, err := convertCastVotes(proposalDir, addrs, ts, c.skipBallots,
+			c.ballotLimit)
+		if err != nil {
+			return err
+		}
+
+		ct, err := c.convertComments(proposalDir, c.skipComments, c.userID)
+		if err != nil {
+			return err
 		}
 
 		// Build the proposal
@@ -267,8 +242,16 @@ func (c *convertCmd) convertGitProposals() error {
 
 // fetchLargestCommitmentAddrs fetches the largest commitment address for each
 // eligible ticket from a record vote. Returns a map of ticket hash to address.
-func (c *convertCmd) fetchLargestCommitmentAddrs(eligibleTickets []string) (map[string]string, error) {
+func (c *convertCmd) fetchLargestCommitmentAddrs(eligibleTickets []string, skipBallots bool, ballotLimit int, voteDetails *ticketvote.VoteDetails) (map[string]string, error) {
 	fmt.Printf("  Eligible ticket addresses\n")
+
+	// If proposals has no vote details, skip ballots flag is on, number of
+	// casted ballots is limited, or no eligible tickets present; skip fetching
+	// ticket addresses.
+	if skipBallots || ballotLimit != 0 || voteDetails == nil ||
+		len(voteDetails.EligibleTickets) == 0 {
+		return nil, nil
+	}
 
 	// Fetch addresses in batches of 500.
 	var (

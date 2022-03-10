@@ -32,8 +32,6 @@ func _main() error {
 	switch args[0] {
 	case convertCmdName:
 		return execConvertCmd(args[1:])
-	case importCmdName:
-		return execImportCmd(args[1:])
 	default:
 		return fmt.Errorf("command '%v' not found", args[0])
 	}
