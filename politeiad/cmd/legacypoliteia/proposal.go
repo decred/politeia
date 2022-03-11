@@ -57,43 +57,7 @@ func saveProposal(legacyDir string, p *proposal) error {
 	return ioutil.WriteFile(fp, b, filePermissions)
 }
 
-// loadProposal loads a proposal from disk.
-func loadProposal(legacyDir, gitToken string) (*proposal, error) {
-	fp := proposalPath(legacyDir, gitToken)
-	b, err := ioutil.ReadFile(fp)
-	if err != nil {
-		return nil, err
-	}
-	var p proposal
-	err = json.Unmarshal(b, &p)
-	if err != nil {
-		return nil, err
-	}
-	return &p, nil
-}
-
 // proposalPath returns the file path for a proposal in the legacy directory.
 func proposalPath(legacyDir, gitToken string) string {
 	return filepath.Join(legacyDir, gitToken+".json")
-}
-
-// voteCollider is an internal ticketvote plugin type that is not exported, so
-// it's duplicated here.
-type voteCollider struct {
-	Token  string `json:"token"`
-	Ticket string `json:"ticket"`
-}
-
-// startRunoffRecord is an internal ticketvote plugin type that is not
-// exported, so it's duplicated here.
-type startRunoffRecord struct {
-	Submissions      []string `json:"submissions"`
-	Mask             uint64   `json:"mask"`
-	Duration         uint32   `json:"duration"`
-	QuorumPercentage uint32   `json:"quorumpercentage"`
-	PassPercentage   uint32   `json:"passpercentage"`
-	StartBlockHeight uint32   `json:"startblockheight"`
-	StartBlockHash   string   `json:"startblockhash"`
-	EndBlockHeight   uint32   `json:"endblockheight"`
-	EligibleTickets  []string `json:"eligibletickets"`
 }

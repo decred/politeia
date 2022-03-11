@@ -13,18 +13,6 @@ const (
 	MDStreamStartVoteReply  = "15.metadata.txt"
 )
 
-// ProposalGeneralV1 represents general metadata for a proposal.
-//
-// Signature is the signature of the merkle root where the merkle root contains
-// the proposal file payloads.
-type ProposalGeneralV1 struct {
-	Version   uint64 `json:"version"`   // Struct version
-	Timestamp int64  `json:"timestamp"` // Last update of proposal
-	Name      string `json:"name"`      // Provided proposal name
-	PublicKey string `json:"publickey"` // Key used for signature
-	Signature string `json:"signature"` // Proposal signature
-}
-
 // ProposalGeneralV2 represents general metadata for a proposal.
 //
 // Signature is the signature of the proposal merkle root. The merkle root
@@ -52,19 +40,6 @@ var (
 	RecordStatusUnreviewedChanges RecordStatusT = 5
 	RecordStatusArchived          RecordStatusT = 6
 )
-
-// RecordStatusChangeV1 represents a politeiad record status change and is used
-// to store additional status change metadata that would not otherwise be
-// captured by the politeiad status change routes.
-//
-// This mdstream is used by both pi and cms.
-type RecordStatusChangeV1 struct {
-	Version             uint          `json:"version"`
-	AdminPubKey         string        `json:"adminpubkey"`
-	NewStatus           RecordStatusT `json:"newstatus"`
-	StatusChangeMessage string        `json:"statuschangemessage,omitempty"`
-	Timestamp           int64         `json:"timestamp"`
-}
 
 // RecordStatusChangeV2 represents a politeiad record status change and is used
 // to store additional status change metadata that would not otherwise be
