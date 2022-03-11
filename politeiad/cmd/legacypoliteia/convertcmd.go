@@ -172,7 +172,7 @@ func (c *convertCmd) convertGitProposals() error {
 			return err
 		}
 		// Populate user ID
-		err = populateUserID(userMD, c)
+		err = c.populateUserID(userMD)
 		if err != nil {
 			return err
 		}
@@ -203,7 +203,7 @@ func (c *convertCmd) convertGitProposals() error {
 			return err
 		}
 
-		ct, err := c.convertComments(proposalDir, c.skipComments, c.userID)
+		ct, err := c.convertComments(proposalDir)
 		if err != nil {
 			return err
 		}

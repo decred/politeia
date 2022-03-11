@@ -197,7 +197,7 @@ func convertVoteMetadata(proposalDir string) (*ticketvote.VoteMetadata, error) {
 // populateUserID populates the user ID of the given user metadata by fetching
 // it from production using the public key. If test user ID is not empty, it
 // hardcodes it instead of fetching.
-func populateUserID(userMD *usermd.UserMetadata, c *convertCmd) error {
+func (c *convertCmd) populateUserID(userMD *usermd.UserMetadata) error {
 	switch {
 	case c.userID != "":
 		// Replacement user ID is not empty, hardcode it
@@ -732,21 +732,9 @@ type commentTypes struct {
 	Votes []comments.CommentVote
 }
 
-// likeCommentV1 unmarshals the like action data from the gitbe's comments
-// journal.
-type likeCommentV1 struct {
-	Token     string `json:"token"`               // Censorship token
-	CommentID string `json:"commentid"`           // Comment ID
-	Action    string `json:"action"`              // Up or downvote (1, -1)
-	Signature string `json:"signature"`           // Client Signature of Token+CommentID+Action
-	PublicKey string `json:"publickey"`           // Pubkey used for Signature
-	Receipt   string `json:"receipt,omitempty"`   // Signature of Signature
-	Timestamp int64  `json:"timestamp,omitempty"` // Received UNIX timestamp
-}
-
-func (c *convertCmd) convertComments(proposalDir string, skipComments bool, userID string) (*commentTypes, error) {
+func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) {
 	// If skip comments flag is on, noting to do
-	if skipComments {
+	if c.skipComments {
 		return &commentTypes{}, nil
 	}
 
@@ -780,7 +768,7 @@ func (c *convertCmd) convertComments(proposalDir string, skipComments bool, user
 
 		switch action.Action {
 		case gitbe.JournalActionAdd:
-			ca, err := convertCommentAdd(d, c, userID)
+			ca, err := c.convertCommentAdd(d)
 			if err != nil {
 				return nil, err
 			}
@@ -792,7 +780,7 @@ func (c *convertCmd) convertComments(proposalDir string, skipComments bool, user
 			parentIDs[ca.CommentID] = ca.ParentID
 
 		case gitbe.JournalActionDel:
-			cd, err := convertCommentDel(d, c, parentIDs, userID)
+			cd, err := c.convertCommentDel(d, parentIDs)
 			if err != nil {
 				return nil, err
 			}
@@ -801,56 +789,13 @@ func (c *convertCmd) convertComments(proposalDir string, skipComments bool, user
 			mDels[cd.Signature] = *cd
 
 		case gitbe.JournalActionAddLike:
-			var lc likeCommentV1
-			err = d.Decode(&lc)
+			cv, err := c.convertCommentAddLike(d)
 			if err != nil {
 				return nil, err
-			}
-
-			// Get user ID
-			switch {
-			case userID != "":
-				// Replacement user ID is not empty, hardcode it
-
-			case userID == "":
-				// No replacement user ID is given, pull user ID using the
-				// present public key.
-				u, err := c.fetchUserByPubKey(lc.PublicKey)
-				if err != nil {
-					return nil, err
-				}
-				userID = u.ID
-			}
-
-			// Parse comment ID.
-			cid, err := strconv.Atoi(lc.CommentID)
-			if err != nil {
-				return nil, err
-			}
-
-			// Parse comment vote.
-			var vote comments.VoteT
-			switch {
-			case lc.Action == "1":
-				vote = comments.VoteUpvote
-			case lc.Action == "-1":
-				vote = comments.VoteDownvote
-			default:
-				return nil, fmt.Errorf("invalid comment vote code")
 			}
 
 			// Append vote blob.
-			mVotes[lc.Signature] = comments.CommentVote{
-				UserID:    userID,
-				State:     comments.RecordStateVetted,
-				Token:     lc.Token,
-				CommentID: uint32(cid),
-				Vote:      vote,
-				PublicKey: lc.PublicKey,
-				Signature: lc.Signature,
-				Timestamp: lc.Timestamp,
-				Receipt:   lc.Receipt,
-			}
+			mVotes[cv.Signature] = *cv
 
 		default:
 			return nil, err
@@ -880,7 +825,7 @@ func (c *convertCmd) convertComments(proposalDir string, skipComments bool, user
 	}, nil
 }
 
-func convertCommentAdd(d *json.Decoder, c *convertCmd, userID string) (*comments.CommentAdd, error) {
+func (c *convertCmd) convertCommentAdd(d *json.Decoder) (*comments.CommentAdd, error) {
 	var cm decredplugin.Comment
 	err := d.Decode(&cm)
 	if err != nil {
@@ -888,11 +833,13 @@ func convertCommentAdd(d *json.Decoder, c *convertCmd, userID string) (*comments
 	}
 
 	// Get user ID
+	var userID string
 	switch {
-	case userID != "":
+	case c.userID != "":
 		// Replacement user ID is not empty, hardcode it
+		userID = c.userID
 
-	case userID == "":
+	case c.userID == "":
 		// No replacement user ID is given, pull user ID using the
 		// present public key.
 		u, err := c.fetchUserByPubKey(cm.PublicKey)
@@ -929,7 +876,7 @@ func convertCommentAdd(d *json.Decoder, c *convertCmd, userID string) (*comments
 }
 
 // XXX
-func convertCommentDel(d *json.Decoder, c *convertCmd, parentIDs map[uint32]uint32, userID string) (*comments.CommentDel, error) {
+func (c *convertCmd) convertCommentDel(d *json.Decoder, parentIDs map[uint32]uint32) (*comments.CommentDel, error) {
 	var cc decredplugin.CensorComment
 	err := d.Decode(&cc)
 	if err != nil {
@@ -937,11 +884,13 @@ func convertCommentDel(d *json.Decoder, c *convertCmd, parentIDs map[uint32]uint
 	}
 
 	// Get user ID
+	var userID string
 	switch {
-	case userID != "":
+	case c.userID != "":
 		// Replacement user ID is not empty, hardcode it
+		userID = c.userID
 
-	case userID == "":
+	case c.userID == "":
 		// No replacement user ID is given, pull user ID using the
 		// present public key.
 		u, err := c.fetchUserByPubKey(cc.PublicKey)
@@ -970,6 +919,61 @@ func convertCommentDel(d *json.Decoder, c *convertCmd, parentIDs map[uint32]uint
 		UserID:    userID,
 		Timestamp: cc.Timestamp,
 		Receipt:   cc.Receipt,
+	}, nil
+}
+
+func (c *convertCmd) convertCommentAddLike(d *json.Decoder) (*comments.CommentVote, error) {
+	var lc gitbe.LikeComment
+	err := d.Decode(&lc)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get user ID
+	// XXX move to a function
+	var userID string
+	switch {
+	case c.userID != "":
+		// Replacement user ID is not empty, hardcode it
+		userID = c.userID
+
+	case userID == "":
+		// No replacement user ID is given, pull user ID using the
+		// present public key.
+		u, err := c.fetchUserByPubKey(lc.PublicKey)
+		if err != nil {
+			return nil, err
+		}
+		userID = u.ID
+	}
+
+	// Parse comment ID.
+	cid, err := strconv.Atoi(lc.CommentID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse comment vote.
+	var vote comments.VoteT
+	switch {
+	case lc.Action == "1":
+		vote = comments.VoteUpvote
+	case lc.Action == "-1":
+		vote = comments.VoteDownvote
+	default:
+		return nil, fmt.Errorf("invalid comment vote code")
+	}
+
+	return &comments.CommentVote{
+		UserID:    userID,
+		State:     comments.RecordStateVetted,
+		Token:     lc.Token,
+		CommentID: uint32(cid),
+		Vote:      vote,
+		PublicKey: lc.PublicKey,
+		Signature: lc.Signature,
+		Timestamp: lc.Timestamp,
+		Receipt:   lc.Receipt,
 	}, nil
 }
 
