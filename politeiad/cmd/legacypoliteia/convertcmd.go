@@ -190,8 +190,8 @@ func (c *convertCmd) convertGitProposals() error {
 		}
 
 		// Fetch largest commitment addresses of eligible tickets
-		addrs, err := c.fetchLargestCommitmentAddrs(voteDetails.EligibleTickets,
-			c.skipBallots, c.ballotLimit, voteDetails)
+		addrs, err := c.fetchLargestCommitmentAddrs(voteDetails,
+			c.skipBallots, c.ballotLimit)
 		if err != nil {
 			return err
 		}
@@ -242,7 +242,7 @@ func (c *convertCmd) convertGitProposals() error {
 
 // fetchLargestCommitmentAddrs fetches the largest commitment address for each
 // eligible ticket from a record vote. Returns a map of ticket hash to address.
-func (c *convertCmd) fetchLargestCommitmentAddrs(eligibleTickets []string, skipBallots bool, ballotLimit int, voteDetails *ticketvote.VoteDetails) (map[string]string, error) {
+func (c *convertCmd) fetchLargestCommitmentAddrs(voteDetails *ticketvote.VoteDetails, skipBallots bool, ballotLimit int) (map[string]string, error) {
 	fmt.Printf("  Eligible ticket addresses\n")
 
 	// If proposals has no vote details, skip ballots flag is on, number of
@@ -255,11 +255,12 @@ func (c *convertCmd) fetchLargestCommitmentAddrs(eligibleTickets []string, skipB
 
 	// Fetch addresses in batches of 500.
 	var (
-		ticketsLen = len(eligibleTickets)
-		addrs      = make(map[string]string, ticketsLen) // [ticket]address
-		pageSize   = 500
-		startIdx   int
-		done       bool
+		eligibleTickets = voteDetails.EligibleTickets
+		ticketsLen      = len(eligibleTickets)
+		addrs           = make(map[string]string, ticketsLen) // [ticket]address
+		pageSize        = 500
+		startIdx        int
+		done            bool
 	)
 	for !done {
 		endIdx := startIdx + pageSize
