@@ -323,7 +323,7 @@ func convertAuthDetails(proposalDir string, recordMD *backend.RecordMetadata) (*
 	// One censored legacy proposal has an empty vote details, it shouldn't be
 	// imported to tstore as we don't delete all of the proposal's data once it
 	// censored.
-	if recordMD.Status != backend.StatusArchived {
+	if recordMD.Status == backend.StatusArchived {
 		return nil, nil
 	}
 
