@@ -176,7 +176,7 @@ func (p *politeiawww) writeCmd(ctx context.Context, session *plugin.Session, cmd
 		return nil, errors.Errorf("plugin not found: %v", cmd.PluginID)
 	}
 	pluginUser := convertUser(usr, cmd.PluginID)
-	reply, err = plug.WriteTx(tx,
+	reply, err = plug.TxWrite(tx,
 		plugin.WriteArgs{
 			Cmd:  cmd,
 			User: pluginUser,
@@ -330,7 +330,7 @@ func (p *politeiawww) hook(tx *sql.Tx, h plugin.HookArgs, usr *user.User) error 
 		// the hook using a database transaction (write
 		// commands) and some won't (read-only commands).
 		if tx != nil {
-			err := p.HookTx(tx, h)
+			err := p.TxHook(tx, h)
 			if err != nil {
 				return err
 			}

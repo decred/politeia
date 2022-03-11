@@ -21,28 +21,30 @@ type Plugin interface {
 	// Version returns the lowest supported plugin API version.
 	Version() uint32
 
-	// SetPermission sets the user permission level for a command.
-	SetPermission(cmd, permissionLevel string)
-
 	// Permissions returns the user permissions for each plugin commands. These
 	// are provided to the AuthPlugin on startup. The AuthPlugin handles user
 	// authorization at runtime.
+	//
+	// The permission levels are defined by the AuthPlugin and must be configured
+	// for all commands. Failure to set the permission level for a command will
+	// result in the plugin API routes returning a not authorized error when
+	// attempting to execute the command.
 	Permissions() map[string]string // [cmd]permissionLevel
 
 	// Hook executes a plugin hook.
 	Hook(HookArgs) error
 
-	// HookTx executes a plugin hook using a database transaction.
-	HookTx(*sql.Tx, HookArgs) error
-
-	// WriteTx executes a write plugin command using a database transaction.
-	WriteTx(*sql.Tx, WriteArgs) (*Reply, error)
-
 	// Read executes a read plugin command.
 	Read(ReadArgs) (*Reply, error)
 
-	// ReadTx executes a read plugin command using a database transaction.
-	ReadTx(*sql.Tx, ReadArgs) (*Reply, error)
+	// TxHook executes a plugin hook using a database transaction.
+	TxHook(*sql.Tx, HookArgs) error
+
+	// TxWrite executes a write plugin command using a database transaction.
+	TxWrite(*sql.Tx, WriteArgs) (*Reply, error)
+
+	// TxRead executes a read plugin command using a database transaction.
+	TxRead(*sql.Tx, ReadArgs) (*Reply, error)
 }
 
 // HookArgs contains the arguments for the plugin hook methods.

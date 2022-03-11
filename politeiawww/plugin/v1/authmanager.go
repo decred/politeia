@@ -15,6 +15,9 @@ type AuthManager interface {
 	// Version returns the lowest supported plugin API version.
 	Version() uint32
 
+	// SetPermission sets the user permission level for a command.
+	SetPermission(pluginID, cmd, permissionLevel string)
+
 	// Authorize checks if the user is authorized to execute a plugin command.
 	//
 	// A UserError is returned if the user is not authorized.
