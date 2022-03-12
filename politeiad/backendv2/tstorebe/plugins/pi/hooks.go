@@ -336,6 +336,14 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 		}
 	}
 
+	// Ensure legacy token is not set during normal proposal submissions
+	if pm.LegacyToken != "" {
+		return backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeLegacyTokenNotAllowed),
+		}
+	}
+
 	// If not RFP validate rest of proposal metadata fields
 	if !isRFP(vm) {
 		// Validate proposal start date.
