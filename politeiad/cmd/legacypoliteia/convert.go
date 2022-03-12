@@ -726,12 +726,15 @@ func decodeBallotJournalLine(line []byte) (*gitbe.CastVoteJournal, error) {
 	return &cvj, nil
 }
 
+// commentTypes includes proposal's comments data
 type commentTypes struct {
 	Adds  []comments.CommentAdd
 	Dels  []comments.CommentDel
 	Votes []comments.CommentVote
 }
 
+// convertComments reads and converts the proposal's comments data located in
+// the given proposal dir.
 func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) {
 	// If skip comments flag is on, noting to do
 	if c.skipComments {
@@ -825,6 +828,8 @@ func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) 
 	}, nil
 }
 
+// convertCommentAdd decodes the given gitbe comment add, then converts it to
+// a tstore comment add.
 func (c *convertCmd) convertCommentAdd(d *json.Decoder) (*comments.CommentAdd, error) {
 	var cm decredplugin.Comment
 	err := d.Decode(&cm)
@@ -875,7 +880,8 @@ func (c *convertCmd) convertCommentAdd(d *json.Decoder) (*comments.CommentAdd, e
 	}, nil
 }
 
-// XXX
+// convertCommentDel decodes the given gitbe comment del, then converts it to
+// a tstore comment del.
 func (c *convertCmd) convertCommentDel(d *json.Decoder, parentIDs map[uint32]uint32) (*comments.CommentDel, error) {
 	var cc decredplugin.CensorComment
 	err := d.Decode(&cc)
@@ -922,6 +928,8 @@ func (c *convertCmd) convertCommentDel(d *json.Decoder, parentIDs map[uint32]uin
 	}, nil
 }
 
+// convertCommentAddLike decodes the given gitbe comment like, then it
+// converts it to a tstore comment vote.
 func (c *convertCmd) convertCommentAddLike(d *json.Decoder) (*comments.CommentVote, error) {
 	var lc gitbe.LikeComment
 	err := d.Decode(&lc)
@@ -977,7 +985,8 @@ func (c *convertCmd) convertCommentAddLike(d *json.Decoder) (*comments.CommentVo
 	}, nil
 }
 
-// XXX
+// convertMDStatus converts a gitbe record metadata status to a tstore record
+// status.
 func convertMDStatus(s gitbe.MDStatusT) backend.StatusT {
 	switch s {
 	case gitbe.MDStatusInvalid:
@@ -997,6 +1006,8 @@ func convertMDStatus(s gitbe.MDStatusT) backend.StatusT {
 	}
 }
 
+// convertRecordStatus covnerts a gitbe record status to a tstore record
+// status.
 func convertRecordStatus(r gitbe.RecordStatusT) backend.StatusT {
 	switch r {
 	case gitbe.RecordStatusNotReviewed:
@@ -1013,6 +1024,8 @@ func convertRecordStatus(r gitbe.RecordStatusT) backend.StatusT {
 	panic(fmt.Sprintf("invalid status %v", r))
 }
 
+// convertAuthDetailsToV1 converts a ticketvote plugin AuthDetails to a
+// legacy AuthDetails.
 func convertAuthDetailsToV1(a ticketvote.AuthDetails) v1.AuthDetails {
 	return v1.AuthDetails{
 		Token:     a.Token,
@@ -1025,48 +1038,58 @@ func convertAuthDetailsToV1(a ticketvote.AuthDetails) v1.AuthDetails {
 	}
 }
 
+// recordMetadataPath returns the proposal's record metadata file path
 func recordMetadataPath(proposalDir string) string {
 	return filepath.Join(proposalDir, gitbe.RecordMetadataFilename)
 }
 
+// payloadDirPath returns the proposal's record payload sub dir path
 func payloadDirPath(proposalDir string) string {
 	return filepath.Join(proposalDir, gitbe.RecordPayloadPath)
 }
 
+// indexFilePath returns the propsoal's index file path
 func indexFilePath(proposalDir string) string {
 	return filepath.Join(payloadDirPath(proposalDir), gitbe.IndexFilename)
 }
 
+// attachmentFilePath returns the proposal's attachment file path
 func attachmentFilePath(proposalDir, attachmentFilename string) string {
 	return filepath.Join(payloadDirPath(proposalDir), attachmentFilename)
 }
 
+// proposalMetadataPath returns the proposal's metadata file path
 func proposalMetadataPath(proposalDir string) string {
 	return filepath.Join(payloadDirPath(proposalDir),
 		gitbe.ProposalMetadataFilename)
 }
 
+// proposalGeneralPath returns the proposal's general mdstream file path
 func proposalGeneralPath(proposalDir string) string {
 	return filepath.Join(proposalDir, gitbe.MDStreamProposalGeneral)
 }
 
+// statusChangesPath returns the proposal's status changes mdstream file path
 func statusChangesPath(proposalDir string) string {
 	return filepath.Join(proposalDir, gitbe.MDStreamStatusChanges)
 }
 
+// authorizeVotePath returns the proposal's vote auths mdstream file path
 func authorizeVotePath(proposalDir string) string {
 	return filepath.Join(proposalDir, gitbe.MDStreamAuthorizeVote)
 }
 
+// startVotePath returns the proposal's start vote mdstream file path
 func startVotePath(proposalDir string) string {
 	return filepath.Join(proposalDir, gitbe.MDStreamStartVote)
 }
 
+// startVoteReplyPath returns the proposal's start vote mdstream file path
 func startVoteReplyPath(proposalDir string) string {
 	return filepath.Join(proposalDir, gitbe.MDStreamStartVoteReply)
 }
 
-// XXX
+// decredPluginPath returns the proposal's decred plugin sub dir path
 func decredPluginPath(proposalDir string) string {
 	return filepath.Join(proposalDir, gitbe.DecredPluginPath)
 }
