@@ -198,22 +198,34 @@ func convertVoteMetadata(proposalDir string) (*ticketvote.VoteMetadata, error) {
 // it from production using the public key. If test user ID is not empty, it
 // hardcodes it instead of fetching.
 func (c *convertCmd) populateUserID(userMD *usermd.UserMetadata) error {
+	userID, err := c.getUserID(userMD.PublicKey)
+	if err != nil {
+		return err
+	}
+
+	// Populate user metadata user ID
+	userMD.UserID = userID
+
+	return nil
+}
+
+func (c *convertCmd) getUserID(userPubKey string) (string, error) {
 	switch {
 	case c.userID != "":
-		// Replacement user ID is not empty, hardcode it
-		userMD.UserID = c.userID
+		// Replacement user ID is not empty, use it
+		return c.userID, nil
 
 	case c.userID == "":
 		// No replacement user ID is given, pull user ID using the
 		// present public key.
-		u, err := c.fetchUserByPubKey(userMD.PublicKey)
+		u, err := c.fetchUserByPubKey(userPubKey)
 		if err != nil {
-			return err
+			return "", err
 		}
-		userMD.UserID = u.ID
+		return u.ID, nil
 	}
 
-	return nil
+	return "", nil
 }
 
 // convertUserMetadata reads the git backend data from disk that is
@@ -838,20 +850,9 @@ func (c *convertCmd) convertCommentAdd(d *json.Decoder) (*comments.CommentAdd, e
 	}
 
 	// Get user ID
-	var userID string
-	switch {
-	case c.userID != "":
-		// Replacement user ID is not empty, hardcode it
-		userID = c.userID
-
-	case c.userID == "":
-		// No replacement user ID is given, pull user ID using the
-		// present public key.
-		u, err := c.fetchUserByPubKey(cm.PublicKey)
-		if err != nil {
-			return nil, err
-		}
-		userID = u.ID
+	userID, err := c.getUserID(cm.PublicKey)
+	if err != nil {
+		return nil, err
 	}
 
 	// Parse IDs.
@@ -890,20 +891,9 @@ func (c *convertCmd) convertCommentDel(d *json.Decoder, parentIDs map[uint32]uin
 	}
 
 	// Get user ID
-	var userID string
-	switch {
-	case c.userID != "":
-		// Replacement user ID is not empty, hardcode it
-		userID = c.userID
-
-	case c.userID == "":
-		// No replacement user ID is given, pull user ID using the
-		// present public key.
-		u, err := c.fetchUserByPubKey(cc.PublicKey)
-		if err != nil {
-			return nil, err
-		}
-		userID = u.ID
+	userID, err := c.getUserID(cc.PublicKey)
+	if err != nil {
+		return nil, err
 	}
 
 	// Parse IDs.
@@ -928,8 +918,8 @@ func (c *convertCmd) convertCommentDel(d *json.Decoder, parentIDs map[uint32]uin
 	}, nil
 }
 
-// convertCommentAddLike decodes the given gitbe comment like, then it
-// converts it to a tstore comment vote.
+// convertCommentAddLike decodes the given gitbe comment like, then converts
+// it to a tstore comment vote.
 func (c *convertCmd) convertCommentAddLike(d *json.Decoder) (*comments.CommentVote, error) {
 	var lc gitbe.LikeComment
 	err := d.Decode(&lc)
@@ -938,21 +928,9 @@ func (c *convertCmd) convertCommentAddLike(d *json.Decoder) (*comments.CommentVo
 	}
 
 	// Get user ID
-	// XXX move to a function
-	var userID string
-	switch {
-	case c.userID != "":
-		// Replacement user ID is not empty, hardcode it
-		userID = c.userID
-
-	case userID == "":
-		// No replacement user ID is given, pull user ID using the
-		// present public key.
-		u, err := c.fetchUserByPubKey(lc.PublicKey)
-		if err != nil {
-			return nil, err
-		}
-		userID = u.ID
+	userID, err := c.getUserID(lc.PublicKey)
+	if err != nil {
+		return nil, err
 	}
 
 	// Parse comment ID.
@@ -1094,13 +1072,13 @@ func decredPluginPath(proposalDir string) string {
 	return filepath.Join(proposalDir, gitbe.DecredPluginPath)
 }
 
-// XXX
+// ballotsJournalPath returns the proposal's ballots journal file path
 func ballotsJournalPath(proposalDir string) string {
 	return filepath.Join(decredPluginPath(proposalDir),
 		gitbe.BallotJournalFilename)
 }
 
-// XXX
+// commentsJournalPath returns the proposal's comments journal file path
 func commentsJournalPath(proposalDir string) string {
 	return filepath.Join(decredPluginPath(proposalDir),
 		gitbe.CommentsJournalFilename)
