@@ -23,7 +23,7 @@ import (
 
 const (
 	// Database options
-	connTimeout     = 3 * time.Minute
+	connTimeout     = 1 * time.Minute
 	connMaxLifetime = 1 * time.Minute
 	maxOpenConns    = 0 // 0 is unlimited
 	maxIdleConns    = 100
