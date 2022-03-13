@@ -87,8 +87,8 @@ Creates a new comment.
 | comment | string | Comment body. | Yes |
 | publickey | string | User public key used for signature. | Yes |
 | signature | string | Client signature. | Yes |
-| extradata | string | Extra data - allows creating different types of comments. | Yes |
-| extradatahint | string | Extra data hint - used to decode the extra data. | Yes |
+| extradata | string | Extra data - allows creating different types of comments. | No |
+| extradatahint | string | Extra data hint - used to decode the extra data. | No |
 
 **Reply**:
 
