@@ -164,6 +164,7 @@ unstable and subject to breaking changes.
 **Docs**:
 
  - Records API [docs](api/records/v1/api.md).
+ - Comments API [docs](api/comments/v1/api.md).
  - Legacy Politeiwww API [docs](api/www/v1/api.md) - will be deprecated.
 
 ## Tools and reference clients
