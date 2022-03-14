@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -242,10 +242,14 @@ const (
 	// invalid.
 	ErrorCodeExtraDataInvalid = 19
 
+	// ErrorCodeLegacyTokenNotAllowed is returned when the legacy token is set
+	// during a normal proposal submission.
+	ErrorCodeLegacyTokenNotAllowed = 20
+
 	// ErrorCodeLast is used by unit tests to verify that all error codes have
 	// a human readable entry in the ErrorCodes map. This error will never be
 	// returned.
-	ErrorCodeLast ErrorCodeT = 20
+	ErrorCodeLast ErrorCodeT = 21
 )
 
 var (
@@ -270,6 +274,7 @@ var (
 		ErrorCodeBillingStatusInvalid:          "billing status invalid",
 		ErrorCodeCommentWriteNotAllowed:        "comment write not allowed",
 		ErrorCodeExtraDataHintInvalid:          "extra data hint invalid",
+		ErrorCodeLegacyTokenNotAllowed:         "setting legacy token is not allowed",
 		ErrorCodeExtraDataInvalid:              "extra data payload invalid",
 	}
 )
@@ -293,12 +298,18 @@ const (
 // proposal signature since it is user specified data. The ProposalMetadata
 // object is saved to politeiad as a file, not as a metadata stream, since it
 // needs to be included in the merkle root that politeiad signs.
+//
+// Only proposals which have been imported from the old gitbe backend would
+// have their legacy token stored in LegacyToken field. This field can not
+// be set during normal proposal submissions.
 type ProposalMetadata struct {
 	Name      string `json:"name"`
 	Amount    uint64 `json:"amount"`    // Funding amount in cents
 	StartDate int64  `json:"startdate"` // Start date, Unix time
 	EndDate   int64  `json:"enddate"`   // Estimated end date, Unix time
 	Domain    string `json:"domain"`    // Proposal domain
+
+	LegacyToken string `json:"legacytoken"` // Legacy gitbe token
 }
 
 // BillingStatusT represents the billing status of a proposal that has been
