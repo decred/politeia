@@ -60,7 +60,7 @@ type Database interface {
 	InvoicesByLineItemsProposalToken(string) ([]Invoice, error)       // Returns all Invoices with paid line item information based on proposal token.
 
 	// ExchangeRate functions
-	NewExchangeRate(*ExchangeRate) error          // Create new exchange rate
+	ExchangeRateNew(*ExchangeRate) error          // Create new exchange rate
 	ExchangeRate(int, int) (*ExchangeRate, error) // Return an exchange rate based on month and year
 
 	// Update Payments

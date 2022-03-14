@@ -18,6 +18,7 @@ import (
 
 	"decred.org/dcrwallet/rpc/walletrpc"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	cmsv2 "github.com/decred/politeia/politeiawww/api/cms/v2"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
 	"github.com/gorilla/schema"
@@ -1774,6 +1775,33 @@ func (c *Client) TokenInventory() (*www.TokenInventoryReply, error) {
 	}
 
 	return &tir, nil
+}
+
+// InvoiceExchangeRateV2 changes the status of the specified invoice.
+func (c *Client) InvoiceExchangeRateV2(ier *cmsv2.InvoiceExchangeRate) (*cmsv2.InvoiceExchangeRateReply, error) {
+	statusCode, respBody, err := c.makeRequest(http.MethodPost,
+		cms.APIRoute, cms.RouteInvoiceExchangeRate, ier)
+	if err != nil {
+		return nil, err
+	}
+
+	if statusCode != http.StatusOK {
+		return nil, wwwError(respBody, statusCode)
+	}
+
+	var ierr cmsv2.InvoiceExchangeRateReply
+	err = json.Unmarshal(respBody, &ierr)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal SetInvoiceStatusReply: %v", err)
+	}
+
+	if c.cfg.Verbose {
+		err := prettyPrintJSON(ierr)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &ierr, nil
 }
 
 // InvoiceExchangeRate changes the status of the specified invoice.

@@ -486,8 +486,8 @@ func (c *cockroachdb) InvoicesByAddress(address string) ([]database.Invoice, err
 
 // Create new exchange rate.
 //
-// NewExchangeRate satisfies the database interface.
-func (c *cockroachdb) NewExchangeRate(dbExchangeRate *database.ExchangeRate) error {
+// ExchangeRateNew satisfies the database interface.
+func (c *cockroachdb) ExchangeRateNew(dbExchangeRate *database.ExchangeRate) error {
 	exchRate := encodeExchangeRate(dbExchangeRate)
 
 	log.Debugf("NewExchangeRate: %v %v", exchRate.Month, exchRate.Year)

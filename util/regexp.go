@@ -46,3 +46,35 @@ func Regexp(supportedChars []string, lengthMin, lengthMax uint64) (*regexp.Regex
 
 	return r, nil
 }
+
+// RegexpNoLength returns a compiled Regexp for the provided parameters with no
+// length parameters.
+func RegexpNoLength(supportedChars []string) (*regexp.Regexp, error) {
+	// Match beginning of string
+	var b bytes.Buffer
+	b.WriteString("^")
+
+	// Set allowed character set
+	b.WriteString("[")
+	for _, v := range supportedChars {
+		switch v {
+		case `\`, `"`, "[", "]", "^", "-", " ":
+			// These characters must be escaped
+			b.WriteString(`\` + v)
+		default:
+			b.WriteString(v)
+		}
+	}
+	b.WriteString("]")
+
+	// Match end of string
+	b.WriteString("$")
+
+	// Compile regexp
+	r, err := regexp.Compile(b.String())
+	if err != nil {
+		return nil, err
+	}
+
+	return r, nil
+}

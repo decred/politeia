@@ -39,6 +39,11 @@ func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.Ne
 		if err != nil {
 			return nil, err
 		}
+	case config.CMSWWWMode:
+		err := r.cmsHookNewRecordPre(u)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Setup metadata stream
@@ -80,6 +85,11 @@ func (r *Records) processNew(ctx context.Context, n v1.New, u user.User) (*v1.Ne
 	switch r.cfg.Mode {
 	case config.PiWWWMode:
 		err := r.piHookNewRecordPost(u, rc.CensorshipRecord.Token)
+		if err != nil {
+			return nil, err
+		}
+	case config.CMSWWWMode:
+		err := r.cmsHookNewRecordPost(u, rc.CensorshipRecord.Token)
 		if err != nil {
 			return nil, err
 		}
@@ -273,6 +283,15 @@ func (r *Records) processDetails(ctx context.Context, d v1.Details, u *user.User
 		}
 	}
 
+	// Only admins and invoices owners are allowed to view invoices currently.
+	switch r.cfg.Mode {
+	case config.CMSWWWMode:
+		err := r.cmsHookDetailsPre(*u, rc.CensorshipRecord.Token)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &v1.DetailsReply{
 		Record: *rc,
 	}, nil
@@ -369,6 +388,24 @@ func (r *Records) processRecords(ctx context.Context, rs v1.Records, u *user.Use
 				records[k] = v
 			}
 		}
+
+		// Only admins and invoices owners are allowed to view invoices currently.
+		switch r.cfg.Mode {
+		case config.CMSWWWMode:
+			err := r.cmsHookRecordsPre(*u, v.CensorshipRecord.Token)
+			if err != nil {
+				return nil, err
+			}
+			var (
+				authorID = userIDFromMetadataStreams(v.Metadata)
+				isAuthor = u != nil && u.ID.String() == authorID
+				isAdmin  = u != nil && u.Admin
+			)
+			if !isAuthor && !isAdmin {
+				v.Files = []v1.File{}
+				records[k] = v
+			}
+		}
 	}
 
 	return &v1.RecordsReply{
@@ -415,6 +452,15 @@ func (r *Records) processInventory(ctx context.Context, i v1.Inventory, u *user.
 		ir.Unvetted = map[string][]string{}
 	}
 
+	// Only admins and invoices owners are allowed to view invoices currently.
+	switch r.cfg.Mode {
+	case config.CMSWWWMode:
+		err := r.cmsHookInvertoryPre(*u)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &v1.InventoryReply{
 		Unvetted: ir.Unvetted,
 		Vetted:   ir.Vetted,
@@ -447,6 +493,15 @@ func (r *Records) processInventoryOrdered(ctx context.Context, i v1.InventoryOrd
 		return nil, err
 	}
 
+	// Only admins and invoices owners are allowed to view invoices currently.
+	switch r.cfg.Mode {
+	case config.CMSWWWMode:
+		err := r.cmsHookInvertoryOrderedPre(*u)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &v1.InventoryOrderedReply{
 		Tokens: tokens,
 	}, nil
@@ -472,6 +527,15 @@ func (r *Records) processUserRecords(ctx context.Context, ur v1.UserRecords, u *
 	default:
 		// Remove unvetted for all other cases
 		urr.Unvetted = []string{}
+	}
+
+	// Only admins and invoices owners are allowed to view invoices currently.
+	switch r.cfg.Mode {
+	case config.CMSWWWMode:
+		err := r.cmsHookUserRecordsPre(*u)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &v1.UserRecordsReply{

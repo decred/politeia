@@ -197,6 +197,17 @@ func TestUserUpdate(t *testing.T) {
 		Username:   "test",
 	}
 
+	// Make user identity
+	fid, err := identity.New()
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	ident, err := user.NewIdentity(hex.EncodeToString(fid.Public.Key[:]))
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	usr.Identities = append(usr.Identities, *ident)
+
 	// Update user query
 	uq := `UPDATE users ` +
 		`SET username = ?, u_blob = ?, updated_at = ? ` +
@@ -210,16 +221,16 @@ func TestUserUpdate(t *testing.T) {
 
 	// Upsert user identities query
 	iq := "INSERT INTO identities (public_key, user_id, activated, deactivated) " +
-		"VALUES ON DUPLICATE KEY UPDATE " +
+		"VALUES (?, ?, ?, ?)ON DUPLICATE KEY UPDATE " +
 		"activated=VALUES(activated), deactivated=VALUES(deactivated)"
 
 	mock.ExpectExec(regexp.QuoteMeta(iq)).
-		WithArgs().
+		WithArgs(sqlmock.AnyArg(), usr.ID, AnyTime{}, AnyTime{}).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
 	// Execute method
-	err := mdb.UserUpdate(usr)
+	err = mdb.UserUpdate(usr)
 	if err != nil {
 		t.Errorf("UserUpdate unwanted error: %s", err)
 	}

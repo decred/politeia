@@ -12,11 +12,13 @@ import (
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/cms"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/comments"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/pi"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/usermd"
+	cmsplugin "github.com/decred/politeia/politeiad/plugins/cms"
 	cmplugin "github.com/decred/politeia/politeiad/plugins/comments"
 	ddplugin "github.com/decred/politeia/politeiad/plugins/dcrdata"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
@@ -77,6 +79,14 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 		dataDir = filepath.Join(t.dataDir, pluginDataDirname)
 	)
 	switch p.ID {
+	case cmsplugin.PluginID:
+		client, err = cms.New(b, &tstoreClient{
+			pluginID: cmplugin.PluginID,
+			tstore:   t,
+		}, p.Settings, dataDir, p.Identity, t.activeNetParams)
+		if err != nil {
+			return err
+		}
 	case cmplugin.PluginID:
 		client, err = comments.New(&tstoreClient{
 			pluginID: cmplugin.PluginID,

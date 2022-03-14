@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"strings"
 
-	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
+	cmsv1 "github.com/decred/politeia/politeiawww/api/cms/v1"
+	cmsv2 "github.com/decred/politeia/politeiawww/api/cms/v2"
 	cmv1 "github.com/decred/politeia/politeiawww/api/comments/v1"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
+	"github.com/decred/politeia/politeiawww/legacy/cms"
 	"github.com/decred/politeia/politeiawww/legacy/comments"
 	"github.com/decred/politeia/politeiawww/legacy/pi"
 	"github.com/decred/politeia/politeiawww/legacy/ticketvote"
@@ -123,8 +125,8 @@ func (p *Politeiawww) setCMSUserWWWRoutes() {
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteVerifyResetPassword, p.handleVerifyResetPassword,
 		permissionPublic)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteRegisterUser, p.handleRegisterUser,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteRegisterUser, p.handleRegisterUser,
 		permissionPublic)
 
 	// Setup the login route.
@@ -150,17 +152,17 @@ func (p *Politeiawww) setCMSUserWWWRoutes() {
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteChangePassword, p.handleChangePassword,
 		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
 		www.RouteUserDetails, p.handleCMSUserDetails,
 		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
 		www.RouteEditUser, p.handleEditCMSUser,
 		permissionLogin)
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteUsers, p.handleUsers,
 		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteCMSUsers, p.handleCMSUsers,
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteCMSUsers, p.handleCMSUsers,
 		permissionLogin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteSetTOTP, p.handleSetTOTP,
@@ -173,8 +175,8 @@ func (p *Politeiawww) setCMSUserWWWRoutes() {
 	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
 		www.RouteUsers, p.handleUsers,
 		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteManageCMSUser, p.handleManageCMSUser,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteManageCMSUser, p.handleManageCMSUser,
 		permissionAdmin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteManageUser, p.handleManageUser,
@@ -190,72 +192,72 @@ func (p *Politeiawww) setCMSWWWRoutes() {
 		Methods(http.MethodGet)
 
 	// Public routes.
-	p.addRoute(http.MethodGet, cms.APIRoute,
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
 		www.RoutePolicy, p.handleCMSPolicy,
 		permissionPublic)
 
 	// Routes that require being logged in.
-	p.addRoute(http.MethodPost, cms.APIRoute,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
 		www.RouteNewComment, p.handleNewCommentInvoice,
 		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteNewInvoice, p.handleNewInvoice,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteNewInvoice, p.handleNewInvoice,
 		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteEditInvoice, p.handleEditInvoice,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteEditInvoice, p.handleEditInvoice,
 		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteInvoiceDetails, p.handleInvoiceDetails,
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteInvoiceDetails, p.handleInvoiceDetails,
 		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteUserInvoices, p.handleUserInvoices,
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteUserInvoices, p.handleUserInvoices,
 		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteInvoices, p.handleInvoices,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteInvoices, p.handleInvoices,
 		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteInvoiceComments, p.handleInvoiceComments,
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteInvoiceComments, p.handleInvoiceComments,
 		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteInvoiceExchangeRate, p.handleInvoiceExchangeRate,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteInvoiceExchangeRate, p.handleInvoiceExchangeRate,
 		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteNewDCC, p.handleNewDCC,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteNewDCC, p.handleNewDCC,
 		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteDCCDetails, p.handleDCCDetails,
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteDCCDetails, p.handleDCCDetails,
 		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteGetDCCs, p.handleGetDCCs,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteGetDCCs, p.handleGetDCCs,
 		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteSupportOpposeDCC, p.handleSupportOpposeDCC,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteSupportOpposeDCC, p.handleSupportOpposeDCC,
 		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteNewCommentDCC, p.handleNewCommentDCC,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteNewCommentDCC, p.handleNewCommentDCC,
 		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteDCCComments, p.handleDCCComments,
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteDCCComments, p.handleDCCComments,
 		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteUserSubContractors, p.handleUserSubContractors,
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteUserSubContractors, p.handleUserSubContractors,
 		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteProposalOwner, p.handleProposalOwner,
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteProposalOwner, p.handleProposalOwner,
 		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteProposalBilling, p.handleProposalBilling,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteProposalBilling, p.handleProposalBilling,
 		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteCastVoteDCC, p.handleCastVoteDCC,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteCastVoteDCC, p.handleCastVoteDCC,
 		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteVoteDetailsDCC, p.handleVoteDetailsDCC,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteVoteDetailsDCC, p.handleVoteDetailsDCC,
 		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteActiveVotesDCC, p.handleActiveVoteDCC,
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteActiveVotesDCC, p.handleActiveVoteDCC,
 		permissionLogin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
 		www.RouteTokenInventory, p.handlePassThroughTokenInventory,
 		permissionLogin)
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
@@ -267,8 +269,8 @@ func (p *Politeiawww) setCMSWWWRoutes() {
 	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
 		www.RouteVerifyTOTP, p.handleVerifyTOTP,
 		permissionLogin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteUserCodeStats, p.handleUserCodeStats,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteUserCodeStats, p.handleUserCodeStats,
 		permissionLogin)
 
 	// Unauthenticated websocket
@@ -281,35 +283,35 @@ func (p *Politeiawww) setCMSWWWRoutes() {
 		permissionLogin)
 
 	// Routes that require being logged in as an admin user.
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteInviteNewUser, p.handleInviteNewUser,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteInviteNewUser, p.handleInviteNewUser,
 		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteSetInvoiceStatus, p.handleSetInvoiceStatus,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteSetInvoiceStatus, p.handleSetInvoiceStatus,
 		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteGeneratePayouts, p.handleGeneratePayouts,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteGeneratePayouts, p.handleGeneratePayouts,
 		permissionAdmin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RoutePayInvoices, p.handlePayInvoices,
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RoutePayInvoices, p.handlePayInvoices,
 		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteInvoicePayouts, p.handleInvoicePayouts,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteInvoicePayouts, p.handleInvoicePayouts,
 		permissionAdmin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteAdminUserInvoices, p.handleAdminUserInvoices,
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteAdminUserInvoices, p.handleAdminUserInvoices,
 		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteSetDCCStatus, p.handleSetDCCStatus,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteSetDCCStatus, p.handleSetDCCStatus,
 		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteStartVoteDCC, p.handleStartVoteDCC,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteStartVoteDCC, p.handleStartVoteDCC,
 		permissionAdmin)
-	p.addRoute(http.MethodGet, cms.APIRoute,
-		cms.RouteProposalBillingSummary, p.handleProposalBillingSummary,
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteProposalBillingSummary, p.handleProposalBillingSummary,
 		permissionAdmin)
-	p.addRoute(http.MethodPost, cms.APIRoute,
-		cms.RouteProposalBillingDetails, p.handleProposalBillingDetails,
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteProposalBillingDetails, p.handleProposalBillingDetails,
 		permissionAdmin)
 }
 
@@ -464,6 +466,205 @@ func (p *Politeiawww) setPiRoutes(r *records.Records, c *comments.Comments, t *t
 	p.addRoute(http.MethodPost, piv1.APIRoute,
 		piv1.RouteSummaries, pic.HandleSummaries,
 		permissionPublic)
+}
+
+// setupPiRoutes sets up the API routes for piwww mode.
+func (p *Politeiawww) setCmsRoutes(r *records.Records, c *comments.Comments, cmsc *cms.Cms) {
+	// The version routes set the CSRF token and thus need to be part
+	// of the CSRF protected auth router.
+	p.auth.HandleFunc("/", p.handleVersion).Methods(http.MethodGet)
+	p.auth.StrictSlash(true).
+		HandleFunc(www.PoliteiaWWWAPIRoute+www.RouteVersion, p.handleVersion).
+		Methods(http.MethodGet)
+
+	// Legacy www routes. These routes have been DEPRECATED. Support
+	// will be removed in a future release.
+	p.addRoute(http.MethodGet, www.PoliteiaWWWAPIRoute,
+		www.RoutePolicy, p.handlePolicy,
+		permissionPublic)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		www.RouteNewComment, p.handleNewCommentInvoice,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteNewInvoice, p.handleNewInvoice,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteEditInvoice, p.handleEditInvoice,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteInvoiceDetails, p.handleInvoiceDetails,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteUserInvoices, p.handleUserInvoices,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteInvoices, p.handleInvoices,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteInvoiceComments, p.handleInvoiceComments,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteInvoiceExchangeRate, p.handleInvoiceExchangeRate,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteNewDCC, p.handleNewDCC,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteDCCDetails, p.handleDCCDetails,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteGetDCCs, p.handleGetDCCs,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteSupportOpposeDCC, p.handleSupportOpposeDCC,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteNewCommentDCC, p.handleNewCommentDCC,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteDCCComments, p.handleDCCComments,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteUserSubContractors, p.handleUserSubContractors,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteProposalOwner, p.handleProposalOwner,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteProposalBilling, p.handleProposalBilling,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteCastVoteDCC, p.handleCastVoteDCC,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteVoteDetailsDCC, p.handleVoteDetailsDCC,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteActiveVotesDCC, p.handleActiveVoteDCC,
+		permissionLogin)
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		www.RouteTokenInventory, p.handlePassThroughTokenInventory,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteBatchProposals, p.handlePassThroughBatchProposals,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteSetTOTP, p.handleSetTOTP,
+		permissionLogin)
+	p.addRoute(http.MethodPost, www.PoliteiaWWWAPIRoute,
+		www.RouteVerifyTOTP, p.handleVerifyTOTP,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteUserCodeStats, p.handleUserCodeStats,
+		permissionLogin)
+
+	// Unauthenticated websocket
+	p.addRoute("", www.PoliteiaWWWAPIRoute,
+		www.RouteUnauthenticatedWebSocket, p.handleUnauthenticatedWebsocket,
+		permissionPublic)
+	// Authenticated websocket
+	p.addRoute("", www.PoliteiaWWWAPIRoute,
+		www.RouteAuthenticatedWebSocket, p.handleAuthenticatedWebsocket,
+		permissionLogin)
+
+	// Routes that require being logged in as an admin user.
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteInviteNewUser, p.handleInviteNewUser,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteSetInvoiceStatus, p.handleSetInvoiceStatus,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteGeneratePayouts, p.handleGeneratePayouts,
+		permissionAdmin)
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RoutePayInvoices, p.handlePayInvoices,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteInvoicePayouts, p.handleInvoicePayouts,
+		permissionAdmin)
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteAdminUserInvoices, p.handleAdminUserInvoices,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteSetDCCStatus, p.handleSetDCCStatus,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteStartVoteDCC, p.handleStartVoteDCC,
+		permissionAdmin)
+	p.addRoute(http.MethodGet, cmsv1.APIRoute,
+		cmsv1.RouteProposalBillingSummary, p.handleProposalBillingSummary,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cmsv1.APIRoute,
+		cmsv1.RouteProposalBillingDetails, p.handleProposalBillingDetails,
+		permissionAdmin)
+	// END LEGACY ROUTES
+
+	// Record routes
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RoutePolicy, r.HandlePolicy,
+		permissionPublic)
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteNew, r.HandleNew,
+		permissionLogin)
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteEdit, r.HandleEdit,
+		permissionLogin)
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteSetStatus, r.HandleSetStatus,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteDetails, r.HandleDetails,
+		permissionLogin)
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteTimestamps, r.HandleTimestamps,
+		permissionLogin)
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteRecords, r.HandleRecords,
+		permissionLogin)
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteInventory, r.HandleInventory,
+		permissionLogin)
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteInventoryOrdered, r.HandleInventoryOrdered,
+		permissionLogin)
+	p.addRoute(http.MethodPost, rcv1.APIRoute,
+		rcv1.RouteUserRecords, r.HandleUserRecords,
+		permissionLogin)
+
+	// Comment routes
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
+		cmv1.RoutePolicy, c.HandlePolicy,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
+		cmv1.RouteNew, c.HandleNew,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
+		cmv1.RouteDel, c.HandleDel,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
+		cmv1.RouteCount, c.HandleCount,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
+		cmv1.RouteComments, c.HandleComments,
+		permissionLogin)
+	p.addRoute(http.MethodPost, cmv1.APIRoute,
+		cmv1.RouteTimestamps, c.HandleTimestamps,
+		permissionLogin)
+
+	// Cms routes
+	p.addRoute(http.MethodPost, piv1.APIRoute,
+		cmsv2.RoutePolicy, cmsc.HandlePolicy,
+		permissionLogin)
+	p.addRoute(http.MethodPost, piv1.APIRoute,
+		cmsv2.RouteSetInvoiceStatus, cmsc.HandleSetInvoiceStatus,
+		permissionAdmin)
+	p.addRoute(http.MethodPost, piv1.APIRoute,
+		cmsv2.RouteInvoiceStatusChanges, cmsc.HandleInvoiceStatusChanges,
+		permissionLogin)
+	p.addRoute(http.MethodPost, piv1.APIRoute,
+		cmsv2.RouteSummaries, cmsc.HandleSummaries,
+		permissionLogin)
 }
 
 // addRoute sets up a handler for a specific method+route. If method is not

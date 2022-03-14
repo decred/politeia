@@ -421,7 +421,7 @@ func (p *Politeiawww) handleInvoiceExchangeRate(w http.ResponseWriter, r *http.R
 	ierr, err := p.processInvoiceExchangeRate(r.Context(), ier)
 	if err != nil {
 		RespondWithError(w, r, 0,
-			"handleInvoiceExchangeRate: processNewCommentInvoice: %v", err)
+			"handleInvoiceExchangeRate: processInvoiceExchangeRate: %v", err)
 		return
 	}
 
