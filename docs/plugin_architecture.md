@@ -3,14 +3,13 @@ Plugin Architecture
 
 All politeia functionality is encapsulated into plugins. The server provides
 the ability to create generic user objects that are associated with UUIDs, but
-that is the extent of the native politeia user data. All other data is created
+that's the extent of the native politeia user data. All other data is created
 and managed by plugins.
 
-This architecture allows for the composability of plugins. For example, if two
-different applications both want to add comment functionality to their
-application, they can do so by integrating the `comments` plugin into their
-application. The ability to layer functionality onto your application using
-composable plugins allows for rapid development with minimal maintenance.
+This architecture allows for the composability of plugins. If two applications
+both want to add user comment functionality, they can do so by integrating the
+`comments` plugin. The ability to layer functionality into your application
+using composable plugins enables rapid development with minimal maintenance.
 
 ## Plugin Types
 
