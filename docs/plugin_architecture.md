@@ -7,9 +7,10 @@ that's the extent of the native politeia user data. All other data is created
 and managed by plugins.
 
 This architecture allows for the composability of plugins. If two applications
-both want to add user comment functionality, they can do so by integrating the
-`comments` plugin. The ability to layer functionality into your application
-using composable plugins enables rapid development with minimal maintenance.
+both want to give their users the ability to create comments, they can do so by
+integrating the `comments` plugin. Being able to layer functionality into your
+application using composable plugins enables rapid development with minimal
+maintenance.
 
 ## Plugin Types
 
