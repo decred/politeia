@@ -182,20 +182,20 @@ func proposalAttachmentFilenames(proposalDir string) ([]string, error) {
 }
 
 // parseVoteTimestamps parses the cast vote timestamps from the git command for
-// the provided git record repository path. It returns a double map of the form
-// [legacyToken][ticket]timestamp.
-func parseVoteTimestamps(path string) (map[string]map[string]int64, error) {
-	fmt.Printf("Fetching git timestamps, this might take a while...\n")
+// the provided git record repository path. It returns a map of the form:
+// [ticket]timestamp.
+func parseVoteTimestamps(proposalDir string, filteredHashes []string) (map[string]int64, error) {
+	fmt.Printf("  Fetching git timestamps, this might take a while...\n")
 	args := []string{"log", "--reverse", "-p"}
 
 	cmd := exec.Command("git", args...)
-	cmd.Dir = path
+	cmd.Dir = proposalDir
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Fetched git log, parsing commits history...\n")
+	fmt.Printf("  Fetched git log, parsing commits history...\n")
 
 	data := strings.Split(string(out), "commit")
 	var items []*History
@@ -219,19 +219,34 @@ func parseVoteTimestamps(path string) (map[string]map[string]int64, error) {
 		items = append(items, &h)
 	}
 
-	results := make(map[string]map[string]int64) // [token][ticket]timestamp
+	results := make(map[string]int64) // [token][ticket]timestamp
 	for _, i := range items {
 		for _, f := range i.Patch {
-			if _, ok := results[f.Token]; !ok {
-				results[f.Token] = make(map[string]int64, len(f.VotesInfo))
-			}
 			for _, v := range f.VotesInfo {
-				results[f.Token][v.Ticket] = i.Date.Unix()
+				// If tickets are limited, filter out irrelevant hashes
+				if len(filteredHashes) > 0 &&
+					!isTicketHashFound(v.Ticket, filteredHashes) {
+					continue
+				}
+
+				results[v.Ticket] = i.Date.Unix()
 			}
 		}
 	}
 
 	return results, nil
+}
+
+// isTicketHashFound returns whether the given ticket hash found in the
+// given ticket hashes slice.
+func isTicketHashFound(hash string, hashes []string) bool {
+	for _, h := range hashes {
+		if h == hash {
+			return true
+		}
+	}
+
+	return false
 }
 
 // This code is based on go-piparser package.

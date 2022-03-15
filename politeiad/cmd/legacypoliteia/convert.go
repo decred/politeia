@@ -595,7 +595,7 @@ func convertVoteType(t gitbe.VoteT) ticketvote.VoteT {
 // convertCastVotes reads the git backend data from disk that is
 // required to build the ticketvote plugin CastVoteDetails structures,
 // then returns the CastVoteDetails slice.
-func convertCastVotes(proposalDir string, addrs map[string]string, ts map[string]map[string]int64, skipBallots bool, limit int) ([]ticketvote.CastVoteDetails, error) {
+func convertCastVotes(proposalDir string, skipBallots bool, limit int) ([]ticketvote.CastVoteDetails, error) {
 	fmt.Printf("  Cast votes\n")
 
 	var castVotes []ticketvote.CastVoteDetails
@@ -653,19 +653,6 @@ func convertCastVotes(proposalDir string, addrs map[string]string, ts map[string
 			VoteBit:   cvj.CastVote.VoteBit,
 			Signature: cvj.CastVote.Signature,
 			Receipt:   cvj.Receipt,
-		}
-		// If parsed ballot is limited, ticket address and vote timestamp won't be
-		// present as we avoid fetching to speed up testing.
-		if limit == 0 {
-			cvd.Address = addrs[cvj.CastVote.Ticket]
-			cvd.Timestamp = ts[cvj.CastVote.Token][cvj.CastVote.Ticket]
-
-			// Verify cast vote details signature
-			err = client.CastVoteDetailsVerify(convertCastVoteDetailsToV1(cvd),
-				serverPubkey)
-			if err != nil {
-				return nil, err
-			}
 		}
 
 		// Save the cast vote

@@ -19,6 +19,7 @@ import (
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/decred/politeia/politeiawww/client"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 )
@@ -122,16 +123,6 @@ func (c *convertCmd) convertGitProposals() error {
 
 	fmt.Printf("Found %v legacy git proposals\n", len(tokens))
 
-	// Parse git vote timestamps using git log. If parsed ballot is limited
-	// skip this.
-	var ts map[string]map[string]int64
-	if c.ballotLimit == 0 {
-		ts, err = parseVoteTimestamps(c.gitRepo)
-		if err != nil {
-			return err
-		}
-	}
-
 	// Convert the data for each proposal into tstore supported types.
 	count := 1
 	for token := range tokens {
@@ -189,19 +180,49 @@ func (c *convertCmd) convertGitProposals() error {
 			return err
 		}
 
-		// Fetch largest commitment addresses of eligible tickets
-		addrs, err := c.fetchLargestCommitmentAddrs(voteDetails,
-			c.skipBallots, c.ballotLimit)
+		// Convert cast vote details
+		cv, err := convertCastVotes(proposalDir, c.skipBallots, c.ballotLimit)
 		if err != nil {
 			return err
 		}
 
-		// Convert cast vote details
-		cv, err := convertCastVotes(proposalDir, addrs, ts, c.skipBallots,
-			c.ballotLimit)
+		// If converted ballot is limited, collect converted ticket hashes in
+		// order to fetch their commitment addresses and vote timestamps.
+		var filteredHashes []string
+		if c.ballotLimit != 0 {
+			filteredHashes = make([]string, 0, c.ballotLimit)
+			for _, v := range cv {
+				filteredHashes = append(filteredHashes, v.Ticket)
+			}
+		}
+
+		// Fetch largest commitment addresses of eligible tickets
+		addrs, err := c.fetchLargestCommitmentAddrs(voteDetails, c.skipBallots,
+			filteredHashes)
 		if err != nil {
 			return err
 		}
+
+		// Parse git vote timestamps using git log.
+		ts, err := parseVoteTimestamps(proposalDir, filteredHashes)
+		if err != nil {
+			return err
+		}
+
+		// Populate ticket addresses and vote timestamps
+		for _, v := range cv {
+			v.Address = addrs[v.Ticket]
+			v.Timestamp = ts[v.Ticket]
+
+			// Verify cast vote details signature
+			err = client.CastVoteDetailsVerify(convertCastVoteDetailsToV1(v),
+				serverPubkey)
+			if err != nil {
+				return err
+			}
+		}
+
+		fmt.Printf("  Populated vote timestamps and ticket commitment addresses...\n")
 
 		ct, err := c.convertComments(proposalDir)
 		if err != nil {
@@ -242,25 +263,34 @@ func (c *convertCmd) convertGitProposals() error {
 
 // fetchLargestCommitmentAddrs fetches the largest commitment address for each
 // eligible ticket from a record vote. Returns a map of ticket hash to address.
-func (c *convertCmd) fetchLargestCommitmentAddrs(voteDetails *ticketvote.VoteDetails, skipBallots bool, ballotLimit int) (map[string]string, error) {
+func (c *convertCmd) fetchLargestCommitmentAddrs(voteDetails *ticketvote.VoteDetails, skipBallots bool, filteredHashes []string) (map[string]string, error) {
 	fmt.Printf("  Eligible ticket addresses\n")
 
-	// If proposals has no vote details, skip ballots flag is on, number of
-	// casted ballots is limited, or no eligible tickets present; skip fetching
-	// ticket addresses.
-	if skipBallots || ballotLimit != 0 || voteDetails == nil ||
+	// If proposals has no vote details, skip ballots flag is on or no eligible
+	// tickets present, skip fetching ticket addresses.
+	if skipBallots || voteDetails == nil ||
 		len(voteDetails.EligibleTickets) == 0 {
 		return nil, nil
 	}
 
-	// Fetch addresses in batches of 500.
+	var tickets []string
+	switch {
+	// If tickets are limited, use given subset of ticket hashes
+	case len(filteredHashes) != 0:
+		tickets = filteredHashes
+
+	// Otherwise, use all eligible tickets
+	default:
+		tickets = voteDetails.EligibleTickets
+	}
+
+	// Fetch addresses in batches of 500
 	var (
-		eligibleTickets = voteDetails.EligibleTickets
-		ticketsLen      = len(eligibleTickets)
-		addrs           = make(map[string]string, ticketsLen) // [ticket]address
-		pageSize        = 500
-		startIdx        int
-		done            bool
+		ticketsLen = len(tickets)
+		addrs      = make(map[string]string, ticketsLen) // [ticket]address
+		pageSize   = 500
+		startIdx   int
+		done       bool
 	)
 	for !done {
 		endIdx := startIdx + pageSize
@@ -269,8 +299,8 @@ func (c *convertCmd) fetchLargestCommitmentAddrs(voteDetails *ticketvote.VoteDet
 			done = true
 		}
 
-		tickets := eligibleTickets[startIdx:endIdx]
-		data, err := c.largestCommitmentAddrs(tickets)
+		ts := tickets[startIdx:endIdx]
+		data, err := c.largestCommitmentAddrs(ts)
 		if err != nil {
 			return nil, err
 		}
