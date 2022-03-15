@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/decred/politeia/politeiad/cmd/legacypoliteia/gitbe"
+	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
 
 var (
@@ -184,7 +185,12 @@ func proposalAttachmentFilenames(proposalDir string) ([]string, error) {
 // parseVoteTimestamps parses the cast vote timestamps from the git command for
 // the provided git record repository path. It returns a map of the form:
 // [ticket]timestamp.
-func parseVoteTimestamps(proposalDir string, filteredHashes []string) (map[string]int64, error) {
+func parseVoteTimestamps(proposalDir string, voteDetails *ticketvote.VoteDetails, filteredHashes []string) (map[string]int64, error) {
+	if voteDetails == nil {
+		// Noting to do
+		return nil, nil
+	}
+
 	fmt.Printf("  Fetching git timestamps, this might take a while...\n")
 	args := []string{"log", "--reverse", "-p"}
 

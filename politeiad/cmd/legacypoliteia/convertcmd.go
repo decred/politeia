@@ -204,7 +204,7 @@ func (c *convertCmd) convertGitProposals() error {
 		}
 
 		// Parse git vote timestamps using git log.
-		ts, err := parseVoteTimestamps(proposalDir, filteredHashes)
+		ts, err := parseVoteTimestamps(proposalDir, voteDetails, filteredHashes)
 		if err != nil {
 			return err
 		}
