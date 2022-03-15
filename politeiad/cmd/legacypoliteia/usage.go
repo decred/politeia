@@ -29,8 +29,8 @@ Command Usage
     --ballotlimit  (int)    Limit the number of votes when parsing the ballot
                             journals. A limit of 0 will result in all ballots
                             being parsed. When the ballots are limited we avoid
-														fetching the git timestamps to speed up testing.
-														(default: 0)											
+                            fetching the git timestamps to speed up testing.
+                            (default: 0)											
     --userid       (string) Replace the user IDs in the parsed data with the
                             provided user ID. (default: "")
     --token        (string) Specify a single token whose contents will be 
