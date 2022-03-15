@@ -237,7 +237,7 @@ type Comment struct {
 	CreatedAt int64        `json:"createdat"` // UNIX timestamp of creation time
 	Timestamp int64        `json:"timestamp"` // UNIX timestamp of last edit
 	Receipt   string       `json:"receipt"`   // Server sig of client sig
-	Downvotes uint64       `json:"downvotes"` // Tolal downvotes on comment
+	Downvotes uint64       `json:"downvotes"` // Total downvotes on comment
 	Upvotes   uint64       `json:"upvotes"`   // Total upvotes on comment
 
 	Deleted bool   `json:"deleted,omitempty"` // Comment has been deleted
@@ -469,7 +469,7 @@ type Vote struct {
 
 // VoteReply is the reply to the Vote command.
 type VoteReply struct {
-	Downvotes uint64 `json:"downvotes"` // Tolal downvotes on comment
+	Downvotes uint64 `json:"downvotes"` // Total downvotes on comment
 	Upvotes   uint64 `json:"upvotes"`   // Total upvotes on comment
 	Timestamp int64  `json:"timestamp"` // Received UNIX timestamp
 	Receipt   string `json:"receipt"`   // Server signature of client signature
