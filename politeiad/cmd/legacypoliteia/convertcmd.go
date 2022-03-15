@@ -127,7 +127,7 @@ func (c *convertCmd) convertGitProposals() error {
 	fmt.Printf("Found %v legacy git proposals\n", len(tokens))
 
 	if c.token != "" {
-		fmt.Printf("Single token filter is not empty: %v\n", c.token)
+		fmt.Printf("Single token filter is used: %v\n", c.token)
 	}
 
 	// Convert the data for each proposal into tstore supported types.
