@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -333,6 +333,14 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 			ErrorCode: uint32(pi.ErrorCodeProposalDomainInvalid),
 			ErrorContext: fmt.Sprintf("got %v domain, "+
 				"supported domains are: %v", pm.Domain, p.proposalDomains),
+		}
+	}
+
+	// Ensure legacy token is not set during normal proposal submissions
+	if pm.LegacyToken != "" {
+		return backend.PluginError{
+			PluginID:  pi.PluginID,
+			ErrorCode: uint32(pi.ErrorCodeLegacyTokenNotAllowed),
 		}
 	}
 

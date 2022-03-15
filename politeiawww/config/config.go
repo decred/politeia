@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2021 The Decred developers
+// Copyright (c) 2015-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -74,10 +74,11 @@ const (
 	defaultHTTPSKeyFilename  = "https.key"
 	defaultCookieKeyFilename = "cookie.key"
 
-	defaultReadTimeout        int64 = 5               // In seconds
-	defaultWriteTimeout       int64 = 60              // In seconds
-	defaultReqBodySizeLimit   int64 = 3 * 1024 * 1024 // 3 MiB
-	defaultWebsocketReadLimit int64 = 4 * 1024 * 1024 // 4 KiB
+	defaultReadTimeout        int64  = 5               // In seconds
+	defaultWriteTimeout       int64  = 60              // In seconds
+	defaultReqBodySizeLimit   int64  = 3 * 1024 * 1024 // 3 MiB
+	defaultWebsocketReadLimit int64  = 4 * 1024 * 1024 // 4 KiB
+	defaultPluginBatchLimit   uint32 = 20
 
 	// politeiad RPC settings
 	defaultRPCHost          = "localhost"
@@ -97,6 +98,10 @@ const (
 
 	// SMTP settings
 	defaultMailAddress = "Politeia <noreply@example.org>"
+
+	// User layer settings
+	defaultUserPlugin = ""
+	defaultAuthPlugin = ""
 
 	// Environmental variable config settings
 	envDBPass = "DBPASS"
@@ -128,6 +133,7 @@ type Config struct {
 	WriteTimeout       int64    `long:"writetimeout" description:"Maximum duration in seconds that a request connection is kept open"`
 	ReqBodySizeLimit   int64    `long:"reqbodysizelimit" description:"Maximum number of bytes allowed in a request body submitted by a client"`
 	WebsocketReadLimit int64    `long:"websocketreadlimit" description:"Maximum number of bytes allowed for a message read from a websocket client"`
+	PluginBatchLimit   uint32   `long:"pluginbatchlimit" description:"Maximum number of plugins command allowed in a batch request."`
 
 	// politeiad RPC settings
 	RPCHost         string `long:"rpchost" description:"politeiad host <host>:<port>"`
@@ -151,7 +157,17 @@ type Config struct {
 	MailPass       string `long:"mailpass" description:"Email server password"`
 	MailAddress    string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
 
-	// Embedded legacy config. This will be deleted soon.
+	// User layer settings
+	DisableUsers bool   `long:"disableusers" description:"Disable the user layer"`
+	UserPlugin   string `long:"userplugin" description:"ID of the plugin that manages user accounts"`
+	AuthPlugin   string `long:"authplugin" description:"ID of the plugin that handles user authorization"`
+
+	// Plugin settings
+	Plugins        []string `long:"plugin" description:"IDs of all plugins to be registered"`
+	PluginSettings []string `long:"pluginsetting" description:"Plugin settings"`
+
+	// Embedded legacy settings. This will be deleted soon.
+	DisableLegacy bool `long:"disablelegacy" description:"Disable legacy routes"`
 	LegacyConfig
 
 	Version     string
@@ -197,12 +213,17 @@ func Load() (*Config, []string, error) {
 		WriteTimeout:       defaultWriteTimeout,
 		ReqBodySizeLimit:   defaultReqBodySizeLimit,
 		WebsocketReadLimit: defaultWebsocketReadLimit,
+		PluginBatchLimit:   defaultPluginBatchLimit,
 
 		// User database settings
 		UserDB: LevelDB,
 
 		// SMTP settings
 		MailAddress: defaultMailAddress,
+
+		// User settings
+		UserPlugin: defaultUserPlugin,
+		AuthPlugin: defaultAuthPlugin,
 
 		// Legacy settings. These are deprecated and will be removed soon.
 		LegacyConfig: LegacyConfig{

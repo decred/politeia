@@ -97,7 +97,6 @@ func (p *commentsPlugin) saveTimestamps(token []byte, ts map[uint32]comments.Com
 	// Setup the blob entries
 	blobs := make(map[string][]byte, len(ts))
 	keys := make([]string, 0, len(ts))
-	commentIDs := make([]uint32, 0, len(ts))
 	for cid, v := range ts {
 		k, err := getTimestampKey(token, cid)
 		if err != nil {
@@ -109,7 +108,6 @@ func (p *commentsPlugin) saveTimestamps(token []byte, ts map[uint32]comments.Com
 		}
 		blobs[k] = b
 		keys = append(keys, k)
-		commentIDs = append(commentIDs, cid)
 	}
 
 	// Delete exisiting digests
@@ -181,7 +179,7 @@ func getTimestampKey(token []byte, commentID uint32) (string, error) {
 func parseTimestampKey(key string) (uint32, error) {
 	s := strings.Split(key, "-")
 	if len(s) != 3 {
-		return 0, errors.Errorf("invalid timestamp key")
+		return 0, errors.Errorf("invalid comment timestamp key")
 	}
 	cid, err := strconv.ParseUint(s[2], 10, 64)
 	if err != nil {

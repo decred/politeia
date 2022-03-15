@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 The Decred developers
+// Copyright (c) 2017-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,12 +7,11 @@ package main
 import (
 	"crypto/elliptic"
 	"crypto/tls"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"sync"
 	"syscall"
 	"time"
 
@@ -21,31 +20,55 @@ import (
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/legacy"
 	"github.com/decred/politeia/politeiawww/logger"
+	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
+	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
-	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
-)
-
-const (
-	csrfKeyLength       = 32    // In bytes
-	csrfCookieMaxAgeAge = 86400 // 1 day in seconds
+	"github.com/gorilla/sessions"
 )
 
 // politeiawww represents the politeiawww server.
 type politeiawww struct {
-	sync.RWMutex
 	cfg       *config.Config
-	router    *mux.Router
-	auth      *mux.Router // CSRF protected subrouter
+	router    *mux.Router // Unprotected router
+	protected *mux.Router // CSRF protected subrouter
+
+	// Database layer. The sql DB is used as the backing database for the
+	// following interfaces.
+	db       *sql.DB
+	sessions sessions.Store
+	userDB   user.DB
+
+	// pluginIDs contains the plugin IDs of all registered plugins, ordered in
+	// the same order that they were provided to the config in. This is the order
+	// that the plugin hooks are executed in.
+	pluginIDs []string
+
+	// plugins contains all registered plugins.
+	plugins map[string]plugin.Plugin // [pluginID]plugin
+
+	// userManager handles user database insertions and deletions. The plugin
+	// that is set as the cfg.UserPlugin must implement the UserManager
+	// interface. This is the only plugin that is allowed to make user database
+	// insertions and deletions, e.g. the NewUser route. A cfg.UserPlugin must
+	// be specified if the user layer is enabled.
+	userManager plugin.UserManager
+
+	// authManager handles user authorization. The plugin that is set as the
+	// cfg.AuthPlugin must implement the Authorizer interface. A cfg.AuthPlugin
+	// must be specified if the user layer is enabled.
+	authManager plugin.AuthManager
+
+	// Legacy fields
 	politeiad *pdclient.Client
 	events    *events.Manager
-	legacy    *legacy.Politeiawww // Legacy API
+	legacy    *legacy.Politeiawww
 }
 
 func _main() error {
-	// Load configuration and parse command line.  This function also
-	// initializes logging and configures it accordingly.
+	// Load the configuration and parse the command line. This
+	// also initializes logging and configures it accordingly.
 	cfg, _, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("Could not load configuration file: %v", err)
@@ -86,72 +109,6 @@ func _main() error {
 		log.Infof("HTTPS keypair created")
 	}
 
-	// Load or create new CSRF key
-	log.Infof("Load CSRF key")
-	csrfKeyFilename := filepath.Join(cfg.DataDir, "csrf.key")
-	fCSRF, err := os.Open(csrfKeyFilename)
-	if err != nil {
-		if os.IsNotExist(err) {
-			key, err := util.Random(csrfKeyLength)
-			if err != nil {
-				return err
-			}
-
-			// Persist key
-			fCSRF, err = os.OpenFile(csrfKeyFilename,
-				os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-			if err != nil {
-				return err
-			}
-			_, err = fCSRF.Write(key)
-			if err != nil {
-				return err
-			}
-			_, err = fCSRF.Seek(0, 0)
-			if err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
-	}
-	csrfKey := make([]byte, csrfKeyLength)
-	r, err := fCSRF.Read(csrfKey)
-	if err != nil {
-		return err
-	}
-	if r != csrfKeyLength {
-		return fmt.Errorf("CSRF key corrupt")
-	}
-	fCSRF.Close()
-
-	csrfMiddleware := csrf.Protect(
-		csrfKey,
-		csrf.Path("/"),
-		csrf.MaxAge(csrfCookieMaxAgeAge),
-	)
-
-	// Setup the router. Middleware is executed in
-	// the same order that they are registered in.
-	router := mux.NewRouter()
-	m := middleware{
-		reqBodySizeLimit: cfg.ReqBodySizeLimit,
-	}
-	router.Use(closeBodyMiddleware) // MUST be registered first
-	router.Use(m.reqBodySizeLimitMiddleware)
-	router.Use(loggingMiddleware)
-	router.Use(recoverMiddleware)
-
-	// Setup 404 handler
-	router.NotFoundHandler = http.HandlerFunc(handleNotFound)
-
-	// Setup a subrouter that is CSRF protected. Authenticated routes
-	// are required to use the auth router. The subrouter takes on the
-	// configuration of the router that it was spawned from, including
-	// all of the middleware that has already been registered.
-	auth := router.NewRoute().Subrouter()
-	auth.Use(csrfMiddleware)
-
 	// Setup the politeiad client
 	pdc, err := pdclient.New(cfg.RPCHost, cfg.RPCCert,
 		cfg.RPCUser, cfg.RPCPass, cfg.Identity)
@@ -159,21 +116,54 @@ func _main() error {
 		return err
 	}
 
-	// Setup the legacy politeiawww context
-	legacywww, err := legacy.NewPoliteiawww(cfg, router, auth,
-		cfg.ActiveNet.Params, pdc)
+	// Setup application context
+	p := &politeiawww{
+		cfg:       cfg,
+		router:    nil, // Set in setupRouter()
+		protected: nil, // Set in setupRouter()
+
+		// Not implemented yet
+		db:       nil,
+		sessions: nil,
+		userDB:   nil,
+
+		// The plugin fields are setup by setupPlugins()
+		pluginIDs:   cfg.Plugins,
+		plugins:     nil,
+		userManager: nil,
+		authManager: nil,
+
+		// Legacy fields
+		politeiad: pdc,
+		events:    events.NewManager(),
+		legacy:    nil, // Set below
+	}
+
+	// Setup the HTTP router
+	err = p.setupRouter()
 	if err != nil {
 		return err
 	}
 
-	// Setup application context
-	p := &politeiawww{
-		cfg:       cfg,
-		router:    router,
-		auth:      auth,
-		politeiad: pdc,
-		events:    events.NewManager(),
-		legacy:    legacywww,
+	// Setup the API routes. The legacy routes are
+	// used by default. If the legacy routes have been
+	// disabled then the plugin routes will be setup.
+	if cfg.DisableLegacy {
+		// Legacy routes have been disabled
+		p.setupPluginRoutes()
+		err = p.setupPlugins()
+		if err != nil {
+			return err
+		}
+	} else {
+		// Legacy routes are not disabled
+		legacywww, err := legacy.NewPoliteiawww(p.cfg,
+			p.router, p.protected, cfg.ActiveNet.Params,
+			pdc)
+		if err != nil {
+			return err
+		}
+		p.legacy = legacywww
 	}
 
 	// Bind to a port and pass our router in
@@ -232,7 +222,9 @@ func _main() error {
 done:
 	log.Infof("Exiting")
 
-	p.legacy.Close()
+	if p.legacy != nil {
+		p.legacy.Close()
+	}
 
 	return nil
 }
