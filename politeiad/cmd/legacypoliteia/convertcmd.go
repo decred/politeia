@@ -42,6 +42,7 @@ var (
 	skipBallots  = convertFlags.Bool("skipballots", false, "skip ballots")
 	ballotLimit  = convertFlags.Int("ballotlimit", 0, "limit parsed votes")
 	userID       = convertFlags.String("userid", "", "replace user IDs")
+	token        = convertFlags.String("token", "", "test one proposal at a time")
 )
 
 type convertCmd struct {
@@ -52,6 +53,7 @@ type convertCmd struct {
 	skipBallots  bool
 	ballotLimit  int
 	userID       string
+	token        string
 }
 
 // execConvertComd executes the convert command.
@@ -106,6 +108,7 @@ func execConvertCmd(args []string) error {
 		skipBallots:  *skipBallots,
 		ballotLimit:  *ballotLimit,
 		userID:       *userID,
+		token:        *token,
 	}
 
 	// Convert the git proposals
@@ -123,10 +126,23 @@ func (c *convertCmd) convertGitProposals() error {
 
 	fmt.Printf("Found %v legacy git proposals\n", len(tokens))
 
+	if c.token != "" {
+		fmt.Printf("Single token filter is not empty: %v\n", c.token)
+	}
+
 	// Convert the data for each proposal into tstore supported types.
 	count := 1
 	for token := range tokens {
-		fmt.Printf("Converting proposal (%v/%v)\n", count, len(tokens))
+		switch {
+		case c.token != "":
+			if c.token != token {
+				// Single token mode, skip irrelevant token
+				continue
+			}
+
+		case c.token == "":
+			fmt.Printf("Converting proposal (%v/%v)\n", count, len(tokens))
+		}
 
 		// Get the path to the most recent version of the proposal.
 		// The version number is the directory name. We only import
@@ -203,10 +219,14 @@ func (c *convertCmd) convertGitProposals() error {
 			return err
 		}
 
-		// Parse git vote timestamps using git log.
-		ts, err := parseVoteTimestamps(proposalDir, voteDetails, filteredHashes)
-		if err != nil {
-			return err
+		// Parse git vote timestamps using git log. If ballots are limited skip
+		// this step to speed up testing.
+		var ts map[string]int64
+		if c.ballotLimit == 0 && !c.skipBallots && voteDetails != nil {
+			ts, err = parseVoteTimestamps(proposalDir, filteredHashes)
+			if err != nil {
+				return err
+			}
 		}
 
 		// Populate ticket addresses and vote timestamps
@@ -221,8 +241,6 @@ func (c *convertCmd) convertGitProposals() error {
 				return err
 			}
 		}
-
-		fmt.Printf("  Populated vote timestamps and ticket commitment addresses...\n")
 
 		ct, err := c.convertComments(proposalDir)
 		if err != nil {
@@ -244,9 +262,12 @@ func (c *convertCmd) convertGitProposals() error {
 			CommentDels:      ct.Dels,
 			CommentVotes:     ct.Votes,
 		}
-		err = sanityChecks(&p)
-		if err != nil {
-			return err
+
+		if c.ballotLimit == 0 && !c.skipBallots && !c.skipComments {
+			err = sanityChecks(&p)
+			if err != nil {
+				return err
+			}
 		}
 
 		// Save the proposal to disk
