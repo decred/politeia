@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -33,6 +33,8 @@ type proposal struct {
 	// The following fields are converted into backend metadata streams before
 	// being imported into tstore.
 	UserMetadata usermd.UserMetadata
+	// This is an optional pointer as unvetted propsoals shouldn't have any
+	// status changes.
 	StatusChange *usermd.StatusChangeMetadata
 
 	// ticketvote plugin data. These fields may be nil depending on the proposal,

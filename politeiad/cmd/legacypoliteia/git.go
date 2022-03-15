@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -255,15 +255,15 @@ type Votes []CastVoteData
 // CastVoteData defines the struct of a cast vote and the receipt response.
 type CastVoteData struct {
 	*PiVote `json:"castvote"`
-	// Receipt string `json:"receipt"`
+	Receipt string `json:"receipt"`
 }
 
 // PiVote defines the ticket hash and vote bit type details about a vote.
 type PiVote struct {
-	// Token     string  `json:"token"`
-	Ticket  string `json:"ticket"`
-	VoteBit string `json:"votebit"`
-	// Signature string  `json:"signature"`
+	Token     string `json:"token"`
+	Ticket    string `json:"ticket"`
+	VoteBit   string `json:"votebit"`
+	Signature string `json:"signature"`
 }
 
 func CustomUnmashaller(h *History, str string) error {
@@ -290,8 +290,8 @@ func CustomUnmashaller(h *History, str string) error {
 	var changes []*File
 	for _, filePatch := range strings.Split(str, commitDiff) {
 
-		// If the proposal token has been set, check if this payload has the required
-		// proposal token data. If it exists proceed otherwise ignore it.
+		// If the proposal token has been set, check if this payload has the
+		// required proposal token data. If it exists proceed otherwise ignore it.
 		if isMatched := IsMatching(filePatch, VotesJSONSignature()); !isMatched {
 			continue
 		}
@@ -308,7 +308,8 @@ func CustomUnmashaller(h *History, str string) error {
 		// Drop any special characters left.
 		filePatch = ReplaceAny(filePatch, `\s`, "")
 
-		// Add the square brackets and commas to complete the JSON string array format.
+		// Add the square brackets and commas to complete the JSON string array
+		// format.
 		filePatch = "[" + ReplaceAny(filePatch, "}{", "},{") + "]"
 
 		var v Votes
@@ -348,20 +349,12 @@ func VotesJSONSignature() string {
 type PiRegExp string
 
 const (
-	// DefaultRepo is the default github repository name where Politea Votes
-	// are stored.
-	DefaultRepo = "mainnet"
-
-	// DefaultRepoOwner is the owner of the default github repository where
-	// Politeia votes are stored.
-	DefaultRepoOwner = "decred-proposals"
-
 	// DefaultVotesCommitMsg defines the message of the commits that holds
 	// the votes data for the various proposal token(s).
 	DefaultVotesCommitMsg = "Flush vote journals"
 
-	// CmdDateFormat defines the date format of the time returned by git commandline
-	// interface. Time format is known as RFC2822.
+	// CmdDateFormat defines the date format of the time returned by git
+	// commandline interface. Time format is known as RFC2822.
 	CmdDateFormat = "Mon Jan 2 15:04:05 2006 -0700"
 
 	// journalActionFormat is the format of the journal action struct appended
@@ -418,8 +411,8 @@ var (
 // exp compiles the PiRegExp regex expression type.
 func (e PiRegExp) exp() *regexp.Regexp { return regexp.MustCompile(string(e)) }
 
-// IsMatching returns boolean true if the matchRegex can be matched in the parent
-// string.
+// IsMatching returns boolean true if the matchRegex can be matched in the
+// parent string.
 func IsMatching(parent, matchRegex string) bool {
 	isMatched, err := regexp.MatchString(matchRegex, parent)
 	if !isMatched || err != nil {
@@ -458,8 +451,8 @@ func RetrieveCMDAuthor(parent string) (string, error) {
 }
 
 // RetrieveCMDDate uses cmdDateSelection regex expression to retrieve the Date
-// value in the provided parent string. The fetched date string is converted into
-// a time.Time objected using "Mon Jan 2 15:04:05 2006 -0700" date format.
+// value in the provided parent string. The fetched date string is converted
+// into a time.Time objected using "Mon Jan 2 15:04:05 2006 -0700" date format.
 func RetrieveCMDDate(parent string) (time.Time, error) {
 	data := cmdDateSelection.exp().FindStringSubmatch(parent)
 	if len(data) > 1 && data[1] != "" {
@@ -478,8 +471,9 @@ func RetrieveCMDCommit(parent string) (string, error) {
 	return "", fmt.Errorf("missing commit from the parsed string")
 }
 
-// ReplaceJournalSelection uses journalSelection regex expression to replace the
-// journal action in the provided parent string using the provided replacement.
+// ReplaceJournalSelection uses journalSelection regex expression to replace
+// the journal action in the provided parent string using the provided
+// replacement.
 func ReplaceJournalSelection(parent, with string) string {
 	return journalSelection().exp().ReplaceAllLiteralString(parent, with)
 }

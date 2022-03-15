@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,7 +8,6 @@ const usageMsg = `legacypoliteia usage:
 
 Commands
   convert  Convert git backend data into tstore backend types.
-  import   Import converted results into tstore.
 
 Command Usage
 
@@ -31,17 +30,4 @@ Command Usage
                             journals. A limit of 0 will result in all ballots
                             being parsed. (default: 0)
     --userid       (string) Replace the user IDs in the parsed data with the
-                            provided user ID. (default: "")
-
-  $ legacypoliteia import <legacyDir>
-
-    Import the JSON output from the 'convert' command into tstore.
-
-    Arguments
-    1. legacyDir (string) Path to the directory that contains the converted
-                          legacy JSON data.
-
-    Flags
-    --tloghost (string) Host for tlog. (default: localhost:8090)
-    --dbhost   (string) Host for mysql db. (default: localhost:3306)
-    --dbpass   (string) Password for tlog host. (default: politeiadpass)`
+                            provided user ID. (default: "")`
