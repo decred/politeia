@@ -34,4 +34,4 @@ Command Usage
     --userid       (string) Replace the user IDs in the parsed data with the
                             provided user ID. (default: "")
     --token        (string) Specify a single token whose contents will be 
-														converted and saved to disk. (default: "")`
+                            converted and saved to disk. (default: "")`
