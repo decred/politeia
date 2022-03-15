@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -161,6 +161,16 @@ type ProposalMetadata struct {
 	StartDate int64  `json:"startdate"` // Start date, Unix time
 	EndDate   int64  `json:"enddate"`   // Estimated end date, Unix time
 	Domain    string `json:"domain"`    // Proposal domain
+
+	// LegacyToken will only be set for legacy proposals that have been imported
+	// from the deprecated git backend into the tstore backend. The LegacyToken
+	// corresponds to the original token that was assigned to the proposal during
+	// submission to the git backed. This token is not used for anything in the
+	// current tstore backend, but can be used to lookup the proposal's original
+	// timestamps in the legacy proposal git repo. The proposal is assigned a
+	// new token by the tstore backend on import. An error is returned if this
+	// field is attempted to be set during normal proposal submissions.
+	LegacyToken string `json:"legacytoken,omitempty"`
 }
 
 // VoteMetadata is metadata that is specified by the user on proposal
