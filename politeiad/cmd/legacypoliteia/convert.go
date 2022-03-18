@@ -60,6 +60,10 @@ func convertRecordMetadata(proposalDir string) (*backend.RecordMetadata, error) 
 
 	// Build record metadata
 	rm := backend.RecordMetadata{
+		// We are using the legacy git token as the record
+		// metadata token for the sake of keeping certain
+		// signatures coherent (I think...). This needs to
+		// be verified.
 		Token:     r.Token,
 		Version:   uint32(version),
 		Iteration: uint32(r.Iteration),
@@ -69,9 +73,13 @@ func convertRecordMetadata(proposalDir string) (*backend.RecordMetadata, error) 
 		Merkle:    r.Merkle,
 	}
 
-	fmt.Printf("    Token  : %v\n", rm.Token)
-	fmt.Printf("    Version: %v\n", rm.Version)
-	fmt.Printf("    Status : %v\n", backend.Statuses[rm.Status])
+	fmt.Printf("    Token    : %v\n", rm.Token)
+	fmt.Printf("    Version  : %v\n", rm.Version)
+	fmt.Printf("    Iteration: %v\n", rm.Iteration)
+	fmt.Printf("    State    : %v\n", backend.States[rm.State])
+	fmt.Printf("    Status   : %v\n", backend.Statuses[rm.Status])
+	fmt.Printf("    Timestamp: %v\n", rm.Timestamp)
+	fmt.Printf("    Merkle   : %v\n", rm.Merkle)
 
 	return &rm, nil
 }
@@ -129,14 +137,15 @@ func convertProposalMetadata(proposalDir string) (*pi.ProposalMetadata, error) {
 		return nil, err
 	}
 
-	fmt.Printf("    Name: %v\n", name)
-
 	// Get the legacy token from the proposal
 	// directory path.
 	token, ok := gitProposalToken(proposalDir)
 	if !ok {
 		return nil, fmt.Errorf("token not found in path '%v'", proposalDir)
 	}
+
+	fmt.Printf("    Name       : %v\n", name)
+	fmt.Printf("    LegacyToken: %v\n", token)
 
 	return &pi.ProposalMetadata{
 		Name:        name,
@@ -194,44 +203,12 @@ func convertVoteMetadata(proposalDir string) (*ticketvote.VoteMetadata, error) {
 	return &vm, nil
 }
 
-// populateUserID populates the user ID of the given user metadata by fetching
-// it from production using the public key. If test user ID is not empty, it
-// hardcodes it instead of fetching.
-func (c *convertCmd) populateUserID(userMD *usermd.UserMetadata) error {
-	userID, err := c.getUserID(userMD.PublicKey)
-	if err != nil {
-		return err
-	}
-
-	// Populate user metadata user ID
-	userMD.UserID = userID
-
-	return nil
-}
-
-func (c *convertCmd) getUserID(userPubKey string) (string, error) {
-	switch {
-	case c.userID != "":
-		// Replacement user ID is not empty, use it
-		return c.userID, nil
-
-	case c.userID == "":
-		// No replacement user ID is given, pull user ID using the
-		// present public key.
-		u, err := c.fetchUserByPubKey(userPubKey)
-		if err != nil {
-			return "", err
-		}
-		return u.ID, nil
-	}
-
-	return "", nil
-}
-
-// convertUserMetadata reads the git backend data from disk that is
-// required to build a usermd plugin UserMetadata structure, then
-// returns the UserMetadata.
-func convertUserMetadata(proposalDir string) (*usermd.UserMetadata, error) {
+// convertUserMetadata reads the git backend data from disk that is required to
+// build a usermd plugin UserMetadata structure, then returns the UserMetadata.
+//
+// This function makes an external API call to the politeia API to retrieve the
+// user ID.
+func (c *convertCmd) convertUserMetadata(proposalDir string) (*usermd.UserMetadata, error) {
 	fmt.Printf("  User metadata\n")
 
 	// Read the proposal general mdstream from disk
@@ -251,11 +228,20 @@ func convertUserMetadata(proposalDir string) (*usermd.UserMetadata, error) {
 		return nil, err
 	}
 
+	// Populate the user ID. The user ID was not saved
+	// to disk in the git backend, so we must retrieve
+	// it from the politeia API using the public key.
+	userID, err := c.getUserIDByPubKey(p.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("    User ID  : %v\n", userID)
 	fmt.Printf("    PublicKey: %v\n", p.PublicKey)
 	fmt.Printf("    Signature: %v\n", p.Signature)
 
 	return &usermd.UserMetadata{
-		UserID:    "", // Intentionally omitted
+		UserID:    userID,
 		PublicKey: p.PublicKey,
 		Signature: p.Signature,
 	}, nil
@@ -264,6 +250,8 @@ func convertUserMetadata(proposalDir string) (*usermd.UserMetadata, error) {
 // convertStatusChange reads the git backend data from disk that is
 // required to build the usermd plugin StatusChangeMetadata structures,
 // then returns the latest StateChangeMetadata.
+//
+// Only the most recent status change is returned.
 func convertStatusChange(proposalDir string) (*usermd.StatusChangeMetadata, error) {
 	fmt.Printf("  Status changes\n")
 
@@ -311,9 +299,6 @@ func convertStatusChange(proposalDir string) (*usermd.StatusChangeMetadata, erro
 			Timestamp: sc.Timestamp,
 		}
 
-		fmt.Printf("    Status: %v\n", backend.Statuses[status])
-		fmt.Printf("    Reason: %v\n", scm.Reason)
-
 		statuses = append(statuses, scm)
 	}
 
@@ -322,8 +307,19 @@ func convertStatusChange(proposalDir string) (*usermd.StatusChangeMetadata, erro
 		return statuses[i].Timestamp < statuses[j].Timestamp
 	})
 
-	latestStatusChange := statuses[len(statuses)-1]
-	return &latestStatusChange, nil
+	// Only the most recent status change is returned
+	latest := statuses[len(statuses)-1]
+
+	status := backend.StatusT(latest.Status)
+	fmt.Printf("    Token    : %v\n", latest.Token)
+	fmt.Printf("    Version  : %v\n", latest.Version)
+	fmt.Printf("    Status   : %v\n", backend.Statuses[status])
+	fmt.Printf("    PublicKey: %v\n", latest.PublicKey)
+	fmt.Printf("    Signature: %v\n", latest.Signature)
+	fmt.Printf("    Reason   : %v\n", latest.Reason)
+	fmt.Printf("    Timestamp: %v\n", latest.Timestamp)
+
+	return &latest, nil
 }
 
 // convertAuthDetails reads the git backend data from disk that is
@@ -837,7 +833,7 @@ func (c *convertCmd) convertCommentAdd(d *json.Decoder) (*comments.CommentAdd, e
 	}
 
 	// Get user ID
-	userID, err := c.getUserID(cm.PublicKey)
+	userID, err := c.getUserIDByPubKey(cm.PublicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -878,7 +874,7 @@ func (c *convertCmd) convertCommentDel(d *json.Decoder, parentIDs map[uint32]uin
 	}
 
 	// Get user ID
-	userID, err := c.getUserID(cc.PublicKey)
+	userID, err := c.getUserIDByPubKey(cc.PublicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -915,7 +911,7 @@ func (c *convertCmd) convertCommentAddLike(d *json.Decoder) (*comments.CommentVo
 	}
 
 	// Get user ID
-	userID, err := c.getUserID(lc.PublicKey)
+	userID, err := c.getUserIDByPubKey(lc.PublicKey)
 	if err != nil {
 		return nil, err
 	}
