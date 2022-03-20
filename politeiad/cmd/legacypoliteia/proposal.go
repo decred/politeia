@@ -57,21 +57,6 @@ func saveProposal(legacyDir string, p *proposal) error {
 	return ioutil.WriteFile(fp, b, filePermissions)
 }
 
-// loadProposal loads a proposal from disk.
-func loadProposal(legacyDir, gitToken string) (*proposal, error) {
-	fp := proposalPath(legacyDir, gitToken)
-	b, err := ioutil.ReadFile(fp)
-	if err != nil {
-		return nil, err
-	}
-	var p proposal
-	err = json.Unmarshal(b, &p)
-	if err != nil {
-		return nil, err
-	}
-	return &p, nil
-}
-
 // proposalPath returns the file path for a proposal in the legacy directory.
 func proposalPath(legacyDir, gitToken string) string {
 	return filepath.Join(legacyDir, gitToken+".json")

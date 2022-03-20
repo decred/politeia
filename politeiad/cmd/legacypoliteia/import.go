@@ -84,6 +84,8 @@ func importProposals(legacyDir string, cmd *importCmd) error {
 			if err != nil {
 				return err
 			}
+			defer jsonFile.Close()
+
 			b, err := ioutil.ReadAll(jsonFile)
 			if err != nil {
 				return err
