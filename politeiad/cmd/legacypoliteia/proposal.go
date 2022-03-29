@@ -154,3 +154,24 @@ func proposalExists(legacyDir, legacyToken string) (bool, error) {
 func proposalPath(legacyDir, legacyToken string) string {
 	return filepath.Join(legacyDir, legacyToken+".json")
 }
+
+// voteCollider is an internal ticketvote plugin type that is not exported, so
+// it's duplicated here.
+type voteCollider struct {
+	Token  string `json:"token"`
+	Ticket string `json:"ticket"`
+}
+
+// startRunoffRecord is an internal ticketvote plugin type that is not
+// exported, so it's duplicated here.
+type startRunoffRecord struct {
+	Submissions      []string `json:"submissions"`
+	Mask             uint64   `json:"mask"`
+	Duration         uint32   `json:"duration"`
+	QuorumPercentage uint32   `json:"quorumpercentage"`
+	PassPercentage   uint32   `json:"passpercentage"`
+	StartBlockHeight uint32   `json:"startblockheight"`
+	StartBlockHash   string   `json:"startblockhash"`
+	EndBlockHeight   uint32   `json:"endblockheight"`
+	EligibleTickets  []string `json:"eligibletickets"`
+}
