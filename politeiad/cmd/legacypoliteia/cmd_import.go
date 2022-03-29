@@ -7,8 +7,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 
 	"github.com/decred/dcrd/dcrutil/v3"
@@ -83,11 +85,10 @@ func execImportCmd(args []string) error {
 		return err
 	}
 
-	// Setup the import cmd context
+	// Setup the import cmd
 	c := &importCmd{
 		legacyDir: legacyDir,
 		tstore:    ts,
-		rfpTokens: make(map[string]string, 64),
 	}
 
 	// Import the legacy proposals
@@ -101,24 +102,23 @@ type importCmd struct {
 	sync.Mutex
 	legacyDir string
 	tstore    *tstore.Tstore
-	rfpTokens map[string]string // [gitToken][tstoreToken]
 }
 
-// importProposals walks the import directory and imports the legacy proposals
+// importProposals walks the legacy directory and imports the legacy proposals
 // into tstore. It accomplishes this using the following steps:
 //
-// 1. Inventory all of the legacy proposals being imported.
+// 1. Inventory all legacy proposals being imported.
 //
 // 2. Retrieve the tstore token inventory.
 //
 // 3. Iterate through each record in the existing tstore inventory and check
 //    if the record corresponds to one of the legacy proposals.
 //
-// 4. An fsck is performed on all proposals that have been found to already
+// 4. Perform an fsck on all legacy proposals that have been found to already
 //    exist in tstore to verify that the full legacy proposal has been
-//    imported.  Any missing legacy proposal content is added to tstore. This
-//    can happen if the import command was previously being run and was stopped
-//    prior to fully importing the proposal or if the command encountered an
+//    imported. Any missing legacy proposal content is added to tstore. A
+//    partial import can happen if the import command was previously being run
+//    and was stopped prior completion or if the command encountered an
 //    unexpected error.
 //
 // 5. Add all remaining legacy RFP proposals to tstore. This must be done first
@@ -126,6 +126,15 @@ type importCmd struct {
 //
 // 6. Add all remaining proposals to tstore.
 func (c *importCmd) importLegacyProposals() error {
+	// 1. Inventory all legacy proposals being imported
+	legacyTokens, err := parseLegacyTokens(c.legacyDir)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%v legacy proposals found\n", len(legacyTokens))
+
+	// 2. Retrieve the tstore token inventory
 
 	return nil
 }
@@ -156,19 +165,32 @@ func updateProposalWithTstoreToken(p *proposal, tstoreToken string) {}
 
 func updateRFPSubmissionWithRFPTstoreToken(submission *proposal, tstoreRFPToken string) {}
 
-// setRFPToken sets a RPF token mapping in the memory cache.
-func (c *importCmd) setRFPToken(gitToken, tstoreToken string) {
-	c.Lock()
-	defer c.Unlock()
+// parseLegacyTokens parses and returns all the unique tokens that are found in
+// the file path of the provided directory or any contents of the directory.
+// The tokens are returned in alphabetical order.
+func parseLegacyTokens(dir string) ([]string, error) {
+	tokens := make(map[string]struct{}, 1024)
+	err := filepath.WalkDir(dir,
+		func(path string, d fs.DirEntry, err error) error {
+			token, ok := parseProposalToken(path)
+			if !ok {
+				return nil
+			}
+			tokens[token] = struct{}{}
+			return nil
+		})
+	if err != nil {
+		return nil, err
+	}
 
-	c.rfpTokens[gitToken] = tstoreToken
-}
+	// Convert map to a slice and sort alphabetically
+	legacyTokens := make([]string, 0, len(tokens))
+	for token := range tokens {
+		legacyTokens = append(legacyTokens, token)
+	}
+	sort.SliceStable(legacyTokens, func(i, j int) bool {
+		return legacyTokens[i] < legacyTokens[j]
+	})
 
-// getRFPToken gets a RFP tstore token from the memory cache.
-func (c *importCmd) getRFPToken(gitToken string) (string, bool) {
-	c.Lock()
-	defer c.Unlock()
-
-	tstoreToken, ok := c.rfpTokens[gitToken]
-	return tstoreToken, ok
+	return legacyTokens, nil
 }

@@ -20,7 +20,7 @@ Command Usage: convert
 
   Arguments:
 
-  1. gitRepo  (string)  Path to the legacy git repo.
+  1. gitRepo   (string)  Path to the legacy git repo.
 
   Flags:
 
@@ -31,7 +31,7 @@ Command Usage: convert
   --token      (string)  Specify a single token whose contents will be
                          converted and saved to disk. (default: "")
 
-  --overwrite  (bool)    The conversion command will skip over a legacy
+  --overwrite    (bool)  The conversion command will skip over a legacy
                          proposal if it is found in the legacydir, indicating
                          that it has already been converted. This flag
                          overrides that default behavior and performs the
@@ -44,7 +44,6 @@ Command Usage: import
   $ legacypoliteia import <legacyDir>
 
   Import the JSON output from the 'convert' command into tstore.
-  Arguments
 
   Arguments:
 
@@ -53,9 +52,9 @@ Command Usage: import
                           during the execution of the 'convert' command.
   Flags:
 
-  --tloghost  (string)  Host for tlog. (default: localhost:8090)
+  --tloghost    (string)  Host for tlog. (default: localhost:8090)
 
-  --dbhost    (string)  Host for mysql db. (default: localhost:3306)
+  --dbhost      (string)  Host for mysql db. (default: localhost:3306)
 
-  --dbpass    (string)  Password for mysql politeiad user.
-                        (default: politeiadpass)`
+  --dbpass      (string)  Password for mysql politeiad user.
+                          (default: politeiadpass)`
