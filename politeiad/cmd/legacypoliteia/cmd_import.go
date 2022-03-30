@@ -5,6 +5,8 @@
 package main
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -14,7 +16,9 @@ import (
 	"sync"
 
 	"github.com/decred/dcrd/dcrutil/v3"
+	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
+	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/util"
 )
@@ -46,8 +50,10 @@ const (
 )
 
 var (
-	// Import command CLI flags
-	importFlags = flag.NewFlagSet(importCmdName, flag.ContinueOnError)
+	// CLI flags for the import command. We print a custom usage message,
+	// see usage.go, so the individual flag usage messages are left blank.
+	importFlags = flag.NewFlagSet(importCmdName, flag.ExitOnError)
+	testnet     = importFlags.Bool("testnet", false, "")
 	tlogHost    = importFlags.String("tloghost", defaultTlogHost, "")
 	dbHost      = importFlags.String("dbhost", defaultDBHost, "")
 	dbPass      = importFlags.String("dbpass", defaultDBPass, "")
@@ -62,25 +68,36 @@ var (
 
 // execImportCmd executes the import command.
 func execImportCmd(args []string) error {
-	// Verify the legacy directory exists
-	if len(args) == 0 {
-		return fmt.Errorf("legacy dir argument not provided")
-	}
-	legacyDir := util.CleanAndExpandPath(args[0])
-	if _, err := os.Stat(legacyDir); err != nil {
-		return fmt.Errorf("legacy directory not found: %v", legacyDir)
-	}
-
 	// Parse the CLI flags
 	err := importFlags.Parse(args)
 	if err != nil {
 		return err
 	}
 
+	// Verify the legacy directory exists
+	if len(args) == 0 {
+		return fmt.Errorf("legacy dir argument not provided")
+	}
+	legacyDir := util.CleanAndExpandPath(args[len(args)-1])
+	if _, err := os.Stat(legacyDir); err != nil {
+		return fmt.Errorf("legacy directory not found: %v", legacyDir)
+	}
+
+	// Testnet or mainnet
+	params := config.MainNetParams.Params
+	if *testnet {
+		params = config.TestNet3Params.Params
+	}
+
+	fmt.Printf("\n")
+	fmt.Printf("Network  : %v\n", params.Name)
+	fmt.Printf("Tlog host: %v\n", *tlogHost)
+	fmt.Printf("DB host  : %v\n", *dbHost)
+	fmt.Printf("\n")
+
 	// Setup tstore connection
 	ts, err := tstore.New(politeiadHomeDir, politeiadDataDir,
-		config.MainNetParams.Params, *tlogHost,
-		dbType, *dbHost, *dbPass, "", "")
+		params, *tlogHost, dbType, *dbHost, *dbPass, "", "")
 	if err != nil {
 		return err
 	}
@@ -127,14 +144,67 @@ type importCmd struct {
 // 6. Add all remaining proposals to tstore.
 func (c *importCmd) importLegacyProposals() error {
 	// 1. Inventory all legacy proposals being imported
-	legacyTokens, err := parseLegacyTokens(c.legacyDir)
+	legacyInv, err := parseLegacyTokens(c.legacyDir)
+	if err != nil {
+		return err
+	}
+	legacyInvM := make(map[string]struct{}, len(legacyInv))
+	for _, token := range legacyInv {
+		legacyInvM[token] = struct{}{}
+	}
+
+	fmt.Printf("%v legacy proposals found\n", len(legacyInv))
+
+	// 2. Retrieve the tstore token inventory
+	inv, err := c.tstore.Inventory()
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("%v legacy proposals found\n", len(legacyTokens))
+	fmt.Printf("%v existing proposals found in tstore\n", len(inv))
 
-	// 2. Retrieve the tstore token inventory
+	// imported contains the legacy tokens of all legacy proposals
+	// that have already been imported into tstore. This list does
+	// not differentiate between partially imported or fully
+	// imported proposals. The fsck function checks for and handles
+	// partially imported proposals.
+	imported := make(map[string]struct{}, len(legacyInv))
+
+	// 3. Iterate through each record in the existing tstore
+	// inventory and check if the record corresponds to one
+	// of the legacy proposals.
+	for _, tokenB := range inv {
+		// Get the record metadata from tstore
+		filenames := []string{pi.FileNameProposalMetadata}
+		r, err := c.tstore.RecordPartial(tokenB, 0, filenames, false)
+		if err != nil {
+			return err
+		}
+		switch r.RecordMetadata.Status {
+		case backend.StatusPublic, backend.StatusArchived:
+			// These statuses are expected
+		default:
+			// This is not a record that we're interested in.
+			// The legacy proposals are all going to be either
+			// public or archived.
+			continue
+		}
+
+		// Check if this is a legacy proposal
+		pm, err := decodeProposalMetadata(r.Files)
+		if err != nil {
+			return err
+		}
+		if pm.LegacyToken == "" {
+			// This is not a legacy proposal
+			continue
+		}
+
+		// This is a legacy proposal. Add it to the imported list.
+		imported[pm.LegacyToken] = struct{}{}
+	}
+
+	fmt.Printf("%v legacy proposals were found in tstore\n", len(imported))
 
 	return nil
 }
@@ -193,4 +263,30 @@ func parseLegacyTokens(dir string) ([]string, error) {
 	})
 
 	return legacyTokens, nil
+}
+
+// decodeLegacyTokenFromFiles decodes and returns the ProposalMetadata from the
+// provided files.
+func decodeProposalMetadata(files []backend.File) (*pi.ProposalMetadata, error) {
+	var f *backend.File
+	for _, v := range files {
+		if v.Name == pi.FileNameProposalMetadata {
+			f = &v
+			break
+		}
+	}
+	if f == nil {
+		// This should not happen
+		return nil, fmt.Errorf("proposal metadata not found")
+	}
+	b, err := base64.StdEncoding.DecodeString(f.Payload)
+	if err != nil {
+		return nil, err
+	}
+	var pm pi.ProposalMetadata
+	err = json.Unmarshal(b, &pm)
+	if err != nil {
+		return nil, err
+	}
+	return &pm, nil
 }

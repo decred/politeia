@@ -52,6 +52,8 @@ Command Usage: import
                           during the execution of the 'convert' command.
   Flags:
 
+  --testnet     (bool)    Use the testnet database. (default: false)
+
   --tloghost    (string)  Host for tlog. (default: localhost:8090)
 
   --dbhost      (string)  Host for mysql db. (default: localhost:3306)
