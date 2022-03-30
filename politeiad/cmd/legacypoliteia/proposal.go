@@ -49,6 +49,18 @@ type proposal struct {
 	CastVotes   []ticketvote.CastVoteDetails
 }
 
+// isRFP returns whether the proposal is an RFP. RFPs will have
+// their VoteMetadata LinkBy field set.
+func (p *proposal) isRFP() bool {
+	return p.VoteMetadata != nil && p.VoteMetadata.LinkBy > 0
+}
+
+// isRFPSubmission returns whether the proposal is an RFP submission. RFP
+// submissions will have their VoteMetadata LinkTo field set.
+func (p *proposal) isRFPSubmission() bool {
+	return p.VoteMetadata != nil && p.VoteMetadata.LinkTo != ""
+}
+
 // verify performs basic sanity checks on the proposal data.
 func (p *proposal) verify() error {
 	switch {

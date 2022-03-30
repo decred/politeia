@@ -90,10 +90,13 @@ func execImportCmd(args []string) error {
 	}
 
 	fmt.Printf("\n")
+	fmt.Printf("Command parameters\n")
 	fmt.Printf("Network  : %v\n", params.Name)
 	fmt.Printf("Tlog host: %v\n", *tlogHost)
 	fmt.Printf("DB host  : %v\n", *dbHost)
 	fmt.Printf("\n")
+
+	fmt.Printf("Connecting to tstore...\n")
 
 	// Setup tstore connection
 	ts, err := tstore.New(politeiadHomeDir, politeiadDataDir,
@@ -131,17 +134,16 @@ type importCmd struct {
 // 3. Iterate through each record in the existing tstore inventory and check
 //    if the record corresponds to one of the legacy proposals.
 //
-// 4. Perform an fsck on all legacy proposals that have been found to already
-//    exist in tstore to verify that the full legacy proposal has been
-//    imported. Any missing legacy proposal content is added to tstore. A
-//    partial import can happen if the import command was previously being run
-//    and was stopped prior completion or if the command encountered an
-//    unexpected error.
+// 4. Perform an fsck on all legacy proposals that already exist in tstore to
+//    verify that the full legacy proposal has been imported. Any missing
+//    legacy proposal content is added to tstore during this step. A partial
+//    import can happen if the import command was being run and was stopped
+//    prior to completion or if it encountered an unexpected error.
 //
-// 5. Add all remaining legacy RFP proposals to tstore. This must be done first
-//    so that the RFP submissions can link to the tstore RFP proposal token.
+// 5. Add the legacy RFP proposals to tstore. This must be done first so that
+//    the RFP submissions can link to the tstore RFP proposal token.
 //
-// 6. Add all remaining proposals to tstore.
+// 6. Add the remaining legacy proposals to tstore.
 func (c *importCmd) importLegacyProposals() error {
 	// 1. Inventory all legacy proposals being imported
 	legacyInv, err := parseLegacyTokens(c.legacyDir)
@@ -168,15 +170,17 @@ func (c *importCmd) importLegacyProposals() error {
 	// not differentiate between partially imported or fully
 	// imported proposals. The fsck function checks for and handles
 	// partially imported proposals.
-	imported := make(map[string]struct{}, len(legacyInv))
+	//
+	// map[legacyToken]tstoreToken
+	imported := make(map[string][]byte, len(legacyInv))
 
 	// 3. Iterate through each record in the existing tstore
 	// inventory and check if the record corresponds to one
 	// of the legacy proposals.
-	for _, tokenB := range inv {
+	for _, tstoreToken := range inv {
 		// Get the record metadata from tstore
 		filenames := []string{pi.FileNameProposalMetadata}
-		r, err := c.tstore.RecordPartial(tokenB, 0, filenames, false)
+		r, err := c.tstore.RecordPartial(tstoreToken, 0, filenames, false)
 		if err != nil {
 			return err
 		}
@@ -201,15 +205,80 @@ func (c *importCmd) importLegacyProposals() error {
 		}
 
 		// This is a legacy proposal. Add it to the imported list.
-		imported[pm.LegacyToken] = struct{}{}
+		imported[pm.LegacyToken] = tstoreToken
 	}
 
 	fmt.Printf("%v legacy proposals were found in tstore\n", len(imported))
 
+	// 4. Perform an fsck on all legacy proposals that already exist
+	//    in tstore to verify that the full legacy proposal has been
+	//    imported. Any missing legacy proposal content is added to
+	//    tstore during this step. A partial import can happen if
+	//    the import command was being run and was stopped prior to
+	//    completion or if it encountered an unexpected error.
+	for legacyToken, tstoreToken := range imported {
+		err := c.fsckProposal(legacyToken, tstoreToken)
+		if err != nil {
+			return err
+		}
+	}
+
+	// 5. Add the legacy RFP proposals to tstore. This must be done
+	//    first so that the RFP submissions can link to the tstore
+	//    RFP proposal token.
+	//
+	// map[legacyToken]tstoreToken
+	rfpTokens := make(map[string][]byte, len(legacyInv))
+	for _, legacyToken := range legacyInv {
+		p, err := readProposal(c.legacyDir, legacyToken)
+		if err != nil {
+			return err
+		}
+		if !p.isRFP() {
+			continue
+		}
+		tstoreToken, err := c.importProposal(p)
+		if err != nil {
+			return err
+		}
+		rfpTokens[legacyToken] = tstoreToken
+	}
+
+	// 6. Add the remaining legacy proposals to tstore
+	for _, legacyToken := range legacyInv {
+		// Skip RFPs since they've already been imported
+		p, err := readProposal(c.legacyDir, legacyToken)
+		if err != nil {
+			return err
+		}
+		if p.isRFP() {
+			continue
+		}
+
+		// Update RFP submissions with the RFP parent tstore token
+		if p.isRFPSubmission() {
+			// TODO
+		}
+
+		// Import the proposal
+		_, err = c.importProposal(p)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-// importProposal imports the specified legacy proposal into tstore.
+// fsckProposal verifies that a legacy proposal has been fully imported into
+// tstore. If a partial import is found, this function will pick up where the
+// previous invocation left off and finish the import.
+func (c *importCmd) fsckProposal(legacyToken string, tstoreToken []byte) error {
+	return nil
+}
+
+// importProposal imports the specified legacy proposal into tstore and returns
+// the tstore token that is created during import.
 //
 // This function assumes that the proposal does not yet exist in tstore.
 // Handling proposals that have been partially added is done by the
@@ -221,19 +290,9 @@ func (c *importCmd) importLegacyProposals() error {
 // - In
 // - This
 // - List
-//
-// The git token to tstore token mapping is added to the memory cache for all
-// RFP parent proposals.
-//
-// The parent token of all RFP submissions are updated with the tstore RFP
-// parent token.
-func importProposal(legacyDir, gitToken string, cmd *importCmd) {}
-
-func fsckProposal() {}
-
-func updateProposalWithTstoreToken(p *proposal, tstoreToken string) {}
-
-func updateRFPSubmissionWithRFPTstoreToken(submission *proposal, tstoreRFPToken string) {}
+func (c *importCmd) importProposal(p *proposal) ([]byte, error) {
+	return nil, nil
+}
 
 // parseLegacyTokens parses and returns all the unique tokens that are found in
 // the file path of the provided directory or any contents of the directory.
