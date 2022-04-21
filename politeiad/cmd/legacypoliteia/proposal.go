@@ -38,12 +38,16 @@ type proposal struct {
 	StatusChange usermd.StatusChangeMetadata
 
 	// comments plugin data. These fields may be nil depeneding on the proposal.
+	//
+	// These fields are imported into tstore as plugin data blobs.
 	CommentAdds  []comments.CommentAdd
 	CommentDels  []comments.CommentDel
 	CommentVotes []comments.CommentVote
 
 	// ticketvote plugin data. These fields may be nil depending on the proposal,
 	// i.e. abandoned proposals will not have ticketvote data.
+	//
+	// These fields are imported into tstore as plugin data blobs.
 	AuthDetails *ticketvote.AuthDetails
 	VoteDetails *ticketvote.VoteDetails
 	CastVotes   []ticketvote.CastVoteDetails

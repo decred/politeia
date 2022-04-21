@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -16,16 +17,18 @@ import (
 	"sync"
 
 	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/politeia/politeiad/api/v1/mime"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	"github.com/decred/politeia/politeiad/plugins/pi"
+	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/decred/politeia/politeiad/plugins/usermd"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/util"
 )
 
 /*
 TODO
-
 Check if signature is broken
 - usermd UserMetadata signature
 
@@ -38,6 +41,13 @@ Signatures that are broken:
 Fields that need to be updated:
 - ProposalMetadata
   - Version and iteration may need to be hardcoded to 1
+
+Fields that have been updated:
+- ProposalMetadata
+  - LegacyToken is populated
+  - Version and iteration may need to be hardcoded to 1
+- VoteMetadata
+  - LinkTo is updated with the tstore legacy RFP submissions
 */
 
 const (
@@ -68,19 +78,19 @@ var (
 
 // execImportCmd executes the import command.
 func execImportCmd(args []string) error {
-	// Parse the CLI flags
-	err := importFlags.Parse(args)
-	if err != nil {
-		return err
-	}
-
 	// Verify the legacy directory exists
 	if len(args) == 0 {
 		return fmt.Errorf("legacy dir argument not provided")
 	}
-	legacyDir := util.CleanAndExpandPath(args[len(args)-1])
+	legacyDir := util.CleanAndExpandPath(args[0])
 	if _, err := os.Stat(legacyDir); err != nil {
 		return fmt.Errorf("legacy directory not found: %v", legacyDir)
+	}
+
+	// Parse the CLI flags
+	err := importFlags.Parse(args[1:])
+	if err != nil {
+		return err
 	}
 
 	// Testnet or mainnet
@@ -257,7 +267,14 @@ func (c *importCmd) importLegacyProposals() error {
 
 		// Update RFP submissions with the RFP parent tstore token
 		if p.isRFPSubmission() {
-			// TODO
+			legacyToken := p.VoteMetadata.LinkTo
+			tstoreToken, ok := rfpTokens[legacyToken]
+			if !ok {
+				// Should not happen
+				return fmt.Errorf("rpf parent tstore token not found for %v",
+					legacyToken)
+			}
+			p.VoteMetadata.LinkTo = util.TokenEncode(tstoreToken)
 		}
 
 		// Import the proposal
@@ -291,6 +308,61 @@ func (c *importCmd) fsckProposal(legacyToken string, tstoreToken []byte) error {
 // - This
 // - List
 func (c *importCmd) importProposal(p *proposal) ([]byte, error) {
+
+	// Create a new tstore record entry
+	tstoreToken, err := c.tstore.RecordNew()
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert user generated metadata into backend files. User
+	// generated metadata includes:
+	// - pi plugin ProposalMetadata
+	// - ticketvote plugin VoteMetadata (may not exist)
+	f, err := convertProposalMetadataToFile(p.ProposalMetadata)
+	if err != nil {
+		return nil, err
+	}
+	p.Files = append(p.Files, *f)
+
+	if p.VoteMetadata != nil {
+		f, err := convertVoteMetadataToFile(*p.VoteMetadata)
+		if err != nil {
+			return nil, err
+		}
+		p.Files = append(p.Files, *f)
+	}
+
+	// Convert server generated metadata into backed metadata.
+	// Server generated metadata includes:
+	// - user plugin StatusChangeMetadata
+	// - user plugin UserMetadata
+	metadata := make([]backend.MetadataStream, 0, 16)
+
+	// TODO We should be importing all public status changes. This
+	// requires some changes to the convert command.
+
+	mdStream, err := convertUserMetadataToMetadataStream(p.UserMetadata)
+	if err != nil {
+		return nil, err
+	}
+	metadata = append(metadata, *mdStream)
+
+	// Save the record to tstore
+	err = c.tstore.RecordSave(tstoreToken,
+		p.RecordMetadata, metadata, p.Files)
+	if err != nil {
+		return nil, err
+	}
+
+	// Save the comment plugin data to tstore. This is done in a
+	// separate go routine to get around the trillian log signer
+	// bottleneck.
+
+	// Save the ticketvote plugin data to tstore. This is done is
+	// a seperate go routine to get around the trillian log signer
+	// bottleneck.
+
 	return nil, nil
 }
 
@@ -348,4 +420,48 @@ func decodeProposalMetadata(files []backend.File) (*pi.ProposalMetadata, error) 
 		return nil, err
 	}
 	return &pm, nil
+}
+
+// convertProposalMetadataToFile converts a pi plugin ProposalMetadata into a
+// backend File.
+func convertProposalMetadataToFile(pm pi.ProposalMetadata) (*backend.File, error) {
+	pmb, err := json.Marshal(pm)
+	if err != nil {
+		return nil, err
+	}
+	return &backend.File{
+		Name:    pi.FileNameProposalMetadata,
+		MIME:    mime.DetectMimeType(pmb),
+		Digest:  hex.EncodeToString(util.Digest(pmb)),
+		Payload: base64.StdEncoding.EncodeToString(pmb),
+	}, nil
+}
+
+// convertVoteMetadataToFile converts a ticketvote plugin VoteMetadata into a
+// backend File.
+func convertVoteMetadataToFile(vm ticketvote.VoteMetadata) (*backend.File, error) {
+	vmb, err := json.Marshal(vm)
+	if err != nil {
+		return nil, err
+	}
+	return &backend.File{
+		Name:    ticketvote.FileNameVoteMetadata,
+		MIME:    mime.DetectMimeType(vmb),
+		Digest:  hex.EncodeToString(util.Digest(vmb)),
+		Payload: base64.StdEncoding.EncodeToString(vmb),
+	}, nil
+}
+
+// convertUserMetadataToMetadataStream converts a usermd plugin UserMetadata
+// into a backend MetadataStream.
+func convertUserMetadataToMetadataStream(um usermd.UserMetadata) (*backend.MetadataStream, error) {
+	b, err := json.Marshal(um)
+	if err != nil {
+		return nil, err
+	}
+	return &backend.MetadataStream{
+		PluginID: usermd.PluginID,
+		StreamID: usermd.StreamIDUserMetadata,
+		Payload:  string(b),
+	}, nil
 }
