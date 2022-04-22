@@ -315,8 +315,9 @@ func (c *importCmd) importProposal(p *proposal) ([]byte, error) {
 		return nil, err
 	}
 
-	// Convert user generated metadata into backend files. User
-	// generated metadata includes:
+	// Convert user generated metadata into backend files.
+	//
+	// User generated metadata includes:
 	// - pi plugin ProposalMetadata
 	// - ticketvote plugin VoteMetadata (may not exist)
 	f, err := convertProposalMetadataToFile(p.ProposalMetadata)
@@ -334,19 +335,24 @@ func (c *importCmd) importProposal(p *proposal) ([]byte, error) {
 	}
 
 	// Convert server generated metadata into backed metadata.
+	//
 	// Server generated metadata includes:
 	// - user plugin StatusChangeMetadata
 	// - user plugin UserMetadata
 	metadata := make([]backend.MetadataStream, 0, 16)
-
-	// TODO We should be importing all public status changes. This
-	// requires some changes to the convert command.
-
 	mdStream, err := convertUserMetadataToMetadataStream(p.UserMetadata)
 	if err != nil {
 		return nil, err
 	}
 	metadata = append(metadata, *mdStream)
+
+	for _, v := range p.StatusChanges {
+		mdStream, err := convertStatusChangeToMetadataStream(v)
+		if err != nil {
+			return nil, err
+		}
+		metadata = append(metadata, *mdStream)
+	}
 
 	// Save the record to tstore
 	err = c.tstore.RecordSave(tstoreToken,
@@ -462,6 +468,20 @@ func convertUserMetadataToMetadataStream(um usermd.UserMetadata) (*backend.Metad
 	return &backend.MetadataStream{
 		PluginID: usermd.PluginID,
 		StreamID: usermd.StreamIDUserMetadata,
+		Payload:  string(b),
+	}, nil
+}
+
+// convertStatusChangeToMetadataStream converts a usermd plugin
+// StatusChangeMetadata into a backend MetadataStream.
+func convertStatusChangeToMetadataStream(scm usermd.StatusChangeMetadata) (*backend.MetadataStream, error) {
+	b, err := json.Marshal(scm)
+	if err != nil {
+		return nil, err
+	}
+	return &backend.MetadataStream{
+		PluginID: usermd.PluginID,
+		StreamID: usermd.StreamIDStatusChanges,
 		Payload:  string(b),
 	}, nil
 }
