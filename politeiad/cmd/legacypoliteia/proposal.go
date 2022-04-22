@@ -34,8 +34,18 @@ type proposal struct {
 
 	// The following fields are converted into backend metadata streams before
 	// being imported into tstore.
-	UserMetadata usermd.UserMetadata
-	StatusChange usermd.StatusChangeMetadata
+	//
+	// A public proposal will only have one status change returned. The status
+	// change of when the proposal was made public.
+	//
+	// An abandoned proposal will have two status changes returned. The status
+	// change from when the proposal was made public and the status change from
+	// when the proposal was marked as abandoned.
+	//
+	// All other status changes are not public data and thus will not have been
+	// included in the legacy git repo.
+	UserMetadata  usermd.UserMetadata
+	StatusChanges []usermd.StatusChangeMetadata
 
 	// comments plugin data. These fields may be nil depeneding on the proposal.
 	//
@@ -82,17 +92,22 @@ func (p *proposal) verify() error {
 		return fmt.Errorf("missing record public key")
 	case p.UserMetadata.Signature == "":
 		return fmt.Errorf("missing record signature")
-	case p.StatusChange.Status == 0:
-		return fmt.Errorf("missing status change")
+	case len(p.StatusChanges) == 0:
+		return fmt.Errorf("missing status changes")
 	}
 
 	// Checks based on record status
 	switch p.RecordMetadata.Status {
 	case backend.StatusArchived:
 		// Archived proposals will have two status changes and
-		// no vote data. Only the most recent status change is
-		// converted.
-		if p.StatusChange.Status != uint32(backend.StatusArchived) {
+		// no vote data.
+		if len(p.StatusChanges) != 2 {
+			return fmt.Errorf("invalid status changes count")
+		}
+		if p.StatusChanges[0].Status != uint32(backend.StatusPublic) {
+			return fmt.Errorf("invalid status change")
+		}
+		if p.StatusChanges[1].Status != uint32(backend.StatusArchived) {
 			return fmt.Errorf("invalid status change")
 		}
 		if p.AuthDetails != nil {
@@ -109,7 +124,10 @@ func (p *proposal) verify() error {
 		// All non-archived proposals will be public, with a
 		// single status change, and will have the vote data
 		// populated.
-		if p.StatusChange.Status != uint32(backend.StatusPublic) {
+		if len(p.StatusChanges) != 1 {
+			return fmt.Errorf("invalid status changes count")
+		}
+		if p.StatusChanges[0].Status != uint32(backend.StatusPublic) {
 			return fmt.Errorf("invalid status change")
 		}
 		if p.AuthDetails == nil {

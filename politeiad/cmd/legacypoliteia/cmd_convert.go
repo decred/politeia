@@ -184,7 +184,7 @@ func (c *convertCmd) convertLegacyProposals() error {
 		if err != nil {
 			return err
 		}
-		statusChange, err := c.convertStatusChange(proposalDir)
+		statusChanges, err := c.convertStatusChanges(proposalDir)
 		if err != nil {
 			return err
 		}
@@ -226,7 +226,7 @@ func (c *convertCmd) convertLegacyProposals() error {
 			ProposalMetadata: *proposalMD,
 			VoteMetadata:     voteMD,
 			UserMetadata:     *userMD,
-			StatusChange:     *statusChange,
+			StatusChanges:    statusChanges,
 			CommentAdds:      ct.Adds,
 			CommentDels:      ct.Dels,
 			CommentVotes:     ct.Votes,
@@ -443,12 +443,20 @@ func (c *convertCmd) convertUserMetadata(proposalDir string) (*usermd.UserMetada
 	return &um, nil
 }
 
-// convertStatusChange reads the git backend data from disk that is required
+// convertStatusChanges reads the git backend data from disk that is required
 // to build the usermd plugin StatusChangeMetadata structures, then returns
-// the latest StateChangeMetadata.
+// the StateChangeMetadata that is found.
 //
-// Only the most recent status change is returned.
-func (c *convertCmd) convertStatusChange(proposalDir string) (*usermd.StatusChangeMetadata, error) {
+// A public proposal will only have one status change returned. The status
+// change of when the proposal was made public.
+//
+// An abandoned proposal will have two status changes returned. The status
+// change from when the proposal was made public and the status change from
+// when the proposal was marked as abandoned.
+//
+// All other status changes are not public data and thus will not have been
+// included in the legacy git repo.
+func (c *convertCmd) convertStatusChanges(proposalDir string) ([]usermd.StatusChangeMetadata, error) {
 	fmt.Printf("  Status changes\n")
 
 	// Read the status changes mdstream from disk
@@ -492,19 +500,42 @@ func (c *convertCmd) convertStatusChange(proposalDir string) (*usermd.StatusChan
 		return statuses[i].Timestamp < statuses[j].Timestamp
 	})
 
-	// Only the most recent status change is returned
-	latest := statuses[len(statuses)-1]
+	// Sanity checks
+	switch {
+	case len(statuses) == 0:
+		return nil, fmt.Errorf("no status changes found")
+	case len(statuses) > 2:
+		return nil, fmt.Errorf("invalid number of status changes (%v)",
+			len(statuses))
+	}
+	for _, v := range statuses {
+		switch v.Status {
+		case 2:
+			// Public status. This is expected.
+		case 4:
+			// Abandoned status. This is expected.
+		default:
+			return nil, fmt.Errorf("invalid status %v", v.Status)
+		}
+	}
 
-	status := backend.Statuses[backend.StatusT(latest.Status)]
-	fmt.Printf("    Token    : %v\n", latest.Token)
-	fmt.Printf("    Version  : %v\n", latest.Version)
-	fmt.Printf("    Status   : %v\n", status)
-	fmt.Printf("    PublicKey: %v\n", latest.PublicKey)
-	fmt.Printf("    Signature: %v\n", latest.Signature)
-	fmt.Printf("    Reason   : %v\n", latest.Reason)
-	fmt.Printf("    Timestamp: %v\n", latest.Timestamp)
+	// Print the status changes
+	for i, v := range statuses {
+		status := backend.Statuses[backend.StatusT(v.Status)]
+		fmt.Printf("    Token    : %v\n", v.Token)
+		fmt.Printf("    Version  : %v\n", v.Version)
+		fmt.Printf("    Status   : %v\n", status)
+		fmt.Printf("    PublicKey: %v\n", v.PublicKey)
+		fmt.Printf("    Signature: %v\n", v.Signature)
+		fmt.Printf("    Reason   : %v\n", v.Reason)
+		fmt.Printf("    Timestamp: %v\n", v.Timestamp)
 
-	return &latest, nil
+		if i != len(statuses)-1 {
+			fmt.Printf("    ----\n")
+		}
+	}
+
+	return statuses, nil
 }
 
 // commentTypes contains the various comment data types for a proposal.
