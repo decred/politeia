@@ -42,7 +42,7 @@ var (
 	// see usage.go, so the individual flag usage messages are left blank.
 	convertFlags = flag.NewFlagSet(convertCmdName, flag.ContinueOnError)
 	legacyDir    = convertFlags.String("legacydir", defaultLegacyDir, "")
-	token        = convertFlags.String("token", "", "")
+	convertToken = convertFlags.String("token", "", "")
 	overwrite    = convertFlags.Bool("overwrite", false, "")
 )
 
@@ -86,7 +86,7 @@ func execConvertCmd(args []string) error {
 		client:    client,
 		gitRepo:   gitRepo,
 		legacyDir: *legacyDir,
-		token:     *token,
+		token:     *convertToken,
 		overwrite: *overwrite,
 		userIDs:   make(map[string]string, 1024),
 	}
@@ -234,7 +234,7 @@ func (c *convertCmd) convertLegacyProposals() error {
 			VoteDetails:      voteDetails,
 			CastVotes:        castVotes,
 		}
-		err = p.verify()
+		err = verifyProposal(p)
 		if err != nil {
 			return err
 		}
@@ -245,6 +245,8 @@ func (c *convertCmd) convertLegacyProposals() error {
 			return err
 		}
 	}
+
+	fmt.Printf("Legacy proposal conversion complete\n")
 
 	return nil
 }
@@ -342,17 +344,9 @@ func (c *convertCmd) convertProposalMetadata(proposalDir string) (*pi.ProposalMe
 		return nil, err
 	}
 
-	// Get the legacy token from the proposal
-	// directory path.
-	token, ok := parseProposalToken(proposalDir)
-	if !ok {
-		return nil, fmt.Errorf("token not found in path '%v'", proposalDir)
-	}
-
-	pm := convertProposalMetadata(name, token)
+	pm := convertProposalMetadata(name)
 
 	fmt.Printf("    Name       : %v\n", pm.Name)
-	fmt.Printf("    LegacyToken: %v\n", pm.LegacyToken)
 
 	return &pm, nil
 }

@@ -68,14 +68,14 @@ func convertFile(payload []byte, fileName string) backend.File {
 	}
 }
 
-func convertProposalMetadata(name, legacyToken string) pi.ProposalMetadata {
+func convertProposalMetadata(name string) pi.ProposalMetadata {
 	return pi.ProposalMetadata{
 		Name:        name, // Parsed from index file
 		Amount:      0,
 		StartDate:   0,
 		EndDate:     0,
 		Domain:      "",
-		LegacyToken: legacyToken, // Parsed from git path
+		LegacyToken: "", // Populated by the import command
 	}
 }
 

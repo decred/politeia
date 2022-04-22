@@ -27,29 +27,6 @@ import (
 	"github.com/decred/politeia/util"
 )
 
-/*
-TODO
-Check if signature is broken
-- usermd UserMetadata signature
-
-Signatures that are broken:
-- usermd StatusChangeMetadata signature (wrong message)
-- ticketvote AuthDetails receipt (wrong server pubkey)
-- ticketvote VoteDetails signature (wrong message)
-- ticketvote VoteDetails receipt (wrong message, wrong server pubkey)
-
-Fields that need to be updated:
-- ProposalMetadata
-  - Version and iteration may need to be hardcoded to 1
-
-Fields that have been updated:
-- ProposalMetadata
-  - LegacyToken is populated
-  - Version and iteration may need to be hardcoded to 1
-- VoteMetadata
-  - LinkTo is updated with the tstore legacy RFP submissions
-*/
-
 const (
 	// Default command settings
 	defaultTlogHost = "localhost:8090"
@@ -67,6 +44,7 @@ var (
 	tlogHost    = importFlags.String("tloghost", defaultTlogHost, "")
 	dbHost      = importFlags.String("dbhost", defaultDBHost, "")
 	dbPass      = importFlags.String("dbpass", defaultDBPass, "")
+	importToken = importFlags.String("token", "", "")
 
 	// tstore settings
 	politeiadHomeDir = dcrutil.AppDataDir("politeiad", false)
@@ -119,6 +97,7 @@ func execImportCmd(args []string) error {
 	c := &importCmd{
 		legacyDir: legacyDir,
 		tstore:    ts,
+		token:     *importToken,
 	}
 
 	// Import the legacy proposals
@@ -131,6 +110,7 @@ func execImportCmd(args []string) error {
 type importCmd struct {
 	sync.Mutex
 	legacyDir string
+	token     string // Optional
 	tstore    *tstore.Tstore
 }
 
@@ -240,6 +220,11 @@ func (c *importCmd) importLegacyProposals() error {
 	// map[legacyToken]tstoreToken
 	rfpTokens := make(map[string][]byte, len(legacyInv))
 	for _, legacyToken := range legacyInv {
+		if c.token != "" && c.token != legacyToken {
+			// The caller wants to import a specific
+			// proposal and this is not it.
+			continue
+		}
 		p, err := readProposal(c.legacyDir, legacyToken)
 		if err != nil {
 			return err
@@ -256,6 +241,12 @@ func (c *importCmd) importLegacyProposals() error {
 
 	// 6. Add the remaining legacy proposals to tstore
 	for _, legacyToken := range legacyInv {
+		if c.token != "" && c.token != legacyToken {
+			// The caller wants to import a specific
+			// proposal and this is not it.
+			continue
+		}
+
 		// Skip RFPs since they've already been imported
 		p, err := readProposal(c.legacyDir, legacyToken)
 		if err != nil {
@@ -291,6 +282,8 @@ func (c *importCmd) importLegacyProposals() error {
 // tstore. If a partial import is found, this function will pick up where the
 // previous invocation left off and finish the import.
 func (c *importCmd) fsckProposal(legacyToken string, tstoreToken []byte) error {
+	fmt.Printf("Fsck proposal %x %v\n", tstoreToken, legacyToken)
+
 	return nil
 }
 
@@ -300,17 +293,19 @@ func (c *importCmd) fsckProposal(legacyToken string, tstoreToken []byte) error {
 // This function assumes that the proposal does not yet exist in tstore.
 // Handling proposals that have been partially added is done by the
 // fsckPropsal() function.
-//
-// This function replaces the git backend token with the tstore backend token
-// in the following structures:
-// - Fill
-// - In
-// - This
-// - List
 func (c *importCmd) importProposal(p *proposal) ([]byte, error) {
+	fmt.Printf("Importing proposal %v\n", p.RecordMetadata.Token)
 
 	// Create a new tstore record entry
 	tstoreToken, err := c.tstore.RecordNew()
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("  Tstore token: %x\n", tstoreToken)
+
+	// Perform proposal data changes
+	err = overwriteProposalFields(p, tstoreToken)
 	if err != nil {
 		return nil, err
 	}
@@ -354,6 +349,8 @@ func (c *importCmd) importProposal(p *proposal) ([]byte, error) {
 		metadata = append(metadata, *mdStream)
 	}
 
+	fmt.Printf("  Saving record to tstore...\n")
+
 	// Save the record to tstore
 	err = c.tstore.RecordSave(tstoreToken,
 		p.RecordMetadata, metadata, p.Files)
@@ -364,10 +361,12 @@ func (c *importCmd) importProposal(p *proposal) ([]byte, error) {
 	// Save the comment plugin data to tstore. This is done in a
 	// separate go routine to get around the trillian log signer
 	// bottleneck.
+	fmt.Printf("  Saving comment plugin data to tstore...\n")
 
 	// Save the ticketvote plugin data to tstore. This is done is
 	// a seperate go routine to get around the trillian log signer
 	// bottleneck.
+	fmt.Printf("  Saving ticketvote plugin data to tstore...\n")
 
 	return nil, nil
 }

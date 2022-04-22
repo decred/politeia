@@ -59,4 +59,7 @@ Command Usage: import
   --dbhost      (string)  Host for mysql db. (default: localhost:3306)
 
   --dbpass      (string)  Password for mysql politeiad user.
-                          (default: politeiadpass)`
+                          (default: politeiadpass)
+
+  --token      (string)  Specify a single legacy token whose contents will be
+                         converted and saved to disk. (default: "")`
