@@ -217,13 +217,14 @@ func (c *importCmd) importLegacyProposals() error {
 	// 5. Add the legacy RFP proposals to tstore. This must be done
 	//    first so that the RFP submissions can link to the tstore
 	//    RFP proposal token.
-	//
-	// map[legacyToken]tstoreToken
-	rfpTokens := make(map[string][]byte, len(legacyInv))
 	for _, legacyToken := range legacyInv {
 		if c.token != "" && c.token != legacyToken {
 			// The caller wants to import a specific
 			// proposal and this is not it.
+			continue
+		}
+		if _, ok := imported[legacyToken]; ok {
+			// This proposal has already been imported
 			continue
 		}
 		p, err := readProposal(c.legacyDir, legacyToken)
@@ -231,13 +232,15 @@ func (c *importCmd) importLegacyProposals() error {
 			return err
 		}
 		if !p.isRFP() {
+			// This is not an RFP. Skip it for now.
 			continue
 		}
 		tstoreToken, err := c.importProposal(p)
 		if err != nil {
 			return err
 		}
-		rfpTokens[legacyToken] = tstoreToken
+
+		imported[legacyToken] = tstoreToken
 	}
 
 	// 6. Add the remaining legacy proposals to tstore
@@ -247,33 +250,37 @@ func (c *importCmd) importLegacyProposals() error {
 			// proposal and this is not it.
 			continue
 		}
+		if _, ok := imported[legacyToken]; ok {
+			// This proposal has already been imported
+			continue
+		}
 
-		// Skip RFPs since they've already been imported
+		// Read the proposal from disk
 		p, err := readProposal(c.legacyDir, legacyToken)
 		if err != nil {
 			return err
 		}
-		if p.isRFP() {
-			continue
-		}
 
 		// Update RFP submissions with the RFP parent tstore token
+		// TODO move this to overwriteProposalFields()
 		if p.isRFPSubmission() {
-			legacyToken := p.VoteMetadata.LinkTo
-			tstoreToken, ok := rfpTokens[legacyToken]
+			parentLegacyToken := p.VoteMetadata.LinkTo
+			parentTstoreToken, ok := imported[parentLegacyToken]
 			if !ok {
 				// Should not happen
 				return fmt.Errorf("rpf parent tstore token not found for %v",
-					legacyToken)
+					parentLegacyToken)
 			}
-			p.VoteMetadata.LinkTo = util.TokenEncode(tstoreToken)
+			p.VoteMetadata.LinkTo = hex.EncodeToString(parentTstoreToken)
 		}
 
 		// Import the proposal
-		_, err = c.importProposal(p)
+		tstoreToken, err := c.importProposal(p)
 		if err != nil {
 			return err
 		}
+
+		imported[legacyToken] = tstoreToken
 	}
 
 	return nil

@@ -5,6 +5,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -214,6 +215,13 @@ Fields that have been updated:
 // Documentation for each field that is updated is provided below and details
 // the specific reason for the update.
 func overwriteProposalFields(p *proposal, tstoreToken []byte) error {
+	// The record metadata token is updated to match the tstore
+	// token. The record metadata token matching the tstore tree
+	// ID is an assumption that the tstore backend makes. Not
+	// doing this would cause bugs throughout the backend code.
+	legacyToken := p.RecordMetadata.Token
+	p.RecordMetadata.Token = hex.EncodeToString(tstoreToken)
+
 	// The record metadata version and iteration must both
 	// be update to be 1. This is required because the tstore
 	// backend expects the versions and iterations to be
@@ -230,7 +238,7 @@ func overwriteProposalFields(p *proposal, tstoreToken []byte) error {
 	// field populated. It allows clients to know that this
 	// is a legacy git backend proposal and to treat it
 	// accordingly.
-	p.ProposalMetadata.LegacyToken = p.RecordMetadata.Token
+	p.ProposalMetadata.LegacyToken = legacyToken
 
 	return nil
 }
