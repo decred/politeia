@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -304,56 +305,10 @@ func (c *importCmd) importProposal(p *proposal) ([]byte, error) {
 
 	fmt.Printf("  Tstore token: %x\n", tstoreToken)
 
-	// Perform proposal data changes
-	err = overwriteProposalFields(p, tstoreToken)
-	if err != nil {
-		return nil, err
-	}
+	// Save the proposal to tstore
+	fmt.Printf("  Saving proposal to tstore...\n")
 
-	// Convert user generated metadata into backend files.
-	//
-	// User generated metadata includes:
-	// - pi plugin ProposalMetadata
-	// - ticketvote plugin VoteMetadata (may not exist)
-	f, err := convertProposalMetadataToFile(p.ProposalMetadata)
-	if err != nil {
-		return nil, err
-	}
-	p.Files = append(p.Files, *f)
-
-	if p.VoteMetadata != nil {
-		f, err := convertVoteMetadataToFile(*p.VoteMetadata)
-		if err != nil {
-			return nil, err
-		}
-		p.Files = append(p.Files, *f)
-	}
-
-	// Convert server generated metadata into backed metadata.
-	//
-	// Server generated metadata includes:
-	// - user plugin StatusChangeMetadata
-	// - user plugin UserMetadata
-	metadata := make([]backend.MetadataStream, 0, 16)
-	mdStream, err := convertUserMetadataToMetadataStream(p.UserMetadata)
-	if err != nil {
-		return nil, err
-	}
-	metadata = append(metadata, *mdStream)
-
-	for _, v := range p.StatusChanges {
-		mdStream, err := convertStatusChangeToMetadataStream(v)
-		if err != nil {
-			return nil, err
-		}
-		metadata = append(metadata, *mdStream)
-	}
-
-	fmt.Printf("  Saving record to tstore...\n")
-
-	// Save the record to tstore
-	err = c.tstore.RecordSave(tstoreToken,
-		p.RecordMetadata, metadata, p.Files)
+	err = c.saveProposal(tstoreToken, p)
 	if err != nil {
 		return nil, err
 	}
@@ -369,6 +324,147 @@ func (c *importCmd) importProposal(p *proposal) ([]byte, error) {
 	fmt.Printf("  Saving ticketvote plugin data to tstore...\n")
 
 	return nil, nil
+}
+
+// saveProposal saves a proposal to tstore using the same steps that would
+// occur under if the proposal was saved under normal conditions and not being
+// imported by this tool. This is required because there are certain steps that
+// the tstore backend must complete, ex. re-saving encrypted blobs as plain
+// text when a proposal is made public, in order for the proposal to be
+// imported correctly.
+func (c *importCmd) saveProposal(tstoreToken []byte, p *proposal) error {
+	// Perform proposal data changes
+	err := overwriteProposalFields(p, tstoreToken)
+	if err != nil {
+		return err
+	}
+
+	// Convert user generated metadata into backend files.
+	//
+	// User generated metadata includes:
+	// - pi plugin ProposalMetadata
+	// - ticketvote plugin VoteMetadata (may not exist)
+	f, err := convertProposalMetadataToFile(p.ProposalMetadata)
+	if err != nil {
+		return err
+	}
+	p.Files = append(p.Files, *f)
+
+	if p.VoteMetadata != nil {
+		f, err := convertVoteMetadataToFile(*p.VoteMetadata)
+		if err != nil {
+			return err
+		}
+		p.Files = append(p.Files, *f)
+	}
+
+	// Convert server generated metadata into backed metadata.
+	//
+	// Server generated metadata includes:
+	// - user plugin StatusChangeMetadata
+	// - user plugin UserMetadata
+	//
+	// Public proposals will only have one status change. Abandoned
+	// proposals will have two status changes, the public status change
+	// and the archived status change. The status changes are handled
+	// individually and not automatically added to the same metadata
+	// stream so that we can mimick how status change data is saved
+	// under normal operation.
+	userStream, err := convertUserMetadataToMetadataStream(p.UserMetadata)
+	if err != nil {
+		return err
+	}
+
+	var (
+		publicStatus    = p.StatusChanges[0]
+		abandonedStatus *usermd.StatusChangeMetadata
+	)
+	if len(p.StatusChanges) > 1 {
+		abandonedStatus = &p.StatusChanges[1]
+	}
+
+	// Cache the record status that we will end up at. We
+	// must go through the normal status iterations in order
+	// to import the proposal correctly.
+	//
+	// Ex: unreviewed -> public -> abandoned
+	status := p.RecordMetadata.Status
+
+	// Save the proposal as unvetted
+	p.RecordMetadata.State = backend.StateUnvetted
+	p.RecordMetadata.Status = backend.StatusUnreviewed
+
+	metadataStreams := []backend.MetadataStream{
+		*userStream,
+	}
+
+	err = c.tstore.RecordSave(tstoreToken, p.RecordMetadata,
+		metadataStreams, p.Files)
+	if err != nil {
+		return err
+	}
+
+	// Save the proposal as vetted. The public status change
+	// is added to the status change metadata stream during
+	// this step.  The timestamp is incremented by 1 second
+	// so it's not the same timestamp as the unvetted version.
+	p.RecordMetadata.State = backend.StateVetted
+	p.RecordMetadata.Status = backend.StatusPublic
+	p.RecordMetadata.Timestamp += 1
+
+	statusChangeStream, err := convertStatusChangeToMetadataStream(publicStatus)
+	if err != nil {
+		return err
+	}
+
+	metadataStreams = []backend.MetadataStream{
+		*userStream,
+		*statusChangeStream,
+	}
+
+	err = c.tstore.RecordSave(tstoreToken, p.RecordMetadata,
+		metadataStreams, p.Files)
+	if err != nil {
+		return err
+	}
+
+	switch status {
+	case backend.StatusPublic:
+		// This is a public proposal. There is nothing else
+		// that needs to be done.
+		return nil
+
+	case backend.StatusArchived:
+		// This is an abandoned proposal. Continue so that the
+		// status is updated below.
+
+	default:
+		// This should not happen. There should only be public
+		// and abandoned proposals.
+		return fmt.Errorf("invalid record status %v", status)
+	}
+
+	// This is an abandoned proposal. Update the record metadata,
+	// add the abandoned status to the status changes metadata
+	// stream, and freeze the tstore record. This is what would
+	// happen under regular operating conditions. The timestamp
+	// is incremented by 1 second so that it is unique.
+	p.RecordMetadata.Status = backend.StatusArchived
+	p.RecordMetadata.Iteration += 1
+	p.RecordMetadata.Timestamp += 1
+
+	abandonedStream, err := convertStatusChangeToMetadataStream(*abandonedStatus)
+	if err != nil {
+		return err
+	}
+
+	metadataStreams = []backend.MetadataStream{
+		*userStream,
+		appendMetadataStream(*statusChangeStream, *abandonedStream),
+	}
+
+	return c.tstore.RecordFreeze(tstoreToken, p.RecordMetadata,
+		metadataStreams, p.Files)
 }
 
 // parseLegacyTokens parses and returns all the unique tokens that are found in
@@ -399,6 +495,15 @@ func parseLegacyTokens(dir string) ([]string, error) {
 	})
 
 	return legacyTokens, nil
+}
+
+// appendMetadataStream appends the addition metadata streams onto the
+// base metadata stream.
+func appendMetadataStream(base, addition backend.MetadataStream) backend.MetadataStream {
+	buf := bytes.NewBuffer([]byte(base.Payload))
+	buf.WriteString(addition.Payload)
+	base.Payload = buf.String()
+	return base
 }
 
 // decodeLegacyTokenFromFiles decodes and returns the ProposalMetadata from the
