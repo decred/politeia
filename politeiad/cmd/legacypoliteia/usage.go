@@ -62,4 +62,13 @@ Command Usage: import
                           (default: politeiadpass)
 
   --token      (string)  Specify a single legacy token whose contents will be
-                         converted and saved to disk. (default: "")`
+                         converted and saved to disk. (default: "")
+
+  --stubusers  (bool)    Create user stubs in the politeiawww user database
+                         that correspond to the user IDs of all imported
+                         proposals. This allows you to import mainnet Politeia
+                         data locally for testing purposes. Faliure to create
+                         user stubs will result in politeiawww throwing 'user
+                         not found' errors when attempting to retrieve the
+                         imported proposal data using the standard politeiawww
+                         API.`

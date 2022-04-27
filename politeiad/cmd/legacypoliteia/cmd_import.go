@@ -12,12 +12,15 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
@@ -25,16 +28,22 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 	"github.com/decred/politeia/politeiawww/config"
+	"github.com/decred/politeia/politeiawww/legacy/user"
+	mysqldb "github.com/decred/politeia/politeiawww/legacy/user/mysql"
 	"github.com/decred/politeia/util"
+	"github.com/google/uuid"
 )
 
 const (
-	// Default command settings
+	// tstore settings
 	defaultTlogHost = "localhost:8090"
 	defaultTlogPass = "tlogpass"
 	defaultDBType   = "mysql"
 	defaultDBHost   = "localhost:3306"
 	defaultDBPass   = "politeiadpass"
+
+	// User database settings
+	userDBPass = "politeiawwwpass"
 )
 
 var (
@@ -46,6 +55,7 @@ var (
 	dbHost      = importFlags.String("dbhost", defaultDBHost, "")
 	dbPass      = importFlags.String("dbpass", defaultDBPass, "")
 	importToken = importFlags.String("token", "", "")
+	stubUsers   = importFlags.Bool("stubusers", false, "")
 
 	// tstore settings
 	politeiadHomeDir = dcrutil.AppDataDir("politeiad", false)
@@ -53,6 +63,9 @@ var (
 	dbType           = tstore.DBTypeMySQL
 	dcrtimeHost      = "" // Not needed for import
 	dcrtimeCert      = "" // Not needed for import
+
+	// User database settings
+	userDBEncryptionKey = filepath.Join(config.DefaultHomeDir, "sbox.key")
 )
 
 // execImportCmd executes the import command.
@@ -94,11 +107,30 @@ func execImportCmd(args []string) error {
 		return err
 	}
 
+	var (
+		userDB user.Database
+		httpC  *http.Client
+	)
+	if *stubUsers {
+		userDB, err = mysqldb.New(*dbHost, userDBPass,
+			params.Name, userDBEncryptionKey)
+		if err != nil {
+			return err
+		}
+		httpC, err = util.NewHTTPClient(false, "")
+		if err != nil {
+			return err
+		}
+	}
+
 	// Setup the import cmd
 	c := &importCmd{
 		legacyDir: legacyDir,
 		tstore:    ts,
 		token:     *importToken,
+		stubUsers: *stubUsers,
+		userDB:    userDB,
+		http:      httpC,
 	}
 
 	// Import the legacy proposals
@@ -112,7 +144,13 @@ type importCmd struct {
 	sync.Mutex
 	legacyDir string
 	token     string // Optional
+	stubUsers bool
 	tstore    *tstore.Tstore
+
+	// The following fields will only be populated when the caller provides
+	// the stub users flag.
+	userDB user.Database
+	http   *http.Client
 }
 
 // importProposals walks the legacy directory and imports the legacy proposals
@@ -280,6 +318,15 @@ func (c *importCmd) importLegacyProposals() error {
 		}
 
 		imported[legacyToken] = tstoreToken
+
+		// Stub the user in the politeiawww user database
+		if c.stubUsers {
+			err = c.stubUser(p.UserMetadata.UserID,
+				[]string{p.UserMetadata.PublicKey})
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -481,6 +528,53 @@ func (c *importCmd) saveProposal(p *proposal, tstoreToken, rfpTstoreToken []byte
 
 	return c.tstore.RecordFreeze(tstoreToken, p.RecordMetadata,
 		metadataStreams, p.Files)
+}
+
+func (c *importCmd) stubUser(userID string, publicKeys []string) error {
+	if len(publicKeys) == 0 {
+		return fmt.Errorf("no public keys found for %v", userID)
+	}
+
+	// Pull the username from the mainnet Politeia API
+	u, err := userByID(c.http, userID)
+	if err != nil {
+		return err
+	}
+
+	// Setup the identities
+	ids := make([]user.Identity, 0, len(publicKeys))
+	t := time.Now().Unix()
+	for _, v := range publicKeys {
+		id, err := identity.PublicIdentityFromString(v)
+		if err != nil {
+			return err
+		}
+		ids = append(ids, user.Identity{
+			Key:         id.Key,
+			Activated:   t,
+			Deactivated: t + 1,
+		})
+	}
+	// Make the last identity the active one. Not sure
+	// if this actually matters, but do it anyway.
+	ids[len(ids)-1].Deactivated = 0
+
+	// Parse the user ID
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("  Stubbing user %v %v\n", u.Username, uid)
+
+	return c.userDB.InsertUser(user.User{
+		ID:             uid,
+		Email:          u.Username + "@example.com",
+		Username:       u.Username,
+		HashedPassword: []byte("password"),
+		Admin:          false,
+		Identities:     ids,
+	})
 }
 
 // parseLegacyTokens parses and returns all the unique tokens that are found in

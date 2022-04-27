@@ -968,7 +968,7 @@ func (c *convertCmd) userIDByPubKey(userPubKey string) (string, error) {
 	if userID != "" {
 		return userID, nil
 	}
-	u, err := c.userByPubKey(userPubKey)
+	u, err := userByPubKey(c.client, userPubKey)
 	if err != nil {
 		return "", err
 	}

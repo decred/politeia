@@ -189,27 +189,6 @@ func verifyProposal(p proposal) error {
 	return nil
 }
 
-/*
-The token is updated in
-
-TODO
-Remove broken signatures
-
-Signatures that are broken:
-- usermd plugin StatusChangeMetadata Signature (wrong message)
-- comments plugin CommentAdd Signature (wrong message)
-- comments plugin CommentDel Signature (wrong message)
-- comments plugin CommentVote Signature (wrong message)
-- ticketvote plugin AuthDetails Receipt (wrong server pubkey)
-- ticketvote plugin VoteDetails Signature (wrong message)
-- ticketvote plugin VoteDetails Receipt (wrong message, wrong server pubkey)
-- ticketvote plugin CastVoteDetails Signature
-- ticketvote plugin CastVoteDetails Receipt
-
-Signatures that are not broken and are kept:
-- usermd UserMetadata Signature
-*/
-
 // overwriteProposalFields overwrites legacy proposal fields that are required
 // to be changed or removed in order to be successfully imported into the
 // tstore backend.
