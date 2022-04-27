@@ -235,7 +235,7 @@ func (c *importCmd) importLegacyProposals() error {
 			// This is not an RFP. Skip it for now.
 			continue
 		}
-		tstoreToken, err := c.importProposal(p)
+		tstoreToken, err := c.importProposal(p, nil)
 		if err != nil {
 			return err
 		}
@@ -261,21 +261,20 @@ func (c *importCmd) importLegacyProposals() error {
 			return err
 		}
 
-		// Update RFP submissions with the RFP parent tstore token
-		// TODO move this to overwriteProposalFields()
+		// Lookup th RFP parent tstore token if this is an RFP submission.
+		// The RFP submissions must reference the parent RFP tstore token,
+		// not the parent RFP legacy token.
+		var rfpTstoreToken []byte
 		if p.isRFPSubmission() {
-			parentLegacyToken := p.VoteMetadata.LinkTo
-			parentTstoreToken, ok := imported[parentLegacyToken]
-			if !ok {
+			rfpTstoreToken = imported[p.VoteMetadata.LinkTo]
+			if rfpTstoreToken == nil {
 				// Should not happen
-				return fmt.Errorf("rpf parent tstore token not found for %v",
-					parentLegacyToken)
+				return fmt.Errorf("rpf parent tstore token not found")
 			}
-			p.VoteMetadata.LinkTo = hex.EncodeToString(parentTstoreToken)
 		}
 
 		// Import the proposal
-		tstoreToken, err := c.importProposal(p)
+		tstoreToken, err := c.importProposal(p, rfpTstoreToken)
 		if err != nil {
 			return err
 		}
@@ -298,10 +297,15 @@ func (c *importCmd) fsckProposal(legacyToken string, tstoreToken []byte) error {
 // importProposal imports the specified legacy proposal into tstore and returns
 // the tstore token that is created during import.
 //
+// rfpTstoreToken is an optional argument that will be populated for RFP
+// submissions. The rfpTstoreToken is the parent RFP tstore token that the
+// RFP submissions will need to reference. This argument will be nil for all
+// proposals that are not RFP submissions.
+//
 // This function assumes that the proposal does not yet exist in tstore.
 // Handling proposals that have been partially added is done by the
 // fsckPropsal() function.
-func (c *importCmd) importProposal(p *proposal) ([]byte, error) {
+func (c *importCmd) importProposal(p *proposal, rfpTstoreToken []byte) ([]byte, error) {
 	fmt.Printf("Importing proposal %v\n", p.RecordMetadata.Token)
 
 	// Create a new tstore record entry
@@ -315,7 +319,7 @@ func (c *importCmd) importProposal(p *proposal) ([]byte, error) {
 	// Save the proposal to tstore
 	fmt.Printf("  Saving proposal to tstore...\n")
 
-	err = c.saveProposal(tstoreToken, p)
+	err = c.saveProposal(p, tstoreToken, rfpTstoreToken)
 	if err != nil {
 		return nil, err
 	}
@@ -326,7 +330,7 @@ func (c *importCmd) importProposal(p *proposal) ([]byte, error) {
 	fmt.Printf("  Saving comment plugin data to tstore...\n")
 
 	// Save the ticketvote plugin data to tstore. This is done is
-	// a seperate go routine to get around the trillian log signer
+	// a separate go routine to get around the trillian log signer
 	// bottleneck.
 	fmt.Printf("  Saving ticketvote plugin data to tstore...\n")
 
@@ -339,9 +343,14 @@ func (c *importCmd) importProposal(p *proposal) ([]byte, error) {
 // the tstore backend must complete, ex. re-saving encrypted blobs as plain
 // text when a proposal is made public, in order for the proposal to be
 // imported correctly.
-func (c *importCmd) saveProposal(tstoreToken []byte, p *proposal) error {
+//
+// rfpTstoreToken is an optional argument that will be populated for RFP
+// submissions. The rfpTstoreToken is the parent RFP tstore token that the
+// RFP submissions will need to reference. This argument will be nil for all
+// proposals that are not RFP submissions.
+func (c *importCmd) saveProposal(p *proposal, tstoreToken, rfpTstoreToken []byte) error {
 	// Perform proposal data changes
-	err := overwriteProposalFields(p, tstoreToken)
+	err := overwriteProposalFields(p, tstoreToken, rfpTstoreToken)
 	if err != nil {
 		return err
 	}

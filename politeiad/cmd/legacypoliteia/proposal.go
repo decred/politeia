@@ -198,14 +198,6 @@ Signatures that are broken:
 - ticketvote AuthDetails receipt (wrong server pubkey)
 - ticketvote VoteDetails signature (wrong message)
 - ticketvote VoteDetails receipt (wrong message, wrong server pubkey)
-
-Fields that have been updated:
-- RecordMetadata
-	-[x] Version and iteration are updated to 1
-- ProposalMetadata
-  -[x] LegacyToken is populated
-- VoteMetadata
-  -[ ] LinkTo is updated with the tstore legacy RFP submissions
 */
 
 // overwriteProposalFields overwrites legacy proposal fields that are required
@@ -214,7 +206,7 @@ Fields that have been updated:
 //
 // Documentation for each field that is updated is provided below and details
 // the specific reason for the update.
-func overwriteProposalFields(p *proposal, tstoreToken []byte) error {
+func overwriteProposalFields(p *proposal, tstoreToken, rfpTstoreToken []byte) error {
 	// The record metadata token is updated to match the tstore
 	// token. The record metadata token matching the tstore tree
 	// ID is an assumption that the tstore backend makes. Not
@@ -239,6 +231,18 @@ func overwriteProposalFields(p *proposal, tstoreToken []byte) error {
 	// is a legacy git backend proposal and to treat it
 	// accordingly.
 	p.ProposalMetadata.LegacyToken = legacyToken
+
+	// RFP submissions will have their LinkTo field of the
+	// ProposalMetadata populated with the token of the parent
+	// RFP proposal. This field will contain the legacy token
+	// of the parent RFP proposal and needs to be updated with
+	// the tstore token of the RFP parent proposal. This means
+	// that the parent RFP proposal will have needed to be
+	// imported into tstore prior to importing any of the RFP
+	// submissions.
+	if p.isRFPSubmission() {
+		p.VoteMetadata.LinkTo = hex.EncodeToString(rfpTstoreToken)
+	}
 
 	return nil
 }
