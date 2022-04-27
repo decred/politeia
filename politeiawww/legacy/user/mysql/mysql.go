@@ -715,7 +715,7 @@ func (m *mysql) InsertUser(u user.User) error {
 		CreatedAt: time.Now().Unix(),
 	}
 	_, err = m.userDB.ExecContext(ctx,
-		"INSERT INTO users (ID, username, uBlob, createdAt) VALUES (?, ?, ?, ?)",
+		"INSERT INTO users (id, username, u_blob, created_at) VALUES (?, ?, ?, ?)",
 		ur.ID, ur.Username, ur.Blob, ur.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("insert user: %v", err)
