@@ -190,14 +190,24 @@ func verifyProposal(p proposal) error {
 }
 
 /*
+The token is updated in
+
 TODO
 Remove broken signatures
 
 Signatures that are broken:
-- usermd StatusChangeMetadata signature (wrong message)
-- ticketvote AuthDetails receipt (wrong server pubkey)
-- ticketvote VoteDetails signature (wrong message)
-- ticketvote VoteDetails receipt (wrong message, wrong server pubkey)
+- usermd plugin StatusChangeMetadata Signature (wrong message)
+- comments plugin CommentAdd Signature (wrong message)
+- comments plugin CommentDel Signature (wrong message)
+- comments plugin CommentVote Signature (wrong message)
+- ticketvote plugin AuthDetails Receipt (wrong server pubkey)
+- ticketvote plugin VoteDetails Signature (wrong message)
+- ticketvote plugin VoteDetails Receipt (wrong message, wrong server pubkey)
+- ticketvote plugin CastVoteDetails Signature
+- ticketvote plugin CastVoteDetails Receipt
+
+Signatures that are not broken and are kept:
+- usermd UserMetadata Signature
 */
 
 // overwriteProposalFields overwrites legacy proposal fields that are required
@@ -206,22 +216,117 @@ Signatures that are broken:
 //
 // Documentation for each field that is updated is provided below and details
 // the specific reason for the update.
-func overwriteProposalFields(p *proposal, tstoreToken, rfpTstoreToken []byte) error {
-	// The record metadata token is updated to match the tstore
-	// token. The record metadata token matching the tstore tree
-	// ID is an assumption that the tstore backend makes. Not
-	// doing this would cause bugs throughout the backend code.
-	legacyToken := p.RecordMetadata.Token
-	p.RecordMetadata.Token = hex.EncodeToString(tstoreToken)
+func overwriteProposalFields(p *proposal, tstoreTokenB, rfpTstoreTokenB []byte) error {
+	var (
+		legacyToken    = p.RecordMetadata.Token
+		tstoreToken    = hex.EncodeToString(tstoreTokenB)
+		rfpTstoreToken = hex.EncodeToString(rfpTstoreTokenB)
+	)
+
+	// All structures that contain a Token field are updated.
+	// The field currently contains the legacy proposal token.
+	// It's updated to reference the tstore proposal token.
+	//
+	// The following structures are updated:
+	// - backend RecordMetadata
+	// - usermd plugin StatusChangeMetadata
+	// - comments plugin CommentAdd
+	// - comments plugin CommentDel
+	// - comments plugin CommentVote
+	// - ticketvote plugin AuthDetails
+	// - ticketvote plugin VoteDetails
+	// - ticketvote plugin CastVoteDetails
+	p.RecordMetadata.Token = tstoreToken
+	p.AuthDetails.Token = tstoreToken
+	p.VoteDetails.Params.Token = tstoreToken
+
+	for i, v := range p.StatusChanges {
+		v.Token = tstoreToken
+		p.StatusChanges[i] = v
+	}
+	for i, v := range p.CommentAdds {
+		v.Token = tstoreToken
+		p.CommentAdds[i] = v
+	}
+	for i, v := range p.CommentDels {
+		v.Token = tstoreToken
+		p.CommentDels[i] = v
+	}
+	for i, v := range p.CommentVotes {
+		v.Token = tstoreToken
+		p.CommentVotes[i] = v
+	}
+	for i, v := range p.CastVotes {
+		v.Token = tstoreToken
+		p.CastVotes[i] = v
+	}
+
+	// All of the client signatures and server receipts are broken
+	// and are removed to avoid confusion. The most common reason
+	// that a signature is broken is because the message being signed
+	// included the legacy proposal token and we just updated the
+	// proposal token fields to reflect the tstore token, not the
+	// legacy token. The original data and coherent signatures can
+	// be found in the legacy proposal git repo.
+	//
+	// Other reasons that the signatures and receipts may be broken
+	// include:
+	//
+	// - The message being signed changed. This can be the token or
+	//   in some cases, like the comments plugin, additional pieces
+	//   of data were added to the message.
+	//
+	// - All receipts are broken because the Politeia server key
+	//   was switched out during the update from the git backend to
+	//   the tstore backend. Not sure if this was intentional or an
+	//   accident. There was no reason that it had to be switched so
+	//   it may have been an accident.
+	//
+	// - The usermd plugin UserMetadata signature is broken because
+	//   the merkle root of the files is different. The archived
+	//   proposals do not contain a proposalmetadata.json file. The
+	//   import process creates this file for the legacy proposals
+	//   and adds it to the file bundle, causing the merkle root of
+	//   the files to change.
+	p.UserMetadata.Signature = ""
+	p.AuthDetails.Signature = ""
+	p.AuthDetails.Receipt = ""
+	p.VoteDetails.Signature = ""
+	p.VoteDetails.Receipt = ""
+
+	for i, v := range p.StatusChanges {
+		v.Signature = ""
+		p.StatusChanges[i] = v
+	}
+	for i, v := range p.CommentAdds {
+		v.Signature = ""
+		v.Receipt = ""
+		p.CommentAdds[i] = v
+	}
+	for i, v := range p.CommentDels {
+		v.Signature = ""
+		v.Receipt = ""
+		p.CommentDels[i] = v
+	}
+	for i, v := range p.CommentVotes {
+		v.Signature = ""
+		v.Receipt = ""
+		p.CommentVotes[i] = v
+	}
+	for i, v := range p.CastVotes {
+		v.Signature = ""
+		v.Receipt = ""
+		p.CastVotes[i] = v
+	}
 
 	// The record metadata version and iteration must both
 	// be update to be 1. This is required because the tstore
 	// backend expects the versions and iterations to be
 	// sequential. For example, the tstore backend will error
-	// if it finds a record that contains a iteration 2, but
-	// not iteration 1. We only import the most recent
-	// version and iteration of a legacy proposal, so we must
-	// update the record metadata to reflect that.
+	// if it finds a record that contains an iteration 2, but
+	// no corresponding iteration 1. We only import the most
+	// recent version and iteration of a legacy proposal, so
+	// we must update the record metadata to reflect that.
 	p.RecordMetadata.Version = 1
 	p.RecordMetadata.Iteration = 1
 
@@ -234,14 +339,11 @@ func overwriteProposalFields(p *proposal, tstoreToken, rfpTstoreToken []byte) er
 
 	// RFP submissions will have their LinkTo field of the
 	// ProposalMetadata populated with the token of the parent
-	// RFP proposal. This field will contain the legacy token
-	// of the parent RFP proposal and needs to be updated with
-	// the tstore token of the RFP parent proposal. This means
-	// that the parent RFP proposal will have needed to be
-	// imported into tstore prior to importing any of the RFP
-	// submissions.
+	// RFP proposal. This field will contain the parent RFP
+	// proposal's legacy token and needs to be updated with
+	// the RFP parent proposal's tstore token.
 	if p.isRFPSubmission() {
-		p.VoteMetadata.LinkTo = hex.EncodeToString(rfpTstoreToken)
+		p.VoteMetadata.LinkTo = rfpTstoreToken
 	}
 
 	return nil
