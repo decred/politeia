@@ -24,7 +24,9 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	backend "github.com/decred/politeia/politeiad/backendv2"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
+	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
@@ -365,45 +367,40 @@ func (c *importCmd) importProposal(p *proposal, rfpTstoreToken []byte) ([]byte, 
 
 	fmt.Printf("  Tstore token: %x\n", tstoreToken)
 
-	// Save the proposal to tstore
-	fmt.Printf("  Saving proposal to tstore...\n")
-
-	err = c.saveProposal(p, tstoreToken, rfpTstoreToken)
+	// Perform proposal data changes
+	err = overwriteProposalFields(p, tstoreToken, rfpTstoreToken)
 	if err != nil {
 		return nil, err
 	}
 
-	// Save the comment plugin data to tstore. This is done in a
-	// separate go routine to get around the trillian log signer
-	// bottleneck.
-	fmt.Printf("  Saving comment plugin data to tstore...\n")
+	// Import the proposal contents
+	fmt.Printf("  Importing record data...\n")
+	err = c.importRecord(*p, tstoreToken)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("  Importing comment plugin data...\n")
+	err = c.importCommentsPlugin(*p, tstoreToken)
+	if err != nil {
+		return nil, err
+	}
 
 	// Save the ticketvote plugin data to tstore. This is done is
 	// a separate go routine to get around the trillian log signer
 	// bottleneck.
-	fmt.Printf("  Saving ticketvote plugin data to tstore...\n")
+	fmt.Printf("  Importing ticketvote plugin data...\n")
 
 	return nil, nil
 }
 
-// saveProposal saves a proposal to tstore using the same steps that would
-// occur under if the proposal was saved under normal conditions and not being
-// imported by this tool. This is required because there are certain steps that
-// the tstore backend must complete, ex. re-saving encrypted blobs as plain
-// text when a proposal is made public, in order for the proposal to be
-// imported correctly.
-//
-// rfpTstoreToken is an optional argument that will be populated for RFP
-// submissions. The rfpTstoreToken is the parent RFP tstore token that the
-// RFP submissions will need to reference. This argument will be nil for all
-// proposals that are not RFP submissions.
-func (c *importCmd) saveProposal(p *proposal, tstoreToken, rfpTstoreToken []byte) error {
-	// Perform proposal data changes
-	err := overwriteProposalFields(p, tstoreToken, rfpTstoreToken)
-	if err != nil {
-		return err
-	}
-
+// importRecord imports the backend record portion of a proposal into tstore
+// using the same steps that would occur under if the proposal was saved under
+// normal conditions and not being imported by this tool. This is required
+// because there are certain steps that the tstore backend must complete, ex.
+// re-saving encrypted blobs as plain text when a proposal is made public, in
+// order for the proposal to be imported correctly.
+func (c *importCmd) importRecord(p proposal, tstoreToken []byte) error {
 	// Convert user generated metadata into backend files.
 	//
 	// User generated metadata includes:
@@ -530,6 +527,115 @@ func (c *importCmd) saveProposal(p *proposal, tstoreToken, rfpTstoreToken []byte
 
 	return c.tstore.RecordFreeze(tstoreToken, p.RecordMetadata,
 		metadataStreams, p.Files)
+}
+
+func (c *importCmd) importCommentsPlugin(p proposal, tstoreToken []byte) error {
+	for i, v := range p.CommentAdds {
+		s := fmt.Sprintf("    Comment add %v/%v", i+1, len(p.CommentAdds))
+		printInPlace(s)
+
+		err := c.saveCommentAdd(tstoreToken, v)
+		if err != nil {
+			return err
+		}
+
+		if i == len(p.CommentAdds)-1 {
+			fmt.Printf("\n")
+		}
+	}
+	for i, v := range p.CommentDels {
+		s := fmt.Sprintf("    Comment del %v/%v", i+1, len(p.CommentDels))
+		printInPlace(s)
+
+		err := c.saveCommentDel(tstoreToken, v)
+		if err != nil {
+			return err
+		}
+
+		if i == len(p.CommentDels)-1 {
+			fmt.Printf("\n")
+		}
+	}
+	for i, v := range p.CommentVotes {
+		s := fmt.Sprintf("    Comment vote %v/%v", i+1, len(p.CommentVotes))
+		printInPlace(s)
+
+		err := c.saveCommentVote(tstoreToken, v)
+		if err != nil {
+			return err
+		}
+
+		if i == len(p.CommentVotes)-1 {
+			fmt.Printf("\n")
+		}
+	}
+	return nil
+}
+
+const (
+	// The following data descriptors were pulled from the comments
+	// plugins. They are not exported from the comments plugin, so
+	// we needed to duplicate them here.
+	dataDescriptorCommentAdd  = comments.PluginID + "-add-v1"
+	dataDescriptorCommentDel  = comments.PluginID + "-del-v1"
+	dataDescriptorCommentVote = comments.PluginID + "-vote-v1"
+)
+
+// saveCommentAdd saves a CommentAdd to tstore as a plugin data blob.
+func (c *importCmd) saveCommentAdd(tstoreToken []byte, ca comments.CommentAdd) error {
+	data, err := json.Marshal(ca)
+	if err != nil {
+		return err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorCommentAdd,
+		})
+	if err != nil {
+		return err
+	}
+	be := store.NewBlobEntry(hint, data)
+	tstoreClient := tstore.NewTstoreClient(c.tstore, comments.PluginID)
+	return tstoreClient.BlobSave(tstoreToken, be)
+}
+
+// saveCommentAdd saves a CommentDel to tstore as a plugin data blob.
+func (c *importCmd) saveCommentDel(tstoreToken []byte, cd comments.CommentDel) error {
+	data, err := json.Marshal(cd)
+	if err != nil {
+		return err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorCommentDel,
+		})
+	if err != nil {
+		return err
+	}
+	be := store.NewBlobEntry(hint, data)
+	tstoreClient := tstore.NewTstoreClient(c.tstore, comments.PluginID)
+	return tstoreClient.BlobSave(tstoreToken, be)
+}
+
+// saveCommentAdd saves a CommentVote to tstore as a plugin data blob.
+func (c *importCmd) saveCommentVote(tstoreToken []byte, cv comments.CommentVote) error {
+	data, err := json.Marshal(cv)
+	if err != nil {
+		return err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorCommentVote,
+		})
+	if err != nil {
+		return err
+	}
+	be := store.NewBlobEntry(hint, data)
+	tstoreClient := tstore.NewTstoreClient(c.tstore, comments.PluginID)
+	return tstoreClient.BlobSave(tstoreToken, be)
 }
 
 func (c *importCmd) stubUser(userID string, publicKeys []string) error {
