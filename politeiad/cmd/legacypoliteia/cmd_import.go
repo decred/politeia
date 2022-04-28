@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -100,13 +101,14 @@ func execImportCmd(args []string) error {
 
 	fmt.Printf("Connecting to tstore...\n")
 
-	// Setup tstore connection
+	// Setup the tstore connection
 	ts, err := tstore.New(politeiadHomeDir, politeiadDataDir,
 		params, *tlogHost, dbType, *dbHost, *dbPass, "", "")
 	if err != nil {
 		return err
 	}
 
+	// Setup the user database connection
 	var (
 		userDB user.Database
 		httpC  *http.Client
@@ -535,6 +537,27 @@ func (c *importCmd) stubUser(userID string, publicKeys []string) error {
 		return fmt.Errorf("no public keys found for %v", userID)
 	}
 
+	// Check if this user already exists in the user database
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return err
+	}
+	_, err = c.userDB.UserGetById(uid)
+	switch {
+	case err == nil:
+		// User does already exist. Verify that the database user
+		// contains all of the public keys that were provided.
+		// TODO
+		return nil
+
+	case errors.Is(err, user.ErrUserNotFound):
+		// User doesn't exist; continue
+
+	default:
+		// All other errors
+		return err
+	}
+
 	// Pull the username from the mainnet Politeia API
 	u, err := userByID(c.http, userID)
 	if err != nil {
@@ -558,12 +581,6 @@ func (c *importCmd) stubUser(userID string, publicKeys []string) error {
 	// Make the last identity the active one. Not sure
 	// if this actually matters, but do it anyway.
 	ids[len(ids)-1].Deactivated = 0
-
-	// Parse the user ID
-	uid, err := uuid.Parse(userID)
-	if err != nil {
-		return err
-	}
 
 	fmt.Printf("  Stubbing user %v %v\n", u.Username, uid)
 

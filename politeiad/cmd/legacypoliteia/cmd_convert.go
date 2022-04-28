@@ -385,6 +385,15 @@ func (c *convertCmd) convertVoteMetadata(proposalDir string) (*ticketvote.VoteMe
 		return nil, err
 	}
 
+	// A VoteMetadata only needs to be built if the proposal
+	// contains fields that indicate that it's either an RFP
+	// or RFP submissions. These are the LinkBy and LinkTo
+	// fields.
+	if pm.LinkBy == 0 && pm.LinkTo == "" {
+		// We don't need a VoteMetadata for this proposal
+		return nil, nil
+	}
+
 	// Build the vote metadata
 	vm := convertVoteMetadata(pm)
 

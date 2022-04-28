@@ -78,7 +78,7 @@ func (p *proposal) isRFPSubmission() bool {
 
 // writeProposal writes a proposal to disk.
 func writeProposal(legacyDir string, p proposal) error {
-	fp := proposalPath(legacyDir, p.ProposalMetadata.LegacyToken)
+	fp := proposalPath(legacyDir, p.RecordMetadata.Token)
 	b, err := json.Marshal(p)
 	if err != nil {
 		return err
@@ -216,8 +216,6 @@ func overwriteProposalFields(p *proposal, tstoreTokenB, rfpTstoreTokenB []byte) 
 	// - ticketvote plugin VoteDetails
 	// - ticketvote plugin CastVoteDetails
 	p.RecordMetadata.Token = tstoreToken
-	p.AuthDetails.Token = tstoreToken
-	p.VoteDetails.Params.Token = tstoreToken
 
 	for i, v := range p.StatusChanges {
 		v.Token = tstoreToken
@@ -234,6 +232,12 @@ func overwriteProposalFields(p *proposal, tstoreTokenB, rfpTstoreTokenB []byte) 
 	for i, v := range p.CommentVotes {
 		v.Token = tstoreToken
 		p.CommentVotes[i] = v
+	}
+	if p.AuthDetails != nil {
+		p.AuthDetails.Token = tstoreToken
+	}
+	if p.VoteDetails != nil {
+		p.VoteDetails.Params.Token = tstoreToken
 	}
 	for i, v := range p.CastVotes {
 		v.Token = tstoreToken
@@ -268,10 +272,6 @@ func overwriteProposalFields(p *proposal, tstoreTokenB, rfpTstoreTokenB []byte) 
 	//   and adds it to the file bundle, causing the merkle root of
 	//   the files to change.
 	p.UserMetadata.Signature = ""
-	p.AuthDetails.Signature = ""
-	p.AuthDetails.Receipt = ""
-	p.VoteDetails.Signature = ""
-	p.VoteDetails.Receipt = ""
 
 	for i, v := range p.StatusChanges {
 		v.Signature = ""
@@ -296,6 +296,14 @@ func overwriteProposalFields(p *proposal, tstoreTokenB, rfpTstoreTokenB []byte) 
 		v.Signature = ""
 		v.Receipt = ""
 		p.CastVotes[i] = v
+	}
+	if p.AuthDetails != nil {
+		p.AuthDetails.Signature = ""
+		p.AuthDetails.Receipt = ""
+	}
+	if p.VoteDetails != nil {
+		p.VoteDetails.Signature = ""
+		p.VoteDetails.Receipt = ""
 	}
 
 	// The record metadata version and iteration must both

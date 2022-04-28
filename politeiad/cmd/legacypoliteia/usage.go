@@ -71,4 +71,4 @@ Command Usage: import
                          user stubs will result in politeiawww throwing 'user
                          not found' errors when attempting to retrieve the
                          imported proposal data using the standard politeiawww
-                         API.`
+                         API. (default: false)`
