@@ -325,8 +325,7 @@ func (c *importCmd) importLegacyProposals() error {
 
 		// Stub the user in the politeiawww user database
 		if c.stubUsers {
-			err = c.stubUser(p.UserMetadata.UserID,
-				[]string{p.UserMetadata.PublicKey})
+			err := c.stubProposalUsers(*p)
 			if err != nil {
 				return err
 			}
@@ -420,7 +419,7 @@ func (c *importCmd) importRecord(p proposal, tstoreToken []byte) error {
 		p.Files = append(p.Files, *f)
 	}
 
-	// Convert server generated metadata into backed metadata.
+	// Convert server generated metadata into backed metadata streams.
 	//
 	// Server generated metadata includes:
 	// - user plugin StatusChangeMetadata
@@ -573,9 +572,10 @@ func (c *importCmd) importCommentsPlugin(p proposal, tstoreToken []byte) error {
 }
 
 const (
-	// The following data descriptors were pulled from the comments
-	// plugins. They are not exported from the comments plugin, so
-	// we needed to duplicate them here.
+	// The following data descriptors were pulled from the comments plugins.
+	// They're not exported from the comments plugin and under normal
+	// circumstances there's no reason to have them as exported variables, so
+	// we duplicate them here.
 	dataDescriptorCommentAdd  = comments.PluginID + "-add-v1"
 	dataDescriptorCommentDel  = comments.PluginID + "-del-v1"
 	dataDescriptorCommentVote = comments.PluginID + "-vote-v1"
@@ -638,66 +638,103 @@ func (c *importCmd) saveCommentVote(tstoreToken []byte, cv comments.CommentVote)
 	return tstoreClient.BlobSave(tstoreToken, be)
 }
 
-func (c *importCmd) stubUser(userID string, publicKeys []string) error {
-	if len(publicKeys) == 0 {
-		return fmt.Errorf("no public keys found for %v", userID)
+// stubProposalUsers creates a stub in the user database for all user IDs and
+// public keys found in any of the proposal data.
+func (c *importCmd) stubProposalUsers(p proposal) error {
+	fmt.Printf("  Stubbing proposal users...\n")
+
+	// Stub the proposal author
+	err := c.stubUser(p.UserMetadata.UserID, p.UserMetadata.PublicKey)
+	if err != nil {
+		return err
 	}
 
+	// Stub the comment and comment vote authors. A user
+	// ID may be associated with multiple public keys.
+	pks := make(map[string]string, 256) // [publicKey]userID
+	for _, v := range p.CommentAdds {
+		pks[v.PublicKey] = v.UserID
+	}
+	for _, v := range p.CommentDels {
+		pks[v.PublicKey] = v.UserID
+	}
+	for _, v := range p.CommentVotes {
+		pks[v.PublicKey] = v.UserID
+	}
+	for publicKey, userID := range pks {
+		err := c.stubUser(userID, publicKey)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// stubUser creates a stub in the user database for the provided user ID.
+//
+// If a user stub already exists, this function verifies that the stub contains
+// the provided public key. If it doesn't, the function will add the missing
+// public key to the user and update the stub in the database.
+func (c *importCmd) stubUser(userID, publicKey string) error {
 	// Check if this user already exists in the user database
 	uid, err := uuid.Parse(userID)
 	if err != nil {
 		return err
 	}
-	_, err = c.userDB.UserGetById(uid)
+	dbu, err := c.userDB.UserGetById(uid)
 	switch {
 	case err == nil:
-		// User does already exist. Verify that the database user
-		// contains all of the public keys that were provided.
-		// TODO
-		return nil
+		// User already exist. Update the user if the provided
+		// public key is not part of the user stub.
+		for _, id := range dbu.Identities {
+			if id.String() == publicKey {
+				// This user stub already contains the provided
+				// public key. Nothing else to do.
+				return nil
+			}
+		}
+
+		fmt.Printf("  Updating stubbed user '%v' with new public key\n",
+			dbu.Username)
+
+		updatedIDs, err := addIdentity(dbu.Identities, publicKey)
+		if err != nil {
+			return err
+		}
+
+		dbu.Identities = updatedIDs
+		return c.userDB.UserUpdate(*dbu)
 
 	case errors.Is(err, user.ErrUserNotFound):
-		// User doesn't exist; continue
+		// User doesn't exist. Pull their username from the mainnet
+		// Politeia API and add them to the user database.
+		u, err := userByID(c.http, userID)
+		if err != nil {
+			return err
+		}
+
+		// Setup the identities
+		ids, err := addIdentity([]user.Identity{}, publicKey)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("  Stubbing user %v %v\n", u.Username, uid)
+
+		return c.userDB.InsertUser(user.User{
+			ID:             uid,
+			Email:          u.Username + "@example.com",
+			Username:       u.Username,
+			HashedPassword: []byte("password"),
+			Admin:          false,
+			Identities:     ids,
+		})
 
 	default:
 		// All other errors
 		return err
 	}
-
-	// Pull the username from the mainnet Politeia API
-	u, err := userByID(c.http, userID)
-	if err != nil {
-		return err
-	}
-
-	// Setup the identities
-	ids := make([]user.Identity, 0, len(publicKeys))
-	t := time.Now().Unix()
-	for _, v := range publicKeys {
-		id, err := identity.PublicIdentityFromString(v)
-		if err != nil {
-			return err
-		}
-		ids = append(ids, user.Identity{
-			Key:         id.Key,
-			Activated:   t,
-			Deactivated: t + 1,
-		})
-	}
-	// Make the last identity the active one. Not sure
-	// if this actually matters, but do it anyway.
-	ids[len(ids)-1].Deactivated = 0
-
-	fmt.Printf("  Stubbing user %v %v\n", u.Username, uid)
-
-	return c.userDB.InsertUser(user.User{
-		ID:             uid,
-		Email:          u.Username + "@example.com",
-		Username:       u.Username,
-		HashedPassword: []byte("password"),
-		Admin:          false,
-		Identities:     ids,
-	})
 }
 
 // parseLegacyTokens parses and returns all the unique tokens that are found in
@@ -821,4 +858,36 @@ func convertStatusChangeToMetadataStream(scm usermd.StatusChangeMetadata) (*back
 		StreamID: usermd.StreamIDStatusChanges,
 		Payload:  string(b),
 	}, nil
+}
+
+// addIdentity converts the provided public key string into a politeiawww user
+// identity and adds it to the provided identities list.
+//
+// The created identities will not mimic what would happen during normal
+// operation of the backend and this function should only be used for creating
+// test user stubs in the database.
+func addIdentity(ids []user.Identity, publicKey string) ([]user.Identity, error) {
+	if ids == nil {
+		return nil, fmt.Errorf("identities slice is nil")
+	}
+
+	// Add the identities to the existing identities list
+	id, err := identity.PublicIdentityFromString(publicKey)
+	if err != nil {
+		return nil, err
+	}
+	ids = append(ids, user.Identity{
+		Key:       id.Key,
+		Activated: time.Now().Unix(),
+	})
+
+	// Make the last identity the only active identity.
+	// Not sure if this actually matters, but do it anyway.
+	for i, v := range ids {
+		v.Deactivated = v.Activated + 1
+		ids[i] = v
+	}
+	ids[len(ids)-1].Deactivated = 0
+
+	return ids, nil
 }
