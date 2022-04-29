@@ -380,15 +380,16 @@ func (c *importCmd) importProposal(p *proposal, rfpTstoreToken []byte) ([]byte, 
 	}
 
 	fmt.Printf("  Importing comment plugin data...\n")
-	err = c.importCommentsPlugin(*p, tstoreToken)
+	err = c.importCommentPluginData(*p, tstoreToken)
 	if err != nil {
 		return nil, err
 	}
 
-	// Save the ticketvote plugin data to tstore. This is done is
-	// a separate go routine to get around the trillian log signer
-	// bottleneck.
 	fmt.Printf("  Importing ticketvote plugin data...\n")
+	err = c.importTicketvotePluginData(*p, tstoreToken)
+	if err != nil {
+		return nil, err
+	}
 
 	return nil, nil
 }
@@ -528,7 +529,9 @@ func (c *importCmd) importRecord(p proposal, tstoreToken []byte) error {
 		metadataStreams, p.Files)
 }
 
-func (c *importCmd) importCommentsPlugin(p proposal, tstoreToken []byte) error {
+// importCommentPluginData imports the comment plugin data into tstore for
+// the provided proposal.
+func (c *importCmd) importCommentPluginData(p proposal, tstoreToken []byte) error {
 	for i, v := range p.CommentAdds {
 		s := fmt.Sprintf("    Comment add %v/%v", i+1, len(p.CommentAdds))
 		printInPlace(s)
@@ -571,14 +574,55 @@ func (c *importCmd) importCommentsPlugin(p proposal, tstoreToken []byte) error {
 	return nil
 }
 
+// importTicketvotePluginData imports the ticketvote plugin data into tstore
+// for the provided proposal.
+//
+// Some proposals we're never voted on and therefor do not have any ticketvote
+// plugin data that needs to be imported.
+func (c *importCmd) importTicketvotePluginData(p proposal, tstoreToken []byte) error {
+	// Save the auth details
+	if p.AuthDetails == nil {
+		return nil
+	}
+
+	fmt.Printf("    Auth details\n")
+
+	err := c.saveAuthDetails(tstoreToken, *p.AuthDetails)
+	if err != nil {
+		return err
+	}
+
+	// Save the vote details
+	if p.VoteDetails == nil {
+		return nil
+	}
+
+	fmt.Printf("    Vote details\n")
+
+	err = c.saveVoteDetails(tstoreToken, *p.VoteDetails)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 const (
-	// The following data descriptors were pulled from the comments plugins.
-	// They're not exported from the comments plugin and under normal
-	// circumstances there's no reason to have them as exported variables, so
-	// we duplicate them here.
+	// The following data descriptors were pulled from the plugins. They're not
+	// exported from the plugins and under normal circumstances there's no reason
+	// to have them as exported variables, so we duplicate them here.
+
+	// comments plugin data descriptors
 	dataDescriptorCommentAdd  = comments.PluginID + "-add-v1"
 	dataDescriptorCommentDel  = comments.PluginID + "-del-v1"
 	dataDescriptorCommentVote = comments.PluginID + "-vote-v1"
+
+	// ticketvote plugin data descriptors
+	dataDescriptorAuthDetails     = ticketvote.PluginID + "-auth-v1"
+	dataDescriptorVoteDetails     = ticketvote.PluginID + "-vote-v1"
+	dataDescriptorCastVoteDetails = ticketvote.PluginID + "-castvote-v1"
+	dataDescriptorVoteCollider    = ticketvote.PluginID + "-vcollider-v1"
+	dataDescriptorStartRunoff     = ticketvote.PluginID + "-startrunoff-v1"
 )
 
 // saveCommentAdd saves a CommentAdd to tstore as a plugin data blob.
@@ -629,6 +673,44 @@ func (c *importCmd) saveCommentVote(tstoreToken []byte, cv comments.CommentVote)
 		store.DataDescriptor{
 			Type:       store.DataTypeStructure,
 			Descriptor: dataDescriptorCommentVote,
+		})
+	if err != nil {
+		return err
+	}
+	be := store.NewBlobEntry(hint, data)
+	tstoreClient := tstore.NewTstoreClient(c.tstore, comments.PluginID)
+	return tstoreClient.BlobSave(tstoreToken, be)
+}
+
+// saveAuthDetails saves a AuthDetails to tstore as a plugin data blob.
+func (c *importCmd) saveAuthDetails(tstoreToken []byte, ad ticketvote.AuthDetails) error {
+	data, err := json.Marshal(ad)
+	if err != nil {
+		return err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorAuthDetails,
+		})
+	if err != nil {
+		return err
+	}
+	be := store.NewBlobEntry(hint, data)
+	tstoreClient := tstore.NewTstoreClient(c.tstore, comments.PluginID)
+	return tstoreClient.BlobSave(tstoreToken, be)
+}
+
+// saveAuthDetails saves a VoteDetails to tstore as a plugin data blob.
+func (c *importCmd) saveVoteDetails(tstoreToken []byte, vd ticketvote.VoteDetails) error {
+	data, err := json.Marshal(vd)
+	if err != nil {
+		return err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorVoteDetails,
 		})
 	if err != nil {
 		return err
@@ -695,8 +777,7 @@ func (c *importCmd) stubUser(userID, publicKey string) error {
 			}
 		}
 
-		fmt.Printf("  Updating stubbed user '%v' with new public key\n",
-			dbu.Username)
+		fmt.Printf("    Updating stubbed user %v %v\n", uid, dbu.Username)
 
 		updatedIDs, err := addIdentity(dbu.Identities, publicKey)
 		if err != nil {
@@ -720,7 +801,7 @@ func (c *importCmd) stubUser(userID, publicKey string) error {
 			return err
 		}
 
-		fmt.Printf("  Stubbing user %v %v\n", u.Username, uid)
+		fmt.Printf("    Stubbing user %v %v\n", uid, u.Username)
 
 		return c.userDB.InsertUser(user.User{
 			ID:             uid,
