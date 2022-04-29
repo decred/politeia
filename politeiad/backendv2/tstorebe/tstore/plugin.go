@@ -71,47 +71,41 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 	log.Tracef("PluginRegister: %v", p.ID)
 
 	var (
-		client plugins.PluginClient
-		err    error
+		pluginClient plugins.PluginClient
+		err          error
 
 		dataDir = filepath.Join(t.dataDir, pluginDataDirname)
 	)
 	switch p.ID {
 	case cmplugin.PluginID:
-		client, err = comments.New(&tstoreClient{
-			pluginID: cmplugin.PluginID,
-			tstore:   t,
-		}, p.Settings, dataDir, p.Identity)
+		tstoreClient := NewTstoreClient(t, cmplugin.PluginID)
+		pluginClient, err = comments.New(tstoreClient,
+			p.Settings, dataDir, p.Identity)
 		if err != nil {
 			return err
 		}
 	case ddplugin.PluginID:
-		client, err = dcrdata.New(p.Settings, t.activeNetParams)
+		pluginClient, err = dcrdata.New(p.Settings, t.activeNetParams)
 		if err != nil {
 			return err
 		}
 	case piplugin.PluginID:
-		client, err = pi.New(b, &tstoreClient{
-			pluginID: piplugin.PluginID,
-			tstore:   t,
-		}, p.Settings, dataDir, p.Identity)
+		tstoreClient := NewTstoreClient(t, piplugin.PluginID)
+		pluginClient, err = pi.New(b, tstoreClient,
+			p.Settings, dataDir, p.Identity)
 		if err != nil {
 			return err
 		}
 	case tkplugin.PluginID:
-		client, err = ticketvote.New(b, &tstoreClient{
-			pluginID: tkplugin.PluginID,
-			tstore:   t,
-		}, p.Settings, dataDir,
-			p.Identity, t.activeNetParams)
+		tstoreClient := NewTstoreClient(t, tkplugin.PluginID)
+		pluginClient, err = ticketvote.New(b, tstoreClient,
+			p.Settings, dataDir, p.Identity, t.activeNetParams)
 		if err != nil {
 			return err
 		}
 	case umplugin.PluginID:
-		client, err = usermd.New(&tstoreClient{
-			pluginID: umplugin.PluginID,
-			tstore:   t,
-		}, p.Settings, dataDir)
+		tstoreClient := NewTstoreClient(t, umplugin.PluginID)
+		pluginClient, err = usermd.New(tstoreClient, p.Settings, dataDir)
 		if err != nil {
 			return err
 		}
@@ -124,7 +118,7 @@ func (t *Tstore) PluginRegister(b backend.Backend, p backend.Plugin) error {
 
 	t.plugins[p.ID] = plugin{
 		id:     p.ID,
-		client: client,
+		client: pluginClient,
 	}
 
 	return nil

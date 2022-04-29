@@ -29,6 +29,15 @@ type tstoreClient struct {
 	tstore   *Tstore
 }
 
+// NewTstoreClient returns a new TstoreClient interface that is backed by a
+// tstoreClient structure.
+func NewTstoreClient(tstore *Tstore, pluginID string) plugins.TstoreClient {
+	return &tstoreClient{
+		pluginID: pluginID,
+		tstore:   tstore,
+	}
+}
+
 // BlobSave saves a BlobEntry to the tstore instance. The BlobEntry will be
 // encrypted prior to being written to disk if the record is unvetted. The
 // digest of the data, i.e. BlobEntry.Digest, can be thought of as the blob ID
