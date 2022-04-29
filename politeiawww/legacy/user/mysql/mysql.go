@@ -20,6 +20,7 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 	"github.com/marcopeereboom/sbox"
+	"github.com/pkg/errors"
 
 	// MySQL driver.
 	_ "github.com/go-sql-driver/mysql"
@@ -677,6 +678,54 @@ func (m *mysql) UsersGetByPubKey(pubKeys []string) (map[string]user.User, error)
 	return users, nil
 }
 
+// insertUser inserts a user record into the user database using the provided
+// transaction. This includes inserting a record into the users table as well
+// as inserting the user identities into the identities table.
+//
+// This function is only intended to be used by InsertUser during database
+// migrations.
+func (m *mysql) insertUser(ctx context.Context, tx *sql.Tx, u user.User) error {
+	ub, err := user.EncodeUser(u)
+	if err != nil {
+		return err
+	}
+
+	eb, err := m.encrypt(user.VersionUser, ub)
+	if err != nil {
+		return err
+	}
+
+	// Insert the user into the users table
+	var (
+		userID    = u.ID.String()
+		username  = u.Username
+		createdAt = time.Now().Unix()
+	)
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO users (id, username, u_blob, created_at) VALUES (?, ?, ?, ?)",
+		userID, username, eb, createdAt)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// Insert the user identities into the identities table
+	ids := make([]mysqlIdentity, 0, len(u.Identities))
+	for _, v := range u.Identities {
+		ids = append(ids, mysqlIdentity{
+			publicKey:   v.String(),
+			activated:   v.Activated,
+			deactivated: v.Deactivated,
+			userID:      userID,
+		})
+	}
+	err = upsertIdentities(ctx, tx, ids)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // InsertUser inserts a user record into the database. The record must be a
 // complete user record and the user must not already exist. This function is
 // intended to be used for migrations between databases.
@@ -692,33 +741,29 @@ func (m *mysql) InsertUser(u user.User) error {
 	ctx, cancel := ctxWithTimeout()
 	defer cancel()
 
-	ub, err := user.EncodeUser(u)
+	// Setup transaction
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := m.userDB.BeginTx(ctx, opts)
 	if err != nil {
 		return err
 	}
 
-	eb, err := m.encrypt(user.VersionUser, ub)
+	// Insert the user
+	err = m.insertUser(ctx, tx, u)
 	if err != nil {
 		return err
 	}
 
-	// Insert new user into database.
-	ur := struct {
-		ID        string
-		Username  string
-		Blob      []byte
-		CreatedAt int64
-	}{
-		ID:        u.ID.String(),
-		Username:  u.Username,
-		Blob:      eb,
-		CreatedAt: time.Now().Unix(),
-	}
-	_, err = m.userDB.ExecContext(ctx,
-		"INSERT INTO users (id, username, u_blob, created_at) VALUES (?, ?, ?, ?)",
-		ur.ID, ur.Username, ur.Blob, ur.CreatedAt)
-	if err != nil {
-		return fmt.Errorf("insert user: %v", err)
+	// Commit the transaction
+	if err := tx.Commit(); err != nil {
+		// Attempt to rollback the transaction
+		if err2 := tx.Rollback(); err2 != nil {
+			// We're in trouble!
+			panic(fmt.Sprintf("commit err: %v, rollback err: %v", err, err2))
+		}
+		return errors.WithStack(err)
 	}
 
 	return nil
