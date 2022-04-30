@@ -188,7 +188,7 @@ func (c *importCmd) importLegacyProposals() error {
 		legacyInvM[token] = struct{}{}
 	}
 
-	fmt.Printf("%v legacy proposals found\n", len(legacyInv))
+	fmt.Printf("%v legacy proposals found for import\n", len(legacyInv))
 
 	// 2. Retrieve the tstore token inventory
 	inv, err := c.tstore.Inventory()
@@ -604,6 +604,35 @@ func (c *importCmd) importTicketvotePluginData(p proposal, tstoreToken []byte) e
 		return err
 	}
 
+	// Save the cast votes. These are saved concurrently in batches
+	// to get around the tlog signer performance bottleneck. The tlog
+	// signer will only append queued leaves onto a tlog tree every
+	// xxx interval, where xxx is a config setting that is currently
+	// configured to 200ms for politeia. If we did not submit the
+	// votes concurrently, each vote would take at least 200ms to
+	// be saved, which is unacceptably slow when you have tens of
+	// thousands of votes to save.
+	for i, v := range p.CastVotes {
+		s := fmt.Sprintf("    Cast vote %v/%v", i+1, len(p.CastVotes))
+		printInPlace(s)
+
+		err = c.saveCastVoteDetails(tstoreToken, v)
+		if err != nil {
+			return err
+		}
+		vc := voteCollider{
+			Token:  v.Token,
+			Ticket: v.Ticket,
+		}
+		err = c.saveVoteCollider(tstoreToken, vc)
+		if err != nil {
+			return err
+		}
+	}
+	fmt.Printf("\n")
+
+	// TODO save the startRunoffRecord to the parent RFP tlog tree
+
 	return nil
 }
 
@@ -644,7 +673,7 @@ func (c *importCmd) saveCommentAdd(tstoreToken []byte, ca comments.CommentAdd) e
 	return tstoreClient.BlobSave(tstoreToken, be)
 }
 
-// saveCommentAdd saves a CommentDel to tstore as a plugin data blob.
+// saveCommentDel saves a CommentDel to tstore as a plugin data blob.
 func (c *importCmd) saveCommentDel(tstoreToken []byte, cd comments.CommentDel) error {
 	data, err := json.Marshal(cd)
 	if err != nil {
@@ -663,7 +692,7 @@ func (c *importCmd) saveCommentDel(tstoreToken []byte, cd comments.CommentDel) e
 	return tstoreClient.BlobSave(tstoreToken, be)
 }
 
-// saveCommentAdd saves a CommentVote to tstore as a plugin data blob.
+// saveCommentVote saves a CommentVote to tstore as a plugin data blob.
 func (c *importCmd) saveCommentVote(tstoreToken []byte, cv comments.CommentVote) error {
 	data, err := json.Marshal(cv)
 	if err != nil {
@@ -697,11 +726,11 @@ func (c *importCmd) saveAuthDetails(tstoreToken []byte, ad ticketvote.AuthDetail
 		return err
 	}
 	be := store.NewBlobEntry(hint, data)
-	tstoreClient := tstore.NewTstoreClient(c.tstore, comments.PluginID)
+	tstoreClient := tstore.NewTstoreClient(c.tstore, ticketvote.PluginID)
 	return tstoreClient.BlobSave(tstoreToken, be)
 }
 
-// saveAuthDetails saves a VoteDetails to tstore as a plugin data blob.
+// saveVoteDetails saves a VoteDetails to tstore as a plugin data blob.
 func (c *importCmd) saveVoteDetails(tstoreToken []byte, vd ticketvote.VoteDetails) error {
 	data, err := json.Marshal(vd)
 	if err != nil {
@@ -716,7 +745,45 @@ func (c *importCmd) saveVoteDetails(tstoreToken []byte, vd ticketvote.VoteDetail
 		return err
 	}
 	be := store.NewBlobEntry(hint, data)
-	tstoreClient := tstore.NewTstoreClient(c.tstore, comments.PluginID)
+	tstoreClient := tstore.NewTstoreClient(c.tstore, ticketvote.PluginID)
+	return tstoreClient.BlobSave(tstoreToken, be)
+}
+
+// saveCastVoteDetails saves a CastVoteDetails to tstore as a plugin data blob.
+func (c *importCmd) saveCastVoteDetails(tstoreToken []byte, cvd ticketvote.CastVoteDetails) error {
+	data, err := json.Marshal(cvd)
+	if err != nil {
+		return err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorCastVoteDetails,
+		})
+	if err != nil {
+		return err
+	}
+	be := store.NewBlobEntry(hint, data)
+	tstoreClient := tstore.NewTstoreClient(c.tstore, ticketvote.PluginID)
+	return tstoreClient.BlobSave(tstoreToken, be)
+}
+
+// saveVoteCollider saves a voteCollider to tstore as a plugin data blob.
+func (c *importCmd) saveVoteCollider(tstoreToken []byte, vc voteCollider) error {
+	data, err := json.Marshal(vc)
+	if err != nil {
+		return err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorVoteCollider,
+		})
+	if err != nil {
+		return err
+	}
+	be := store.NewBlobEntry(hint, data)
+	tstoreClient := tstore.NewTstoreClient(c.tstore, ticketvote.PluginID)
 	return tstoreClient.BlobSave(tstoreToken, be)
 }
 
