@@ -612,28 +612,84 @@ func (c *importCmd) importTicketvotePluginData(p proposal, tstoreToken []byte) e
 	// votes concurrently, each vote would take at least 200ms to
 	// be saved, which is unacceptably slow when you have tens of
 	// thousands of votes to save.
-	for i, v := range p.CastVotes {
-		s := fmt.Sprintf("    Cast vote %v/%v", i+1, len(p.CastVotes))
+	//
+	// The trillian_log_server is CPU bound. Batch sizes of 100 were
+	// found during testing to be the best balance between speed and
+	// killing the CPUs.
+	var (
+		batchSize = 100
+		startIdx  = 0
+
+		t = time.Now()
+	)
+	for startIdx < len(p.CastVotes) {
+		endIdx := startIdx + batchSize
+		if endIdx > len(p.CastVotes) {
+			endIdx = len(p.CastVotes)
+		}
+
+		s := fmt.Sprintf("    Cast vote %v/%v", endIdx, len(p.CastVotes))
 		printInPlace(s)
 
-		err = c.saveCastVoteDetails(tstoreToken, v)
-		if err != nil {
-			return err
-		}
-		vc := voteCollider{
-			Token:  v.Token,
-			Ticket: v.Ticket,
-		}
-		err = c.saveVoteCollider(tstoreToken, vc)
-		if err != nil {
-			return err
-		}
+		// startIdx is inclusive. endIdx is exclusive.
+		c.saveVoteBatch(tstoreToken, p.CastVotes[startIdx:endIdx])
+
+		startIdx += batchSize
 	}
 	fmt.Printf("\n")
+
+	fmt.Printf("    Elapsed vote import time: %v\n", time.Since(t))
 
 	// TODO save the startRunoffRecord to the parent RFP tlog tree
 
 	return nil
+}
+
+func (c *importCmd) saveVoteBatch(tstoreToken []byte, votes []ticketvote.CastVoteDetails) {
+	var wg sync.WaitGroup
+	for _, v := range votes {
+		// Increment the wait group
+		wg.Add(1)
+
+		go func(cvd ticketvote.CastVoteDetails) {
+			// Decrement the wait group on successful completion.
+			// This will block if an error occurred while saving
+			// the vote details or vote collider. The caller will
+			// be forced to send a SIGINT to kill the process.
+			// This is done on purpose as a quick and dirty way
+			// to handle async errors.
+			var err error
+			defer func() {
+				if err != nil {
+					fmt.Printf("\n")
+					fmt.Printf("ERROR %v\n", err)
+					return
+				}
+				wg.Done()
+			}()
+
+			// Save the vote and vote collider
+			err = c.saveCastVoteDetails(tstoreToken, cvd)
+			if err != nil {
+				err = fmt.Errorf("saveCastVoteDetails %v %v",
+					cvd.Ticket, err)
+				return
+			}
+			vc := voteCollider{
+				Token:  cvd.Token,
+				Ticket: cvd.Ticket,
+			}
+			err = c.saveVoteCollider(tstoreToken, vc)
+			if err != nil {
+				err = fmt.Errorf("saveVoteCollider %v: %v",
+					cvd.Ticket, err)
+				return
+			}
+		}(v)
+	}
+
+	// Wait for all votes to be successfully saved
+	wg.Wait()
 }
 
 const (
