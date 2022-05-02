@@ -7,6 +7,7 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -34,7 +35,9 @@ import (
 	"github.com/decred/politeia/politeiawww/legacy/user"
 	mysqldb "github.com/decred/politeia/politeiawww/legacy/user/mysql"
 	"github.com/decred/politeia/util"
+	"github.com/google/trillian"
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -150,6 +153,11 @@ type importCmd struct {
 	token     string // Optional
 	stubUsers bool
 	tstore    *tstore.Tstore
+
+	// The following are used to import the proposal votes into tstore manually
+	// in order to increase performance to an acceptable speed.
+	// tlogClient tlog.Client
+	kv store.BlobKV
 
 	// The following fields will only be populated when the caller provides
 	// the stub users flag.
@@ -641,6 +649,83 @@ func (c *importCmd) importTicketvotePluginData(p proposal, tstoreToken []byte) e
 	fmt.Printf("    Elapsed vote import time: %v\n", time.Since(t))
 
 	// TODO save the startRunoffRecord to the parent RFP tlog tree
+
+	return nil
+}
+
+func (c *importCmd) saveBlobUnsafe(token []byte, be store.BlobEntry) error {
+	treeID := int64(binary.LittleEndian.Uint64(token))
+
+	// Parse the data descriptor
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
+	if err != nil {
+		return err
+	}
+	var dd store.DataDescriptor
+	err = json.Unmarshal(b, &dd)
+	if err != nil {
+		return err
+	}
+
+	// Prepare blob
+	digest, err := hex.DecodeString(be.Digest)
+	if err != nil {
+		return err
+	}
+	blob, err := store.Blobify(be)
+	if err != nil {
+		return err
+	}
+	key := uuid.New().String()
+	kv := map[string][]byte{key: blob}
+
+	// Save the blob to store
+	err = c.kv.Put(kv, false)
+	if err != nil {
+		return err
+	}
+
+	// Setup the tlog leaf extra data
+	type extraData struct {
+		Key   string         `json:"k"`
+		Desc  string         `json:"d"`
+		State backend.StateT `json:"s,omitempty"`
+	}
+	ed := extraData{
+		Key:   key,
+		Desc:  desc,
+		State: state,
+	}
+	b, err := json.Marshal(ed)
+	if err != nil {
+		return nil, err
+	}
+
+	// Append log leaf to trillian tree
+	extraData, err := extraDataEncode(key, dd.Descriptor, backend.StateVetted)
+	if err != nil {
+		return err
+	}
+	leaves := []*trillian.LogLeaf{
+		newLogLeaf(digest, extraData),
+	}
+	queued, _, err := c.tlogClient.LeavesAppend(treeID, leaves)
+	if err != nil {
+		return err
+	}
+	if len(queued) != 1 {
+		return fmt.Errorf("wrong queued leaves count: got %v, want 1",
+			len(queued))
+	}
+	c := codes.Code(queued[0].QueuedLeaf.GetStatus().GetCode())
+	switch c {
+	case codes.OK:
+		// This is ok; continue
+	case codes.AlreadyExists:
+		return backend.ErrDuplicatePayload
+	default:
+		return fmt.Errorf("queued leaf error: %v", c)
+	}
 
 	return nil
 }
