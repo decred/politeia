@@ -17,6 +17,7 @@ import (
 	dcrtime "github.com/decred/dcrtime/api/v2"
 	"github.com/decred/dcrtime/merkle"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tlog"
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
 	"github.com/google/trillian/types"
@@ -242,7 +243,7 @@ func (t *Tstore) anchorSave(a anchor) error {
 		return err
 	}
 	leaves := []*trillian.LogLeaf{
-		newLogLeaf(d, extraData),
+		tlog.NewLogLeaf(d, extraData),
 	}
 	queued, _, err := t.tlog.LeavesAppend(a.TreeID, leaves)
 	if err != nil {

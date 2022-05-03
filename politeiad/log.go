@@ -18,6 +18,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins/usermd"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/mysql"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tlog"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	"github.com/decred/politeia/wsdcrdata"
 	"github.com/decred/slog"
@@ -58,6 +59,7 @@ var (
 	kvstoreLog   = backendLog.Logger("STOR")
 	wsdcrdataLog = backendLog.Logger("WSDD")
 	pluginLog    = backendLog.Logger("PLUG")
+	tlogLog      = backendLog.Logger("TLOG")
 )
 
 // Initialize package-global logger variables.
@@ -70,6 +72,7 @@ func init() {
 	tstore.UseLogger(tstoreLog)
 	localdb.UseLogger(kvstoreLog)
 	mysql.UseLogger(kvstoreLog)
+	tlog.UseLogger(tlogLog)
 
 	// Plugin loggers
 	comments.UseLogger(pluginLog)
@@ -91,6 +94,7 @@ var subsystemLoggers = map[string]slog.Logger{
 	"STOR": kvstoreLog,
 	"WSDD": wsdcrdataLog,
 	"PLUG": pluginLog,
+	"TLOG": tlogLog,
 }
 
 // initLogRotator initializes the logging rotater to write logs to logFile and

@@ -17,6 +17,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/mysql"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tlog"
 	"github.com/decred/politeia/util"
 	"github.com/pkg/errors"
 	"github.com/robfig/cron"
@@ -61,7 +62,7 @@ type Tstore struct {
 	sync.RWMutex
 	dataDir         string
 	activeNetParams *chaincfg.Params
-	tlog            tlogClient
+	tlog            tlog.Client
 	store           store.BlobKV
 	dcrtime         *dcrtimeClient
 	cron            *cron.Cron
@@ -248,7 +249,7 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, dbType, dbHost,
 
 	// Setup trillian client
 	log.Infof("Tlog host: %v", tlogHost)
-	tlogClient, err := newTClient(tlogHost)
+	tlogClient, err := tlog.NewClient(tlogHost)
 	if err != nil {
 		return nil, err
 	}
