@@ -26,6 +26,8 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/mysql"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tlog"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	"github.com/decred/politeia/politeiad/plugins/comments"
 	"github.com/decred/politeia/politeiad/plugins/pi"
@@ -33,7 +35,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/usermd"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/legacy/user"
-	mysqldb "github.com/decred/politeia/politeiawww/legacy/user/mysql"
+	userdb "github.com/decred/politeia/politeiawww/legacy/user/mysql"
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
 	"github.com/google/uuid"
@@ -113,13 +115,30 @@ func execImportCmd(args []string) error {
 		return err
 	}
 
+	// Setup key-value store
+	var (
+		dbUser = "politeiad"
+		dbName = fmt.Sprintf("%v_kv", params.Name)
+	)
+	kv, err := mysql.New(*dbHost, dbUser, *dbPass, dbName)
+	if err != nil {
+		return err
+
+	}
+
+	// Setup trillian client
+	tlogClient, err := tlog.NewClient(*tlogHost)
+	if err != nil {
+		return err
+	}
+
 	// Setup the user database connection
 	var (
 		userDB user.Database
 		httpC  *http.Client
 	)
 	if *stubUsers {
-		userDB, err = mysqldb.New(*dbHost, userDBPass,
+		userDB, err = userdb.New(*dbHost, userDBPass,
 			params.Name, userDBEncryptionKey)
 		if err != nil {
 			return err
@@ -132,12 +151,14 @@ func execImportCmd(args []string) error {
 
 	// Setup the import cmd
 	c := &importCmd{
-		legacyDir: legacyDir,
-		tstore:    ts,
-		token:     *importToken,
-		stubUsers: *stubUsers,
-		userDB:    userDB,
-		http:      httpC,
+		legacyDir:  legacyDir,
+		token:      *importToken,
+		stubUsers:  *stubUsers,
+		tstore:     ts,
+		kv:         kv,
+		tlogClient: tlogClient,
+		userDB:     userDB,
+		http:       httpC,
 	}
 
 	// Import the legacy proposals
@@ -156,8 +177,8 @@ type importCmd struct {
 
 	// The following are used to import the proposal votes into tstore manually
 	// in order to increase performance to an acceptable speed.
-	// tlogClient tlog.Client
-	kv store.BlobKV
+	kv         store.BlobKV
+	tlogClient tlog.Client
 
 	// The following fields will only be populated when the caller provides
 	// the stub users flag.
@@ -653,20 +674,7 @@ func (c *importCmd) importTicketvotePluginData(p proposal, tstoreToken []byte) e
 	return nil
 }
 
-func (c *importCmd) saveBlobUnsafe(token []byte, be store.BlobEntry) error {
-	treeID := int64(binary.LittleEndian.Uint64(token))
-
-	// Parse the data descriptor
-	b, err := base64.StdEncoding.DecodeString(be.DataHint)
-	if err != nil {
-		return err
-	}
-	var dd store.DataDescriptor
-	err = json.Unmarshal(b, &dd)
-	if err != nil {
-		return err
-	}
-
+func (c *importCmd) saveBlob(token []byte, be store.BlobEntry) error {
 	// Prepare blob
 	digest, err := hex.DecodeString(be.Digest)
 	if err != nil {
@@ -691,24 +699,32 @@ func (c *importCmd) saveBlobUnsafe(token []byte, be store.BlobEntry) error {
 		Desc  string         `json:"d"`
 		State backend.StateT `json:"s,omitempty"`
 	}
-	ed := extraData{
-		Key:   key,
-		Desc:  desc,
-		State: state,
-	}
-	b, err := json.Marshal(ed)
-	if err != nil {
-		return nil, err
-	}
-
-	// Append log leaf to trillian tree
-	extraData, err := extraDataEncode(key, dd.Descriptor, backend.StateVetted)
+	b, err := base64.StdEncoding.DecodeString(be.DataHint)
 	if err != nil {
 		return err
 	}
-	leaves := []*trillian.LogLeaf{
-		newLogLeaf(digest, extraData),
+	var dd store.DataDescriptor
+	err = json.Unmarshal(b, &dd)
+	if err != nil {
+		return err
 	}
+	ed := extraData{
+		Key:   key,
+		Desc:  dd.Descriptor,
+		State: backend.StateVetted,
+	}
+	extraDataB, err := json.Marshal(ed)
+	if err != nil {
+		return err
+	}
+
+	// Append log leaf to trillian tree
+	var (
+		treeID = int64(binary.LittleEndian.Uint64(token))
+		leaves = []*trillian.LogLeaf{
+			tlog.NewLogLeaf(digest, extraDataB),
+		}
+	)
 	queued, _, err := c.tlogClient.LeavesAppend(treeID, leaves)
 	if err != nil {
 		return err
@@ -717,8 +733,8 @@ func (c *importCmd) saveBlobUnsafe(token []byte, be store.BlobEntry) error {
 		return fmt.Errorf("wrong queued leaves count: got %v, want 1",
 			len(queued))
 	}
-	c := codes.Code(queued[0].QueuedLeaf.GetStatus().GetCode())
-	switch c {
+	code := codes.Code(queued[0].QueuedLeaf.GetStatus().GetCode())
+	switch code {
 	case codes.OK:
 		// This is ok; continue
 	case codes.AlreadyExists:
