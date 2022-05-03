@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tlog"
 )
 
 // NewTestTstore returns a tstore instance that is setup for testing.
@@ -32,7 +33,7 @@ func NewTestTstore(t *testing.T, dataDir string) *Tstore {
 	}
 
 	return &Tstore{
-		tlog:  newTestTClient(t),
+		tlog:  tlog.NewTestClient(t),
 		store: store,
 	}
 }
