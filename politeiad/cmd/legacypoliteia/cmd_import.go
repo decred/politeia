@@ -206,6 +206,10 @@ type importCmd struct {
 //    the RFP submissions can link to the tstore RFP proposal token.
 //
 // 6. Add the remaining legacy proposals to tstore.
+//
+// 7. Add a startRunoffRecord for each RFP proposal vote. The record is added
+//    to the RFP parent's tlog tree. This is required in order to mimic what
+//    would happen under normal operating conditions.
 func (c *importCmd) importLegacyProposals() error {
 	// 1. Inventory all legacy proposals being imported
 	legacyInv, err := parseLegacyTokens(c.legacyDir)
@@ -235,6 +239,14 @@ func (c *importCmd) importLegacyProposals() error {
 	//
 	// map[legacyToken]tstoreToken
 	imported := make(map[string][]byte, len(legacyInv))
+
+	// startRunoffRecords is used to aggregate the data for runoff
+	// votes. This is done during runtime because the tstore tokens
+	// for all of the RFP submissions must be compiled before the
+	// startRunoffRecord can be saved to the parent RFP tree.
+	//
+	// map[tstoreTokenForParentRFP]startRunoffRecord
+	startRunoffRecords := make(map[string]startRunoffRecord, len(legacyInv))
 
 	// 3. Iterate through each record in the existing tstore
 	// inventory and check if the record corresponds to one
@@ -335,22 +347,47 @@ func (c *importCmd) importLegacyProposals() error {
 		// Lookup th RFP parent tstore token if this is an RFP submission.
 		// The RFP submissions must reference the parent RFP tstore token,
 		// not the parent RFP legacy token.
-		var rfpTstoreToken []byte
+		var parentTstoreToken []byte
 		if p.isRFPSubmission() {
-			rfpTstoreToken = imported[p.VoteMetadata.LinkTo]
-			if rfpTstoreToken == nil {
+			parentTstoreToken = imported[p.VoteMetadata.LinkTo]
+			if parentTstoreToken == nil {
 				// Should not happen
 				return fmt.Errorf("rpf parent tstore token not found")
 			}
 		}
 
 		// Import the proposal
-		tstoreToken, err := c.importProposal(p, rfpTstoreToken)
+		tstoreToken, err := c.importProposal(p, parentTstoreToken)
 		if err != nil {
 			return err
 		}
 
 		imported[legacyToken] = tstoreToken
+
+		// Aggregate the runoff vote data needed for the startRunoffRecord.
+		// This is only necessary if this proposal in an RFP submission.
+		if parentTstoreToken != nil {
+			parentToken := hex.EncodeToString(parentTstoreToken)
+			srr, ok := startRunoffRecords[parentToken]
+			if !ok {
+				srr = startRunoffRecord{
+					Submissions:      []string{},
+					Mask:             p.VoteDetails.Params.Mask,
+					Duration:         p.VoteDetails.Params.Duration,
+					QuorumPercentage: p.VoteDetails.Params.QuorumPercentage,
+					PassPercentage:   p.VoteDetails.Params.PassPercentage,
+					StartBlockHeight: p.VoteDetails.StartBlockHeight,
+					StartBlockHash:   p.VoteDetails.StartBlockHash,
+					EndBlockHeight:   p.VoteDetails.EndBlockHeight,
+					EligibleTickets:  p.VoteDetails.EligibleTickets,
+				}
+			}
+
+			submissionToken := hex.EncodeToString(tstoreToken)
+			srr.Submissions = append(srr.Submissions, submissionToken)
+
+			startRunoffRecords[parentToken] = srr
+		}
 
 		// Stub the user in the politeiawww user database
 		if c.stubUsers {
@@ -358,6 +395,23 @@ func (c *importCmd) importLegacyProposals() error {
 			if err != nil {
 				return err
 			}
+		}
+	}
+
+	// 7. Add a startRunoffRecord for each RFP proposal vote. The
+	//    record is added to the RFP parent's tlog tree. This is
+	//    required in order to mimic what would happen under normal
+	//    operating conditions.
+	for parentTstoreToken, srr := range startRunoffRecords {
+		fmt.Printf("Importing start runoff record to %v\n", parentTstoreToken)
+
+		parent, err := hex.DecodeString(parentTstoreToken)
+		if err != nil {
+			return err
+		}
+		err = c.saveStartRunoffRecord(parent, srr)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -370,21 +424,26 @@ func (c *importCmd) importLegacyProposals() error {
 func (c *importCmd) fsckProposal(legacyToken string, tstoreToken []byte) error {
 	fmt.Printf("Fsck proposal %x %v\n", tstoreToken, legacyToken)
 
+	// This is non-trivial to implement and will only be needed
+	// if an error occurs during the import process. We'll leave
+	// this unimplemented for now and only implement it if an
+	// error occurs during the import.
+
 	return nil
 }
 
 // importProposal imports the specified legacy proposal into tstore and returns
 // the tstore token that is created during import.
 //
-// rfpTstoreToken is an optional argument that will be populated for RFP
-// submissions. The rfpTstoreToken is the parent RFP tstore token that the
+// parentTstoreToken is an optional argument that will be populated for RFP
+// submissions. The parentTstoreToken is the parent RFP tstore token that the
 // RFP submissions will need to reference. This argument will be nil for all
 // proposals that are not RFP submissions.
 //
 // This function assumes that the proposal does not yet exist in tstore.
 // Handling proposals that have been partially added is done by the
 // fsckPropsal() function.
-func (c *importCmd) importProposal(p *proposal, rfpTstoreToken []byte) ([]byte, error) {
+func (c *importCmd) importProposal(p *proposal, parentTstoreToken []byte) ([]byte, error) {
 	fmt.Printf("Importing proposal %v\n", p.RecordMetadata.Token)
 
 	// Create a new tstore record entry
@@ -396,7 +455,7 @@ func (c *importCmd) importProposal(p *proposal, rfpTstoreToken []byte) ([]byte, 
 	fmt.Printf("  Tstore token: %x\n", tstoreToken)
 
 	// Perform proposal data changes
-	err = overwriteProposalFields(p, tstoreToken, rfpTstoreToken)
+	err = overwriteProposalFields(p, tstoreToken, parentTstoreToken)
 	if err != nil {
 		return nil, err
 	}
@@ -420,7 +479,7 @@ func (c *importCmd) importProposal(p *proposal, rfpTstoreToken []byte) ([]byte, 
 		return nil, err
 	}
 
-	return nil, nil
+	return tstoreToken, nil
 }
 
 // importRecord imports the backend record portion of a proposal into tstore
@@ -669,13 +728,11 @@ func (c *importCmd) importTicketvotePluginData(p proposal, tstoreToken []byte) e
 
 	fmt.Printf("    Elapsed vote import time: %v\n", time.Since(t))
 
-	// TODO save the startRunoffRecord to the parent RFP tlog tree
-
 	return nil
 }
 
-func (c *importCmd) saveBlob(token []byte, be store.BlobEntry) error {
-	// Prepare blob
+func (c *importCmd) savePluginBlobEntry(token []byte, be store.BlobEntry) error {
+	// Prepare key-value store blob
 	digest, err := hex.DecodeString(be.Digest)
 	if err != nil {
 		return err
@@ -730,8 +787,7 @@ func (c *importCmd) saveBlob(token []byte, be store.BlobEntry) error {
 		return err
 	}
 	if len(queued) != 1 {
-		return fmt.Errorf("wrong queued leaves count: got %v, want 1",
-			len(queued))
+		return fmt.Errorf("got %v queued leaves, want 1", len(queued))
 	}
 	code := codes.Code(queued[0].QueuedLeaf.GetStatus().GetCode())
 	switch code {
@@ -826,8 +882,7 @@ func (c *importCmd) saveCommentAdd(tstoreToken []byte, ca comments.CommentAdd) e
 		return err
 	}
 	be := store.NewBlobEntry(hint, data)
-	tstoreClient := tstore.NewTstoreClient(c.tstore, comments.PluginID)
-	return tstoreClient.BlobSave(tstoreToken, be)
+	return c.savePluginBlobEntry(tstoreToken, be)
 }
 
 // saveCommentDel saves a CommentDel to tstore as a plugin data blob.
@@ -845,8 +900,7 @@ func (c *importCmd) saveCommentDel(tstoreToken []byte, cd comments.CommentDel) e
 		return err
 	}
 	be := store.NewBlobEntry(hint, data)
-	tstoreClient := tstore.NewTstoreClient(c.tstore, comments.PluginID)
-	return tstoreClient.BlobSave(tstoreToken, be)
+	return c.savePluginBlobEntry(tstoreToken, be)
 }
 
 // saveCommentVote saves a CommentVote to tstore as a plugin data blob.
@@ -864,8 +918,7 @@ func (c *importCmd) saveCommentVote(tstoreToken []byte, cv comments.CommentVote)
 		return err
 	}
 	be := store.NewBlobEntry(hint, data)
-	tstoreClient := tstore.NewTstoreClient(c.tstore, comments.PluginID)
-	return tstoreClient.BlobSave(tstoreToken, be)
+	return c.savePluginBlobEntry(tstoreToken, be)
 }
 
 // saveAuthDetails saves a AuthDetails to tstore as a plugin data blob.
@@ -883,8 +936,7 @@ func (c *importCmd) saveAuthDetails(tstoreToken []byte, ad ticketvote.AuthDetail
 		return err
 	}
 	be := store.NewBlobEntry(hint, data)
-	tstoreClient := tstore.NewTstoreClient(c.tstore, ticketvote.PluginID)
-	return tstoreClient.BlobSave(tstoreToken, be)
+	return c.savePluginBlobEntry(tstoreToken, be)
 }
 
 // saveVoteDetails saves a VoteDetails to tstore as a plugin data blob.
@@ -902,8 +954,7 @@ func (c *importCmd) saveVoteDetails(tstoreToken []byte, vd ticketvote.VoteDetail
 		return err
 	}
 	be := store.NewBlobEntry(hint, data)
-	tstoreClient := tstore.NewTstoreClient(c.tstore, ticketvote.PluginID)
-	return tstoreClient.BlobSave(tstoreToken, be)
+	return c.savePluginBlobEntry(tstoreToken, be)
 }
 
 // saveCastVoteDetails saves a CastVoteDetails to tstore as a plugin data blob.
@@ -921,8 +972,7 @@ func (c *importCmd) saveCastVoteDetails(tstoreToken []byte, cvd ticketvote.CastV
 		return err
 	}
 	be := store.NewBlobEntry(hint, data)
-	tstoreClient := tstore.NewTstoreClient(c.tstore, ticketvote.PluginID)
-	return tstoreClient.BlobSave(tstoreToken, be)
+	return c.savePluginBlobEntry(tstoreToken, be)
 }
 
 // saveVoteCollider saves a voteCollider to tstore as a plugin data blob.
@@ -940,8 +990,26 @@ func (c *importCmd) saveVoteCollider(tstoreToken []byte, vc voteCollider) error 
 		return err
 	}
 	be := store.NewBlobEntry(hint, data)
-	tstoreClient := tstore.NewTstoreClient(c.tstore, ticketvote.PluginID)
-	return tstoreClient.BlobSave(tstoreToken, be)
+	return c.savePluginBlobEntry(tstoreToken, be)
+}
+
+// saveStartRunoffRecord saves a startRunoffRecord to tstore as a plugin data
+// blob.
+func (c *importCmd) saveStartRunoffRecord(tstoreToken []byte, srr startRunoffRecord) error {
+	data, err := json.Marshal(srr)
+	if err != nil {
+		return err
+	}
+	hint, err := json.Marshal(
+		store.DataDescriptor{
+			Type:       store.DataTypeStructure,
+			Descriptor: dataDescriptorStartRunoff,
+		})
+	if err != nil {
+		return err
+	}
+	be := store.NewBlobEntry(hint, data)
+	return c.savePluginBlobEntry(tstoreToken, be)
 }
 
 // stubProposalUsers creates a stub in the user database for all user IDs and
