@@ -195,11 +195,11 @@ func verifyProposal(p proposal) error {
 //
 // Documentation for each field that is updated is provided below and details
 // the specific reason for the update.
-func overwriteProposalFields(p *proposal, tstoreTokenB, rfpTstoreTokenB []byte) error {
+func overwriteProposalFields(p *proposal, tstoreTokenB, parentTstoreTokenB []byte) error {
 	var (
-		legacyToken    = p.RecordMetadata.Token
-		tstoreToken    = hex.EncodeToString(tstoreTokenB)
-		rfpTstoreToken = hex.EncodeToString(rfpTstoreTokenB)
+		legacyToken       = p.RecordMetadata.Token
+		tstoreToken       = hex.EncodeToString(tstoreTokenB)
+		parentTstoreToken = hex.EncodeToString(parentTstoreTokenB)
 	)
 
 	// All structures that contain a Token field are updated.
@@ -329,8 +329,12 @@ func overwriteProposalFields(p *proposal, tstoreTokenB, rfpTstoreTokenB []byte) 
 	// RFP proposal. This field will contain the parent RFP
 	// proposal's legacy token and needs to be updated with
 	// the RFP parent proposal's tstore token.
+	//
+	// This also applies to the Parent token field in the
+	// vote details.
 	if p.isRFPSubmission() {
-		p.VoteMetadata.LinkTo = rfpTstoreToken
+		p.VoteMetadata.LinkTo = parentTstoreToken
+		p.VoteDetails.Params.Parent = parentTstoreToken
 	}
 
 	return nil

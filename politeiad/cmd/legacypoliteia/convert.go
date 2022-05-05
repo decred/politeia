@@ -26,10 +26,6 @@ import (
 
 func convertRecordMetadata(r gitbe.RecordMetadata, version uint32) backend.RecordMetadata {
 	return backend.RecordMetadata{
-		// We are using the legacy git token as the record
-		// metadata token for the sake of keeping certain
-		// signatures coherent (I think...). This needs to
-		// be verified.
 		Token:     r.Token,
 		Version:   version, // Parsed from git path
 		Iteration: uint32(r.Iteration),

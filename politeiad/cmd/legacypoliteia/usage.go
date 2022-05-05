@@ -43,7 +43,9 @@ Command Usage: import
 
   $ legacypoliteia import <legacyDir>
 
-  Import the JSON output from the 'convert' command into tstore.
+  Import the JSON output from the 'convert' command into tstore. The user must
+  rebuild the politeiad caches after the data is successfully imported. This is
+  done by restarting politeiad with the --fsck flag.
 
   Arguments:
 
@@ -52,17 +54,18 @@ Command Usage: import
                           during the execution of the 'convert' command.
   Flags:
 
-  --testnet     (bool)    Use the testnet database. (default: false)
-
-  --tloghost    (string)  Host for tlog. (default: localhost:8090)
+   --tloghost    (string)  Host for tlog. (default: localhost:8090)
 
   --dbhost      (string)  Host for mysql db. (default: localhost:3306)
 
   --dbpass      (string)  Password for mysql politeiad user.
                           (default: politeiadpass)
 
+ --testnet     (bool)    Use the testnet database. (default: false)
+
   --token      (string)  Specify a single legacy token whose contents will be
-                         converted and saved to disk. (default: "")
+                         imported. This is helpful during testing.
+                         (default: "")
 
   --stubusers  (bool)    Create user stubs in the politeiawww user database
                          that correspond to the user IDs of all imported

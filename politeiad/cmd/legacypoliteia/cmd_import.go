@@ -161,6 +161,12 @@ func execImportCmd(args []string) error {
 		http:       httpC,
 	}
 
+	// Print the total elapsed time on exit
+	t := time.Now()
+	defer func() {
+		fmt.Printf("Import elapsed time: %v\n", time.Since(t))
+	}()
+
 	// Import the legacy proposals
 	return c.importLegacyProposals()
 }
@@ -318,6 +324,9 @@ func (c *importCmd) importLegacyProposals() error {
 			// This is not an RFP. Skip it for now.
 			continue
 		}
+
+		fmt.Printf("Importing proposal %v/%v\n", len(imported)+1, len(legacyInv))
+
 		tstoreToken, err := c.importProposal(p, nil)
 		if err != nil {
 			return err
@@ -337,6 +346,8 @@ func (c *importCmd) importLegacyProposals() error {
 			// This proposal has already been imported
 			continue
 		}
+
+		fmt.Printf("Importing proposal %v/%v\n", len(imported)+1, len(legacyInv))
 
 		// Read the proposal from disk
 		p, err := readProposal(c.legacyDir, legacyToken)
@@ -388,14 +399,6 @@ func (c *importCmd) importLegacyProposals() error {
 
 			startRunoffRecords[parentToken] = srr
 		}
-
-		// Stub the user in the politeiawww user database
-		if c.stubUsers {
-			err := c.stubProposalUsers(*p)
-			if err != nil {
-				return err
-			}
-		}
 	}
 
 	// 7. Add a startRunoffRecord for each RFP proposal vote. The
@@ -426,8 +429,9 @@ func (c *importCmd) fsckProposal(legacyToken string, tstoreToken []byte) error {
 
 	// This is non-trivial to implement and will only be needed
 	// if an error occurs during the import process. We'll leave
-	// this unimplemented for now and only implement it if an
-	// error occurs during the import.
+	// this unimplemented for now and only implement it if
+	// something goes wrong during the production import process
+	// and we actually need it.
 
 	return nil
 }
@@ -444,7 +448,7 @@ func (c *importCmd) fsckProposal(legacyToken string, tstoreToken []byte) error {
 // Handling proposals that have been partially added is done by the
 // fsckPropsal() function.
 func (c *importCmd) importProposal(p *proposal, parentTstoreToken []byte) ([]byte, error) {
-	fmt.Printf("Importing proposal %v\n", p.RecordMetadata.Token)
+	fmt.Printf("  Legacy token: %v\n", p.RecordMetadata.Token)
 
 	// Create a new tstore record entry
 	tstoreToken, err := c.tstore.RecordNew()
@@ -477,6 +481,14 @@ func (c *importCmd) importProposal(p *proposal, parentTstoreToken []byte) ([]byt
 	err = c.importTicketvotePluginData(*p, tstoreToken)
 	if err != nil {
 		return nil, err
+	}
+
+	// Stub the user in the politeiawww user database
+	if c.stubUsers {
+		err := c.stubProposalUsers(*p)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return tstoreToken, nil
