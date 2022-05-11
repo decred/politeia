@@ -54,14 +54,14 @@ Command Usage: import
                           during the execution of the 'convert' command.
   Flags:
 
-   --tloghost    (string)  Host for tlog. (default: localhost:8090)
+  --tloghost    (string)  Host for tlog. (default: localhost:8090)
 
   --dbhost      (string)  Host for mysql db. (default: localhost:3306)
 
   --dbpass      (string)  Password for mysql politeiad user.
                           (default: politeiadpass)
 
- --testnet     (bool)    Use the testnet database. (default: false)
+  --testnet     (bool)    Use the testnet database. (default: false)
 
   --token      (string)  Specify a single legacy token whose contents will be
                          imported. This is helpful during testing.
