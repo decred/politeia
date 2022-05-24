@@ -112,6 +112,9 @@ func (p *politeiawww) loadCSRFKey() ([]byte, error) {
 	fp := filepath.Join(p.cfg.DataDir, "csrf.key")
 	fCSRF, err := os.Open(fp)
 	switch {
+	case err == nil:
+		// CSRF key exists; continue
+
 	case os.IsNotExist(err):
 		// CSRF key does not exist. Create one
 		// and save it to disk.
