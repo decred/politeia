@@ -70,13 +70,11 @@ func (a *activeVotes) VoteDetails(token []byte) *ticketvote.VoteDetails {
 
 	// Return a copy of the vote details
 	eligible := make([]string, len(av.Details.EligibleTickets))
-	for i, v := range av.Details.EligibleTickets {
-		eligible[i] = v
-	}
+	copy(eligible, av.Details.EligibleTickets)
+
 	options := make([]ticketvote.VoteOption, len(av.Details.Params.Options))
-	for i, v := range av.Details.Params.Options {
-		options[i] = v
-	}
+	copy(options, av.Details.Params.Options)
+
 	return &ticketvote.VoteDetails{
 		Params: ticketvote.VoteParams{
 			Token:            av.Details.Params.Token,

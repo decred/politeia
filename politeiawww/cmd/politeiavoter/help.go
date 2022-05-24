@@ -9,13 +9,11 @@ const listCmdMessage = `Available commands:
   vote      Vote on a proposal
   tally     Tally votes on a proposal
   verify    Verify votes on a proposal
-  help      Print detailed help message for a command
-`
+  help      Print detailed help message for a command`
 
 const inventoryHelpMsg = `inventory 
 
-Retrieve all proposals that are being voted on.
-`
+Retrieve all proposals that are being voted on.`
 
 const voteHelpMsg = `vote "token" "voteid"
 
@@ -23,16 +21,14 @@ Vote on a proposal.
 
 Arguments:
 1. token   (string, required)  Proposal censorship token
-2. voteid  (string, required)  Vote option ID (e.g. yes)
-`
+2. voteid  (string, required)  Vote option ID (e.g. yes)`
 
 const tallyHelpMsg = `tally "token"
 
 Tally votes on a proposal.
 
 Arguments:
-1. token   (string, required)  Proposal censorship token
-`
+1. token   (string, required)  Proposal censorship token`
 
 const verifyHelpMsg = `verify "tokens..."
 
@@ -40,5 +36,4 @@ Verify votes on proposals. If no tokens are provided or 'ALL' string is
 provided then it verifies all votes present in the vote dir.
 
 Arguments:
-1. tokens  ([]string, optional)  Proposal tokens.
-`
+1. tokens  ([]string, optional)  Proposal tokens.`
