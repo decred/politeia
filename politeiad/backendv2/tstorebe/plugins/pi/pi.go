@@ -299,6 +299,14 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 			}
 			endDateMax = u
 
+		case pi.SettingKeyProposalStartDateMin:
+			i, err := strconv.ParseInt(v.Value, 10, 64)
+			if err != nil {
+				return nil, errors.Errorf("invalid plugin setting %v '%v': %v",
+					v.Key, v.Value, err)
+			}
+			startDateMin = i
+
 		case pi.SettingKeyProposalDomains:
 			err := json.Unmarshal([]byte(v.Value), &domains)
 			if err != nil {
