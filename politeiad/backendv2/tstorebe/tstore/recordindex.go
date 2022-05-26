@@ -198,7 +198,6 @@ func (t *Tstore) recordIndexes(leaves []*trillian.LogLeaf) ([]recordIndex, error
 			missing = append(missing, v)
 		}
 	}
-
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("record index not found: %v", missing)
 	}

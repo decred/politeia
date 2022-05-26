@@ -125,9 +125,18 @@ func execImportCmd(args []string) error {
 	return c.importLegacyProposals()
 }
 
-// importCmd implements the legacypoliteia import command. The execution speed
-// is limited by the trillian log signer interval (currently 200ms). Data is
-// submitted concurrently in order to work around this bottleneck.
+// importCmd implements the legacypoliteia import command. The import command
+// reads the output of the convert command from disk and imports it into the
+// politeiad tstore backend.
+//
+// The performance bottleneck for this command is the trillian log server (tlog
+// server). ~50 leaves/sec can be appended onto a tlog tree. This means that
+// importing 10,000 proposal votes will take ~200 seconds (3 minutes, 20
+// seconds). The vast majority of the execution time of this command is spent
+// importing proposal votes.
+//
+// The command is relatively light weight. It's memory footprint should stay
+// under 100 MiB and CPU usage should be minimal.
 type importCmd struct {
 	sync.Mutex
 	legacyDir string
@@ -457,7 +466,7 @@ func (c *importCmd) fsckProposal(legacyToken string, tstoreToken []byte) error {
 //
 // This function assumes that the proposal does not yet exist in tstore.
 // Handling proposals that have been partially added is done by the
-// fsckPropsal() function.
+// fsckProposal function.
 func (c *importCmd) importProposal(p *proposal, parentTstoreToken []byte) ([]byte, error) {
 	fmt.Printf("  Legacy token: %v\n", p.RecordMetadata.Token)
 
@@ -721,12 +730,15 @@ func (c *importCmd) importTicketvotePluginData(p proposal, tstoreToken []byte) e
 	// xxx interval, where xxx is a config setting that is currently
 	// configured to 200ms for politeia. If we did not submit the
 	// votes concurrently, each vote would take at least 200ms to
-	// be saved, which is unacceptably slow when you have tens of
-	// thousands of votes to save.
+	// be appended, which is unacceptably slow when you have tens of
+	// thousands of votes to import.
 	//
-	// The trillian_log_server is CPU bound. Batch sizes of 100 were
-	// found during testing to be the best balance between speed and
-	// killing the CPUs.
+	// tlog is incredibly finicky. I think there is a deadlock bug
+	// somewhere in the trillian log server that gets hit when a large
+	// number of leaves are being appended. A batch size of 50 was
+	// found during testing to be a good balance between performance
+	// and errors. Increasing the batch size speeds up the importing,
+	// but also results in more deadlocks.
 	var (
 		batchSize = 50
 		startIdx  = 0
@@ -753,6 +765,10 @@ func (c *importCmd) importTicketvotePluginData(p proposal, tstoreToken []byte) e
 	return nil
 }
 
+// SavePluginBlobEntry is a light weight version of the TstoreClient BlobSave
+// method that is used during normal operation of politeiad when saving plugin
+// data. This light weight function is necessary to increase performance of
+// a plugin data blob to an acceptable speed for this command.
 func (c *importCmd) savePluginBlobEntry(token []byte, be store.BlobEntry) error {
 	// Prepare key-value store blob
 	digest, err := hex.DecodeString(be.Digest)
