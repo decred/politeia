@@ -177,8 +177,7 @@ const usageMsg = `politeiawww_dbutil usage:
           confirm identity. 
           Required DB flag : -leveldb, -cockroachdb or -mysql
           LevelDB args     : <email>
-          CockroachDB args : <username>
-`
+          CockroachDB args : <username>`
 
 func cmdDump() error {
 	// If email is provided, only dump that user.
