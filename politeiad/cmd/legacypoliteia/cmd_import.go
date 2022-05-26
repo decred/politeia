@@ -18,9 +18,11 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
@@ -106,66 +108,18 @@ func execImportCmd(args []string) error {
 	fmt.Printf("DB host  : %v\n", *dbHost)
 	fmt.Printf("\n")
 
-	fmt.Printf("Connecting to tstore...\n")
-
-	// Setup the tstore connection
-	ts, err := tstore.New(politeiadHomeDir, politeiadDataDir,
-		params, *tlogHost, dbType, *dbHost, *dbPass, "", "")
-	if err != nil {
-		return err
-	}
-
-	// Setup key-value store
-	var (
-		dbUser = "politeiad"
-		dbName = fmt.Sprintf("%v_kv", params.Name)
-	)
-	kv, err := mysql.New(*dbHost, dbUser, *dbPass, dbName)
-	if err != nil {
-		return err
-
-	}
-
-	// Setup trillian client
-	tlogClient, err := tlog.NewClient(*tlogHost)
-	if err != nil {
-		return err
-	}
-
-	// Setup the user database connection
-	var (
-		userDB user.Database
-		httpC  *http.Client
-	)
-	if *stubUsers {
-		userDB, err = userdb.New(*dbHost, userDBPass,
-			params.Name, userDBEncryptionKey)
-		if err != nil {
-			return err
-		}
-		httpC, err = util.NewHTTPClient(false, "")
-		if err != nil {
-			return err
-		}
-	}
-
-	// Setup the import cmd
-	c := &importCmd{
-		legacyDir:  legacyDir,
-		token:      *importToken,
-		stubUsers:  *stubUsers,
-		tstore:     ts,
-		kv:         kv,
-		tlogClient: tlogClient,
-		userDB:     userDB,
-		http:       httpC,
-	}
-
 	// Print the total elapsed time on exit
 	t := time.Now()
 	defer func() {
 		fmt.Printf("Import elapsed time: %v\n", time.Since(t))
 	}()
+
+	// Setup the import command context
+	c, err := newImportCmd(legacyDir, *tlogHost, *dbHost, *dbPass,
+		*importToken, *stubUsers, params)
+	if err != nil {
+		return err
+	}
 
 	// Import the legacy proposals
 	return c.importLegacyProposals()
@@ -177,6 +131,7 @@ func execImportCmd(args []string) error {
 type importCmd struct {
 	sync.Mutex
 	legacyDir string
+	tlogHost  string
 	token     string // Optional
 	stubUsers bool
 	tstore    *tstore.Tstore
@@ -190,6 +145,62 @@ type importCmd struct {
 	// the stub users flag.
 	userDB user.Database
 	http   *http.Client
+}
+
+// newImportCmd returns a new importCmd.
+func newImportCmd(legacyDir, tlogHost, dbHost, dbPass, importToken string, stubUsers bool, params *chaincfg.Params) (*importCmd, error) {
+	// Setup the tstore connection
+	ts, err := tstore.New(politeiadHomeDir, politeiadDataDir,
+		params, tlogHost, dbType, dbHost, dbPass, "", "")
+	if err != nil {
+		return nil, err
+	}
+
+	// Setup key-value store
+	var (
+		dbUser = "politeiad"
+		dbName = fmt.Sprintf("%v_kv", params.Name)
+	)
+	kv, err := mysql.New(dbHost, dbUser, dbPass, dbName)
+	if err != nil {
+		return nil, err
+
+	}
+
+	// Setup trillian client
+	tlogClient, err := tlog.NewClient(tlogHost)
+	if err != nil {
+		return nil, err
+	}
+
+	// Setup the user database connection
+	var (
+		userDB user.Database
+		httpC  *http.Client
+	)
+	if stubUsers {
+		userDB, err = userdb.New(dbHost, userDBPass,
+			params.Name, userDBEncryptionKey)
+		if err != nil {
+			return nil, err
+		}
+		httpC, err = util.NewHTTPClient(false, "")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &importCmd{
+		legacyDir:  legacyDir,
+		token:      importToken,
+		tlogHost:   tlogHost,
+		stubUsers:  stubUsers,
+		tstore:     ts,
+		kv:         kv,
+		tlogClient: tlogClient,
+		userDB:     userDB,
+		http:       httpC,
+	}, nil
 }
 
 // importProposals walks the legacy directory and imports the legacy proposals
@@ -717,7 +728,7 @@ func (c *importCmd) importTicketvotePluginData(p proposal, tstoreToken []byte) e
 	// found during testing to be the best balance between speed and
 	// killing the CPUs.
 	var (
-		batchSize = 100
+		batchSize = 50
 		startIdx  = 0
 
 		t = time.Now()
@@ -731,7 +742,6 @@ func (c *importCmd) importTicketvotePluginData(p proposal, tstoreToken []byte) e
 		s := fmt.Sprintf("    Cast vote %v/%v", endIdx, len(p.CastVotes))
 		printInPlace(s)
 
-		// startIdx is inclusive. endIdx is exclusive.
 		c.saveVoteBatch(tstoreToken, p.CastVotes[startIdx:endIdx])
 
 		startIdx += batchSize
@@ -814,6 +824,16 @@ func (c *importCmd) savePluginBlobEntry(token []byte, be store.BlobEntry) error 
 	return nil
 }
 
+// saveVoteBatch saves a batch of cast votes to tstore. This includes appending
+// leaves onto the tlog tree and saving the data blobs to the key-value store.
+//
+// tlog is incredibly finicky. I think there is a deadlock bug somewhere in the
+// trillian log server that gets hit when a large number of leaves are being
+// appended. The tlog server will periodically freeze up without throwing any
+// errors and will require a hard restart. This function was written in a way
+// that mitigates this issue as much as possible. If the trillian log server
+// freezes up, this function will be stuck in a rety loop until the trillian
+// lop server is reset.
 func (c *importCmd) saveVoteBatch(tstoreToken []byte, votes []ticketvote.CastVoteDetails) {
 	var wg sync.WaitGroup
 	for _, v := range votes {
@@ -821,38 +841,50 @@ func (c *importCmd) saveVoteBatch(tstoreToken []byte, votes []ticketvote.CastVot
 		wg.Add(1)
 
 		go func(cvd ticketvote.CastVoteDetails) {
-			// Decrement the wait group on successful completion.
-			// This will block if an error occurred while saving
-			// the vote details or vote collider. The caller will
-			// be forced to send a SIGINT to kill the process.
-			// This is done on purpose as a quick and dirty way
-			// to handle async errors.
-			var err error
+			// Decrement the wait group on successful completion
 			defer func() {
-				if err != nil {
-					fmt.Printf("\n")
-					fmt.Printf("ERROR %v\n", err)
-					return
-				}
 				wg.Done()
 			}()
 
-			// Save the vote and vote collider
-			err = c.saveCastVoteDetails(tstoreToken, cvd)
-			if err != nil {
-				err = fmt.Errorf("saveCastVoteDetails %v %v",
-					cvd.Ticket, err)
-				return
+			var voteSaved bool
+			for !voteSaved {
+				err := c.saveCastVoteDetails(tstoreToken, cvd)
+				if err != nil {
+					fmt.Printf("\n")
+					fmt.Printf("Failed to save cast vote %v: %v\n", cvd.Ticket, err)
+					fmt.Printf("Retrying cast vote %v\n", cvd.Ticket)
+					continue
+				}
+				voteSaved = true
 			}
-			vc := voteCollider{
-				Token:  cvd.Token,
-				Ticket: cvd.Ticket,
-			}
-			err = c.saveVoteCollider(tstoreToken, vc)
-			if err != nil {
-				err = fmt.Errorf("saveVoteCollider %v: %v",
-					cvd.Ticket, err)
-				return
+
+			// Not exactly sure why, but this reduces the number of failed
+			// tlog appends.
+			time.Sleep(50 * time.Millisecond)
+
+			var colliderSaved bool
+			for !colliderSaved {
+				vc := voteCollider{
+					Token:  cvd.Token,
+					Ticket: cvd.Ticket,
+				}
+				err := c.saveVoteCollider(tstoreToken, vc)
+				switch {
+				case err == nil:
+					colliderSaved = true
+
+				case strings.Contains(err.Error(), "duplicate payload"):
+					fmt.Printf("\n")
+					fmt.Printf("%v: %v\n", cvd.Ticket, err)
+					fmt.Printf("Vote collider %v already saved; skipping\n", cvd.Ticket)
+
+					colliderSaved = true
+
+				default:
+					fmt.Printf("\n")
+					fmt.Printf("Failed to save vote collider %v: %v\n", cvd.Ticket, err)
+					fmt.Printf("Retrying vote collider %v\n", cvd.Ticket)
+				}
 			}
 		}(v)
 	}
