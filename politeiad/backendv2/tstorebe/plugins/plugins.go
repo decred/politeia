@@ -180,8 +180,8 @@ type TstoreClient interface {
 
 	// DigestsByDataDesc returns the digests of all blobs that match
 	// the provided data descriptor. The digests will be ordered from
-	// oldest to newest. If a record is vetted, only vetted blobs will
-	// be returned.
+	// oldest to newest. If a record is vetted, only the digests of
+	// vetted blobs will be returned.
 	DigestsByDataDesc(token []byte, dataDesc []string) ([][]byte, error)
 
 	// Timestamp returns the timestamp for the blob that correpsonds
