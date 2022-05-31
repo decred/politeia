@@ -78,12 +78,12 @@ func (p *commentsPlugin) rebuildRecordIndex(token []byte, addDigests, delDigests
 		return err
 	}
 	for i, a := range adds {
-		index, ok := indexes[a.CommentID]
+		cindex, ok := indexes[a.CommentID]
 		if !ok {
-			index = newCommentIndex()
+			cindex = newCommentIndex()
 		}
-		index.Adds[a.Version] = addDigests[i]
-		indexes[a.CommentID] = index
+		cindex.Adds[a.Version] = addDigests[i]
+		indexes[a.CommentID] = cindex
 	}
 
 	// Add the dels to the comment indexes
@@ -92,9 +92,14 @@ func (p *commentsPlugin) rebuildRecordIndex(token []byte, addDigests, delDigests
 		return err
 	}
 	for i, d := range dels {
-		// A commentIndex should always exist. The
-		// code below will panic if one doesn't.
-		cindex := indexes[d.CommentID]
+		// A comment index will not exist yet
+		// if the comment was deleted since the
+		// comment add entries will have been
+		// deleted.
+		cindex, ok := indexes[d.CommentID]
+		if !ok {
+			cindex = newCommentIndex()
+		}
 		cindex.Del = delDigests[i]
 		indexes[d.CommentID] = cindex
 	}
