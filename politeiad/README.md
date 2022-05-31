@@ -83,7 +83,7 @@ politeiad
 
 </details>
 
-<details><summary><b>Trillian 1.4.0</b></summary>
+<details><summary><b>Trillian 1.4.1</b></summary>
 
   Installation instructions can be found at https://github.com/google/trillian.
 
@@ -94,7 +94,7 @@ politeiad
   $ cd $GOPATH/src/github.com/google/
   $ git clone git@github.com:google/trillian.git
   $ cd trillian
-  $ git checkout tags/v1.4.0 -b v1.4.0
+  $ git checkout tags/v1.4.1 -b v1.4.1
   $ go install -v ./...
   ```
 

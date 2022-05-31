@@ -105,38 +105,27 @@ func (p *commentsPlugin) Hook(h plugins.HookT, payload string) error {
 //
 // This function satisfies the plugins PluginClient interface.
 func (p *commentsPlugin) Fsck(tokens [][]byte) error {
-	log.Tracef("comments Fsck")
+	log.Infof("Comments fsck starting for %v records", len(tokens))
 
-	log.Infof("Starting comments fsck for %v records", len(tokens))
+	// Range the provided record tokens and verify that the
+	// cached record index is coherent for each token. The
+	// cache entry will be built from scratch if any errors
+	// are found with it.
+	var rebuilt int
+	for i, token := range tokens {
+		log.Debugf("Comments fsck for record %v/%v", i+1, len(tokens))
 
-	// Navigate the provided record tokens and verify their record index
-	// comments cache integrity. This will only rebuild the cache if any
-	// inconsistency is found.
-
-	var counter int // number of record indexes rebuilt.
-
-	for _, token := range tokens {
-		// Verify the coherency of the record index.
-		isCoherent, digests, err := p.verifyRecordIndex(token)
+		wasRebuilt, err := p.fsckRecordIndex(token)
 		if err != nil {
 			return err
 		}
-
-		if isCoherent {
-			continue
+		if wasRebuilt {
+			rebuilt++
 		}
-
-		// The record index is not coherent and needs to be rebuilt.
-		err = p.rebuildRecordIndex(token, *digests)
-		if err != nil {
-			return err
-		}
-
-		counter++
 	}
 
-	log.Infof("%v comment record indexes verified", len(tokens))
-	log.Infof("%v comment record indexes rebuilt", counter)
+	log.Infof("%v/%v record indexes required a rebuild", rebuilt, len(tokens))
+	log.Infof("Comments fsck complete")
 
 	return nil
 }

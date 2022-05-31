@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -6,204 +6,189 @@ package comments
 
 import (
 	"encoding/hex"
-
-	"github.com/pkg/errors"
 )
 
-// digests is used to hold comment digests retrieved from tstore to avoid
-// having to retrieve them again when rebuilding the cache, if needed.
-type digests struct {
-	adds  [][]byte
-	dels  [][]byte
-	votes [][]byte
-}
+// fsckRecordIndex verifies the coherency of a record index. The record index
+// is rebuilt from scratch if any errors are found. The returned bool will be
+// true if the record index was rebuilt.
+func (p *commentsPlugin) fsckRecordIndex(token []byte) (bool, error) {
+	log.Debugf("%x fsck record index", token)
 
-// verifyRecordIndex verifies the coherency of the record index cache.
-func (p *commentsPlugin) verifyRecordIndex(token []byte) (bool, *digests, error) {
-	// Get comment add digests for this record token.
-	digestsAdd, err := p.tstore.DigestsByDataDesc(token,
+	// Get the digests for all of the comment add, del, and
+	// vote entries for the record. The digests are the keys
+	// that are used to pull the full entries from tstore.
+	addD, err := p.tstore.DigestsByDataDesc(token,
 		[]string{dataDescriptorCommentAdd})
 	if err != nil {
-		return false, nil, err
+		return false, err
 	}
-	// Get comment del digests for this record token.
-	digestsDel, err := p.tstore.DigestsByDataDesc(token,
+	delD, err := p.tstore.DigestsByDataDesc(token,
 		[]string{dataDescriptorCommentDel})
 	if err != nil {
-		return false, nil, err
+		return false, err
 	}
-	// Get comment vote digests for this record token.
-	digestsVote, err := p.tstore.DigestsByDataDesc(token,
+	voteD, err := p.tstore.DigestsByDataDesc(token,
 		[]string{dataDescriptorCommentVote})
 	if err != nil {
-		return false, nil, err
+		return false, err
 	}
 
-	// Create map to verify digests.
-	addMap := make(map[string][]byte, len(digestsAdd))
-	for _, d := range digestsAdd {
-		addMap[hex.EncodeToString(d)] = d
-	}
-	delMap := make(map[string][]byte, len(digestsDel))
-	for _, d := range digestsDel {
-		delMap[hex.EncodeToString(d)] = d
-	}
-	voteMap := make(map[string][]byte, len(digestsVote))
-	for _, d := range digestsVote {
-		voteMap[hex.EncodeToString(d)] = d
-	}
-
-	// Get cached record index.
+	// Get the cached record index
 	state, err := p.tstore.RecordState(token)
 	if err != nil {
-		return false, nil, err
+		return false, err
 	}
-	cached, err := p.recordIndex(token, state)
+	rindex, err := p.recordIndex(token, state)
 	if err != nil {
-		return false, nil, err
+		return false, err
 	}
 
-	// Verify that digests contained in the record index cache are valid.
-	// Also, verify that all valid digests are contained in the record
-	// index.
-	var (
-		isCoherent   = true
-		addsCounter  = 0
-		delsCounter  = 0
-		votesCounter = 0
-	)
-	for _, commentIndex := range cached.Comments {
-		// Verify comment add digests.
-		for _, add := range commentIndex.Adds {
-			_, ok := addMap[hex.EncodeToString(add)]
-			if !ok {
-				isCoherent = false
-				break
-			}
-			addsCounter++
-		}
-		// Verify comment del digest, if it is set on the index.
-		if len(commentIndex.Del) != 0 {
-			digest := hex.EncodeToString(commentIndex.Del)
-			_, ok := delMap[digest]
-			if !ok {
-				isCoherent = false
-				break
-			}
-			_, ok = addMap[digest]
-			if ok {
-				// This should not happen since the corresponding comment
-				// add from a del entry should be deleted from the db.
-				return false, nil, errors.Errorf("digest %v contained as a"+
-					"comment del and comment add", digest)
-			}
-			delsCounter++
-		}
-		// Verify comment vote digests.
-		for _, votes := range commentIndex.Votes {
-			for _, vote := range votes {
-				_, ok := voteMap[hex.EncodeToString(vote.Digest)]
-				if !ok {
-					isCoherent = false
-					break
-				}
-				votesCounter++
-			}
-		}
-	}
-	// Verify that all valid digests are contained on the record index.
-	if addsCounter != len(digestsAdd) {
-		isCoherent = false
-	}
-	if delsCounter != len(digestsDel) {
-		isCoherent = false
-	}
-	if votesCounter != len(digestsVote) {
-		isCoherent = false
+	// Verify the coherency of the record index
+	if recordIndexIsCoherent(*rindex, addD, delD, voteD) {
+		log.Debugf("%x indexes are coherent", token)
+
+		return false, nil
 	}
 
-	return isCoherent, &digests{
-		adds:  digestsAdd,
-		dels:  digestsDel,
-		votes: digestsVote,
-	}, nil
+	// The record index is not coherent. Rebuilt it from scratch.
+	log.Infof("%x rebuilding indexes", token)
+
+	err = p.rebuildRecordIndex(token, addD, delD, voteD)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
-// rebuildRecordIndex rebuilds a record index cache when it is not coherent.
-func (p *commentsPlugin) rebuildRecordIndex(token []byte, ds digests) error {
-	// Initialize map for the comment indexes.
-	index := make(map[uint32]*commentIndex)
+// rebuildRecordIndex rebuilds a recordIndex and saves it to the cache. If
+// a recordIndex already exists in the cache for this token, it will be
+// overwritten by this function.
+func (p *commentsPlugin) rebuildRecordIndex(token []byte, addDigests, delDigests, voteDigests [][]byte) error {
+	// indexes contains a commentIndex for each comment
+	// that has been made on the record.
+	//
+	// A commentIndex contains pointers to the full comment
+	// add, del, and vote records for a comment.
+	indexes := make(map[uint32]commentIndex)
 
-	// Get comment add for the add digests.
-	adds, err := p.commentAdds(token, ds.adds)
+	// Add the adds to the comment indexes
+	adds, err := p.commentAdds(token, addDigests)
 	if err != nil {
 		return err
 	}
-	// Initialize maps on the comment index for this record. Since all
-	// votes need a corresponding add to be valid, it's ok to initialize
-	// them by ranging the comment adds.
-	for _, c := range adds {
-		id := c.CommentID
-		index[id] = &commentIndex{
-			Adds:  make(map[uint32][]byte),
-			Votes: make(map[string][]voteIndex),
+	for i, a := range adds {
+		cindex, ok := indexes[a.CommentID]
+		if !ok {
+			cindex = newCommentIndex()
 		}
-	}
-	// Build the comment adds entry for the comment index.
-	for k, c := range adds {
-		id := c.CommentID
-		version := c.Version
-		index[id].Adds[version] = ds.adds[k]
+		cindex.Adds[a.Version] = addDigests[i]
+		indexes[a.CommentID] = cindex
 	}
 
-	// Get comment dels for the del digest.
-	dels, err := p.commentDels(token, ds.dels)
+	// Add the dels to the comment indexes
+	dels, err := p.commentDels(token, delDigests)
 	if err != nil {
 		return err
 	}
-	// Build the del entry for the comment index.
-	for k, c := range dels {
-		id := c.CommentID
-		index[id].Del = ds.dels[k]
+	for i, d := range dels {
+		// A comment index will not exist yet
+		// if the comment was deleted since the
+		// comment add entries will have been
+		// deleted.
+		cindex, ok := indexes[d.CommentID]
+		if !ok {
+			cindex = newCommentIndex()
+		}
+		cindex.Del = delDigests[i]
+		indexes[d.CommentID] = cindex
 	}
 
-	// Get comment votes for the vote digests
-	votes, err := p.commentVotes(token, ds.votes)
+	// Add the votes to the comment indexes
+	votes, err := p.commentVotes(token, voteDigests)
 	if err != nil {
 		return err
 	}
-	// Build the votes entry for the comment index.
-	for k, v := range votes {
-		userID := v.UserID
-		commentID := v.CommentID
-		index[commentID].Votes[userID] = append(
-			index[commentID].Votes[userID], voteIndex{
-				Vote:   v.Vote,
-				Digest: ds.votes[k],
-			})
+	for i, v := range votes {
+		// A commentIndex should always exist. The
+		// code below will panic if one doesn't.
+		cindex := indexes[v.CommentID]
+
+		voteIndexes, ok := cindex.Votes[v.UserID]
+		if !ok {
+			voteIndexes = make([]voteIndex, 0, 1024)
+		}
+		voteIndexes = append(voteIndexes, voteIndex{
+			Vote:   v.Vote,
+			Digest: voteDigests[i],
+		})
+
+		cindex.Votes[v.UserID] = voteIndexes
+		indexes[v.CommentID] = cindex
 	}
 
-	// Get record state.
+	// Save the record index to the cache. This
+	// will overwrite any existing record index.
 	state, err := p.tstore.RecordState(token)
 	if err != nil {
 		return err
 	}
-
-	// Remove current record index before saving new one.
-	err = p.recordIndexRemove(token, state)
-	if err != nil {
-		return err
+	rindex := recordIndex{
+		Comments: indexes,
 	}
-
-	// Build record index with the comment indexes previously built.
-	var ri recordIndex
-	ri.Comments = make(map[uint32]commentIndex)
-	for id, indx := range index {
-		ri.Comments[id] = *indx
-	}
-
-	// Save record index cache.
-	p.recordIndexSave(token, state, ri)
+	p.recordIndexSave(token, state, rindex)
 
 	return nil
+}
+
+// recordIndexIsCoherent returns whether the provided recordIndex contains all
+// of the provided comment add, del, and vote digests. If any of the provided
+// digests are not found then the recordIndex is considered incoherent and this
+// function will return false.
+func recordIndexIsCoherent(rindex recordIndex, addDigests, delDigests, voteDigests [][]byte) bool {
+	// digests contains all of the digests found in the
+	// record index. This includes the digests for all
+	// comment add, del, and vote entries.
+	digests := make(map[string]struct{}, 1024)
+
+	// Aggregate all of the digests that are included in the
+	// record index.
+	for _, cindex := range rindex.Comments {
+		for _, addDigest := range cindex.Adds {
+			digests[hex.EncodeToString(addDigest)] = struct{}{}
+		}
+		for _, voteIndexes := range cindex.Votes {
+			for _, voteIndex := range voteIndexes {
+				digests[hex.EncodeToString(voteIndex.Digest)] = struct{}{}
+			}
+		}
+		if len(cindex.Del) > 0 {
+			digests[hex.EncodeToString(cindex.Del)] = struct{}{}
+		}
+	}
+
+	// Verify that each of the provided add, del, and vote digests
+	// have a corresponding entry in the record index. If a match
+	// is not found for any of the provided digests then the record
+	// index is not coherent.
+	for _, d := range addDigests {
+		_, ok := digests[hex.EncodeToString(d)]
+		if !ok {
+			return false
+		}
+	}
+	for _, d := range delDigests {
+		_, ok := digests[hex.EncodeToString(d)]
+		if !ok {
+			return false
+		}
+	}
+	for _, d := range voteDigests {
+		_, ok := digests[hex.EncodeToString(d)]
+		if !ok {
+			return false
+		}
+	}
+
+	return true
 }
