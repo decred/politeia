@@ -571,11 +571,23 @@ func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) 
 		scanner = bufio.NewScanner(f)
 
 		// The legacy proposals may contain duplicate comments.
-		// We filter these duplicates out by storing them in a
-		// map where the comment signature is the key.
-		adds  = make(map[string]comments.CommentAdd)  // [sig]CommentAdd
-		dels  = make(map[string]comments.CommentDel)  // [sig]CommentDel
-		votes = make(map[string]comments.CommentVote) // [sig]CommentVote
+		// We DO NOT filter these duplicates out because of the
+		// errors it can cause:
+		//
+		// - Some of the duplicate comments have comment votes
+		//   on both of the comments. Deleting one causes issues
+		//   where a comment vote no longer references a valid
+		//   comment ID.
+		//
+		// - The backend assumes that the comment IDs will be
+		//   sequential. It will throw errors if something is
+		//   off. There needs to be either a comment add entry
+		//   or a comment del entry for each sequential comment
+		//   ID.
+		adds = make(map[string]comments.CommentAdd) // [commentID]CommentAdd
+		dels = make(map[string]comments.CommentDel) // [commentID]CommentDel
+
+		votes = make([]comments.CommentVote, 0, 1024)
 
 		// We must track the parent IDs for new comments
 		// because the gitbe censore comment struct does
@@ -608,7 +620,7 @@ func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) 
 				return nil, err
 			}
 			ca := convertCommentAdd(cm, userID)
-			adds[ca.Signature] = ca
+			adds[cm.CommentID] = ca
 
 			// Save the parent ID
 			parentIDs[cm.CommentID] = ca.ParentID
@@ -627,7 +639,7 @@ func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) 
 			if !ok {
 				return nil, fmt.Errorf("parent id not found for %v", cc.CommentID)
 			}
-			dels[cc.Signature] = convertCommentDel(cc, parentID, userID)
+			dels[cc.CommentID] = convertCommentDel(cc, parentID, userID)
 
 		case gitbe.JournalActionAddLike:
 			var lc gitbe.LikeComment
@@ -639,7 +651,7 @@ func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) 
 			if err != nil {
 				return nil, err
 			}
-			votes[lc.Signature] = convertCommentVote(lc, userID)
+			votes = append(votes, convertCommentVote(lc, userID))
 
 		default:
 			return nil, fmt.Errorf("invalid action '%v'", a.Action)
@@ -657,9 +669,8 @@ func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) 
 	// Convert the maps into slices and sort them by timestamp
 	// from oldest to newest.
 	var (
-		sortedAdds  = make([]comments.CommentAdd, 0, len(adds))
-		sortedDels  = make([]comments.CommentDel, 0, len(dels))
-		sortedVotes = make([]comments.CommentVote, 0, len(votes))
+		sortedAdds = make([]comments.CommentAdd, 0, len(adds))
+		sortedDels = make([]comments.CommentDel, 0, len(dels))
 	)
 	for _, v := range adds {
 		sortedAdds = append(sortedAdds, v)
@@ -667,23 +678,20 @@ func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) 
 	for _, v := range dels {
 		sortedDels = append(sortedDels, v)
 	}
-	for _, v := range votes {
-		sortedVotes = append(sortedVotes, v)
-	}
 	sort.SliceStable(sortedAdds, func(i, j int) bool {
 		return sortedAdds[i].Timestamp < sortedAdds[j].Timestamp
 	})
 	sort.SliceStable(sortedDels, func(i, j int) bool {
 		return sortedDels[i].Timestamp < sortedDels[j].Timestamp
 	})
-	sort.SliceStable(sortedVotes, func(i, j int) bool {
-		return sortedVotes[i].Timestamp < sortedVotes[j].Timestamp
+	sort.SliceStable(votes, func(i, j int) bool {
+		return votes[i].Timestamp < votes[j].Timestamp
 	})
 
 	return &commentTypes{
 		Adds:  sortedAdds,
 		Dels:  sortedDels,
-		Votes: sortedVotes,
+		Votes: votes,
 	}, nil
 }
 
