@@ -584,10 +584,16 @@ func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) 
 		//   off. There needs to be either a comment add entry
 		//   or a comment del entry for each sequential comment
 		//   ID.
-		adds = make(map[string]comments.CommentAdd) // [commentID]CommentAdd
-		dels = make(map[string]comments.CommentDel) // [commentID]CommentDel
-
-		votes = make([]comments.CommentVote, 0, 1024)
+		//
+		// We DO filter out duplicate comment votes. There is no
+		// unique piece of data on a duplicate comment vote like
+		// there is on a duplicate comment, i.e. the comment ID,
+		// which means that duplicate comment votes will cause a
+		// trillian duplicate leaf error when attempting to import
+		// the duplicate comment vote into the tstore backend.
+		adds  = make(map[string]comments.CommentAdd)  // [commentID]CommentAdd
+		dels  = make(map[string]comments.CommentDel)  // [commentID]CommentDel
+		votes = make(map[string]comments.CommentVote) // [signature]CommentVote
 
 		// We must track the parent IDs for new comments
 		// because the gitbe censore comment struct does
@@ -651,7 +657,7 @@ func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) 
 			if err != nil {
 				return nil, err
 			}
-			votes = append(votes, convertCommentVote(lc, userID))
+			votes[lc.Signature] = convertCommentVote(lc, userID)
 
 		default:
 			return nil, fmt.Errorf("invalid action '%v'", a.Action)
@@ -669,8 +675,9 @@ func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) 
 	// Convert the maps into slices and sort them by timestamp
 	// from oldest to newest.
 	var (
-		sortedAdds = make([]comments.CommentAdd, 0, len(adds))
-		sortedDels = make([]comments.CommentDel, 0, len(dels))
+		sortedAdds  = make([]comments.CommentAdd, 0, len(adds))
+		sortedDels  = make([]comments.CommentDel, 0, len(dels))
+		sortedVotes = make([]comments.CommentVote, 0, len(votes))
 	)
 	for _, v := range adds {
 		sortedAdds = append(sortedAdds, v)
@@ -678,20 +685,23 @@ func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) 
 	for _, v := range dels {
 		sortedDels = append(sortedDels, v)
 	}
+	for _, v := range votes {
+		sortedVotes = append(sortedVotes, v)
+	}
 	sort.SliceStable(sortedAdds, func(i, j int) bool {
 		return sortedAdds[i].Timestamp < sortedAdds[j].Timestamp
 	})
 	sort.SliceStable(sortedDels, func(i, j int) bool {
 		return sortedDels[i].Timestamp < sortedDels[j].Timestamp
 	})
-	sort.SliceStable(votes, func(i, j int) bool {
-		return votes[i].Timestamp < votes[j].Timestamp
+	sort.SliceStable(sortedVotes, func(i, j int) bool {
+		return sortedVotes[i].Timestamp < sortedVotes[j].Timestamp
 	})
 
 	return &commentTypes{
 		Adds:  sortedAdds,
 		Dels:  sortedDels,
-		Votes: votes,
+		Votes: sortedVotes,
 	}, nil
 }
 
