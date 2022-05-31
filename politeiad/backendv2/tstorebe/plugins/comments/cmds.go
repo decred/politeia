@@ -48,8 +48,12 @@ func (p *commentsPlugin) commentAddSave(token []byte, ca comments.CommentAdd) ([
 }
 
 // commentAdds returns a commentAdd for each of the provided digests. A digest
-// refers to the blob entry digest, which can be used to retrieve the blob
-// entry from the backend.
+// refers to the blob entry digest, which is used as the key when retrieving
+// the blob entry from tstore.
+//
+// This function will return the comment adds in the same order that they are
+// requested in, i.e. the order of the digests slice. An error is returned
+// if a blob entry is not found for one or more of the provided digests.
 func (p *commentsPlugin) commentAdds(token []byte, digests [][]byte) ([]comments.CommentAdd, error) {
 	// Retrieve blobs
 	blobs, err := p.tstore.Blobs(token, digests)
@@ -70,8 +74,9 @@ func (p *commentsPlugin) commentAdds(token []byte, digests [][]byte) ([]comments
 
 	// Decode blobs
 	adds := make([]comments.CommentAdd, 0, len(blobs))
-	for _, v := range blobs {
-		c, err := convertCommentAddFromBlobEntry(v)
+	for _, digest := range digests {
+		d := hex.EncodeToString(digest)
+		c, err := convertCommentAddFromBlobEntry(blobs[d])
 		if err != nil {
 			return nil, err
 		}
@@ -99,8 +104,12 @@ func (p *commentsPlugin) commentDelSave(token []byte, cd comments.CommentDel) ([
 }
 
 // commentDels returns a commentDel for each of the provided digests. A digest
-// refers to the blob entry digest, which can be used to retrieve the blob
-// entry from the backend.
+// refers to the blob entry digest, which is used as the key when retrieving
+// the blob entry from tstore.
+//
+// This function will return the comment dels in the same order that they are
+// requested in, i.e. the order of the digests slice. An error is returned
+// if a blob entry is not found for one or more of the provided digests.
 func (p *commentsPlugin) commentDels(token []byte, digests [][]byte) ([]comments.CommentDel, error) {
 	// Retrieve blobs
 	blobs, err := p.tstore.Blobs(token, digests)
@@ -121,12 +130,13 @@ func (p *commentsPlugin) commentDels(token []byte, digests [][]byte) ([]comments
 
 	// Decode blobs
 	dels := make([]comments.CommentDel, 0, len(blobs))
-	for _, v := range blobs {
-		d, err := convertCommentDelFromBlobEntry(v)
+	for _, digest := range digests {
+		d := hex.EncodeToString(digest)
+		del, err := convertCommentDelFromBlobEntry(blobs[d])
 		if err != nil {
 			return nil, err
 		}
-		dels = append(dels, *d)
+		dels = append(dels, *del)
 	}
 
 	return dels, nil
@@ -149,9 +159,13 @@ func (p *commentsPlugin) commentVoteSave(token []byte, cv comments.CommentVote) 
 	return d, nil
 }
 
-// commentVotes returns a CommentVote for each of the provided digests. A
-// digest refers to the blob entry digest, which can be used to retrieve the
-// blob entry from the backend.
+// commentVotes returns a commentVote for each of the provided digests. A
+// digest refers to the blob entry digest, which is used as the key when
+// retrieving the blob entry from tstore.
+//
+// This function will return the comment votes in the same order that they are
+// requested in, i.e. the order of the digests slice. An error is returned
+// if a blob entry is not found for one or more of the provided digests.
 func (p *commentsPlugin) commentVotes(token []byte, digests [][]byte) ([]comments.CommentVote, error) {
 	// Retrieve blobs
 	blobs, err := p.tstore.Blobs(token, digests)
@@ -172,8 +186,9 @@ func (p *commentsPlugin) commentVotes(token []byte, digests [][]byte) ([]comment
 
 	// Decode blobs
 	votes := make([]comments.CommentVote, 0, len(blobs))
-	for _, v := range blobs {
-		c, err := convertCommentVoteFromBlobEntry(v)
+	for _, digest := range digests {
+		d := hex.EncodeToString(digest)
+		c, err := convertCommentVoteFromBlobEntry(blobs[d])
 		if err != nil {
 			return nil, err
 		}

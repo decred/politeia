@@ -25,13 +25,9 @@ const (
 	fnRecordIndexVetted   = "{shorttoken}-index-vetted.json"
 )
 
-// voteIndex contains the comment vote and the digest of the vote record.
-// Caching the vote allows us to tally the votes for a comment without needing
-// to pull the vote blobs from the backend. The digest allows us to retrieve
-// the vote blob if we need to.
-type voteIndex struct {
-	Vote   comments.VoteT `json:"vote"`
-	Digest []byte         `json:"digest"`
+// recordIndex contains the indexes for all comments made on a record.
+type recordIndex struct {
+	Comments map[uint32]commentIndex `json:"comments"` // [commentID]comment
 }
 
 // commentIndex contains the digests of all comment add, dels, and votes for a
@@ -49,9 +45,21 @@ type commentIndex struct {
 	Votes map[string][]voteIndex `json:"votes"` // [uuid]votes
 }
 
-// recordIndex contains the indexes for all comments made on a record.
-type recordIndex struct {
-	Comments map[uint32]commentIndex `json:"comments"` // [commentID]comment
+// newCommentIndex returns a new commentIndex.
+func newCommentIndex() commentIndex {
+	return commentIndex{
+		Adds:  make(map[uint32][]byte, 1024),
+		Votes: make(map[string][]voteIndex, 1024),
+	}
+}
+
+// voteIndex contains the comment vote and the digest of the vote record.
+// Caching the vote allows us to tally the votes for a comment without needing
+// to pull the vote blobs from the backend. The digest allows us to retrieve
+// the vote blob if we need to.
+type voteIndex struct {
+	Vote   comments.VoteT `json:"vote"`
+	Digest []byte         `json:"digest"`
 }
 
 // recordIndexPath returns the file path for a cached record index. It accepts
