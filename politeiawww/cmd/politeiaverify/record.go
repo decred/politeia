@@ -7,7 +7,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/decred/politeia/politeiad/backend"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
@@ -26,7 +26,7 @@ type recordBundle struct {
 // signatures are correct.
 func verifyRecordBundle(fp string) error {
 	// Decode record bundle
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func verifyRecordBundle(fp string) error {
 // the validity of all timestamps included in the records v1 TimestampsReply.
 func verifyRecordTimestamps(fp string) error {
 	// Decode timestamps reply
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		return err
 	}

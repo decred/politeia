@@ -7,7 +7,6 @@ package pi
 import (
 	"container/list"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -18,7 +17,7 @@ import (
 // newTestPiPlugin returns a piPlugin that has been setup for testing.
 func newTestPiPlugin(t *testing.T) (*piPlugin, func()) {
 	// Create plugin data directory
-	dataDir, err := ioutil.TempDir("", pi.PluginID)
+	dataDir, err := os.MkdirTemp("", pi.PluginID)
 	if err != nil {
 		t.Fatal(err)
 	}

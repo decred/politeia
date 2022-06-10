@@ -16,7 +16,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -312,7 +311,7 @@ func cmdAddCredits() error {
 }
 
 func replayCommentsJournal(path string, pubkeys map[string]struct{}) error {
-	b, err := ioutil.ReadFile(path)
+	b, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -621,7 +620,7 @@ func cmdCreateKey() error {
 	}
 
 	// Write hex encoded key to file
-	err = ioutil.WriteFile(path, []byte(hex.EncodeToString(k[:])), 0644)
+	err = os.WriteFile(path, []byte(hex.EncodeToString(k[:])), 0644)
 	if err != nil {
 		return err
 	}
@@ -644,7 +643,7 @@ func validateCockroachParams() error {
 	}
 
 	// Validate root cert
-	b, err := ioutil.ReadFile(*rootCert)
+	b, err := os.ReadFile(*rootCert)
 	if err != nil {
 		return fmt.Errorf("read rootcert: %v", err)
 	}

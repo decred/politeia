@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -158,7 +157,7 @@ func (g *gitBackEnd) flushDCCVotes(token string) (string, error) {
 //
 // Must be called WITH the mutex held.
 func (g *gitBackEnd) _flushDCCVotesJournals() ([]string, error) {
-	dirs, err := ioutil.ReadDir(g.journals)
+	dirs, err := os.ReadDir(g.journals)
 	if err != nil {
 		return nil, err
 	}
@@ -446,7 +445,7 @@ func (g *gitBackEnd) validateCMSVoteBit(token, bit string) error {
 			return err
 		}
 		// Load md stream
-		svb, err := ioutil.ReadFile(mdFilename(g.vetted, token,
+		svb, err := os.ReadFile(mdFilename(g.vetted, token,
 			cmsplugin.MDStreamVoteBits))
 		if err != nil {
 			return err
@@ -1203,7 +1202,7 @@ func (g *gitBackEnd) pluginCMSInventory() (string, error) {
 	svt := make([]cmsplugin.StartVoteTuple, 0, len(cmsPluginVoteCache))
 	for _, v := range svPaths {
 		// Read vote bits file into memory
-		b, err := ioutil.ReadFile(v)
+		b, err := os.ReadFile(v)
 		if err != nil {
 			return "", fmt.Errorf("ReadFile %v: %v", v, err)
 		}
@@ -1219,7 +1218,7 @@ func (g *gitBackEnd) pluginCMSInventory() (string, error) {
 		filename := fmt.Sprintf("%02v%v", cmsplugin.MDStreamVoteSnapshot,
 			defaultMDFilenameSuffix)
 		path := filepath.Join(dir, filename)
-		b, err = ioutil.ReadFile(path)
+		b, err = os.ReadFile(path)
 		if err != nil {
 			return "", fmt.Errorf("ReadFile %v: %v", path, err)
 		}

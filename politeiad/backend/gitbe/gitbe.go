@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -143,7 +142,7 @@ func pijoin(elements ...string) string {
 // getLatest returns the latest version as a string.
 // This function must be called with the lock held.
 func getLatest(dir string) (string, error) {
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return "", backend.ErrRecordNotFound
 	}
@@ -432,7 +431,7 @@ func loadRecord(path, id, version string) ([]backend.File, error) {
 	pathToVersion := getPathToVersion(path, id, version)
 	// Get dir.
 	recordDir := pijoin(pathToVersion, defaultPayloadDir)
-	files, err := ioutil.ReadDir(recordDir)
+	files, err := os.ReadDir(recordDir)
 	if err != nil {
 		return nil, err
 	}
@@ -469,7 +468,7 @@ func mdFilename(path, id string, mdID int) string {
 // This function must be called with the lock held.
 func loadMDStreams(path, id, version string) ([]backend.MetadataStream, error) {
 	pathToVersion := getPathToVersion(path, id, version)
-	files, err := ioutil.ReadDir(pathToVersion)
+	files, err := os.ReadDir(pathToVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -490,7 +489,7 @@ func loadMDStreams(path, id, version string) ([]backend.MetadataStream, error) {
 
 		// Load metadata stream
 		fn := pijoin(pathToVersion, v.Name())
-		md, err := ioutil.ReadFile(fn)
+		md, err := os.ReadFile(fn)
 		if err != nil {
 			return nil, err
 		}
@@ -986,7 +985,7 @@ func (g *gitBackEnd) afterAnchorVerify(vrs []v1.VerifyDigest) error {
 		if err != nil {
 			return err
 		}
-		err = ioutil.WriteFile(pijoin(anchorDir, vr.Digest),
+		err = os.WriteFile(pijoin(anchorDir, vr.Digest),
 			ar, 0664)
 		if err != nil {
 			return err
@@ -1100,7 +1099,7 @@ func (g *gitBackEnd) _newRecord(id string, metadata []backend.MetadataStream, fa
 	for i := range fa {
 		// Copy files into directory id/payload/filename.
 		filename := pijoin(path, fa[i].name)
-		err = ioutil.WriteFile(filename, fa[i].payload, 0664)
+		err = os.WriteFile(filename, fa[i].payload, 0664)
 		if err != nil {
 			return nil, err
 		}
@@ -1120,7 +1119,7 @@ func (g *gitBackEnd) _newRecord(id string, metadata []backend.MetadataStream, fa
 		filename := pijoin(joinLatest(g.unvetted, id),
 			fmt.Sprintf("%02v%v", metadata[i].ID,
 				defaultMDFilenameSuffix))
-		err = ioutil.WriteFile(filename, []byte(metadata[i].Payload),
+		err = os.WriteFile(filename, []byte(metadata[i].Payload),
 			0664)
 		if err != nil {
 			return nil, err
@@ -1198,7 +1197,7 @@ func (g *gitBackEnd) newRecord(token []byte, metadata []backend.MetadataStream, 
 //
 // Function must be called with the lock held.
 func (g *gitBackEnd) getVettedTokens() ([]string, error) {
-	files, err := ioutil.ReadDir(g.vetted)
+	files, err := os.ReadDir(g.vetted)
 	if err != nil {
 		return nil, err
 	}
@@ -1348,7 +1347,7 @@ func (g *gitBackEnd) updateMetadata(id string, mdAppend, mdOverwrite []backend.M
 		filename := pijoin(joinLatest(g.unvetted, id),
 			fmt.Sprintf("%02v%v", mdOverwrite[i].ID,
 				defaultMDFilenameSuffix))
-		err := ioutil.WriteFile(filename, []byte(mdOverwrite[i].Payload),
+		err := os.WriteFile(filename, []byte(mdOverwrite[i].Payload),
 			0664)
 		if err != nil {
 			return err
@@ -1485,7 +1484,7 @@ func (g *gitBackEnd) _updateRecord(commit bool, id string, mdAppend, mdOverwrite
 	for i := range fa {
 		// Copy files into directory id/payload/filename.
 		filename := pijoin(path, fa[i].name)
-		err = ioutil.WriteFile(filename, fa[i].payload, 0664)
+		err = os.WriteFile(filename, fa[i].payload, 0664)
 		if err != nil {
 			return err
 		}
@@ -1515,7 +1514,7 @@ func (g *gitBackEnd) _updateRecord(commit bool, id string, mdAppend, mdOverwrite
 	// Find all hashes
 	hashes := make([]*[sha256.Size]byte, 0, len(fa))
 	ppath := pijoin(joinLatest(g.unvetted, id), defaultPayloadDir)
-	newRecordFiles, err := ioutil.ReadDir(ppath)
+	newRecordFiles, err := os.ReadDir(ppath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return backend.ContentVerificationError{
@@ -2021,7 +2020,7 @@ func (g *gitBackEnd) _updateVettedMetadataMulti(um []updateMetadata, idTmp strin
 func (g *gitBackEnd) _updateReadme(content string) error {
 	// Update readme file
 	filename := pijoin(g.unvetted, "README.md")
-	err := ioutil.WriteFile(filename, []byte(content), 0664)
+	err := os.WriteFile(filename, []byte(content), 0664)
 	if err != nil {
 		return err
 	}
@@ -2424,7 +2423,7 @@ func (g *gitBackEnd) GetVetted(token []byte, version string) (*backend.Record, e
 func (g *gitBackEnd) getVettedMetadataStream(token []byte, mdstreamID int) ([]byte, error) {
 	fn := fmt.Sprintf("%02v%v", mdstreamID, defaultMDFilenameSuffix)
 	dir := joinLatest(g.vetted, hex.EncodeToString(token))
-	return ioutil.ReadFile(pijoin(dir, fn))
+	return os.ReadFile(pijoin(dir, fn))
 }
 
 // setUnvettedStatus takes various parameters to update a record metadata and
@@ -2695,7 +2694,7 @@ func (g *gitBackEnd) Inventory(vettedCount, vettedStart, branchCount uint, inclu
 
 	// Walk vetted, we can simply take the vetted directory and sort the
 	// entries by time.
-	files, err := ioutil.ReadDir(g.vetted)
+	files, err := os.ReadDir(g.vetted)
 	if err != nil {
 		return nil, nil, err
 	}

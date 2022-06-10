@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -97,7 +96,7 @@ func (p *commentsPlugin) recordIndex(token []byte, s backend.StateT) (*recordInd
 	p.RLock()
 	defer p.RUnlock()
 
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		var e *os.PathError
 		if errors.As(err, &e) && !os.IsExist(err) {
@@ -134,7 +133,7 @@ func (p *commentsPlugin) _recordIndexSave(token []byte, s backend.StateT, ridx r
 	p.Lock()
 	defer p.Unlock()
 
-	err = ioutil.WriteFile(fp, b, 0664)
+	err = os.WriteFile(fp, b, 0664)
 	if err != nil {
 		return err
 	}

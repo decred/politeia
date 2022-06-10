@@ -6,7 +6,7 @@ package api
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"time"
 )
 
@@ -29,7 +29,7 @@ func (a *Client) RateLimit() (RateLimitRule, error) {
 		if err != nil {
 			return RateLimitRule{}, err
 		}
-		bo, err := ioutil.ReadAll(b.Body)
+		bo, err := io.ReadAll(b.Body)
 		b.Body.Close()
 		if err != nil {
 			return RateLimitRule{}, err

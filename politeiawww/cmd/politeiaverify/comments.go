@@ -7,7 +7,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 
@@ -29,7 +29,7 @@ type commentsBundle struct {
 // verified instead.
 func verifyCommentsBundle(fp string) error {
 	// Decode comments bundle
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func verifyCommentsBundle(fp string) error {
 // TimestampsReply.
 func verifyCommentTimestamps(fp string) error {
 	// Decode timestamps reply
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		return err
 	}

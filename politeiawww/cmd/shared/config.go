@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -227,7 +226,7 @@ func (cfg *Config) loadCookies() ([]*http.Cookie, error) {
 		return nil, nil
 	}
 
-	b, err := ioutil.ReadFile(f)
+	b, err := os.ReadFile(f)
 	if err != nil {
 		return nil, fmt.Errorf("read file %v: %v", f, err)
 	}
@@ -253,7 +252,7 @@ func (cfg *Config) SaveCookies(cookies []*http.Cookie) error {
 		return fmt.Errorf("hostFilePath: %v", err)
 	}
 
-	err = ioutil.WriteFile(f, b, 0600)
+	err = os.WriteFile(f, b, 0600)
 	if err != nil {
 		return fmt.Errorf("write file %v: %v", f, err)
 	}
@@ -273,7 +272,7 @@ func (cfg *Config) loadCSRF() (string, error) {
 		return "", nil
 	}
 
-	b, err := ioutil.ReadFile(f)
+	b, err := os.ReadFile(f)
 	if err != nil {
 		return "", fmt.Errorf("read file %v: %v", f, err)
 	}
@@ -288,7 +287,7 @@ func (cfg *Config) SaveCSRF(csrf string) error {
 		return fmt.Errorf("hostFilePath: %v", err)
 	}
 
-	err = ioutil.WriteFile(f, []byte(csrf), 0600)
+	err = os.WriteFile(f, []byte(csrf), 0600)
 	if err != nil {
 		return fmt.Errorf("write file %v: %v", f, err)
 	}
@@ -358,7 +357,7 @@ func (cfg *Config) loadLoggedInUsername() (string, error) {
 		return "", nil
 	}
 
-	b, err := ioutil.ReadFile(f)
+	b, err := os.ReadFile(f)
 	if err != nil {
 		return "", fmt.Errorf("read file %v: %v", f, err)
 	}
@@ -375,7 +374,7 @@ func (cfg *Config) SaveLoggedInUsername(username string) error {
 		return fmt.Errorf("hostFilePath: %v", err)
 	}
 
-	err = ioutil.WriteFile(f, []byte(username), 0600)
+	err = os.WriteFile(f, []byte(username), 0600)
 	if err != nil {
 		return fmt.Errorf("write file %v: %v", f, err)
 	}

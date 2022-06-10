@@ -15,7 +15,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/big"
 	"math/rand"
 	"net/http"
@@ -195,7 +194,7 @@ func newPiVoter(shutdownCtx context.Context, cfg *config) (*piv, error) {
 
 	// Wallet GRPC
 	serverCAs := x509.NewCertPool()
-	serverCert, err := ioutil.ReadFile(cfg.WalletCert)
+	serverCert, err := os.ReadFile(cfg.WalletCert)
 	if err != nil {
 		return nil, err
 	}
@@ -1481,7 +1480,7 @@ func (p *piv) verifyVote(vote string) error {
 	}
 
 	// Create local work caches
-	fa, err := ioutil.ReadDir(dir)
+	fa, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
@@ -1658,7 +1657,7 @@ func (p *piv) verifyVote(vote string) error {
 func (p *piv) verify(args []string) error {
 	// Override 0 to list all possible votes.
 	if len(args) == 0 {
-		fa, err := ioutil.ReadDir(p.cfg.voteDir)
+		fa, err := os.ReadDir(p.cfg.voteDir)
 		if err != nil {
 			return err
 		}
@@ -1673,7 +1672,7 @@ func (p *piv) verify(args []string) error {
 	}
 
 	if len(args) == 1 && args[0] == "ALL" {
-		fa, err := ioutil.ReadDir(p.cfg.voteDir)
+		fa, err := os.ReadDir(p.cfg.voteDir)
 		if err != nil {
 			return err
 		}

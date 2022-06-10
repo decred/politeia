@@ -7,7 +7,7 @@ package legacy
 import (
 	"encoding/hex"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -53,7 +53,7 @@ func TestHandleVersion(t *testing.T) {
 			// Run test case
 			p.handleVersion(w, r)
 			res := w.Result()
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 			res.Body.Close()
 
 			// Unmarshal body response

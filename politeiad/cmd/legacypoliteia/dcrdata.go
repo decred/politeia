@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	dcrdata "github.com/decred/dcrdata/v6/api/types"
@@ -42,7 +42,7 @@ func (c *convertCmd) trimmedTxs(txs []string) ([]dcrdata.TrimmedTx, error) {
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			return nil, fmt.Errorf("dcrdata error: %v %v %v",
 				r.StatusCode, url, err)
