@@ -7,7 +7,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
@@ -31,7 +31,7 @@ type votesBundle struct {
 // are not duplicates.
 func verifyVotesBundle(fp string) error {
 	// Decode votes bundle
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func verifyVotesBundle(fp string) error {
 // validity of all timestamps included in the ticketvote v1 TimestampsReply.
 func verifyVoteTimestamps(fp string) error {
 	// Decode timestamps reply
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		return err
 	}

@@ -9,7 +9,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"decred.org/dcrwallet/rpc/walletrpc"
@@ -25,7 +24,7 @@ type dcrwalletClient struct {
 
 func newDcrwalletClient(walletHost, walletCert, clientCert, clientKey string) (*dcrwalletClient, error) {
 	serverCAs := x509.NewCertPool()
-	serverCert, err := ioutil.ReadFile(walletCert)
+	serverCert, err := os.ReadFile(walletCert)
 	if err != nil {
 		return nil, err
 	}

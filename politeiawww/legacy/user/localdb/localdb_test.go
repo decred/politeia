@@ -7,7 +7,6 @@ package localdb
 import (
 	"encoding/base32"
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,7 +19,7 @@ import (
 func setupTestData(t *testing.T) (*localdb, string) {
 	t.Helper()
 
-	dataDir, err := ioutil.TempDir("", "politeiawww.user.localdb.test")
+	dataDir, err := os.MkdirTemp("", "politeiawww.user.localdb.test")
 	if err != nil {
 		t.Fatalf("tmp dir: %v", err)
 	}

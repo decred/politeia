@@ -11,7 +11,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -385,7 +384,7 @@ func (g *gitBackEnd) gitInitRepo(path string, repoConfig map[string]string) erro
 	// Add empty .gitignore
 	// This makes the repo ready to go and we'll always use this as the
 	// initial commit.
-	err = ioutil.WriteFile(filepath.Join(path, ".gitignore"), []byte{},
+	err = os.WriteFile(filepath.Join(path, ".gitignore"), []byte{},
 		0664)
 	if err != nil {
 		return err
@@ -401,7 +400,7 @@ func (g *gitBackEnd) gitInitRepo(path string, repoConfig map[string]string) erro
 	}
 
 	// Add README.md
-	err = ioutil.WriteFile(filepath.Join(path, "README.md"),
+	err = os.WriteFile(filepath.Join(path, "README.md"),
 		[]byte(defaultReadme), 0644)
 	if err != nil {
 		return err

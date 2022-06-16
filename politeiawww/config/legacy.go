@@ -10,8 +10,8 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"net/url"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -227,7 +227,7 @@ func setupLegacyUserDBSettings(cfg *Config) error {
 		}
 
 		// Validate user database root cert
-		b, err := ioutil.ReadFile(cfg.DBRootCert)
+		b, err := os.ReadFile(cfg.DBRootCert)
 		if err != nil {
 			return fmt.Errorf("read dbrootcert: %v", err)
 		}

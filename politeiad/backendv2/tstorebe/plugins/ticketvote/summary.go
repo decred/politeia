@@ -7,7 +7,6 @@ package ticketvote
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,7 +51,7 @@ func (p *ticketVotePlugin) summaryCache(token string) (*ticketvote.SummaryReply,
 	p.mtxSummary.Lock()
 	defer p.mtxSummary.Unlock()
 
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		var e *os.PathError
 		if errors.As(err, &e) && !os.IsExist(err) {
@@ -87,7 +86,7 @@ func (p *ticketVotePlugin) summaryCacheSave(token string, sr ticketvote.SummaryR
 	p.mtxSummary.Lock()
 	defer p.mtxSummary.Unlock()
 
-	err = ioutil.WriteFile(fp, b, 0664)
+	err = os.WriteFile(fp, b, 0664)
 	if err != nil {
 		return err
 	}

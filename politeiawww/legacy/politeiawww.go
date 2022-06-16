@@ -10,8 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -154,13 +154,13 @@ func NewPoliteiawww(cfg *config.Config, router, auth *mux.Router, params *chainc
 
 	// Setup sessions store
 	var cookieKey []byte
-	if cookieKey, err = ioutil.ReadFile(cfg.CookieKeyFile); err != nil {
+	if cookieKey, err = os.ReadFile(cfg.CookieKeyFile); err != nil {
 		log.Infof("Cookie key not found, generating one...")
 		cookieKey, err = util.Random(32)
 		if err != nil {
 			return nil, err
 		}
-		err = ioutil.WriteFile(cfg.CookieKeyFile, cookieKey, 0400)
+		err = os.WriteFile(cfg.CookieKeyFile, cookieKey, 0400)
 		if err != nil {
 			return nil, err
 		}

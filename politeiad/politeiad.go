@@ -9,7 +9,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -467,7 +466,7 @@ func _main() error {
 			return fmt.Errorf("unable to find dcrtime cert %v",
 				cfg.DcrtimeCert)
 		}
-		dcrtimeCert, err := ioutil.ReadFile(cfg.DcrtimeCert)
+		dcrtimeCert, err := os.ReadFile(cfg.DcrtimeCert)
 		if err != nil {
 			return fmt.Errorf("unable to read dcrtime cert %v: %v",
 				cfg.DcrtimeCert, err)

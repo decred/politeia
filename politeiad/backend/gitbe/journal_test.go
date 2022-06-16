@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -48,7 +47,7 @@ func testExact(j *Journal, filename string, count int) error {
 }
 
 func TestJournalExact(t *testing.T) {
-	dir, err := ioutil.TempDir("", "journal")
+	dir, err := os.MkdirTemp("", "journal")
 	t.Logf("TestJournalExact: %v", dir)
 	if err != nil {
 		t.Fatal(err)
@@ -79,7 +78,7 @@ func TestJournalExact(t *testing.T) {
 }
 
 func TestJournalDoubleOpen(t *testing.T) {
-	dir, err := ioutil.TempDir("", "journal")
+	dir, err := os.MkdirTemp("", "journal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +105,7 @@ func TestJournalDoubleOpen(t *testing.T) {
 }
 
 func TestJournalDoubleClose(t *testing.T) {
-	dir, err := ioutil.TempDir("", "journal")
+	dir, err := os.MkdirTemp("", "journal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +137,7 @@ func TestJournalDoubleClose(t *testing.T) {
 }
 
 func TestJournalConcurrent(t *testing.T) {
-	dir, err := ioutil.TempDir("", "journal")
+	dir, err := os.MkdirTemp("", "journal")
 	t.Logf("TestJournalConcurrent: %v", dir)
 	if err != nil {
 		t.Fatal(err)
@@ -196,7 +195,7 @@ func TestJournalConcurrent(t *testing.T) {
 }
 
 func TestJournalConcurrentSame(t *testing.T) {
-	dir, err := ioutil.TempDir("", "journal")
+	dir, err := os.MkdirTemp("", "journal")
 	t.Logf("TestJournalConcurrentSame: %v", dir)
 	if err != nil {
 		t.Fatal(err)
@@ -251,7 +250,7 @@ func TestJournalConcurrentSame(t *testing.T) {
 }
 
 func TestJournalCopy(t *testing.T) {
-	dir, err := ioutil.TempDir("", "journal")
+	dir, err := os.MkdirTemp("", "journal")
 	t.Logf("TestJournalConcurrentCopy: %v", dir)
 	if err != nil {
 		t.Fatal(err)

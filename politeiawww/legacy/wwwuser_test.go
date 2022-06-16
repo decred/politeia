@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -77,7 +77,7 @@ func TestHandleNewUser(t *testing.T) {
 			// Run test case
 			p.handleNewUser(w, r)
 			res := w.Result()
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 			res.Body.Close()
 
 			// Validate response
@@ -130,7 +130,7 @@ func TestHandleVerifyNewUser(t *testing.T) {
 		// Run test case
 		p.handleVerifyNewUser(w, r)
 		res := w.Result()
-		body, _ := ioutil.ReadAll(res.Body)
+		body, _ := io.ReadAll(res.Body)
 		res.Body.Close()
 
 		// Validate response
@@ -194,7 +194,7 @@ func TestHandleVerifyNewUser(t *testing.T) {
 			// Run test case
 			p.handleVerifyNewUser(w, r)
 			res := w.Result()
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 			res.Body.Close()
 
 			// Validate response
@@ -312,7 +312,7 @@ func TestHandleResendVerification(t *testing.T) {
 			w := httptest.NewRecorder()
 			p.handleResendVerification(w, r)
 			res := w.Result()
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 			res.Body.Close()
 
 			// Validate response
@@ -412,7 +412,7 @@ func TestHandleLogin(t *testing.T) {
 			// Run test case
 			p.handleLogin(w, r)
 			res := w.Result()
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 			res.Body.Close()
 
 			// Validate response
@@ -543,7 +543,7 @@ func TestHandleChangePassword(t *testing.T) {
 			// Run test case
 			p.handleChangePassword(w, r)
 			res := w.Result()
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 			res.Body.Close()
 
 			// Validate response
@@ -633,7 +633,7 @@ func TestHandleResetPassword(t *testing.T) {
 			// Run test case
 			p.handleResetPassword(w, r)
 			res := w.Result()
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 			res.Body.Close()
 
 			// Validate response
@@ -728,7 +728,7 @@ func TestHandleVerifyResetPassword(t *testing.T) {
 			// Run test case
 			p.handleVerifyResetPassword(w, r)
 			res := w.Result()
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 			res.Body.Close()
 
 			// Check status code
@@ -814,7 +814,7 @@ func TestHandleChangeUsername(t *testing.T) {
 			// Run test case
 			p.handleChangeUsername(w, r)
 			res := w.Result()
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 			res.Body.Close()
 
 			// Validate response
@@ -915,7 +915,7 @@ func TestHandleUserDetails(t *testing.T) {
 			// Run test case
 			p.handleUserDetails(w, r)
 			res := w.Result()
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 			res.Body.Close()
 
 			// Validate response
@@ -990,7 +990,7 @@ func TestHandleEditUser(t *testing.T) {
 			// Run test case
 			p.handleEditUser(w, r)
 			res := w.Result()
-			body, _ := ioutil.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
 			res.Body.Close()
 
 			// Validate response

@@ -6,7 +6,6 @@ package util
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/decred/slog"
@@ -40,7 +39,7 @@ func LoadEncryptionKey(log slog.Logger, keyFile string) (*[32]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		err = ioutil.WriteFile(keyFile, key[:], 0400)
+		err = os.WriteFile(keyFile, key[:], 0400)
 		if err != nil {
 			return nil, err
 		}

@@ -1,6 +1,6 @@
 module github.com/decred/politeia
 
-go 1.15
+go 1.17
 
 require (
 	decred.org/dcrwallet v1.7.0
@@ -9,10 +9,9 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0
 	github.com/decred/dcrd/certgen v1.1.1
-	github.com/decred/dcrd/chaincfg/chainhash v1.0.3-0.20200921185235-6d75c7ec1199
+	github.com/decred/dcrd/chaincfg/chainhash v1.0.3
 	github.com/decred/dcrd/chaincfg/v3 v3.0.0
-	github.com/decred/dcrd/crypto/blake256 v1.0.1-0.20200921185235-6d75c7ec1199 // indirect
-	github.com/decred/dcrd/dcrec v1.0.1-0.20200921185235-6d75c7ec1199
+	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v3 v3.0.0
 	github.com/decred/dcrd/dcrutil/v3 v3.0.0
 	github.com/decred/dcrd/hdkeychain/v3 v3.0.0
@@ -39,7 +38,6 @@ require (
 	github.com/jessevdk/go-flags v1.4.1-0.20200711081900-c17162fe8fd7
 	github.com/jinzhu/gorm v1.9.12
 	github.com/jrick/logrotate v1.0.0
-	github.com/lib/pq v1.9.0 // indirect
 	github.com/marcopeereboom/sbox v1.1.0
 	github.com/otiai10/copy v1.2.0
 	github.com/pkg/errors v0.9.1
@@ -54,4 +52,36 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	google.golang.org/genproto v0.0.0-20220422154200-b37d22cd5731
 	google.golang.org/grpc v1.46.0
+)
+
+require (
+	github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 // indirect
+	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
+	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
+	github.com/cespare/xxhash v1.1.0 // indirect
+	github.com/dchest/siphash v1.2.1 // indirect
+	github.com/decred/base58 v1.0.3 // indirect
+	github.com/decred/dcrd/blockchain/standalone/v2 v2.0.0 // indirect
+	github.com/decred/dcrd/crypto/blake256 v1.0.1-0.20200921185235-6d75c7ec1199 // indirect
+	github.com/decred/dcrd/crypto/ripemd160 v1.0.1 // indirect
+	github.com/decred/dcrd/database/v2 v2.0.2 // indirect
+	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.1 // indirect
+	github.com/decred/dcrd/dcrjson/v3 v3.1.0 // indirect
+	github.com/decred/dcrd/gcs/v2 v2.1.0 // indirect
+	github.com/decred/dcrd/rpcclient/v6 v6.0.2 // indirect
+	github.com/decred/dcrd/txscript/v3 v3.0.0 // indirect
+	github.com/dgraph-io/badger v1.6.2 // indirect
+	github.com/dgraph-io/ristretto v0.0.2 // indirect
+	github.com/dustin/go-humanize v1.0.0 // indirect
+	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
+	github.com/golang/snappy v0.0.4 // indirect
+	github.com/google/certificate-transparency-go v1.1.2-0.20210512142713-bed466244fa6 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/lib/pq v1.9.0 // indirect
+	github.com/transparency-dev/merkle v0.0.1 // indirect
+	golang.org/x/sys v0.0.0-20220422013727-9388b58f7150 // indirect
+	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
+	golang.org/x/text v0.3.7 // indirect
+	google.golang.org/appengine v1.6.7 // indirect
+	google.golang.org/protobuf v1.28.0 // indirect
 )

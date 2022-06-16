@@ -8,9 +8,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"net/mail"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/dajohi/goemail"
@@ -263,7 +263,7 @@ func NewClient(host, user, password, emailAddress, certPath string, skipVerify b
 		InsecureSkipVerify: skipVerify,
 	}
 	if !skipVerify && certPath != "" {
-		cert, err := ioutil.ReadFile(certPath)
+		cert, err := os.ReadFile(certPath)
 		if err != nil {
 			return nil, err
 		}

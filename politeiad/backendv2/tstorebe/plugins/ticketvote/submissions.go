@@ -7,7 +7,6 @@ package ticketvote
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,7 +65,7 @@ func (p *ticketVotePlugin) submissionsCacheWithLock(token []byte) (*submissions,
 	if err != nil {
 		return nil, err
 	}
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		var e *os.PathError
 		if errors.As(err, &e) && !os.IsExist(err) {
@@ -109,7 +108,7 @@ func (p *ticketVotePlugin) submissionsCacheSaveWithLock(token []byte, s submissi
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(fp, b, 0664)
+	return os.WriteFile(fp, b, 0664)
 }
 
 // submissionsCacheAdd updates the cached submissions list for the parentToken,
