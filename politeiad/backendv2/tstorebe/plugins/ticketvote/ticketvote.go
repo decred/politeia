@@ -5,12 +5,10 @@
 package ticketvote
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"sync"
 
@@ -20,6 +18,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -47,12 +46,15 @@ type ticketVotePlugin struct {
 	// prove the backend received and processed a plugin command.
 	identity *identity.FullIdentity
 
+	// invCtx provides an API for managing the cached inventory.
+	inv *invCtx
+
 	// activeVotes is a memeory cache that contains data required to
 	// validate vote ballots in a time efficient manner.
 	activeVotes *activeVotes
 
 	// Mutexes for on-disk caches
-	mtxInv     sync.RWMutex // Vote inventory cache
+	mtxInv     sync.RWMutex // TODO DELTE ME
 	mtxSummary sync.Mutex   // Vote summaries cache
 	mtxSubs    sync.Mutex   // Runoff vote submission cache
 
@@ -84,28 +86,45 @@ func (p *ticketVotePlugin) Setup() error {
 			dcrdata.PluginID)
 	}
 
-	// Update the inventory with the current best block. Retrieving
-	// the inventory will cause it to update.
+	// Update the inventory for the current block height.
+	// Retrieving the inventory will trigger an update.
 	log.Infof("Updating vote inventory")
 
 	bestBlock, err := p.bestBlock()
 	if err != nil {
-		return fmt.Errorf("bestBlock: %v", err)
+		return err
 	}
-	inv, err := p.Inventory(bestBlock)
+	_, err = p.inv.GetPage(bestBlock)
 	if err != nil {
-		return fmt.Errorf("Inventory: %v", err)
+		return err
 	}
 
-	// Build active votes cache
+	// Build the active votes cache
 	log.Infof("Building active votes cache")
 
-	started := make([]string, 0, len(inv.Entries))
-	for _, v := range inv.Entries {
-		if v.Status == ticketvote.VoteStatusStarted {
-			started = append(started, v.Token)
+	var (
+		// started is populated with the tokens of all records
+		// that have a vote status of VoteStatusStarted.
+		started = make([]string, 0, 256)
+
+		page uint32 = 1
+	)
+	for {
+		entries, err := p.inv.GetPageForStatus(bestBlock,
+			ticketvote.VoteStatusStarted, page)
+		if err != nil {
+			return err
 		}
+		if len(entries) == 0 {
+			// We've reached the end of the inventory
+			// for the VoteStatusStarted entries.
+			break
+		}
+		started = append(started, entryTokens(entries)...)
+		page++
 	}
+	// Retrieve the data required to build the active votes
+	// cache for the records with ongoing, i.e. started, votes.
 	for _, v := range started {
 		// Get the vote details
 		token, err := tokenDecode(v)
@@ -116,7 +135,7 @@ func (p *ticketVotePlugin) Setup() error {
 		reply, err := p.backend.PluginRead(token, ticketvote.PluginID,
 			ticketvote.CmdDetails, "")
 		if err != nil {
-			return fmt.Errorf("PluginRead %x %v %v: %v",
+			return errors.Errorf("PluginRead %x %v %v: %v",
 				token, ticketvote.PluginID, ticketvote.CmdDetails, err)
 		}
 		var dr ticketvote.DetailsReply
@@ -126,18 +145,18 @@ func (p *ticketVotePlugin) Setup() error {
 		}
 		if dr.Vote == nil {
 			// Something is wrong. This should not happen.
-			return fmt.Errorf("vote details not found for record in "+
-				"started inventory %x", token)
+			return errors.Errorf("vote details not found "+
+				"for record in started inventory %x", token)
 		}
 
-		// Add active votes entry
+		// Add the record to the active votes cache
 		p.activeVotesAdd(*dr.Vote)
 
-		// Get cast votes
+		// Get the cast votes
 		reply, err = p.backend.PluginRead(token, ticketvote.PluginID,
 			ticketvote.CmdResults, "")
 		if err != nil {
-			return fmt.Errorf("PluginRead %x %v %v: %v",
+			return errors.Errorf("PluginRead %x %v %v: %v",
 				token, ticketvote.PluginID, ticketvote.CmdResults, err)
 		}
 		var rr ticketvote.ResultsReply
@@ -145,8 +164,8 @@ func (p *ticketVotePlugin) Setup() error {
 		if err != nil {
 			return err
 		}
+		// Add the cast votes to the cached active vote entry
 		for _, v := range rr.Votes {
-			// Add cast vote to the active votes cache
 			p.activeVotes.AddCastVote(v.Token, v.Ticket, v.VoteBit)
 		}
 	}
@@ -216,253 +235,6 @@ func (p *ticketVotePlugin) Hook(h plugins.HookT, payload string) error {
 // This function satisfies the plugins PluginClient interface.
 func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 	log.Tracef("ticketvote Fsck")
-
-	// invEntry is a struct used to insert an entry on the ticketvote inventory
-	// cache.
-	type invEntry struct {
-		data entry
-
-		// timestamp holds the last vote status change timestamp, which is used
-		// to sort the records from oldest to newest.
-		timestamp int64
-	}
-
-	// Group inventory entries by their vote statuses and build RFP submissions
-	// list for every RFP parent record. While traversing the tokens list, for
-	// each record token, verify the coherency of the summaries cache and audit
-	// all cast votes against its eligible tickets.
-	var (
-		unauthorized = make([]*invEntry, 0, len(tokens))
-		authorized   = make([]*invEntry, 0, len(tokens))
-		started      = make([]*invEntry, 0, len(tokens))
-		finished     = make([]*invEntry, 0, len(tokens))
-		approved     = make([]*invEntry, 0, len(tokens))
-		rejected     = make([]*invEntry, 0, len(tokens))
-		ineligible   = make([]*invEntry, 0, len(tokens))
-
-		// rfps holds the submissions of all RFP parents.
-		rfps = make(map[string][]string, len(tokens)) // [parentToken][]childTokens
-	)
-
-	log.Infof("Starting ticketvote fsck for %v records", len(tokens))
-
-	for _, t := range tokens {
-		// Get the partial record for each token.
-		r, err := p.tstore.RecordPartial(t, 0, nil, false)
-		if err != nil {
-			return err
-		}
-
-		// Skip ticketvote fsck if record state is unvetted.
-		if r.RecordMetadata.State == backend.StateUnvetted {
-			continue
-		}
-
-		// Decode vote metadata and build submissions map.
-		vmd, err := voteMetadataDecode(r.Files)
-		if err != nil {
-			return err
-		}
-		if vmd != nil && vmd.LinkTo != "" {
-			// Save RFP submissions to further check the coherency of the
-			// submissions cache of RFP parents.
-			rfps[vmd.LinkTo] = append(rfps[vmd.LinkTo],
-				hex.EncodeToString(t))
-		}
-
-		// Get best block for summary call.
-		bb, err := p.bestBlock()
-		if err != nil {
-			return err
-		}
-
-		// Get the vote summary for each record. The summary call checks if a
-		// cache entry exists for that record's vote summary and retrieves it.
-		// If it does not exist, it'll build the cache entry from scratch. This
-		// verifies the coherency of the summaries cache.
-		s, err := p.summary(t, bb)
-		if err != nil {
-			return err
-		}
-
-		// Create inventory entry for each record.
-		ie := &invEntry{
-			data: entry{
-				Token:     hex.EncodeToString(t),
-				Status:    s.Status,
-				EndHeight: s.EndBlockHeight,
-			},
-		}
-
-		// Set timestamp field and group tokens according to the record's vote
-		// status.
-		switch {
-		case s.Status == ticketvote.VoteStatusUnauthorized:
-			ie.timestamp = r.RecordMetadata.Timestamp
-			unauthorized = append(unauthorized, ie)
-		case s.Status == ticketvote.VoteStatusAuthorized:
-			// Get auth details blobs from tstore.
-			auths, err := p.auths(t)
-			if err != nil {
-				return err
-			}
-			// Search for latest authorize action timestamp.
-			for _, auth := range auths {
-				if ticketvote.AuthActionT(auth.Action) ==
-					ticketvote.AuthActionAuthorize {
-					ie.timestamp = auth.Timestamp
-				}
-			}
-			authorized = append(authorized, ie)
-		case s.Status == ticketvote.VoteStatusStarted:
-			ie.timestamp = int64(s.StartBlockHeight)
-			started = append(started, ie)
-		case s.Status == ticketvote.VoteStatusFinished:
-			ie.timestamp = int64(s.EndBlockHeight)
-			finished = append(finished, ie)
-		case s.Status == ticketvote.VoteStatusApproved:
-			ie.timestamp = int64(s.EndBlockHeight)
-			approved = append(approved, ie)
-		case s.Status == ticketvote.VoteStatusRejected:
-			ie.timestamp = int64(s.EndBlockHeight)
-			rejected = append(rejected, ie)
-		case s.Status == ticketvote.VoteStatusIneligible:
-			ie.timestamp = r.RecordMetadata.Timestamp
-			ineligible = append(ineligible, ie)
-		default:
-			return fmt.Errorf("invalid vote status for record %v",
-				ie.data.Token)
-		}
-
-		// Audit finished votes. This verifies that all cast votes use eligible
-		// tickets, and that no duplicate votes exist.
-
-		// Skip votes audit if record is unauthorized, authorized or ineligible.
-		if s.Status == ticketvote.VoteStatusUnauthorized ||
-			s.Status == ticketvote.VoteStatusAuthorized ||
-			s.Status == ticketvote.VoteStatusIneligible {
-			continue
-		}
-
-		// Get vote details for eligible tickets.
-		vd, err := p.voteDetails(t)
-		if err != nil {
-			return err
-		}
-
-		// Get vote results for all cast vote details.
-		vr, err := p.voteResults(t)
-		if err != nil {
-			return err
-		}
-
-		// Create map access for the eligible tickets.
-		eligibles := make(map[string]struct{}, len(vd.EligibleTickets))
-		for _, t := range vd.EligibleTickets {
-			eligibles[t] = struct{}{}
-		}
-
-		// Range through all cast votes and make sure it was cast by a eligible
-		// ticket.
-		for _, vote := range vr {
-			_, ok := eligibles[vote.Ticket]
-			if !ok {
-				return fmt.Errorf("vote was cast by a not eligible ticket %v"+
-					"on record %v", vote.Ticket, vote.Token)
-			}
-		}
-	}
-
-	log.Infof("%v ticketvote summaries verified", len(tokens))
-	log.Infof("%v records audited for eligible cast votes", len(tokens))
-
-	// Verify the coherency of the submissions cache.
-	for parentToken, submissions := range rfps {
-		bToken, err := hex.DecodeString(parentToken)
-		if err != nil {
-			return err
-		}
-		cache, err := p.submissionsCache(bToken)
-		if err != nil {
-			return err
-		}
-		// Check if every submission is contained in the cache.
-		bad := false
-		for _, s := range submissions {
-			_, ok := cache.Tokens[s]
-			if !ok {
-				bad = true
-				break
-			}
-		}
-		// Check if cache is bad and needs a rebuild.
-		if bad {
-			err := p.submissionsCacheRemove(bToken)
-			if err != nil {
-				return err
-			}
-			for _, s := range submissions {
-				err = p.submissionsCacheAdd(parentToken, s)
-				if err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	log.Infof("%v RFP submission lists verified", len(rfps))
-
-	// Rebuild the ticketvote inventory cache.
-
-	// Sort each vote status group from oldest to newest.
-	sort.Slice(unauthorized, func(i, j int) bool {
-		return unauthorized[i].timestamp < unauthorized[j].timestamp
-	})
-	sort.Slice(authorized, func(i, j int) bool {
-		return authorized[i].timestamp < authorized[j].timestamp
-	})
-	sort.Slice(started, func(i, j int) bool {
-		return started[i].timestamp < started[j].timestamp
-	})
-	sort.Slice(finished, func(i, j int) bool {
-		return finished[i].timestamp < finished[j].timestamp
-	})
-	sort.Slice(approved, func(i, j int) bool {
-		return approved[i].timestamp < approved[j].timestamp
-	})
-	sort.Slice(rejected, func(i, j int) bool {
-		return rejected[i].timestamp < rejected[j].timestamp
-	})
-	sort.Slice(ineligible, func(i, j int) bool {
-		return ineligible[i].timestamp < ineligible[j].timestamp
-	})
-
-	// Delete ticketvote inventory cache before rebuilding.
-	err := p.invRemove()
-	if err != nil {
-		return err
-	}
-
-	// Add entries from all status groups to the ticketvote inventory.
-	entries := make([]*invEntry, 0, len(tokens))
-	entries = append(entries, unauthorized...)
-	entries = append(entries, authorized...)
-	entries = append(entries, started...)
-	entries = append(entries, finished...)
-	entries = append(entries, approved...)
-	entries = append(entries, rejected...)
-	entries = append(entries, ineligible...)
-	for _, entry := range entries {
-		if entry.data.Status == ticketvote.VoteStatusStarted {
-			p.inventoryAdd(entry.data.Token, ticketvote.VoteStatusAuthorized)
-			p.inventoryUpdateToStarted(entry.data.Token,
-				ticketvote.VoteStatusStarted, entry.data.EndHeight)
-			continue
-		}
-		p.inventoryAdd(entry.data.Token, entry.data.Status)
-	}
-
-	log.Infof("%v records added to the ticketvote inventory", len(entries))
 
 	return nil
 }

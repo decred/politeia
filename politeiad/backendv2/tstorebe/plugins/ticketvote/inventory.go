@@ -94,7 +94,7 @@ func (p *ticketVotePlugin) invGet() (*inventory, error) {
 // invSaveLocked writes the inventory to disk.
 //
 // This function must be called WITH the mtxInv write lock held.
-func (p *ticketVotePlugin) invSaveLocked(inv inventory) error {
+func (p *ticketVotePlugin) _invSaveLocked(inv inventory) error {
 	b, err := json.Marshal(inv)
 	if err != nil {
 		return err
@@ -105,7 +105,7 @@ func (p *ticketVotePlugin) invSaveLocked(inv inventory) error {
 // invAdd adds a token to the ticketvote inventory.
 //
 // This function must be called WITHOUT the mtxInv write lock held.
-func (p *ticketVotePlugin) invAdd(token string, s ticketvote.VoteStatusT) error {
+func (p *ticketVotePlugin) _invAdd(token string, s ticketvote.VoteStatusT) error {
 	p.mtxInv.Lock()
 	defer p.mtxInv.Unlock()
 
@@ -123,7 +123,7 @@ func (p *ticketVotePlugin) invAdd(token string, s ticketvote.VoteStatusT) error 
 	inv.Entries = append([]entry{e}, inv.Entries...)
 
 	// Save inventory
-	err = p.invSaveLocked(*inv)
+	err = p._invSaveLocked(*inv)
 	if err != nil {
 		return err
 	}
@@ -133,20 +133,11 @@ func (p *ticketVotePlugin) invAdd(token string, s ticketvote.VoteStatusT) error 
 	return nil
 }
 
-// inventoryAdd is a wrapper around the invAdd method that allows us to decide
-// how disk read/write errors should be handled. For now we just panic.
-func (p *ticketVotePlugin) inventoryAdd(token string, s ticketvote.VoteStatusT) {
-	err := p.invAdd(token, s)
-	if err != nil {
-		panic(fmt.Sprintf("invAdd %v %v: %v", token, s, err))
-	}
-}
-
 // invUpdateLocked updates a pre existing token in the inventory to a new
 // vote status.
 //
 // This function must be called WITH the mtxInv write lock held.
-func (p *ticketVotePlugin) invUpdateLocked(token string, s ticketvote.VoteStatusT, endHeight uint32) error {
+func (p *ticketVotePlugin) _invUpdateLocked(token string, s ticketvote.VoteStatusT, endHeight uint32) error {
 	// Get inventory
 	inv, err := p.invGetLocked()
 	if err != nil {
@@ -169,7 +160,7 @@ func (p *ticketVotePlugin) invUpdateLocked(token string, s ticketvote.VoteStatus
 	inv.Entries = append([]entry{e}, entries...)
 
 	// Save inventory
-	err = p.invSaveLocked(*inv)
+	err = p._invSaveLocked(*inv)
 	if err != nil {
 		return err
 	}
@@ -183,20 +174,11 @@ func (p *ticketVotePlugin) invUpdateLocked(token string, s ticketvote.VoteStatus
 // status.
 //
 // This function must be called WITHOUT the mtxInv write lock held.
-func (p *ticketVotePlugin) invUpdate(token string, s ticketvote.VoteStatusT, endHeight uint32) error {
+func (p *ticketVotePlugin) _invUpdate(token string, s ticketvote.VoteStatusT, endHeight uint32) error {
 	p.mtxInv.Lock()
 	defer p.mtxInv.Unlock()
 
-	return p.invUpdateLocked(token, s, endHeight)
-}
-
-// inventoryUpdate is a wrapper around the invUpdate method that allows us to
-// decide how disk read/write errors should be handled. For now we just panic.
-func (p *ticketVotePlugin) inventoryUpdate(token string, s ticketvote.VoteStatusT) {
-	err := p.invUpdate(token, s, 0)
-	if err != nil {
-		panic(fmt.Sprintf("invUpdate %v %v: %v", token, s, err))
-	}
+	return p._invUpdateLocked(token, s, endHeight)
 }
 
 // invUpdateForBlock updates the inventory for a new best block value. This
@@ -204,7 +186,7 @@ func (p *ticketVotePlugin) inventoryUpdate(token string, s ticketvote.VoteStatus
 // status if they have.
 //
 // This function must be called WITHOUT the mtxInv write lock held.
-func (p *ticketVotePlugin) invUpdateForBlock(bestBlock uint32) (*inventory, error) {
+func (p *ticketVotePlugin) _invUpdateForBlock(bestBlock uint32) (*inventory, error) {
 	p.mtxInv.Lock()
 	defer p.mtxInv.Unlock()
 
@@ -250,7 +232,7 @@ func (p *ticketVotePlugin) invUpdateForBlock(bestBlock uint32) (*inventory, erro
 		case ticketvote.VoteStatusFinished, ticketvote.VoteStatusApproved,
 			ticketvote.VoteStatusRejected:
 			// These statuses are allowed
-			err := p.invUpdateLocked(v.Token, sr.Status, 0)
+			err := p._invUpdateLocked(v.Token, sr.Status, 0)
 			if err != nil {
 				return nil, err
 			}
@@ -268,7 +250,7 @@ func (p *ticketVotePlugin) invUpdateForBlock(bestBlock uint32) (*inventory, erro
 	inv.BestBlock = bestBlock
 
 	// Save inventory
-	err = p.invSaveLocked(*inv)
+	err = p._invSaveLocked(*inv)
 	if err != nil {
 		return nil, err
 	}
@@ -278,18 +260,8 @@ func (p *ticketVotePlugin) invUpdateForBlock(bestBlock uint32) (*inventory, erro
 	return inv, nil
 }
 
-// inventoryUpdateToStarted is a wrapper around the invUpdate method that
-// allows us to decide how disk read/write errors should be handled. For now we
-// just panic.
-func (p *ticketVotePlugin) inventoryUpdateToStarted(token string, s ticketvote.VoteStatusT, endHeight uint32) {
-	err := p.invUpdate(token, s, endHeight)
-	if err != nil {
-		panic(fmt.Sprintf("invUpdate %v %v: %v", token, s, err))
-	}
-}
-
 // inventory returns the full ticketvote inventory.
-func (p *ticketVotePlugin) Inventory(bestBlock uint32) (*inventory, error) {
+func (p *ticketVotePlugin) _Inventory(bestBlock uint32) (*inventory, error) {
 	// Get inventory
 	inv, err := p.invGet()
 	if err != nil {
@@ -299,7 +271,7 @@ func (p *ticketVotePlugin) Inventory(bestBlock uint32) (*inventory, error) {
 	// Check if the inventory has been updated for this block height.
 	if bestBlock > inv.BestBlock {
 		// Inventory has not been update for this block. Update it.
-		return p.invUpdateForBlock(bestBlock)
+		return p._invUpdateForBlock(bestBlock)
 	}
 
 	return inv, nil
@@ -314,9 +286,9 @@ type invByStatus struct {
 }
 
 // invByStatusAll returns a page of token for all vote statuses.
-func (p *ticketVotePlugin) invByStatusAll(bestBlock, pageSize uint32) (*invByStatus, error) {
+func (p *ticketVotePlugin) _invByStatusAll(bestBlock, pageSize uint32) (*invByStatus, error) {
 	// Get inventory
-	i, err := p.Inventory(bestBlock)
+	i, err := p._Inventory(bestBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -370,17 +342,17 @@ func (p *ticketVotePlugin) invByStatusAll(bestBlock, pageSize uint32) (*invBySta
 
 // inventoryByStatus returns a page of tokens for the provided status. If no
 // status is provided then a page for each status will be returned.
-func (p *ticketVotePlugin) inventoryByStatus(bestBlock uint32, s ticketvote.VoteStatusT, page uint32) (*invByStatus, error) {
+func (p *ticketVotePlugin) _inventoryByStatus(bestBlock uint32, s ticketvote.VoteStatusT, page uint32) (*invByStatus, error) {
 	pageSize := p.inventoryPageSize
 
 	// If no status is provided a page of tokens for each status should
 	// be returned.
 	if s == ticketvote.VoteStatusInvalid {
-		return p.invByStatusAll(bestBlock, pageSize)
+		return p._invByStatusAll(bestBlock, pageSize)
 	}
 
 	// A status was provided. Return a page of tokens for the status.
-	inv, err := p.Inventory(bestBlock)
+	inv, err := p._Inventory(bestBlock)
 	if err != nil {
 		return nil, err
 	}

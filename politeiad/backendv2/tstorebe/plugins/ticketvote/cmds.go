@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -23,6 +22,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -153,7 +153,7 @@ func (p *ticketVotePlugin) cmdAuthorize(token []byte, payload string) (string, e
 		return "", err
 	}
 
-	// Update inventory
+	// Update the cached inventory
 	var status ticketvote.VoteStatusT
 	switch a.Action {
 	case ticketvote.AuthActionAuthorize:
@@ -162,9 +162,9 @@ func (p *ticketVotePlugin) cmdAuthorize(token []byte, payload string) (string, e
 		status = ticketvote.VoteStatusUnauthorized
 	default:
 		// Action has already been validated. This should not happen.
-		return "", fmt.Errorf("invalid action %v", a.Action)
+		return "", errors.Errorf("invalid action %v", a.Action)
 	}
-	p.inventoryUpdate(a.Token, status)
+	p.inv.UpdateEntryPreVote(auth.Token, status, auth.Timestamp)
 
 	// Prepare reply
 	ar := ticketvote.AuthorizeReply{
@@ -545,9 +545,9 @@ func (p *ticketVotePlugin) startStandard(token []byte, s ticketvote.Start) (*tic
 		return nil, err
 	}
 
-	// Update inventory
-	p.inventoryUpdateToStarted(vd.Params.Token, ticketvote.VoteStatusStarted,
-		vd.EndBlockHeight)
+	// Update the cached inventory
+	p.inv.UpdateEntryPostVote(vd.Params.Token,
+		ticketvote.VoteStatusStarted, vd.EndBlockHeight)
 
 	// Update active votes cache
 	p.activeVotesAdd(vd)
@@ -689,11 +689,11 @@ func (p *ticketVotePlugin) startRunoffForSub(token []byte, srs startRunoffSubmis
 	// Save vote details
 	err = p.voteDetailsSave(token, vd)
 	if err != nil {
-		return fmt.Errorf("voteDetailsSave %x: %v", token, err)
+		return err
 	}
 
-	// Update inventory
-	p.inventoryUpdateToStarted(vd.Params.Token,
+	// Update the cached inventory
+	p.inv.UpdateEntryPostVote(vd.Params.Token,
 		ticketvote.VoteStatusStarted, vd.EndBlockHeight)
 
 	// Update active votes cache
@@ -1814,28 +1814,43 @@ func (p *ticketVotePlugin) cmdInventory(payload string) (string, error) {
 		return "", err
 	}
 
-	// Get best block. This command does not write any data so we can
-	// use the unsafe best block.
-	bb, err := p.bestBlockUnsafe()
+	// Get the best block. This command does not write
+	// any data so we can use the unsafe best block.
+	bestBlock, err := p.bestBlockUnsafe()
 	if err != nil {
-		return "", fmt.Errorf("bestBlockUnsafe: %v", err)
+		return "", err
 	}
 
 	// Get the inventory
-	ibs, err := p.inventoryByStatus(bb, i.Status, i.Page)
-	if err != nil {
-		return "", fmt.Errorf("invByStatus: %v", err)
+	tokens := make(map[string][]string, 256)
+	switch i.Status {
+	case ticketvote.VoteStatusInvalid:
+		// No vote status was provided. Return a
+		// page of results for all vote statuses.
+		inv, err := p.inv.GetPage(bestBlock)
+		if err != nil {
+			return "", err
+		}
+		for status, entries := range inv.Entries {
+			statusStr := ticketvote.VoteStatuses[status]
+			tokens[statusStr] = entryTokens(entries)
+		}
+
+	default:
+		// A vote status was provided. Return a page of results for the
+		// provided status.
+		entries, err := p.inv.GetPageForStatus(bestBlock, i.Status, i.Page)
+		if err != nil {
+			return "", err
+		}
+		statusStr := ticketvote.VoteStatuses[i.Status]
+		tokens[statusStr] = entryTokens(entries)
 	}
 
-	// Prepare reply
-	tokens := make(map[string][]string, len(ibs.Tokens))
-	for k, v := range ibs.Tokens {
-		vs := ticketvote.VoteStatuses[k]
-		tokens[vs] = v
-	}
+	// Prepare the reply
 	ir := ticketvote.InventoryReply{
 		Tokens:    tokens,
-		BestBlock: ibs.BestBlock,
+		BestBlock: bestBlock,
 	}
 	reply, err := json.Marshal(ir)
 	if err != nil {
