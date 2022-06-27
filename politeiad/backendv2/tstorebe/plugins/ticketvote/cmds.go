@@ -2910,6 +2910,16 @@ func tokenVerify(cmdToken []byte, payloadToken string) error {
 	return nil
 }
 
+// isRunoffParent returns whether a record is a runoff vote parent record.
+func isRunoffParent(v *ticketvote.VoteMetadata) bool {
+	return v != nil && v.LinkBy > 0
+}
+
+// isRunoffSub returns whether a record is a runoff vote submission.
+func isRunoffSub(v *ticketvote.VoteMetadata) bool {
+	return v != nil && v.LinkTo != ""
+}
+
 func convertSignatureError(err error) backend.PluginError {
 	var e util.SignatureError
 	var s ticketvote.ErrorCodeT
