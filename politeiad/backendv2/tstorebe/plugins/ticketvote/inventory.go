@@ -43,16 +43,6 @@ func (p *ticketVotePlugin) invPath() string {
 	return filepath.Join(p.dataDir, filenameInventory)
 }
 
-// invRemove removes the ticketvote inventory from its respective path.
-//
-// This function must be called WITHOUT the mtxInv write lock held.
-func (p *ticketVotePlugin) invRemove() error {
-	p.mtxInv.Lock()
-	defer p.mtxInv.Unlock()
-
-	return os.RemoveAll(p.invPath())
-}
-
 // invGetLocked retrieves the inventory from disk. A new inventory is returned
 // if one does not exist yet.
 //

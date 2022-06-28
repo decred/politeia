@@ -5,14 +5,13 @@
 package ticketvote
 
 import (
+	"encoding/json"
 	"sync"
 
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
+	"github.com/pkg/errors"
 )
-
-type invCtx struct {
-	sync.Mutex
-}
 
 // inv contains the ticketvote inventory. The inventory is saved to the plugin
 // cache that is provided by the tstore backend.
@@ -36,7 +35,7 @@ type invEntry struct {
 
 	// Timestamp is the timestamp of the last vote status change. This
 	// is used to order the inventory entries for records that have not
-	// yet started voting.  Once the vote has begun for a record, this
+	// yet started voting. Once the vote has begun for a record, this
 	// field will be set to 0 and the EndHeight field will be used for
 	// ordering.
 	Timestamp int64 `json:"timestamp,omitempty"`
@@ -46,6 +45,24 @@ type invEntry struct {
 	// on or have already been voted on. This field will be set to 0 if
 	// the vote has not begun yet.
 	EndBlockHeight uint32 `json:"endblockheight,omitempty"`
+}
+
+// invCtx provides an API for interacting with the cached ticketvote inventory.
+// The inventory is saved to the Tstore provided plugin cache.
+//
+// A mutex is required because tstore does not execute writes using a sql
+// transaction. This means concurrent access to the plugin cache must be
+// control locally using this mutex.
+type invCtx struct {
+	sync.Mutex
+	tstore plugins.TstoreClient
+}
+
+// newInvCtx returns a new invCtx.
+func newInvCtx(tstore plugins.TstoreClient) *invCtx {
+	return &invCtx{
+		tstore: tstore,
+	}
 }
 
 // AddEntry adds a new entry to the inventory.
@@ -94,14 +111,42 @@ func (c *invCtx) GetPageForStatus(bestBlock uint32, status ticketvote.VoteStatus
 	return nil, nil
 }
 
-// getInv returns the full inventory.
-func (c *invCtx) getInv() (*inv, error) {
-	return nil, nil
+// Rebuild rebuilds the inventory from scratch and saves it to the tstore
+// provided cache.
+func (c invCtx) Rebuild() error {
+	return nil
 }
 
-// setInv saves the inventory to the tstore backend cache.
+var (
+	// invKey is the key-value store key for the cached inventory.
+	invKey = "inv"
+)
+
+// setInv saves the inventory to the tstore cache.
 func (c *invCtx) setInv(inv inv) error {
-	return nil
+	b, err := json.Marshal(inv)
+	if err != nil {
+		return err
+	}
+	return c.tstore.CachePut(map[string][]byte{invKey: b}, false)
+}
+
+// getInv returns the inventory from the tstore cache.
+func (c *invCtx) getInv() (*inv, error) {
+	blobs, err := c.tstore.CacheGet([]string{invKey})
+	if err != nil {
+		return nil, err
+	}
+	b, ok := blobs[invKey]
+	if !ok {
+		return nil, errors.Errorf("inv not found")
+	}
+	var i inv
+	err = json.Unmarshal(b, &i)
+	if err != nil {
+		return nil, err
+	}
+	return &i, nil
 }
 
 // entryTokens filters and returns the tokens from the inventory entries.

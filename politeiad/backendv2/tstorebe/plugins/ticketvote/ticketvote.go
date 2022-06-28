@@ -82,7 +82,7 @@ func (p *ticketVotePlugin) Setup() error {
 		}
 	}
 	if !dcrdataFound {
-		return fmt.Errorf("plugin dependency not registered: %v",
+		return errors.Errorf("%v plugin dependency not registered",
 			dcrdata.PluginID)
 	}
 
@@ -123,8 +123,8 @@ func (p *ticketVotePlugin) Setup() error {
 		started = append(started, entryTokens(entries)...)
 		page++
 	}
-	// Retrieve the data required to build the active votes
-	// cache for the records with ongoing, i.e. started, votes.
+	// Retrieve the data required to build the active
+	// votes cache for the records with ongoing votes.
 	for _, v := range started {
 		// Get the vote details
 		token, err := tokenDecode(v)
@@ -135,8 +135,8 @@ func (p *ticketVotePlugin) Setup() error {
 		reply, err := p.backend.PluginRead(token, ticketvote.PluginID,
 			ticketvote.CmdDetails, "")
 		if err != nil {
-			return errors.Errorf("PluginRead %x %v %v: %v",
-				token, ticketvote.PluginID, ticketvote.CmdDetails, err)
+			return errors.Errorf("PluginRead %x %v %v: %v", token,
+				ticketvote.PluginID, ticketvote.CmdDetails, err)
 		}
 		var dr ticketvote.DetailsReply
 		err = json.Unmarshal([]byte(reply), &dr)
@@ -144,7 +144,7 @@ func (p *ticketVotePlugin) Setup() error {
 			return err
 		}
 		if dr.Vote == nil {
-			// Something is wrong. This should not happen.
+			// Sanity check
 			return errors.Errorf("vote details not found "+
 				"for record in started inventory %x", token)
 		}
@@ -156,14 +156,15 @@ func (p *ticketVotePlugin) Setup() error {
 		reply, err = p.backend.PluginRead(token, ticketvote.PluginID,
 			ticketvote.CmdResults, "")
 		if err != nil {
-			return errors.Errorf("PluginRead %x %v %v: %v",
-				token, ticketvote.PluginID, ticketvote.CmdResults, err)
+			return errors.Errorf("PluginRead %x %v %v: %v", token,
+				ticketvote.PluginID, ticketvote.CmdResults, err)
 		}
 		var rr ticketvote.ResultsReply
 		err = json.Unmarshal([]byte(reply), &rr)
 		if err != nil {
 			return err
 		}
+
 		// Add the cast votes to the cached active vote entry
 		for _, v := range rr.Votes {
 			p.activeVotes.AddCastVote(v.Token, v.Ticket, v.VoteBit)
