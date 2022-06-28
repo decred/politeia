@@ -211,6 +211,16 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 	return parser
 }
 
+// errSuppressUsage signifies that an error that happened during the initial
+// configuration phase should suppress the usage output since it was not caused
+// by the user.
+type errSuppressUsage string
+
+// Error implements the error interface.
+func (e errSuppressUsage) Error() string {
+	return string(e)
+}
+
 // loadConfig initializes and parses the config using a config file and command
 // line options.
 //
@@ -223,7 +233,7 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 // The above results in daemon functioning properly without any config settings
 // while still allowing the user to override settings with config files and
 // command line options.  Command line options always take precedence.
-func loadConfig() (*config, []string, error) {
+func loadConfig(appName string) (*config, []string, error) {
 	// Default config.
 	cfg := config{
 		HomeDir:    defaultHomeDir,
@@ -263,9 +273,6 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	// Show the version and exit if the version flag was specified.
-	appName := filepath.Base(os.Args[0])
-	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
-	usageMessage := fmt.Sprintf("Use %s -h to show usage", appName)
 	if preCfg.ShowVersion {
 		fmt.Printf("%s version %s (Go version %s %s/%s)\n", appName,
 			version.String(), runtime.Version(), runtime.GOOS,
@@ -334,9 +341,7 @@ func loadConfig() (*config, []string, error) {
 	if err != nil {
 		var e *os.PathError
 		if !errors.As(err, &e) {
-			fmt.Fprintf(os.Stderr, "Error parsing config "+
-				"file: %v\n", err)
-			fmt.Fprintln(os.Stderr, usageMessage)
+			err = fmt.Errorf("Error parsing config file: %w\n", err)
 			return nil, nil, err
 		}
 		configFileError = err
@@ -357,10 +362,6 @@ func loadConfig() (*config, []string, error) {
 	// Parse command line options again to ensure they take precedence.
 	remainingArgs, err := parser.Parse()
 	if err != nil {
-		var e *flags.Error
-		if !errors.As(err, &e) || e.Type != flags.ErrHelp {
-			fmt.Fprintln(os.Stderr, usageMessage)
-		}
 		return nil, nil, err
 	}
 
@@ -380,9 +381,8 @@ func loadConfig() (*config, []string, error) {
 			}
 		}
 
-		str := "%s: Failed to create home directory: %v"
-		err := fmt.Errorf(str, funcName, err)
-		fmt.Fprintln(os.Stderr, err)
+		str := "%s: Failed to create home directory: %w"
+		err := errSuppressUsage(fmt.Sprintf(str, funcName, err))
 		return nil, nil, err
 	}
 
@@ -402,8 +402,7 @@ func loadConfig() (*config, []string, error) {
 		}
 
 		str := "%s: Failed to create vote directory: %v"
-		err := fmt.Errorf(str, funcName, err)
-		fmt.Fprintln(os.Stderr, err)
+		err := errSuppressUsage(fmt.Sprintf(str, funcName, err))
 		return nil, nil, err
 	}
 
@@ -452,9 +451,7 @@ func loadConfig() (*config, []string, error) {
 
 	// Parse, validate, and set debug log level(s).
 	if err := parseAndSetDebugLevels(cfg.DebugLevel); err != nil {
-		err := fmt.Errorf("%s: %v", funcName, err.Error())
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
+		err := fmt.Errorf("%s: %v", funcName, err)
 		return nil, nil, err
 	}
 
@@ -464,8 +461,6 @@ func loadConfig() (*config, []string, error) {
 		if err != nil || profilePort < 1024 || profilePort > 65535 {
 			str := "%s: The profile port must be between 1024 and 65535"
 			err := fmt.Errorf(str, funcName)
-			fmt.Fprintln(os.Stderr, err)
-			fmt.Fprintln(os.Stderr, usageMessage)
 			return nil, nil, err
 		}
 	}
@@ -487,11 +482,9 @@ func loadConfig() (*config, []string, error) {
 	if cfg.Proxy != "" {
 		_, _, err := net.SplitHostPort(cfg.Proxy)
 		if err != nil {
-			str := "%s: proxy address '%s' is invalid: %v"
+			str := "%s: proxy address '%s' is invalid: %w"
 			err := fmt.Errorf(str, funcName, cfg.Proxy, err)
-			fmt.Fprintln(os.Stderr, err)
-			fmt.Fprintln(os.Stderr, usageMessage)
-			return nil, nil, fmt.Errorf("invalid --proxy %v", err)
+			return nil, nil, err
 		}
 		proxy := &socks.Proxy{
 			Addr:         cfg.Proxy,
@@ -512,8 +505,7 @@ func loadConfig() (*config, []string, error) {
 		// Verify we can parse the duration
 		cfg.voteDuration, err = time.ParseDuration(cfg.VoteDuration)
 		if err != nil {
-			return nil, nil, fmt.Errorf("invalid --voteduration "+
-				"%v", err)
+			return nil, nil, fmt.Errorf("invalid --voteduration %w", err)
 		}
 	}
 
@@ -530,8 +522,9 @@ func loadConfig() (*config, []string, error) {
 
 	// Number of bunches
 	if cfg.Bunches < 1 || cfg.Bunches > 100 {
-		return nil, nil, fmt.Errorf("invalid number of bunches "+
-			"(1-100): %v", cfg.Bunches)
+		str := "%s: number of bunches must be between 1 and 100"
+		err := fmt.Errorf(str, funcName)
+		return nil, nil, err
 	}
 
 	if !cfg.BypassProxyCheck {
