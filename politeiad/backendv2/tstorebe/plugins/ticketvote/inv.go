@@ -112,8 +112,7 @@ func (i *inv) GetPage(status ticketvote.VoteStatusT, pageNumber, pageSize uint32
 		// number. Return a partial page.
 		return entries[startIdx:]
 	}
-	// Return a full page of entries. endIdx is
-	// not inclusive.
+	// Return a full page of entries
 	return entries[startIdx:endIdx]
 }
 
@@ -229,19 +228,19 @@ func (c *invCtx) GetPage(bestBlock uint32) (*inv, error) {
 // PageForStatus returns a page of inventory results for the provided vote
 // status.
 //
-// The best block is required to ensure that the returned results are
-// up-to-date. Certain inventory statuses, such as VoteStatusFinished, are
-// updated based on the vote's ending block height and the best block.
-//
-// The page is the page number that is being requested. Page 1 corresponds to
-// the most recent page of inventory entries.
+// Page 1 corresponds to the most recent page of inventory entries.
 //
 // This function is concurrency safe.
-func (c *invCtx) GetPageForStatus(bestBlock uint32, status ticketvote.VoteStatusT, page uint32) ([]invEntry, error) {
+func (c *invCtx) GetPageForStatus(bestBlock uint32, status ticketvote.VoteStatusT, pageNumber uint32) ([]invEntry, error) {
 	c.Lock()
 	defer c.Unlock()
 
-	return nil, nil
+	fullInv, err := c.updateBlockHeight(bestBlock)
+	if err != nil {
+		return nil, err
+	}
+
+	return fullInv.GetPage(status, pageNumber, c.pageSize), nil
 }
 
 // Rebuild rebuilds the inventory from scratch and saves it to the tstore
