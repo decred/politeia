@@ -27,9 +27,16 @@ import (
 // The invCtx structure provides an API for interacting with the ticketvote
 // inventory.
 type inv struct {
+	// Entries contains the inventory entries categorized by vote
+	// status and sorted from oldest to newest.
+	//
+	// Entries that are pre vote are sorted by the timestamp of the
+	// vote status change. Entries that have begun voting or are post
+	// vote are sorted by the vote's end block height.
 	Entries map[ticketvote.VoteStatusT][]invEntry `json:"entries"`
 
-	// BlockHeight is the block height that the inventory has been updated with.
+	// BlockHeight is the block height that the inventory has been
+	// updated with.
 	BlockHeight uint32 `json:"block_height"`
 }
 
@@ -41,7 +48,9 @@ func newInv() *inv {
 	}
 }
 
-// Add adds an entry to the inventory.
+// Add adds an entry to the inventory. The entry is prepended onto the list
+// that contains the other entries with the same vote status. The entries
+//
 func (i *inv) Add(e invEntry) {
 	entries, ok := i.Entries[e.Status]
 	if !ok {
@@ -134,9 +143,10 @@ func newInvCtx(tstore plugins.TstoreClient, backend backend.Backend) *invCtx {
 // AddEntry adds a new entry to the inventory.
 //
 // New entries will always correspond to a vote status that has not been voted
-// on yet. This is why a timestamp is required and not the end height.
+// on yet. This is why a timestamp is required and not the end height. The
+// timestamp of the timestamp of the vote status change.
 //
-// The plugin writes are not currently executed using a sql transaction, which
+// Plugin writes are not currently executed using a sql transaction, which
 // means that there is no way to unwind previous writes if this cache update
 // fails. For this reason, we panic instead of returning an error so that the
 // sysadmin is alerted that the cache is incoherent and needs to be rebuilt.
@@ -145,6 +155,12 @@ func newInvCtx(tstore plugins.TstoreClient, backend backend.Backend) *invCtx {
 func (c *invCtx) AddEntry(token string, status ticketvote.VoteStatusT, timestamp int64) {
 	c.Lock()
 	defer c.Unlock()
+
+	err := c.addEntry(token, status, timestamp)
+	if err != nil {
+		e := fmt.Sprintf("%v %v %v: %v", token, status, timestamp, err)
+		panic(e)
+	}
 }
 
 // This function is concurrency safe.
@@ -185,12 +201,43 @@ func (c *invCtx) GetPage(bestBlock uint32) (*inv, error) {
 //
 // This function is concurrency safe.
 func (c *invCtx) GetPageForStatus(bestBlock uint32, status ticketvote.VoteStatusT, page uint32) ([]invEntry, error) {
+	c.Lock()
+	defer c.Unlock()
+
 	return nil, nil
 }
 
 // Rebuild rebuilds the inventory from scratch and saves it to the tstore
 // provided cache.
 func (c invCtx) Rebuild() error {
+	return nil
+}
+
+// addEntry adds a new entry to the inventory.
+//
+// New entries will always correspond to a vote status that has not been voted
+// on yet. This is why a timestamp is required and not the end height. The
+// timestamp of the timestamp of the vote status change.
+//
+// This function is not concurrency safe and must be called with the mutex
+// locked.
+func (c *invCtx) addEntry(token string, status ticketvote.VoteStatusT, timestamp int64) error {
+	inv, err := c.getInv()
+	if err != nil {
+		return err
+	}
+
+	e := newInvEntry(token, status, timestamp, 0)
+	inv.Add(*e)
+
+	err = c.saveInv(*inv)
+	if err != nil {
+		return err
+	}
+
+	s := ticketvote.VoteStatuses[status]
+	log.Debugf("Vote inv entry added %v %v", token, s)
+
 	return nil
 }
 
@@ -238,7 +285,8 @@ func (c *invCtx) updateBlockHeight(blockHeight uint32) (*inv, error) {
 		case ticketvote.VoteStatusFinished,
 			ticketvote.VoteStatusApproved,
 			ticketvote.VoteStatusRejected:
-			// These statuses are expected. Update the entry in the inventory.
+			// These statuses are expected. Update the entry in
+			// the inventory.
 			err = inv.Del(v.Token, ticketvote.VoteStatusStarted)
 			if err != nil {
 				return nil, err
@@ -279,7 +327,7 @@ func (c *invCtx) saveInv(inv inv) error {
 }
 
 // getInv returns the inventory from the tstore cache. A new inv is returned
-// if one is not found in the cache.
+// if one does not exist in the cache.
 func (c *invCtx) getInv() (*inv, error) {
 	blobs, err := c.tstore.CacheGet([]string{invKey})
 	if err != nil {
@@ -298,7 +346,7 @@ func (c *invCtx) getInv() (*inv, error) {
 	return &i, nil
 }
 
-// summary retrieves the vote summary for a record.
+// summary returns the vote summary for a record.
 func (c *invCtx) summary(token string) (*ticketvote.SummaryReply, error) {
 	tokenB, err := tokenDecode(token)
 	if err != nil {
