@@ -190,16 +190,47 @@ func (c *invCtx) AddEntry(token string, status ticketvote.VoteStatusT, timestamp
 	}
 }
 
+// UpdateEntryPreVote updates an entry in the inventory whose voting period has
+// not yet begun. The timestamp is the timestamp of the vote status change.
+// The inventory entries whose voting period has not yet begun are ordered
+// using this timestamp.
+//
+// Plugin writes are not currently executed using a sql transaction, which
+// means that there is no way to unwind previous writes if this cache update
+// fails. For this reason, we panic instead of returning an error so that the
+// sysadmin is alerted that the cache is incoherent and needs to be rebuilt.
+//
 // This function is concurrency safe.
 func (c *invCtx) UpdateEntryPreVote(token string, status ticketvote.VoteStatusT, timestamp int64) {
 	c.Lock()
 	defer c.Unlock()
+
+	err := c.updateEntry(token, status, timestamp, 0)
+	if err != nil {
+		e := fmt.Sprintf("%v %v %v: %v", token, status, timestamp, err)
+		panic(e)
+	}
 }
 
+// UpdateEntryPostVote updates an entry in the inventory whose voting period
+// has been started or has already finished. The inventory entries that fall
+// into this category are ordered by the endBlockHeight of the voting period.
+//
+// Plugin writes are not currently executed using a sql transaction, which
+// means that there is no way to unwind previous writes if this cache update
+// fails. For this reason, we panic instead of returning an error so that the
+// sysadmin is alerted that the cache is incoherent and needs to be rebuilt.
+//
 // This function is concurrency safe.
 func (c *invCtx) UpdateEntryPostVote(token string, status ticketvote.VoteStatusT, endBlockHeight uint32) {
 	c.Lock()
 	defer c.Unlock()
+
+	err := c.updateEntry(token, status, 0, endBlockHeight)
+	if err != nil {
+		e := fmt.Sprintf("%v %v %v: %v", token, status, endBlockHeight, err)
+		panic(e)
+	}
 }
 
 // Page returns a page of inventory results for all vote statuses.
@@ -255,7 +286,7 @@ func (c invCtx) Rebuild() error {
 // on yet. This is why a timestamp is required and not the end height. The
 // timestamp of the timestamp of the vote status change.
 //
-// This function is not concurrency safe and must be called with the mutex
+// This function is not concurrency safe. It must be called with the mutex
 // locked.
 func (c *invCtx) addEntry(token string, status ticketvote.VoteStatusT, timestamp int64) error {
 	inv, err := c.getInv()
@@ -277,11 +308,122 @@ func (c *invCtx) addEntry(token string, status ticketvote.VoteStatusT, timestamp
 	return nil
 }
 
+// updateEntry updates an existing inventory entry. The existing entry is
+// deleted from the inventory and a new entry is added using the provided
+// arguments. The updated inventory is saved to the tstore plugin cache.
+//
+// This function is not concurrency safe. It must be called with the mutex
+// locked.
+func (c *invCtx) updateEntry(token string, status ticketvote.VoteStatusT, timestamp int64, endBlockHeight uint32) error {
+	// Get the existing inventory
+	inv, err := c.getInv()
+	if err != nil {
+		return err
+	}
+
+	// We must first delete the existing entry from the inventory
+	// before we can add the updated entry. To do this, we need
+	// to know the vote status of the existing entry. We ascertain
+	// this info using the vote status of the updated entry. For
+	// example, an entry that is being updated to the status of
+	// VoteStatusStarted must currently exist in the inventory
+	// under the status of VoteStatusAuthorized.
+	var (
+		// statusesToScan is populated with the vote statuses that
+		// will be scanned in order to find the existing entry.
+		statusesToScan []ticketvote.VoteStatusT
+
+		// prevStatus is the status of the record's existing
+		// inventory entry. We need to know this in order to
+		// delete the existing entry.
+		prevStatus ticketvote.VoteStatusT
+	)
+	switch status {
+	case ticketvote.VoteStatusUnauthorized:
+		statusesToScan = []ticketvote.VoteStatusT{
+			ticketvote.VoteStatusAuthorized,
+		}
+
+	case ticketvote.VoteStatusAuthorized:
+		statusesToScan = []ticketvote.VoteStatusT{
+			ticketvote.VoteStatusUnauthorized,
+		}
+
+	case ticketvote.VoteStatusStarted:
+		statusesToScan = []ticketvote.VoteStatusT{
+			ticketvote.VoteStatusAuthorized,
+		}
+
+	case ticketvote.VoteStatusFinished,
+		ticketvote.VoteStatusApproved,
+		ticketvote.VoteStatusRejected:
+		statusesToScan = []ticketvote.VoteStatusT{
+			ticketvote.VoteStatusStarted,
+		}
+
+	case ticketvote.VoteStatusIneligible:
+		statusesToScan = []ticketvote.VoteStatusT{
+			ticketvote.VoteStatusAuthorized,
+			ticketvote.VoteStatusUnauthorized,
+		}
+
+	default:
+		// This should not happen. If this path is getting hit then
+		// there is likely a bug somewhere. Log an error instead of
+		// returning one so that the caller does not panic. Search
+		// the full inventory. An error will be returned below if
+		// the token is not found in the inventory.
+		log.Errorf("Update vote inv entry unknown status %v %v", token, status)
+		for s, entries := range inv.Entries {
+			if entriesIncludeToken(entries, token) {
+				prevStatus = s
+				break
+			}
+		}
+	}
+
+	// Find the existing inventory entry for the record
+	for _, s := range statusesToScan {
+		entries, ok := inv.Entries[s]
+		if !ok {
+			continue
+		}
+		if entriesIncludeToken(entries, token) {
+			prevStatus = s
+			break
+		}
+	}
+
+	// Delete the existing entry then add the updated entry to
+	// the inventory.
+	err = inv.Del(token, prevStatus)
+	if err != nil {
+		return err
+	}
+	e := newInvEntry(token, status, timestamp, endBlockHeight)
+	inv.Add(*e)
+
+	// Save the updated inventory
+	err = c.saveInv(*inv)
+	if err != nil {
+		return err
+	}
+
+	var (
+		prevStatusStr = ticketvote.VoteStatuses[prevStatus]
+		statusStr     = ticketvote.VoteStatuses[status]
+	)
+	log.Debugf("Vote inv update %v from %v to %v",
+		token, prevStatusStr, statusStr)
+
+	return nil
+}
+
 // updateBlockHeight updates the inventory with a new block height. Any votes
 // that have ended based on the new block height are updated in the inventory
 // based on the vote's outcome (passed, failed, etc).
 //
-// This function is not concurrency safe and must be called with the mutex
+// This function is not concurrency safe. It must be called with the mutex
 // locked.
 func (c *invCtx) updateBlockHeight(blockHeight uint32) (*inv, error) {
 	inv, err := c.getInv()
@@ -399,6 +541,19 @@ func (c *invCtx) summary(token string) (*ticketvote.SummaryReply, error) {
 		return nil, err
 	}
 	return &sr, nil
+}
+
+// entriesIncludeToken returns whether the inventory entries include an entry
+// that matches the provided token.
+func entriesIncludeToken(entries []invEntry, token string) bool {
+	var found bool
+	for _, v := range entries {
+		if v.Token == token {
+			found = true
+			break
+		}
+	}
+	return found
 }
 
 // entryTokens filters and returns the tokens from the inventory entries.
