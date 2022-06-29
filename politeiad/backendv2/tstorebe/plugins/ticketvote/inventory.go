@@ -5,20 +5,10 @@
 package ticketvote
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-)
-
-const (
-	// filenameInventory is the file name of the ticketvote inventory
-	// that is cached to the plugin data dir.
-	filenameInventory = "inventory.json"
 )
 
 // entry is an inventory entry.
@@ -38,9 +28,8 @@ type inventory struct {
 	BestBlock uint32  `json:"bestblock"`
 }
 
-// invPath returns the full path for the cached ticket vote inventory.
 func (p *ticketVotePlugin) invPath() string {
-	return filepath.Join(p.dataDir, filenameInventory)
+	return ""
 }
 
 // invGetLocked retrieves the inventory from disk. A new inventory is returned
@@ -48,26 +37,7 @@ func (p *ticketVotePlugin) invPath() string {
 //
 // This function must be called WITH the mtxInv read lock held.
 func (p *ticketVotePlugin) invGetLocked() (*inventory, error) {
-	b, err := os.ReadFile(p.invPath())
-	if err != nil {
-		var e *os.PathError
-		if errors.As(err, &e) && !os.IsExist(err) {
-			// File does't exist. Return a new inventory.
-			return &inventory{
-				Entries:   make([]entry, 0, 256),
-				BestBlock: 0,
-			}, nil
-		}
-		return nil, err
-	}
-
-	var inv inventory
-	err = json.Unmarshal(b, &inv)
-	if err != nil {
-		return nil, err
-	}
-
-	return &inv, nil
+	return nil, nil
 }
 
 // invGetLocked retrieves the inventory from disk. A new inventory is returned
@@ -85,11 +55,7 @@ func (p *ticketVotePlugin) invGet() (*inventory, error) {
 //
 // This function must be called WITH the mtxInv write lock held.
 func (p *ticketVotePlugin) _invSaveLocked(inv inventory) error {
-	b, err := json.Marshal(inv)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(p.invPath(), b, 0664)
+	return nil
 }
 
 // invAdd adds a token to the ticketvote inventory.
