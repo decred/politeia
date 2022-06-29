@@ -90,6 +90,45 @@ func (i *inv) Del(token string, status ticketvote.VoteStatusT) error {
 	return nil
 }
 
+// Sort sorts the inventory entries.
+//
+// The inventory entries are categorized by vote status and sorted from newest
+// to oldest. The vote statuses that occur prior to the start of the voting
+// period are sorted by the timestamp of the vote status change. The vote
+// statuses that occur after a vote has been started or has finished are sorted
+// by the vote's end block height.
+func (i *inv) Sort() {
+	for status, entries := range i.Entries {
+		switch status {
+		case ticketvote.VoteStatusUnauthorized,
+			ticketvote.VoteStatusAuthorized,
+			ticketvote.VoteStatusIneligible:
+
+			// Sort by the timestamps from newest to oldest
+			sort.SliceStable(entries, func(i, j int) bool {
+				return entries[i].Timestamp > entries[j].Timestamp
+			})
+
+		case ticketvote.VoteStatusStarted,
+			ticketvote.VoteStatusFinished,
+			ticketvote.VoteStatusApproved,
+			ticketvote.VoteStatusRejected:
+
+			// Sort by the end block heights from newest to oldest
+			sort.SliceStable(entries, func(i, j int) bool {
+				return entries[i].EndBlockHeight > entries[j].EndBlockHeight
+			})
+
+		default:
+			// Should not happen
+			e := fmt.Sprintf("unkown vote status %v", status)
+			panic(e)
+		}
+
+		i.Entries[status] = entries
+	}
+}
+
 // GetPage returns a page of inventory entries.
 func (i *inv) GetPage(status ticketvote.VoteStatusT, pageNumber, pageSize uint32) []invEntry {
 	entries, ok := i.Entries[status]
@@ -274,10 +313,21 @@ func (c *invCtx) GetPageForStatus(bestBlock uint32, status ticketvote.VoteStatus
 	return fullInv.GetPage(status, pageNumber, c.pageSize), nil
 }
 
-// Rebuild rebuilds the inventory from scratch and saves it to the tstore
-// provided cache.
-func (c invCtx) Rebuild() error {
-	return nil
+// Rebuild rebuilds the inventory using the provided inventory entries and
+// saves it to the tstore plugin cache.
+//
+// This function is concurrency safe.
+func (c invCtx) Rebuild(entries []invEntry) error {
+	c.Lock()
+	defer c.Unlock()
+
+	inv := newInv()
+	for _, v := range entries {
+		inv.Add(v)
+	}
+	inv.Sort()
+
+	return c.saveInv(*inv)
 }
 
 // addEntry adds a new entry to the inventory.
@@ -445,8 +495,10 @@ func (c *invCtx) updateBlockHeight(blockHeight uint32) (*inv, error) {
 		}
 	}
 
-	// Sort by end height from smallest to largest so that
+	// Sort by end height from oldest to newest so that
 	// they're added to the inventory in the correct order.
+	// They are prepended onto the inventory list so we
+	// want the newest to be added last.
 	sort.SliceStable(ended, func(i, j int) bool {
 		return ended[i].EndBlockHeight < ended[j].EndBlockHeight
 	})

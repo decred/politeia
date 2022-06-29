@@ -46,7 +46,8 @@ type ticketVotePlugin struct {
 	// prove the backend received and processed a plugin command.
 	identity *identity.FullIdentity
 
-	// invCtx provides an API for managing the cached inventory.
+	// invCtx provides an API for managing the cached inventory. The
+	// inventory is cached in the tstore provided plugin cache.
 	inv *invCtx
 
 	// activeVotes is a memeory cache that contains data required to
@@ -85,19 +86,6 @@ func (p *ticketVotePlugin) Setup() error {
 			dcrdata.PluginID)
 	}
 
-	// Update the inventory for the current block height.
-	// Retrieving the inventory will trigger an update.
-	log.Infof("Updating vote inventory")
-
-	bestBlock, err := p.bestBlock()
-	if err != nil {
-		return err
-	}
-	_, err = p.inv.GetPage(bestBlock)
-	if err != nil {
-		return err
-	}
-
 	// Build the active votes cache
 	log.Infof("Building active votes cache")
 
@@ -108,6 +96,10 @@ func (p *ticketVotePlugin) Setup() error {
 
 		page uint32 = 1
 	)
+	bestBlock, err := p.bestBlock()
+	if err != nil {
+		return err
+	}
 	for {
 		entries, err := p.inv.GetPageForStatus(bestBlock,
 			ticketvote.VoteStatusStarted, page)
@@ -403,6 +395,7 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		tstore:             tstore,
 		dataDir:            dataDir,
 		identity:           id,
+		inv:                newInvCtx(tstore, backend, inventoryPageSize),
 		activeVotes:        newActiveVotes(),
 		linkByPeriodMin:    linkByPeriodMin,
 		linkByPeriodMax:    linkByPeriodMax,
