@@ -54,9 +54,8 @@ type ticketVotePlugin struct {
 	activeVotes *activeVotes
 
 	// Mutexes for on-disk caches
-	mtxInv     sync.RWMutex // TODO DELTE ME
-	mtxSummary sync.Mutex   // Vote summaries cache
-	mtxSubs    sync.Mutex   // Runoff vote submission cache
+	mtxSummary sync.Mutex // Vote summaries cache
+	mtxSubs    sync.Mutex // Runoff vote submission cache
 
 	// Plugin settings
 	linkByPeriodMin    int64  // In seconds
