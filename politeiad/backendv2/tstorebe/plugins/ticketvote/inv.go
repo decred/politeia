@@ -121,7 +121,7 @@ func (i *inv) Sort() {
 
 		default:
 			// Should not happen
-			e := fmt.Sprintf("unkown vote status %v", status)
+			e := fmt.Sprintf("unknown vote status %v", status)
 			panic(e)
 		}
 
@@ -317,7 +317,7 @@ func (c *invCtx) GetPageForStatus(bestBlock uint32, status ticketvote.VoteStatus
 // saves it to the tstore plugin cache.
 //
 // This function is concurrency safe.
-func (c invCtx) Rebuild(entries []invEntry) error {
+func (c *invCtx) Rebuild(entries []invEntry) error {
 	c.Lock()
 	defer c.Unlock()
 
