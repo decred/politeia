@@ -65,27 +65,6 @@ func (p *ticketVotePlugin) _invAdd(token string, s ticketvote.VoteStatusT) error
 	p.mtxInv.Lock()
 	defer p.mtxInv.Unlock()
 
-	// Get inventory
-	inv, err := p.invGetLocked()
-	if err != nil {
-		return err
-	}
-
-	// Prepend token
-	e := entry{
-		Token:  token,
-		Status: s,
-	}
-	inv.Entries = append([]entry{e}, inv.Entries...)
-
-	// Save inventory
-	err = p._invSaveLocked(*inv)
-	if err != nil {
-		return err
-	}
-
-	log.Debugf("Vote inv add %v %v", token, ticketvote.VoteStatuses[s])
-
 	return nil
 }
 

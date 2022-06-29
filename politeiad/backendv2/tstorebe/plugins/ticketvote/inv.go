@@ -49,8 +49,7 @@ func newInv() *inv {
 }
 
 // Add adds an entry to the inventory. The entry is prepended onto the list
-// that contains the other entries with the same vote status. The entries
-//
+// that contains the other entries with the same vote status.
 func (i *inv) Add(e invEntry) {
 	entries, ok := i.Entries[e.Status]
 	if !ok {
@@ -91,6 +90,33 @@ func (i *inv) Del(token string, status ticketvote.VoteStatusT) error {
 	return nil
 }
 
+// GetPage returns a page of inventory entries.
+func (i *inv) GetPage(status ticketvote.VoteStatusT, pageNumber, pageSize uint32) []invEntry {
+	entries, ok := i.Entries[status]
+	if !ok {
+		return []invEntry{}
+	}
+	if pageSize == 0 || pageNumber == 0 {
+		return []invEntry{}
+	}
+	var (
+		startIdx = int((pageNumber - 1) * pageSize) // Inclusive
+		endIdx   = startIdx + int(pageSize)         // Exclusive
+	)
+	if startIdx >= len(entries) {
+		return []invEntry{}
+	}
+	if endIdx >= len(entries) {
+		// The inventory does not contain a full
+		// page of entries at the requested page
+		// number. Return a partial page.
+		return entries[startIdx:]
+	}
+	// Return a full page of entries. endIdx is
+	// not inclusive.
+	return entries[startIdx:endIdx]
+}
+
 // invEntry is an entry in the ticketvote inventory.
 type invEntry struct {
 	Token  string                 `json:"token"`
@@ -128,15 +154,17 @@ func newInvEntry(token string, status ticketvote.VoteStatusT, timestamp int64, e
 // control locally using this mutex.
 type invCtx struct {
 	sync.Mutex
-	tstore  plugins.TstoreClient
-	backend backend.Backend
+	tstore   plugins.TstoreClient
+	backend  backend.Backend
+	pageSize uint32
 }
 
 // newInvCtx returns a new invCtx.
-func newInvCtx(tstore plugins.TstoreClient, backend backend.Backend) *invCtx {
+func newInvCtx(tstore plugins.TstoreClient, backend backend.Backend, pageSize uint32) *invCtx {
 	return &invCtx{
-		tstore:  tstore,
-		backend: backend,
+		tstore:   tstore,
+		backend:  backend,
+		pageSize: pageSize,
 	}
 }
 
@@ -186,7 +214,16 @@ func (c *invCtx) GetPage(bestBlock uint32) (*inv, error) {
 	c.Lock()
 	defer c.Unlock()
 
-	return nil, nil
+	fullInv, err := c.updateBlockHeight(bestBlock)
+	if err != nil {
+		return nil, err
+	}
+	invPage := newInv()
+	for status := range fullInv.Entries {
+		invPage.Entries[status] = fullInv.GetPage(status, 1, c.pageSize)
+	}
+
+	return invPage, nil
 }
 
 // PageForStatus returns a page of inventory results for the provided vote
