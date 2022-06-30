@@ -55,7 +55,11 @@ var (
 // The identity has been created and has been activated.
 //
 // deactivated: Deactivated != 0
-// The identity in no longer active and the key is no longer valid.
+// The identity in no longer active and the key is no longer valid. Both
+// inactive and active identities can be marked as deactivated. An inactive
+// identity being deactivated means that the identity was never verified before
+// a newer identity was created. An active identity being deactivated means
+// that a newer identity was created to replace the active identity.
 type Identity struct {
 	Key         [identity.PublicKeySize]byte `json:"key"`         // ed25519 public key
 	Activated   int64                        `json:"activated"`   // Time key as activated for use
@@ -72,14 +76,35 @@ func (i *Identity) Deactivate() {
 	i.Deactivated = time.Now().Unix()
 }
 
-// IsInactive returns whether the identity is inactive.
+// IsInactive returns whether the identity is inactive. See the Identity
+// definition for more info on inactive identities.
 func (i *Identity) IsInactive() bool {
 	return i.Activated == 0 && i.Deactivated == 0
 }
 
-// IsActive returns whether the identity is active.
+// IsActive returns whether the identity is active. See the Identity definition
+// for more info on active identities.
 func (i *Identity) IsActive() bool {
 	return i.Activated != 0 && i.Deactivated == 0
+}
+
+// IsDeactivated returns whether the identity has been deactivated. See the
+// Identity definition for more info on deactivated identities.
+func (i *Identity) IsDeactivated() bool {
+	return i.Deactivated != 0
+}
+
+// Status returns whether the identity is inactive, active, or deactivated.
+func (i *Identity) Status() string {
+	switch {
+	case i.IsInactive():
+		return "inactive"
+	case i.IsActive():
+		return "active"
+	case i.IsDeactivated():
+		return "deactivated"
+	}
+	return "invalid"
 }
 
 // String returns a hex encoded string of the identity key.

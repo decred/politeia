@@ -703,6 +703,16 @@ func cmdVerifyIdentities() error {
 			args[0], err)
 	}
 
+	// Print all identities to help with debugging
+	fmt.Printf("\n")
+	for _, v := range u.Identities {
+		fmt.Printf("Status     : %v\n", v.Status())
+		fmt.Printf("Public Key : %v\n", v.String())
+		fmt.Printf("Activated  : %v\n", formatUnix(v.Activated))
+		fmt.Printf("Deactivated: %v\n", formatUnix(v.Deactivated))
+		fmt.Printf("\n")
+	}
+
 	// Verify inactive identities. There should only ever be one
 	// inactive identity at a time. If more than one inactive identity
 	// is found, deactivate all of them since it can't be determined
