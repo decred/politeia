@@ -190,6 +190,13 @@ func newInvEntry(token string, status ticketvote.VoteStatusT, timestamp int64, e
 // A mutex is required because tstore does not execute writes using a sql
 // transaction. This means concurrent access to the plugin cache must be
 // control locally using this mutex.
+//
+// This implementation will have performance limitations once the inventory
+// gets large enough. Probably once the number of records gets into the
+// thousands. This will not be an issue for Decred for quite a while and by the
+// time it does become an issue, the plugins should have much more
+// sophisticated caching API available to them, such as the ability to create
+// their own db tables that they can run sql queries against.
 type invCtx struct {
 	sync.Mutex
 	tstore   plugins.TstoreClient
