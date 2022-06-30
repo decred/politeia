@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -16,14 +16,19 @@ import (
 )
 
 var (
-	// ErrShutdown is returned when a action is attempted against a
-	// store that is shutdown.
+	// ErrShutdown is returned when a action is attempted against a store that
+	// is shutdown.
 	ErrShutdown = errors.New("store is shutdown")
+
+	// ErrDuplicateEntry is returned when a blob is attempted to be saved using
+	// a key that already exists in the database. Automatic overwrites are not
+	// allowed by the key-value store. When a caller receives this error, it can
+	// decide if it would like to manually delete the entry and save a new one.
+	ErrDuplicateEntry = errors.New("duplicate entry")
 )
 
 const (
-	// DataTypeStructure describes a blob entry that contains a
-	// structure.
+	// DataTypeStructure describes a blob entry that contains a structure.
 	DataTypeStructure = "struct"
 )
 
@@ -90,20 +95,29 @@ func Deblob(blob []byte) (*BlobEntry, error) {
 
 // BlobKV represents a blob key-value store.
 type BlobKV interface {
-	// Put saves the provided key-value pairs to the store. This
-	// operation is performed atomically.
+	// Put saves the provided key-value pairs to the store.
+	//
+	// Overwrites are not allowed by the key-value store. If the caller
+	// attempts to save a blob using a key that already exists in the
+	// key-value store, a ErrDuplicateEntry will be returned. It is up
+	// to the caller to decide if it would like to manually delete the
+	// entry and save a new one.
+	//
+	// This operation is performed atomically.
 	Put(blobs map[string][]byte, encrypt bool) error
 
-	// Del deletes the provided blobs from the store. This operation
-	// is performed atomically.
+	// Del deletes the key-value store entries for the provided keys.
+	//
+	// This operation is performed atomically.
 	Del(keys []string) error
 
-	// Get returns blobs from the store for the provided keys. An entry
-	// will not exist in the returned map if for any blobs that are not
-	// found. It is the responsibility of the caller to ensure a blob
-	// was returned for all provided keys.
+	// Get returns the blob entries from the store for the provided keys.
+	//
+	// An entry will not exist in the returned map if for any blobs that
+	// are not found. It is the responsibility of the caller to ensure a
+	// blob was returned for all provided keys.
 	Get(keys []string) (map[string][]byte, error)
 
-	// Closes closes the store connection.
+	// Close closes the store connection.
 	Close()
 }
