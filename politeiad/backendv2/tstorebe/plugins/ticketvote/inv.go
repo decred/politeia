@@ -538,6 +538,9 @@ func (c *invCtx) updateBlockHeight(blockHeight uint32) (*inv, error) {
 		}
 	}
 
+	// Update the inventory block height
+	inv.BlockHeight = blockHeight
+
 	// Save the updated inventory
 	err = c.saveInv(*inv)
 	if err != nil {
@@ -555,8 +558,8 @@ var (
 )
 
 // saveInv saves the inventory to the tstore cache.
-func (c *invCtx) saveInv(inv inv) error {
-	b, err := json.Marshal(inv)
+func (c *invCtx) saveInv(i inv) error {
+	b, err := json.Marshal(i)
 	if err != nil {
 		return err
 	}
