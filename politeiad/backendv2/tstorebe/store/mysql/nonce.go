@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,25 +7,26 @@ package mysql
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"strconv"
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
 // nonce returns a new nonce value. This function guarantees that the returned
 // nonce will be unique for every invocation.
 //
 // This function must be called using a transaction.
-func (s *mysql) nonce(ctx context.Context, tx *sql.Tx) (int64, error) {
+func (s *mysqlCtx) nonce(ctx context.Context, tx *sql.Tx) (int64, error) {
 	// Create and retrieve new nonce value in an atomic database
 	// transaction.
 	_, err := tx.ExecContext(ctx, "INSERT INTO nonce () VALUES ();")
 	if err != nil {
-		return 0, fmt.Errorf("insert: %v", err)
+		return 0, errors.WithStack(err)
 	}
 	rows, err := tx.QueryContext(ctx, "SELECT LAST_INSERT_ID();")
 	if err != nil {
-		return 0, fmt.Errorf("query: %v", err)
+		return 0, errors.WithStack(err)
 	}
 	defer rows.Close()
 
@@ -35,19 +36,19 @@ func (s *mysql) nonce(ctx context.Context, tx *sql.Tx) (int64, error) {
 			// There should only ever be one row returned. Something is
 			// wrong if we've already scanned the nonce and its still
 			// scanning rows.
-			return 0, fmt.Errorf("multiple rows returned for nonce")
+			return 0, errors.Errorf("multiple rows returned for nonce")
 		}
 		err = rows.Scan(&nonce)
 		if err != nil {
-			return 0, fmt.Errorf("scan: %v", err)
+			return 0, errors.WithStack(err)
 		}
 	}
 	err = rows.Err()
 	if err != nil {
-		return 0, fmt.Errorf("next: %v", err)
+		return 0, errors.WithStack(err)
 	}
 	if nonce == 0 {
-		return 0, fmt.Errorf("invalid 0 nonce")
+		return 0, errors.Errorf("invalid 0 nonce")
 	}
 
 	return nonce, nil
@@ -56,11 +57,11 @@ func (s *mysql) nonce(ctx context.Context, tx *sql.Tx) (int64, error) {
 // testNonce is used to verify that nonce races do not occur. This function is
 // meant to be run against an actual MySQL/MariaDB instance, not as a unit
 // test.
-func (s *mysql) testNonce(ctx context.Context, tx *sql.Tx) error {
+func (s *mysqlCtx) testNonce(ctx context.Context, tx *sql.Tx) error {
 	// Get nonce
 	nonce, err := s.nonce(ctx, tx)
 	if err != nil {
-		return fmt.Errorf("nonce: %v", err)
+		return err
 	}
 
 	// Save an empty blob to the kv store using the nonce as the key.
@@ -70,7 +71,7 @@ func (s *mysql) testNonce(ctx context.Context, tx *sql.Tx) error {
 	_, err = tx.ExecContext(ctx,
 		"INSERT INTO kv (k, v) VALUES (?, ?);", k, []byte{})
 	if err != nil {
-		return fmt.Errorf("exec put: %v", err)
+		return errors.WithStack(err)
 	}
 
 	return nil
@@ -79,7 +80,7 @@ func (s *mysql) testNonce(ctx context.Context, tx *sql.Tx) error {
 // testNonceIsUnique verifies that nonce races do not occur. This function
 // is meant to be run against an actual MySQL/MariaDB instance, not as a unit
 // test.
-func (s *mysql) testNonceIsUnique() {
+func (s *mysqlCtx) testNonceIsUnique() {
 	log.Infof("Starting nonce concurrency test")
 
 	// Run test
