@@ -547,7 +547,7 @@ func (c *invCtx) updateBlockHeight(blockHeight uint32) (*inv, error) {
 		return nil, err
 	}
 
-	log.Debugf("Inv updated for block %v", blockHeight)
+	log.Debugf("Vote inv updated for block %v", blockHeight)
 
 	return inv, nil
 }
