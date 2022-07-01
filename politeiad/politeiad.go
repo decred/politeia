@@ -274,9 +274,9 @@ func (p *politeia) setupBackendTstore(anp *chaincfg.Params) error {
 		return errors.Errorf("router must be initialized")
 	}
 
-	b, err := tstorebe.New(p.cfg.HomeDir, p.cfg.DataDir, anp,
-		p.cfg.TlogHost, p.cfg.DBType, p.cfg.DBHost,
-		p.cfg.DBPass, p.cfg.DcrtimeHost, p.cfg.DcrtimeCert)
+	b, err := tstorebe.New(p.cfg.HomeDir, p.cfg.DataDir,
+		anp, p.cfg.TlogHost, p.cfg.DBHost, p.cfg.DBPass,
+		p.cfg.DcrtimeHost, p.cfg.DcrtimeCert)
 	if err != nil {
 		return fmt.Errorf("new tstorebe: %v", err)
 	}
