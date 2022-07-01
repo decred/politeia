@@ -15,8 +15,9 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/util"
-	"github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 const (
@@ -70,7 +71,8 @@ func (s *mysqlCtx) isShutdown() bool {
 	return atomic.LoadUint64(&s.shutdown) != 0
 }
 
-// put saves the provided blobs to the kv store using the provided transaction.
+// put saves the provided key-value pairs to the database using a transaction.
+// New entries are inserted. Existing entries are updated.
 func (s *mysqlCtx) put(blobs map[string][]byte, encrypt bool, ctx context.Context, tx *sql.Tx) error {
 	// Encrypt blobs
 	if encrypt {
@@ -94,15 +96,8 @@ func (s *mysqlCtx) put(blobs map[string][]byte, encrypt bool, ctx context.Contex
 	// Save blobs
 	for k, v := range blobs {
 		_, err := tx.ExecContext(ctx,
-			"INSERT INTO kv (k, v) VALUES (?, ?);", k, v)
+			"REPLACE INTO kv (k, v) VALUES (?, ?);", k, v)
 		if err != nil {
-			var e *mysql.MySQLError
-			if errors.As(err, &e) {
-				switch e.Number {
-				case 1062:
-					return store.ErrDuplicateEntry
-				}
-			}
 			return errors.WithStack(err)
 		}
 	}
@@ -110,8 +105,10 @@ func (s *mysqlCtx) put(blobs map[string][]byte, encrypt bool, ctx context.Contex
 	return nil
 }
 
-// Put saves the provided key-value pairs to the store. This operation is
-// performed atomically.
+// Put saves the provided key-value entries to the database. New entries are
+// inserted. Existing entries are updated.
+//
+// This operation is atomic.
 //
 // This function satisfies the store BlobKV interface.
 func (s *mysqlCtx) Put(blobs map[string][]byte, encrypt bool) error {
@@ -156,8 +153,9 @@ func (s *mysqlCtx) Put(blobs map[string][]byte, encrypt bool) error {
 	return nil
 }
 
-// Del deletes the provided blobs from the store  This operation is performed
-// atomically.
+// Del deletes the key-value entries from the database for the provided keys.
+//
+// This operation is atomic.
 //
 // This function satisfies the store BlobKV interface.
 func (s *mysqlCtx) Del(keys []string) error {
@@ -204,10 +202,12 @@ func (s *mysqlCtx) Del(keys []string) error {
 	return nil
 }
 
-// Get returns blobs from the store for the provided keys. An entry will not
-// exist in the returned map if for any blobs that are not found. It is the
-// responsibility of the caller to ensure a blob was returned for all provided
+// Get retrieves the key-value entries from the database for the provided
 // keys.
+//
+// An entry will not exist in the returned map for any blobs that are not
+// found. It is the responsibility of the caller to ensure a blob was returned
+// for all provided keys.
 //
 // This function satisfies the store BlobKV interface.
 func (s *mysqlCtx) Get(keys []string) (map[string][]byte, error) {
@@ -267,7 +267,7 @@ func (s *mysqlCtx) Get(keys []string) (map[string][]byte, error) {
 	return reply, nil
 }
 
-// Closes closes the blob store connection.
+// Close closes the database connection.
 func (s *mysqlCtx) Close() {
 	log.Tracef("Close")
 

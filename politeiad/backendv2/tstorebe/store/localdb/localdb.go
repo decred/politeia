@@ -51,8 +51,10 @@ func (l *localdb) decrypt(data []byte) ([]byte, uint32, error) {
 	return sbox.Decrypt(&l.key, data)
 }
 
-// Put saves the provided key-value pairs to the store. This operation is
-// performed atomically.
+// Put saves the provided key-value entries to the database. New entries are
+// inserted. Existing entries are updated.
+//
+// This operation is atomic.
 //
 // This function satisfies the store BlobKV interface.
 func (l *localdb) Put(blobs map[string][]byte, encrypt bool) error {
@@ -90,8 +92,9 @@ func (l *localdb) Put(blobs map[string][]byte, encrypt bool) error {
 	return nil
 }
 
-// Del deletes the provided blobs from the store. This operation is performed
-// atomically.
+// Del deletes the key-value entries from the database for the provided keys.
+//
+// This operation is atomic.
 //
 // This function satisfies the store BlobKV interface.
 func (l *localdb) Del(keys []string) error {
@@ -121,10 +124,11 @@ func isEncrypted(b []byte) bool {
 	return bytes.HasPrefix(b, []byte("sbox"))
 }
 
-// Get returns blobs from the store for the provided keys. An entry will not
-// exist in the returned map if for any blobs that are not found. It is the
-// responsibility of the caller to ensure a blob was returned for all provided
-// keys.
+// Get retrieves the key-value entries from the database for the provided keys.
+//
+// An entry will not exist in the returned map for any blobs that are not
+// found. It is the responsibility of the caller to ensure a blob was returned
+// for all provided keys.
 //
 // This function satisfies the store BlobKV interface.
 func (l *localdb) Get(keys []string) (map[string][]byte, error) {
@@ -165,7 +169,7 @@ func (l *localdb) Get(keys []string) (map[string][]byte, error) {
 	return blobs, nil
 }
 
-// Closes closes the store connection.
+// Close closes the database connection.
 //
 // This function satisfies the store BlobKV interface.
 func (l *localdb) Close() {
