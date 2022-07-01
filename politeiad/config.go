@@ -20,7 +20,6 @@ import (
 
 	"github.com/decred/dcrd/dcrutil/v3"
 	v1 "github.com/decred/dcrtime/api/v1"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	flags "github.com/jessevdk/go-flags"
@@ -46,7 +45,6 @@ const (
 	defaultBackend = backendTstore
 
 	// Tstore default settings
-	defaultDBType   = tstore.DBTypeLevelDB
 	defaultDBHost   = "localhost:3306" // MySQL default host
 	defaultTlogHost = "localhost:8090"
 
@@ -117,7 +115,6 @@ type config struct {
 	DcrdataHost string `long:"dcrdatahost" description:"Dcrdata ip:port"`
 
 	// Tstore backend options
-	DBType   string `long:"dbtype" description:"Database type"`
 	DBHost   string `long:"dbhost" description:"Database ip:port"`
 	DBPass   string // Provided in env variable "DBPASS"
 	TlogHost string `long:"tloghost" description:"Trillian log ip:port"`
@@ -277,7 +274,6 @@ func loadConfig() (*config, []string, error) {
 		ReadTimeout:      defaultReadTimeout,
 		WriteTimeout:     defaultWriteTimeout,
 		ReqBodySizeLimit: defaultReqBodySizeLimit,
-		DBType:           defaultDBType,
 		DBHost:           defaultDBHost,
 		TlogHost:         defaultTlogHost,
 	}
@@ -582,18 +578,12 @@ func loadConfig() (*config, []string, error) {
 // verifyTstoreSettings verifies the config settings that are specific to the
 // tstore backend.
 func verifyTstoreSettings(cfg *config) error {
-	// Verify tstore backend database choice
-	switch cfg.DBType {
-	case tstore.DBTypeLevelDB:
-		// Allowed; continue
-	case tstore.DBTypeMySQL:
-		// The database password is provided in an env variable
-		cfg.DBPass = os.Getenv(envDBPass)
-		if cfg.DBPass == "" {
-			return fmt.Errorf("dbpass not found; you must provide the " +
-				"database password for the politeiad user in the env " +
-				"variable DBPASS")
-		}
+	// Parse the database password. It is provided in an env variable.
+	cfg.DBPass = os.Getenv(envDBPass)
+	if cfg.DBPass == "" {
+		return fmt.Errorf("dbpass not found; you must provide the " +
+			"database password for the politeiad user in the env " +
+			"variable DBPASS")
 	}
 
 	// Verify tlog options
