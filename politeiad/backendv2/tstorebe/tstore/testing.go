@@ -23,7 +23,7 @@ func NewTestTstore(t *testing.T, dataDir string) *Tstore {
 	}
 
 	// Setup key-value store
-	fp, err := os.MkdirTemp(dataDir, storeDirname)
+	fp, err := os.MkdirTemp(dataDir, "kv")
 	if err != nil {
 		t.Fatal(err)
 	}
