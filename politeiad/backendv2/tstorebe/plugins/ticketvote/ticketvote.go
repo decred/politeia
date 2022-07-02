@@ -46,13 +46,13 @@ type ticketVotePlugin struct {
 	// prove the backend received and processed a plugin command.
 	identity *identity.FullIdentity
 
-	// invCtx provides an API for managing the cached inventory. The
-	// inventory is cached in the tstore provided plugin cache.
-	inv *invCtx
-
 	// activeVotes is a memeory cache that contains data required to
 	// validate vote ballots in a time efficient manner.
 	activeVotes *activeVotes
+
+	// invClient provides an API for managing the cached inventory.
+	// The inventory is cached in the tstore provided plugin cache.
+	inv *invClient
 
 	// Mutexes for on-disk caches
 	mtxSummary sync.Mutex // Vote summaries cache
@@ -395,8 +395,8 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		tstore:             tstore,
 		dataDir:            dataDir,
 		identity:           id,
-		inv:                newInvCtx(tstore, backend, inventoryPageSize),
 		activeVotes:        newActiveVotes(),
+		inv:                newInvClient(tstore, backend, inventoryPageSize),
 		linkByPeriodMin:    linkByPeriodMin,
 		linkByPeriodMax:    linkByPeriodMax,
 		voteDurationMin:    voteDurationMin,

@@ -24,7 +24,7 @@ import (
 // The finished, approved, and rejected statuses are lazy loaded since those
 // lists depend on external state (the DCR block height).
 //
-// The invCtx structure provides an API for interacting with the ticketvote
+// The invClient structure provides an API for interacting with the ticketvote
 // inventory.
 type inv struct {
 	// Entries contains the inventory entries categorized by vote
@@ -184,8 +184,9 @@ func newInvEntry(token string, status ticketvote.VoteStatusT, timestamp int64, e
 	}
 }
 
-// invCtx provides an API for interacting with the cached ticketvote inventory.
-// The inventory is saved to the TstoreClient provided plugin cache.
+// invClient provides an API for interacting with the cached ticketvote
+// inventory. The inventory is saved to the TstoreClient provided plugin
+// cache.
 //
 // A mutex is required because tstore does not execute writes using a sql
 // transaction. This means concurrent access to the plugin cache must be
@@ -197,16 +198,16 @@ func newInvEntry(token string, status ticketvote.VoteStatusT, timestamp int64, e
 // time it does become an issue, the plugins should have much more
 // sophisticated caching API available to them, such as the ability to create
 // their own db tables that they can run sql queries against.
-type invCtx struct {
+type invClient struct {
 	sync.Mutex
 	tstore   plugins.TstoreClient
 	backend  backend.Backend
 	pageSize uint32
 }
 
-// newInvCtx returns a new invCtx.
-func newInvCtx(tstore plugins.TstoreClient, backend backend.Backend, pageSize uint32) *invCtx {
-	return &invCtx{
+// newInvClient returns a new invClient.
+func newInvClient(tstore plugins.TstoreClient, backend backend.Backend, pageSize uint32) *invClient {
+	return &invClient{
 		tstore:   tstore,
 		backend:  backend,
 		pageSize: pageSize,
@@ -225,7 +226,7 @@ func newInvCtx(tstore plugins.TstoreClient, backend backend.Backend, pageSize ui
 // sysadmin is alerted that the cache is incoherent and needs to be rebuilt.
 //
 // This function is concurrency safe.
-func (c *invCtx) AddEntry(token string, status ticketvote.VoteStatusT, timestamp int64) {
+func (c *invClient) AddEntry(token string, status ticketvote.VoteStatusT, timestamp int64) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -247,7 +248,7 @@ func (c *invCtx) AddEntry(token string, status ticketvote.VoteStatusT, timestamp
 // sysadmin is alerted that the cache is incoherent and needs to be rebuilt.
 //
 // This function is concurrency safe.
-func (c *invCtx) UpdateEntryPreVote(token string, status ticketvote.VoteStatusT, timestamp int64) {
+func (c *invClient) UpdateEntryPreVote(token string, status ticketvote.VoteStatusT, timestamp int64) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -268,7 +269,7 @@ func (c *invCtx) UpdateEntryPreVote(token string, status ticketvote.VoteStatusT,
 // sysadmin is alerted that the cache is incoherent and needs to be rebuilt.
 //
 // This function is concurrency safe.
-func (c *invCtx) UpdateEntryPostVote(token string, status ticketvote.VoteStatusT, endBlockHeight uint32) {
+func (c *invClient) UpdateEntryPostVote(token string, status ticketvote.VoteStatusT, endBlockHeight uint32) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -286,7 +287,7 @@ func (c *invCtx) UpdateEntryPostVote(token string, status ticketvote.VoteStatusT
 // updated based on the vote's ending block height and the best block.
 //
 // This function is concurrency safe.
-func (c *invCtx) GetPage(bestBlock uint32) (*inv, error) {
+func (c *invClient) GetPage(bestBlock uint32) (*inv, error) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -308,7 +309,7 @@ func (c *invCtx) GetPage(bestBlock uint32) (*inv, error) {
 // Page 1 corresponds to the most recent page of inventory entries.
 //
 // This function is concurrency safe.
-func (c *invCtx) GetPageForStatus(bestBlock uint32, status ticketvote.VoteStatusT, pageNumber uint32) ([]invEntry, error) {
+func (c *invClient) GetPageForStatus(bestBlock uint32, status ticketvote.VoteStatusT, pageNumber uint32) ([]invEntry, error) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -324,7 +325,7 @@ func (c *invCtx) GetPageForStatus(bestBlock uint32, status ticketvote.VoteStatus
 // saves it to the tstore plugin cache.
 //
 // This function is concurrency safe.
-func (c *invCtx) Rebuild(entries []invEntry) error {
+func (c *invClient) Rebuild(entries []invEntry) error {
 	c.Lock()
 	defer c.Unlock()
 
@@ -345,7 +346,7 @@ func (c *invCtx) Rebuild(entries []invEntry) error {
 //
 // This function is not concurrency safe. It must be called with the mutex
 // locked.
-func (c *invCtx) addEntry(token string, status ticketvote.VoteStatusT, timestamp int64) error {
+func (c *invClient) addEntry(token string, status ticketvote.VoteStatusT, timestamp int64) error {
 	inv, err := c.getInv()
 	if err != nil {
 		return err
@@ -371,7 +372,7 @@ func (c *invCtx) addEntry(token string, status ticketvote.VoteStatusT, timestamp
 //
 // This function is not concurrency safe. It must be called with the mutex
 // locked.
-func (c *invCtx) updateEntry(token string, status ticketvote.VoteStatusT, timestamp int64, endBlockHeight uint32) error {
+func (c *invClient) updateEntry(token string, status ticketvote.VoteStatusT, timestamp int64, endBlockHeight uint32) error {
 	// Get the existing inventory
 	inv, err := c.getInv()
 	if err != nil {
@@ -482,7 +483,7 @@ func (c *invCtx) updateEntry(token string, status ticketvote.VoteStatusT, timest
 //
 // This function is not concurrency safe. It must be called with the mutex
 // locked.
-func (c *invCtx) updateBlockHeight(blockHeight uint32) (*inv, error) {
+func (c *invClient) updateBlockHeight(blockHeight uint32) (*inv, error) {
 	inv, err := c.getInv()
 	if err != nil {
 		return nil, err
@@ -558,7 +559,7 @@ var (
 )
 
 // saveInv saves the inventory to the tstore cache.
-func (c *invCtx) saveInv(i inv) error {
+func (c *invClient) saveInv(i inv) error {
 	b, err := json.Marshal(i)
 	if err != nil {
 		return err
@@ -568,7 +569,7 @@ func (c *invCtx) saveInv(i inv) error {
 
 // getInv returns the inventory from the tstore cache. A new inv is returned
 // if one does not exist in the cache.
-func (c *invCtx) getInv() (*inv, error) {
+func (c *invClient) getInv() (*inv, error) {
 	blobs, err := c.tstore.CacheGet([]string{invKey})
 	if err != nil {
 		return nil, err
@@ -587,7 +588,7 @@ func (c *invCtx) getInv() (*inv, error) {
 }
 
 // summary returns the vote summary for a record.
-func (c *invCtx) summary(token string) (*ticketvote.SummaryReply, error) {
+func (c *invClient) summary(token string) (*ticketvote.SummaryReply, error) {
 	tokenB, err := tokenDecode(token)
 	if err != nil {
 		return nil, err
