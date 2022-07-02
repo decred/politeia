@@ -52,9 +52,12 @@ type ticketVotePlugin struct {
 	activeVotes *activeVotes
 
 	// Mutexes for on-disk caches
-	mtxInv     sync.RWMutex // Vote inventory cache
-	mtxSummary sync.Mutex   // Vote summaries cache
-	mtxSubs    sync.Mutex   // Runoff vote submission cache
+	mtxInv  sync.RWMutex // Vote inventory cache
+	mtxSubs sync.Mutex   // Runoff vote submission cache
+
+	// summaries provides an API for interacting with the vote summaries
+	// cache. The data is saved to the tstore provided plugin cache.
+	summaries *summariesClient
 
 	// Plugin settings
 	linkByPeriodMin    int64  // In seconds
@@ -632,6 +635,7 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		dataDir:            dataDir,
 		identity:           id,
 		activeVotes:        newActiveVotes(),
+		summaries:          newSummariesClient(tstore),
 		linkByPeriodMin:    linkByPeriodMin,
 		linkByPeriodMax:    linkByPeriodMax,
 		voteDurationMin:    voteDurationMin,
