@@ -188,9 +188,10 @@ func newInvEntry(token string, status ticketvote.VoteStatusT, timestamp int64, e
 // inventory. The inventory is saved to the TstoreClient provided plugin
 // cache.
 //
-// A mutex is required because tstore does not execute writes using a sql
-// transaction. This means concurrent access to the plugin cache must be
-// control locally using this mutex.
+// A mutex is required because tstore does not provide plugins with a sql
+// transaction that can be used to execute multiple database requests
+// atomically. Concurrent access to the inventory cache during updates must
+// be control locally using a mutex for now.
 //
 // This implementation will have performance limitations once the inventory
 // gets large enough. Probably once the number of records gets into the
