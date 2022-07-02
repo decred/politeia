@@ -50,8 +50,8 @@ type ticketVotePlugin struct {
 	// validate vote ballots in a time efficient manner.
 	activeVotes *activeVotes
 
-	// invClient provides an API for managing the cached inventory.
-	// The inventory is cached in the tstore provided plugin cache.
+	// inv provides an API for managing the cached vote inventory. The
+	// data is cached in the tstore provided plugin cache.
 	inv *invClient
 
 	// Mutexes for on-disk caches
