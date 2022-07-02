@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
@@ -58,8 +57,9 @@ type ticketVotePlugin struct {
 	// cache. The data is saved to the tstore provided plugin cache.
 	summaries *summariesClient
 
-	// Mutexes for on-disk caches
-	mtxSubs sync.Mutex // Runoff vote submission cache
+	// subsProvides an API for interacting with the runoff vote submissions
+	// cache. The data is saved to the tstore provided plugin cache.
+	subs *subsClient
 
 	// Plugin settings
 	linkByPeriodMin    int64  // In seconds
@@ -401,6 +401,7 @@ func New(backend backend.Backend, tstore plugins.TstoreClient, settings []backen
 		activeVotes:        newActiveVotes(),
 		inv:                newInvClient(tstore, backend, inventoryPageSize),
 		summaries:          newSummariesClient(tstore),
+		subs:               newSubsClient(tstore),
 		linkByPeriodMin:    linkByPeriodMin,
 		linkByPeriodMax:    linkByPeriodMax,
 		voteDurationMin:    voteDurationMin,

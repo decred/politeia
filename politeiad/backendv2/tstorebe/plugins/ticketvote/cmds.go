@@ -777,12 +777,12 @@ func (p *ticketVotePlugin) startRunoffForParent(token []byte, s ticketvote.Start
 	// linked to the parent record. The parent record's submissions
 	// list will include abandoned proposals that need to be filtered
 	// out.
-	lf, err := p.submissionsCache(token)
+	ss, err := p.subs.Get(tokenEncode(token))
 	if err != nil {
 		return nil, err
 	}
-	expected := make(map[string]struct{}, len(lf.Tokens)) // [token]struct{}
-	for k := range lf.Tokens {
+	expected := make(map[string]struct{}, len(ss.Tokens)) // [token]struct{}
+	for k := range ss.Tokens {
 		token, err := tokenDecode(k)
 		if err != nil {
 			return nil, err
@@ -2055,20 +2055,20 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 // linked to the parent record using the VoteMetadata.LinkTo field.
 func (p *ticketVotePlugin) cmdSubmissions(token []byte) (string, error) {
 	// Get submissions list
-	lf, err := p.submissionsCache(token)
+	s, err := p.subs.Get(tokenEncode(token))
 	if err != nil {
 		return "", err
 	}
 
 	// Prepare reply
-	tokens := make([]string, 0, len(lf.Tokens))
-	for k := range lf.Tokens {
+	tokens := make([]string, 0, len(s.Tokens))
+	for k := range s.Tokens {
 		tokens = append(tokens, k)
 	}
-	lfr := ticketvote.SubmissionsReply{
+	sr := ticketvote.SubmissionsReply{
 		Submissions: tokens,
 	}
-	reply, err := json.Marshal(lfr)
+	reply, err := json.Marshal(sr)
 	if err != nil {
 		return "", err
 	}

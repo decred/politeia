@@ -429,19 +429,19 @@ func (p *ticketVotePlugin) voteMetadataCacheOnStatusChange(token string, state b
 		// Do nothing.
 
 	case status == backend.StatusPublic:
-		// Record has been made public. Add child token to parent's
-		// submissions list.
-		err := p.submissionsCacheAdd(parentToken, childToken)
+		// The record has been made public. Add the child
+		// token to parent record's submissions list.
+		err := p.subs.Add(parentToken, childToken)
 		if err != nil {
-			return fmt.Errorf("submissionsFromCacheAdd: %v", err)
+			return err
 		}
 
 	case status == backend.StatusCensored:
-		// Record has been censored. Delete child token from parent's
-		// submissions list.
-		err := p.submissionsCacheDel(parentToken, childToken)
+		// The record has been censored. Delete the
+		// child token from parent's submissions list.
+		err := p.subs.Del(parentToken, childToken)
 		if err != nil {
-			return fmt.Errorf("submissionsCacheDel: %v", err)
+			return err
 		}
 	}
 
