@@ -8,7 +8,6 @@ import (
 	"bufio"
 	"bytes"
 	"compress/zlib"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -27,21 +26,16 @@ func (w *testWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func newGitBackEnd() *gitBackEnd {
-	dir, err := os.MkdirTemp("", "politeiad.test")
-	if err != nil {
-		panic(fmt.Sprintf("%v", err))
-	}
+func newGitBackEnd(t *testing.T) *gitBackEnd {
 	return &gitBackEnd{
-		root:     dir,
+		root:     t.TempDir(),
 		gitPath:  "git", // assume installed
 		gitTrace: true,
 	}
 }
 
 func TestVersion(t *testing.T) {
-	g := newGitBackEnd()
-	defer os.RemoveAll(g.root)
+	g := newGitBackEnd(t)
 
 	_, err := g.gitVersion()
 	if err != nil {
@@ -52,8 +46,7 @@ func TestVersion(t *testing.T) {
 func TestInit(t *testing.T) {
 	log := slog.NewBackend(&testWriter{t}).Logger("TEST")
 	UseLogger(log)
-	g := newGitBackEnd()
-	defer os.RemoveAll(g.root)
+	g := newGitBackEnd(t)
 
 	err := g.gitInitRepo(g.root, defaultRepoConfig)
 	if err != nil {
@@ -64,8 +57,7 @@ func TestInit(t *testing.T) {
 func TestLog(t *testing.T) {
 	log := slog.NewBackend(&testWriter{t}).Logger("TEST")
 	UseLogger(log)
-	g := newGitBackEnd()
-	defer os.RemoveAll(g.root)
+	g := newGitBackEnd(t)
 
 	_, err := g.gitInit(g.root)
 	if err != nil {
@@ -82,8 +74,7 @@ func TestFsck(t *testing.T) {
 	// Test git fsck, we build on top of that with a dcrtime fsck
 	log := slog.NewBackend(&testWriter{t}).Logger("TEST")
 	UseLogger(log)
-	g := newGitBackEnd()
-	defer os.RemoveAll(g.root)
+	g := newGitBackEnd(t)
 
 	// Init git repo
 	err := g.gitInitRepo(g.root, defaultRepoConfig)

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -47,24 +46,22 @@ func testExact(j *Journal, filename string, count int) error {
 }
 
 func TestJournalExact(t *testing.T) {
-	dir, err := os.MkdirTemp("", "journal")
+	dir := t.TempDir()
 	t.Logf("TestJournalExact: %v", dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+
 	j := NewJournal()
 
 	// Test journal
 	count := 1000
 	filename := filepath.Join(dir, "file1")
 	for i := 0; i < count; i++ {
-		err = j.Journal(filename, fmt.Sprintf("%v", i))
+		err := j.Journal(filename, fmt.Sprintf("%v", i))
 		if err != nil {
 			t.Fatalf("%v: %v", i, err)
 		}
 	}
 
-	err = testExact(j, filename, count)
+	err := testExact(j, filename, count)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,20 +70,14 @@ func TestJournalExact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	os.RemoveAll(dir)
 }
 
 func TestJournalDoubleOpen(t *testing.T) {
-	dir, err := os.MkdirTemp("", "journal")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("TestJournalDoubleOpen: %v", dir)
+	dir := t.TempDir()
 
 	j := NewJournal()
 	filename := filepath.Join(dir, "file1")
-	err = j.Journal(filename, "journal this")
+	err := j.Journal(filename, "journal this")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,20 +91,15 @@ func TestJournalDoubleOpen(t *testing.T) {
 	if !errors.Is(err, ErrBusy) {
 		t.Fatal(err)
 	}
-
-	os.RemoveAll(dir)
 }
 
 func TestJournalDoubleClose(t *testing.T) {
-	dir, err := os.MkdirTemp("", "journal")
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := t.TempDir()
 	t.Logf("TestJournalDoubleClose: %v", dir)
 
 	j := NewJournal()
 	filename := filepath.Join(dir, "file1")
-	err = j.Journal(filename, "journal this")
+	err := j.Journal(filename, "journal this")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,16 +118,11 @@ func TestJournalDoubleClose(t *testing.T) {
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatal(err)
 	}
-
-	os.RemoveAll(dir)
 }
 
 func TestJournalConcurrent(t *testing.T) {
-	dir, err := os.MkdirTemp("", "journal")
+	dir := t.TempDir()
 	t.Logf("TestJournalConcurrent: %v", dir)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	j := NewJournal()
 	// Test concurrent writes
@@ -190,16 +171,11 @@ func TestJournalConcurrent(t *testing.T) {
 	if err := eg.Wait(); err != nil {
 		t.Fatal(err)
 	}
-
-	os.RemoveAll(dir)
 }
 
 func TestJournalConcurrentSame(t *testing.T) {
-	dir, err := os.MkdirTemp("", "journal")
+	dir := t.TempDir()
 	t.Logf("TestJournalConcurrentSame: %v", dir)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	j := NewJournal()
 
@@ -219,7 +195,7 @@ func TestJournalConcurrentSame(t *testing.T) {
 	}
 
 	// Read back and make sure all entries exist
-	err = j.Open(filename)
+	err := j.Open(filename)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,16 +221,11 @@ func TestJournalConcurrentSame(t *testing.T) {
 	if len(check) != 0 {
 		t.Fatalf("len != 0")
 	}
-
-	os.RemoveAll(dir)
 }
 
 func TestJournalCopy(t *testing.T) {
-	dir, err := os.MkdirTemp("", "journal")
+	dir := t.TempDir()
 	t.Logf("TestJournalConcurrentCopy: %v", dir)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	j := NewJournal()
 
@@ -262,13 +233,13 @@ func TestJournalCopy(t *testing.T) {
 	count := 1000
 	filename := filepath.Join(dir, "file1")
 	for i := 0; i < count; i++ {
-		err = j.Journal(filename, fmt.Sprintf("%v", i))
+		err := j.Journal(filename, fmt.Sprintf("%v", i))
 		if err != nil {
 			t.Fatalf("%v: %v", i, err)
 		}
 	}
 
-	err = testExact(j, filename, count)
+	err := testExact(j, filename, count)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,6 +275,4 @@ func TestJournalCopy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	os.RemoveAll(dir)
 }

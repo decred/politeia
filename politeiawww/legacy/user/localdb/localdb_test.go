@@ -7,7 +7,6 @@ package localdb
 import (
 	"encoding/base32"
 	"errors"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -16,34 +15,22 @@ import (
 	"github.com/gorilla/securecookie"
 )
 
-func setupTestData(t *testing.T) (*localdb, string) {
+func setupTestData(t *testing.T) *localdb {
 	t.Helper()
 
-	dataDir, err := os.MkdirTemp("", "politeiawww.user.localdb.test")
-	if err != nil {
-		t.Fatalf("tmp dir: %v", err)
-	}
-
-	db, err := New(filepath.Join(dataDir, "localdb"))
+	db, err := New(filepath.Join(t.TempDir(), "localdb"))
 	if err != nil {
 		t.Fatalf("setup database: %v", err)
 	}
 
-	return db, dataDir
-}
+	t.Cleanup(func() {
+		err := db.Close()
+		if err != nil {
+			t.Fatalf("close db: %v", err)
+		}
+	})
 
-func teardownTestData(t *testing.T, db *localdb, dataDir string) {
-	t.Helper()
-
-	err := db.Close()
-	if err != nil {
-		t.Fatalf("close db: %v", err)
-	}
-
-	err = os.RemoveAll(dataDir)
-	if err != nil {
-		t.Fatalf("remove tmp dir: %v", err)
-	}
+	return db
 }
 
 func newSessionID() string {
@@ -51,8 +38,7 @@ func newSessionID() string {
 }
 
 func TestSessionSave(t *testing.T) {
-	db, dataDir := setupTestData(t)
-	defer teardownTestData(t, db, dataDir)
+	db := setupTestData(t)
 
 	// Save session
 	s := user.Session{
@@ -100,8 +86,7 @@ func TestSessionSave(t *testing.T) {
 }
 
 func TestSessionGetByID(t *testing.T) {
-	db, dataDir := setupTestData(t)
-	defer teardownTestData(t, db, dataDir)
+	db := setupTestData(t)
 
 	// Save session
 	s := user.Session{
@@ -131,8 +116,7 @@ func TestSessionGetByID(t *testing.T) {
 }
 
 func TestSessionDeleteByID(t *testing.T) {
-	db, dataDir := setupTestData(t)
-	defer teardownTestData(t, db, dataDir)
+	db := setupTestData(t)
 
 	// Session 1
 	s1 := user.Session{

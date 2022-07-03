@@ -78,11 +78,7 @@ func TestAnchorWithCommits(t *testing.T) {
 	log := slog.NewBackend(&testWriter{t}).Logger("TEST")
 	UseLogger(log)
 
-	dir, err := os.MkdirTemp("", "politeia.test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// Initialize stuff we need
 	g, err := New(chaincfg.TestNet3Params(), dir, "", "", nil,
@@ -403,11 +399,7 @@ func TestAnchorWithCommits(t *testing.T) {
 }
 
 func TestFilePathVersion(t *testing.T) {
-	dir, err := os.MkdirTemp("", "pathversion")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	t.Logf("dir: %v", dir)
 	d, err := _joinLatest(dir)
@@ -468,11 +460,7 @@ func TestFilePathVersion(t *testing.T) {
 }
 
 func TestUpdateReadme(t *testing.T) {
-	dir, err := os.MkdirTemp("", "politeia.test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	g, err := New(chaincfg.TestNet3Params(), dir, "", "", nil,
 		testing.Verbose(), "")
@@ -576,11 +564,7 @@ func TestTokenPrefixGeneration(t *testing.T) {
 	updateTokenPrefixLength(1)
 	defer updateTokenPrefixLength(originalPrefixLength)
 
-	dir, err := os.MkdirTemp("", "politeia.test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	g, err := New(chaincfg.TestNet3Params(), dir, "", "", nil,
 		testing.Verbose(), "")
