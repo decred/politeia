@@ -572,6 +572,12 @@ func (p *commentsPlugin) cmdNew(token []byte, payload string) (string, error) {
 	}
 
 	// Verify comment
+	if len(n.Comment) == 0 {
+		return "", backend.PluginError{
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeEmptyComment),
+		}
+	}
 	if len(n.Comment) > int(p.commentLengthMax) {
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
@@ -708,6 +714,12 @@ func (p *commentsPlugin) cmdEdit(token []byte, payload string) (string, error) {
 	}
 
 	// Verify comment
+	if len(e.Comment) == 0 {
+		return "", backend.PluginError{
+			PluginID:  comments.PluginID,
+			ErrorCode: uint32(comments.ErrorCodeEmptyComment),
+		}
+	}
 	if len(e.Comment) > int(p.commentLengthMax) {
 		return "", backend.PluginError{
 			PluginID:  comments.PluginID,
