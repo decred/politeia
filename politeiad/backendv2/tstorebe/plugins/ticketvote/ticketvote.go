@@ -231,7 +231,7 @@ func (p *ticketVotePlugin) Hook(h plugins.HookT, payload string) error {
 func (p *ticketVotePlugin) Fsck(tokens [][]byte) error {
 	log.Tracef("ticketvote Fsck")
 
-	return nil
+	return p.fsck(tokens)
 }
 
 // Settings returns the plugin's settings.

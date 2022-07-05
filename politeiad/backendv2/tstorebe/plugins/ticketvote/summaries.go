@@ -62,6 +62,18 @@ func (c *summariesClient) Save(token string, s ticketvote.SummaryReply) error {
 	return nil
 }
 
+// Del deletes a vote summary from the cache.
+//
+// An error is not returned if an entry is not found in the cache for the
+// provided token.
+func (c *summariesClient) Del(token string) error {
+	key, err := buildSummaryKey(token)
+	if err != nil {
+		return err
+	}
+	return c.tstore.CacheDel([]string{key})
+}
+
 // Get retrieves a vote summary from the cache.
 //
 // An errSummaryNotFound is returned if a vote summary is not found in the
