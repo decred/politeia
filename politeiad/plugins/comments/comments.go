@@ -161,8 +161,14 @@ const (
 	// allowed.
 	ErrorCodeEditNotAllowed = 13
 
-	// ErrorCodeLast unit test only.
-	ErrorCodeLast ErrorCodeT = 14
+	// ErrorCodeEmptyComment is returned when a comment with no comment text
+	// is submitted.
+	ErrorCodeEmptyComment = 14
+
+	// ErrorCodeLast is used by unit tests to verify that all error codes have
+	// a human readable entry in the ErrorCodes map. This error code will never
+	// be returned.
+	ErrorCodeLast ErrorCodeT = 15
 )
 
 var (
@@ -182,6 +188,7 @@ var (
 		ErrorCodeRecordStateInvalid:     "record state invalid",
 		ErrorCodeExtraDataNotAllowed:    "comment extra data not allowed",
 		ErrorCodeEditNotAllowed:         "comment edit is not allowed",
+		ErrorCodeEmptyComment:           "comment is empty",
 	}
 )
 

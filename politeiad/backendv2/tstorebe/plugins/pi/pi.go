@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -33,9 +33,8 @@ type piPlugin struct {
 	backend backend.Backend
 	tstore  plugins.TstoreClient
 
-	// statuses holds proposal statuses and various proposal metadata in an
-	// in-memory cache to improve the performance of determining the proposal
-	// statuses at runtime.
+	// statuses is a lazy loaded, memory cache that is used to improve the
+	// performance of determining the proposal statuses at runtime.
 	statuses proposalStatuses
 
 	// dataDir is the pi plugin data directory. The only data that is

@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -23,6 +22,7 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	"github.com/decred/politeia/util"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -153,7 +153,7 @@ func (p *ticketVotePlugin) cmdAuthorize(token []byte, payload string) (string, e
 		return "", err
 	}
 
-	// Update inventory
+	// Update the cached inventory
 	var status ticketvote.VoteStatusT
 	switch a.Action {
 	case ticketvote.AuthActionAuthorize:
@@ -162,9 +162,9 @@ func (p *ticketVotePlugin) cmdAuthorize(token []byte, payload string) (string, e
 		status = ticketvote.VoteStatusUnauthorized
 	default:
 		// Action has already been validated. This should not happen.
-		return "", fmt.Errorf("invalid action %v", a.Action)
+		return "", errors.Errorf("invalid action %v", a.Action)
 	}
-	p.inventoryUpdate(a.Token, status)
+	p.inv.UpdateEntryPreVote(auth.Token, status, auth.Timestamp)
 
 	// Prepare reply
 	ar := ticketvote.AuthorizeReply{
@@ -545,9 +545,9 @@ func (p *ticketVotePlugin) startStandard(token []byte, s ticketvote.Start) (*tic
 		return nil, err
 	}
 
-	// Update inventory
-	p.inventoryUpdateToStarted(vd.Params.Token, ticketvote.VoteStatusStarted,
-		vd.EndBlockHeight)
+	// Update the cached inventory
+	p.inv.UpdateEntryPostVote(vd.Params.Token,
+		ticketvote.VoteStatusStarted, vd.EndBlockHeight)
 
 	// Update active votes cache
 	p.activeVotesAdd(vd)
@@ -689,11 +689,11 @@ func (p *ticketVotePlugin) startRunoffForSub(token []byte, srs startRunoffSubmis
 	// Save vote details
 	err = p.voteDetailsSave(token, vd)
 	if err != nil {
-		return fmt.Errorf("voteDetailsSave %x: %v", token, err)
+		return err
 	}
 
-	// Update inventory
-	p.inventoryUpdateToStarted(vd.Params.Token,
+	// Update the cached inventory
+	p.inv.UpdateEntryPostVote(vd.Params.Token,
 		ticketvote.VoteStatusStarted, vd.EndBlockHeight)
 
 	// Update active votes cache
@@ -777,12 +777,12 @@ func (p *ticketVotePlugin) startRunoffForParent(token []byte, s ticketvote.Start
 	// linked to the parent record. The parent record's submissions
 	// list will include abandoned proposals that need to be filtered
 	// out.
-	lf, err := p.submissionsCache(token)
+	ss, err := p.subs.Get(tokenEncode(token))
 	if err != nil {
 		return nil, err
 	}
-	expected := make(map[string]struct{}, len(lf.Tokens)) // [token]struct{}
-	for k := range lf.Tokens {
+	expected := make(map[string]struct{}, len(ss.Tokens)) // [token]struct{}
+	for k := range ss.Tokens {
 		token, err := tokenDecode(k)
 		if err != nil {
 			return nil, err
@@ -1814,28 +1814,43 @@ func (p *ticketVotePlugin) cmdInventory(payload string) (string, error) {
 		return "", err
 	}
 
-	// Get best block. This command does not write any data so we can
-	// use the unsafe best block.
-	bb, err := p.bestBlockUnsafe()
+	// Get the best block. This command does not write
+	// any data so we can use the unsafe best block.
+	bestBlock, err := p.bestBlockUnsafe()
 	if err != nil {
-		return "", fmt.Errorf("bestBlockUnsafe: %v", err)
+		return "", err
 	}
 
 	// Get the inventory
-	ibs, err := p.inventoryByStatus(bb, i.Status, i.Page)
-	if err != nil {
-		return "", fmt.Errorf("invByStatus: %v", err)
+	tokens := make(map[string][]string, 256)
+	switch i.Status {
+	case ticketvote.VoteStatusInvalid:
+		// No vote status was provided. Return a
+		// page of results for all vote statuses.
+		inv, err := p.inv.GetPage(bestBlock)
+		if err != nil {
+			return "", err
+		}
+		for status, entries := range inv.Entries {
+			statusStr := ticketvote.VoteStatuses[status]
+			tokens[statusStr] = entryTokens(entries)
+		}
+
+	default:
+		// A vote status was provided. Return a page of results for the
+		// provided status.
+		entries, err := p.inv.GetPageForStatus(bestBlock, i.Status, i.Page)
+		if err != nil {
+			return "", err
+		}
+		statusStr := ticketvote.VoteStatuses[i.Status]
+		tokens[statusStr] = entryTokens(entries)
 	}
 
-	// Prepare reply
-	tokens := make(map[string][]string, len(ibs.Tokens))
-	for k, v := range ibs.Tokens {
-		vs := ticketvote.VoteStatuses[k]
-		tokens[vs] = v
-	}
+	// Prepare the reply
 	ir := ticketvote.InventoryReply{
 		Tokens:    tokens,
-		BestBlock: ibs.BestBlock,
+		BestBlock: bestBlock,
 	}
 	reply, err := json.Marshal(ir)
 	if err != nil {
@@ -2040,20 +2055,20 @@ func (p *ticketVotePlugin) cmdTimestamps(token []byte, payload string) (string, 
 // linked to the parent record using the VoteMetadata.LinkTo field.
 func (p *ticketVotePlugin) cmdSubmissions(token []byte) (string, error) {
 	// Get submissions list
-	lf, err := p.submissionsCache(token)
+	s, err := p.subs.Get(tokenEncode(token))
 	if err != nil {
 		return "", err
 	}
 
 	// Prepare reply
-	tokens := make([]string, 0, len(lf.Tokens))
-	for k := range lf.Tokens {
+	tokens := make([]string, 0, len(s.Tokens))
+	for k := range s.Tokens {
 		tokens = append(tokens, k)
 	}
-	lfr := ticketvote.SubmissionsReply{
+	sr := ticketvote.SubmissionsReply{
 		Submissions: tokens,
 	}
-	reply, err := json.Marshal(lfr)
+	reply, err := json.Marshal(sr)
 	if err != nil {
 		return "", err
 	}
@@ -2477,58 +2492,86 @@ func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ti
 }
 
 // summary returns the vote summary for a record.
-func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.SummaryReply, error) {
-	// Check if the summary has been cached
-	s, err := p.summaryCache(hex.EncodeToString(token))
+func (p *ticketVotePlugin) summary(tokenB []byte, bestBlock uint32) (*ticketvote.SummaryReply, error) {
+	// Check if a vote summary exists in the cache for
+	// this record. Summaries are only cached once the
+	// voting period for the record has ended.
+	token := tokenEncode(tokenB)
+	s, err := p.summaries.Get(token)
 	switch {
-	case errors.Is(err, errSummaryNotFound):
-		// Cached summary not found. Continue.
-	case err != nil:
-		// Some other error
-		return nil, fmt.Errorf("summaryCache: %v", err)
-	default:
-		// Cached summary was found. Update the best block and return it.
+	case err == nil:
+		// A cached summary was found for the record.
+		// Update the summary's best block and return
+		// it.
 		s.BestBlock = bestBlock
 		return s, nil
+
+	case errors.Is(err, errSummaryNotFound):
+		// A cached summary was not found for the record.
+		// We must build it from scratch. Continue below.
+
+	case err != nil:
+		// All other errors
+		return nil, err
 	}
 
-	// Summary has not been cached. Get it manually.
-
-	// Verify that the record is eligble for a vote.
-	r, err := p.recordAbridged(token)
+	// Build the vote summary from scratch. We will need
+	// to pull various pieces of record data to do this,
+	// starting with the abridged record.
+	r, err := p.recordAbridged(tokenB)
 	if err != nil {
 		return nil, err
 	}
+
+	// timestamp contains the timestamp of the most recent
+	// vote status change.
+	//
+	// The timestamp for the unauthorized vote status and
+	// the ineligible vote status will be the timestamp of
+	// the record status change associated with that vote
+	// status.
+	timestamp := r.RecordMetadata.Timestamp
+
+	// Verify that the record is eligble for a vote. Only
+	// public proposals can be voted on.
 	if r.RecordMetadata.Status != backend.StatusPublic {
 		return &ticketvote.SummaryReply{
 			Status:    ticketvote.VoteStatusIneligible,
+			Timestamp: timestamp,
 			Results:   []ticketvote.VoteOptionResult{},
 			BestBlock: bestBlock,
 		}, nil
 	}
 
-	// Assume vote is unauthorized. Only update the status when the
-	// appropriate record has been found that proves otherwise.
+	// Assume the vote status is unauthorized. The vote
+	// status is only updated when the appropriate data
+	// has been found that proves otherwise.
 	status := ticketvote.VoteStatusUnauthorized
 
-	// Check if the vote has been authorized. Not all vote types
-	// require an authorization.
-	auths, err := p.auths(token)
+	// Check if the voting period has been authorized.
+	//
+	// Not all vote types require an authorization. For example,
+	// RFP submissions do not require an authorization prior to
+	// the runoff vote being started.
+	auths, err := p.auths(tokenB)
 	if err != nil {
-		return nil, fmt.Errorf("auths: %v", err)
+		return nil, err
 	}
 	if len(auths) > 0 {
 		lastAuth := auths[len(auths)-1]
 		switch ticketvote.AuthActionT(lastAuth.Action) {
 		case ticketvote.AuthActionAuthorize:
-			// Vote has been authorized; continue
+			// The vote has been authorized. Continue below
+			// to see if the voting period has been started.
 			status = ticketvote.VoteStatusAuthorized
+
 		case ticketvote.AuthActionRevoke:
-			// Vote authorization has been revoked. Its not
-			// possible for the vote to have been started. We can
-			// stop looking.
+			// The vote authorization has been revoked. It's
+			// not possible for the vote to have been started.
+			// We can stop looking.
 			return &ticketvote.SummaryReply{
 				Status:    status,
+				Timestamp: lastAuth.Timestamp,
 				Results:   []ticketvote.VoteOptionResult{},
 				BestBlock: bestBlock,
 			}, nil
@@ -2536,30 +2579,32 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 	}
 
 	// Check if the vote has been started
-	vd, err := p.voteDetails(token)
+	vd, err := p.voteDetails(tokenB)
 	if err != nil {
-		return nil, fmt.Errorf("startDetails: %v", err)
+		return nil, err
 	}
 	if vd == nil {
 		// Vote has not been started yet
 		return &ticketvote.SummaryReply{
 			Status:    status,
+			Timestamp: timestamp,
 			Results:   []ticketvote.VoteOptionResult{},
 			BestBlock: bestBlock,
 		}, nil
 	}
 
-	// Vote has been started. We need to check if the vote has ended yet
-	// and if it can be considered approved or rejected.
+	// A vote details exists which means the voting period
+	// has been started. We need to check the vote results
+	// and if the vote has ended yet.
 	status = ticketvote.VoteStatusStarted
 
-	// Tally vote results
-	results, err := p.voteOptionResults(token, vd.Params.Options)
+	// Tally the vote results
+	results, err := p.voteOptionResults(tokenB, vd.Params.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	// Prepare summary
+	// Prepare the vote summary
 	summary := ticketvote.SummaryReply{
 		Type:             vd.Params.Type,
 		Status:           status,
@@ -2579,48 +2624,48 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 		return &summary, nil
 	}
 
-	// The vote has finished. Find whether the vote was approved and cache
-	// the vote summary.
+	// The vote has finished. Determine the vote result and
+	// save the vote summary to the cache.
 	switch vd.Params.Type {
 	case ticketvote.VoteTypeStandard:
-		// Standard vote uses a simple approve/reject result
+		// Standard votes use a simple approve/reject result
 		if voteIsApproved(*vd, results) {
 			summary.Status = ticketvote.VoteStatusApproved
 		} else {
 			summary.Status = ticketvote.VoteStatusRejected
 		}
 
-		// Cache summary
-		err = p.summaryCacheSave(vd.Params.Token, summary)
+		// Save the summary to the cache
+		err = p.summaries.Save(token, summary)
 		if err != nil {
 			return nil, err
 		}
 
-		// Remove record from the active votes cache
+		// Remove the record from the active votes cache
 		p.activeVotes.Del(vd.Params.Token)
 
 	case ticketvote.VoteTypeRunoff:
-		// A runoff vote requires that we pull all other runoff vote
-		// submissions to determine if the vote actually passed.
+		// A runoff vote requires that we pull all other runoff
+		// vote submissions to determine if the vote passed.
 		summaries, err := p.summariesForRunoff(vd.Params.Parent)
 		if err != nil {
 			return nil, err
 		}
 		for k, v := range summaries {
-			// Cache summary
-			err = p.summaryCacheSave(k, v)
+			// Save the summary to the cache
+			err = p.summaries.Save(k, v)
 			if err != nil {
 				return nil, err
 			}
 
-			// Remove record from active votes cache
+			// Remove the record from the active votes cache
 			p.activeVotes.Del(k)
 		}
 
 		summary = summaries[vd.Params.Token]
 
 	default:
-		return nil, fmt.Errorf("unknown vote type")
+		return nil, errors.Errorf("unknown vote type")
 	}
 
 	return &summary, nil
@@ -2828,6 +2873,11 @@ func voteIsApproved(vd ticketvote.VoteDetails, results []ticketvote.VoteOptionRe
 	return approved
 }
 
+// tokenEncode encodes a token byte slice.
+func tokenEncode(tokenB []byte) string {
+	return util.TokenEncode(tokenB)
+}
+
 // tokenDecode decodes a record token and only accepts full length tokens.
 func tokenDecode(token string) ([]byte, error) {
 	return util.TokenDecode(util.TokenTypeTstore, token)
@@ -2858,6 +2908,16 @@ func tokenVerify(cmdToken []byte, payloadToken string) error {
 		}
 	}
 	return nil
+}
+
+// isRunoffParent returns whether a record is a runoff vote parent record.
+func isRunoffParent(v *ticketvote.VoteMetadata) bool {
+	return v != nil && v.LinkBy > 0
+}
+
+// isRunoffSub returns whether a record is a runoff vote submission.
+func isRunoffSub(v *ticketvote.VoteMetadata) bool {
+	return v != nil && v.LinkTo != ""
 }
 
 func convertSignatureError(err error) backend.PluginError {
