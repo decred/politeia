@@ -57,7 +57,7 @@ type ticketVotePlugin struct {
 	// cache. The data is saved to the tstore provided plugin cache.
 	summaries *summariesClient
 
-	// subsProvides an API for interacting with the runoff vote submissions
+	// subs provides an API for interacting with the runoff vote submissions
 	// cache. The data is saved to the tstore provided plugin cache.
 	subs *subsClient
 
