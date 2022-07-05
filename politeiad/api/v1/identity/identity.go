@@ -13,7 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"golang.org/x/crypto/ed25519"
 )
@@ -76,7 +76,7 @@ func New() (*FullIdentity, error) {
 }
 
 func LoadFullIdentity(filename string) (*FullIdentity, error) {
-	idx, err := ioutil.ReadFile(filename)
+	idx, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (fi *FullIdentity) Save(filename string) error {
 	if err != nil {
 		return fmt.Errorf("could not marshal identity")
 	}
-	return ioutil.WriteFile(filename, id, 0600)
+	return os.WriteFile(filename, id, 0600)
 }
 
 func (fi *FullIdentity) SignMessage(message []byte) [SignatureSize]byte {
@@ -133,7 +133,7 @@ func PublicIdentityFromString(id string) (*PublicIdentity, error) {
 }
 
 func LoadPublicIdentity(filename string) (*PublicIdentity, error) {
-	idx, err := ioutil.ReadFile(filename)
+	idx, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +171,7 @@ func (pi *PublicIdentity) SavePublicIdentity(filename string) error {
 	if err != nil {
 		return fmt.Errorf("could not marshal public identity")
 	}
-	return ioutil.WriteFile(filename, id, 0600)
+	return os.WriteFile(filename, id, 0600)
 }
 
 // Zero out a byte slice.

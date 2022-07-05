@@ -70,7 +70,6 @@ var (
 	// tstore settings
 	politeiadHomeDir = dcrutil.AppDataDir("politeiad", false)
 	politeiadDataDir = filepath.Join(politeiadHomeDir, "data")
-	dbType           = tstore.DBTypeMySQL
 	dcrtimeHost      = "" // Not needed for import
 	dcrtimeCert      = "" // Not needed for import
 
@@ -160,7 +159,7 @@ type importCmd struct {
 func newImportCmd(legacyDir, tlogHost, dbHost, dbPass, importToken string, stubUsers bool, params *chaincfg.Params) (*importCmd, error) {
 	// Setup the tstore connection
 	ts, err := tstore.New(politeiadHomeDir, politeiadDataDir,
-		params, tlogHost, dbType, dbHost, dbPass, "", "")
+		params, tlogHost, dbHost, dbPass, "", "")
 	if err != nil {
 		return nil, err
 	}

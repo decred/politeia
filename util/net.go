@@ -10,7 +10,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -37,7 +36,7 @@ func NewHTTPClient(skipVerify bool, certPath string) (*http.Client, error) {
 	}
 
 	if !skipVerify && certPath != "" {
-		cert, err := ioutil.ReadFile(certPath)
+		cert, err := os.ReadFile(certPath)
 		if err != nil {
 			return nil, err
 		}

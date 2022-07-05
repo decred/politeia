@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,7 +17,6 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/pkg/errors"
 
-	// MySQL driver.
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -50,11 +49,11 @@ const tableNonce = `
 `
 
 var (
-	_ store.BlobKV = (*mysql)(nil)
+	_ store.BlobKV = (*mysqlCtx)(nil)
 )
 
-// mysql implements the store BlobKV interface using a mysql driver.
-type mysql struct {
+// mysqlCtx implements the store BlobKV interface using a mysql driver.
+type mysqlCtx struct {
 	shutdown uint64
 	db       *sql.DB
 	key      [32]byte
@@ -68,26 +67,27 @@ func ctxWithTimeout() (context.Context, func()) {
 	return context.WithTimeout(context.Background(), connTimeout)
 }
 
-func (s *mysql) isShutdown() bool {
+func (s *mysqlCtx) isShutdown() bool {
 	return atomic.LoadUint64(&s.shutdown) != 0
 }
 
-// put saves the provided blobs to the kv store using the provided transaction.
-func (s *mysql) put(blobs map[string][]byte, encrypt bool, ctx context.Context, tx *sql.Tx) error {
+// put saves the provided key-value pairs to the database using a transaction.
+// New entries are inserted. Existing entries are updated.
+func (s *mysqlCtx) put(blobs map[string][]byte, encrypt bool, ctx context.Context, tx *sql.Tx) error {
 	// Encrypt blobs
 	if encrypt {
 		encrypted := make(map[string][]byte, len(blobs))
 		for k, v := range blobs {
 			e, err := s.encrypt(ctx, tx, v)
 			if err != nil {
-				return fmt.Errorf("encrypt: %v", err)
+				return err
 			}
 			encrypted[k] = e
 		}
 
 		// Sanity check
 		if len(encrypted) != len(blobs) {
-			return fmt.Errorf("unexpected number of encrypted blobs")
+			return errors.Errorf("unexpected number of encrypted blobs")
 		}
 
 		blobs = encrypted
@@ -96,20 +96,22 @@ func (s *mysql) put(blobs map[string][]byte, encrypt bool, ctx context.Context, 
 	// Save blobs
 	for k, v := range blobs {
 		_, err := tx.ExecContext(ctx,
-			"INSERT INTO kv (k, v) VALUES (?, ?);", k, v)
+			"REPLACE INTO kv (k, v) VALUES (?, ?);", k, v)
 		if err != nil {
-			return fmt.Errorf("exec put: %v", err)
+			return errors.WithStack(err)
 		}
 	}
 
 	return nil
 }
 
-// Put saves the provided key-value pairs to the store. This operation is
-// performed atomically.
+// Put saves the provided key-value entries to the database. New entries are
+// inserted. Existing entries are updated.
+//
+// This operation is atomic.
 //
 // This function satisfies the store BlobKV interface.
-func (s *mysql) Put(blobs map[string][]byte, encrypt bool) error {
+func (s *mysqlCtx) Put(blobs map[string][]byte, encrypt bool) error {
 	log.Tracef("Put: %v blobs", len(blobs))
 
 	if s.isShutdown() {
@@ -125,7 +127,7 @@ func (s *mysql) Put(blobs map[string][]byte, encrypt bool) error {
 	}
 	tx, err := s.db.BeginTx(ctx, opts)
 	if err != nil {
-		return fmt.Errorf("begin tx: %v", err)
+		return err
 	}
 
 	// Save blobs
@@ -143,7 +145,7 @@ func (s *mysql) Put(blobs map[string][]byte, encrypt bool) error {
 	// Commit transaction
 	err = tx.Commit()
 	if err != nil {
-		return fmt.Errorf("commit tx: %v", err)
+		return err
 	}
 
 	log.Debugf("Saved blobs (%v) to store", len(blobs))
@@ -151,11 +153,12 @@ func (s *mysql) Put(blobs map[string][]byte, encrypt bool) error {
 	return nil
 }
 
-// Del deletes the provided blobs from the store  This operation is performed
-// atomically.
+// Del deletes the key-value entries from the database for the provided keys.
+//
+// This operation is atomic.
 //
 // This function satisfies the store BlobKV interface.
-func (s *mysql) Del(keys []string) error {
+func (s *mysqlCtx) Del(keys []string) error {
 	log.Tracef("Del: %v", keys)
 
 	if s.isShutdown() {
@@ -191,7 +194,7 @@ func (s *mysql) Del(keys []string) error {
 	// Commit transaction
 	err = tx.Commit()
 	if err != nil {
-		return fmt.Errorf("commit: %v", err)
+		return err
 	}
 
 	log.Debugf("Deleted blobs (%v) from store", len(keys))
@@ -199,13 +202,15 @@ func (s *mysql) Del(keys []string) error {
 	return nil
 }
 
-// Get returns blobs from the store for the provided keys. An entry will not
-// exist in the returned map if for any blobs that are not found. It is the
-// responsibility of the caller to ensure a blob was returned for all provided
+// Get retrieves the key-value entries from the database for the provided
 // keys.
 //
+// An entry will not exist in the returned map for any blobs that are not
+// found. It is the responsibility of the caller to ensure a blob was returned
+// for all provided keys.
+//
 // This function satisfies the store BlobKV interface.
-func (s *mysql) Get(keys []string) (map[string][]byte, error) {
+func (s *mysqlCtx) Get(keys []string) (map[string][]byte, error) {
 	log.Tracef("Get: %v", keys)
 
 	if s.isShutdown() {
@@ -262,8 +267,8 @@ func (s *mysql) Get(keys []string) (map[string][]byte, error) {
 	return reply, nil
 }
 
-// Closes closes the blob store connection.
-func (s *mysql) Close() {
+// Close closes the database connection.
+func (s *mysqlCtx) Close() {
 	log.Tracef("Close")
 
 	atomic.AddUint64(&s.shutdown, 1)
@@ -356,10 +361,10 @@ func buildPlaceholders(placeholders int) string {
 
 // New connects to a mysql instance using the given connection params,
 // and returns pointer to the created mysql struct.
-func New(host, user, password, dbname string) (*mysql, error) {
+func New(host, user, password, dbname string) (*mysqlCtx, error) {
 	// The password is required to derive the encryption key
 	if password == "" {
-		return nil, fmt.Errorf("password not provided")
+		return nil, errors.Errorf("password not provided")
 	}
 
 	// Connect to database
@@ -379,7 +384,7 @@ func New(host, user, password, dbname string) (*mysql, error) {
 	// Verify database connection
 	err = db.Ping()
 	if err != nil {
-		return nil, fmt.Errorf("db ping: %v", err)
+		return nil, err
 	}
 
 	// Setup key-value table
@@ -387,7 +392,7 @@ func New(host, user, password, dbname string) (*mysql, error) {
 		tableNameKeyValue, tableKeyValue)
 	_, err = db.Exec(q)
 	if err != nil {
-		return nil, fmt.Errorf("create kv table: %v", err)
+		return nil, errors.WithStack(err)
 	}
 
 	// Setup nonce table
@@ -395,18 +400,18 @@ func New(host, user, password, dbname string) (*mysql, error) {
 		tableNameNonce, tableNonce)
 	_, err = db.Exec(q)
 	if err != nil {
-		return nil, fmt.Errorf("create nonce table: %v", err)
+		return nil, errors.WithStack(err)
 	}
 
 	// Setup mysql context
-	s := &mysql{
+	s := &mysqlCtx{
 		db: db,
 	}
 
 	// Derive encryption key from password. Key is set in argon2idKey
 	err = s.deriveEncryptionKey(password)
 	if err != nil {
-		return nil, fmt.Errorf("deriveEncryptionKey: %v", err)
+		return nil, err
 	}
 
 	return s, nil

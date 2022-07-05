@@ -624,7 +624,18 @@ type Summary struct{}
 
 // SummaryReply is the reply to the Summary command.
 type SummaryReply struct {
-	Status           VoteStatusT        `json:"status"`
+	Status VoteStatusT `json:"status"`
+
+	// Timestamp is the unix timestamp of the most recent vote status change.
+	//
+	// This field will only be populated prior to the start of the voting period.
+	// Once the voting period starts, the vote statuses are based on the block
+	// height and the vote results. These statuses do not have timestamps
+	// associated with them.
+	Timestamp int64 `json:"timestamp,omitempty"`
+
+	// The following fields will only be populated once the voting period has
+	// been started or has finished.
 	Type             VoteT              `json:"type,omitempty"`
 	Duration         uint32             `json:"duration,omitempty"`
 	StartBlockHeight uint32             `json:"startblockheight,omitempty"`
@@ -635,8 +646,7 @@ type SummaryReply struct {
 	PassPercentage   uint32             `json:"passpercentage,omitempty"`
 	Results          []VoteOptionResult `json:"results,omitempty"`
 
-	// BestBlock is the best block value that was used to prepare this
-	// summary.
+	// BestBlock is the best block value that was used to prepare this summary.
 	BestBlock uint32 `json:"bestblock"`
 }
 

@@ -5,7 +5,7 @@
 package tstore
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
@@ -17,13 +17,13 @@ func NewTestTstore(t *testing.T, dataDir string) *Tstore {
 	t.Helper()
 
 	// Setup datadir for this tstore instance
-	dataDir, err := ioutil.TempDir(dataDir, "tstore.test")
+	dataDir, err := os.MkdirTemp(dataDir, "tstore.test")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Setup key-value store
-	fp, err := ioutil.TempDir(dataDir, storeDirname)
+	fp, err := os.MkdirTemp(dataDir, "kv")
 	if err != nil {
 		t.Fatal(err)
 	}

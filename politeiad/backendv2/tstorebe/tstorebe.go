@@ -1010,7 +1010,13 @@ func (t *tstoreBackend) PluginInventory() []backend.Plugin {
 //
 // This function satisfies the backendv2 Backend interface.
 func (t *tstoreBackend) Fsck() error {
-	log.Infof("Performing fsck for the tstorebe")
+	log.Infof("Performing fsck on the tstore backend")
+
+	// The tstore backend fsck includes:
+	//
+	// - Rebuilding the inventory cache. The inventory cache contains
+	//   the tokens of all records in backend, categorized by their
+	//   record status and sorted from oldest to newest.
 
 	// Get the tokens for all records in the backend
 	allTokens, err := t.tstore.Inventory()
@@ -1018,8 +1024,10 @@ func (t *tstoreBackend) Fsck() error {
 		return err
 	}
 
-	// Get the partial record for all tokens. This also guarantees that all
-	// tokens being manipulated actually correspond to a record on the backend.
+	log.Infof("%v records found in the tstore backend", len(allTokens))
+	log.Infof("Sorting the records by timestamp")
+
+	// Get the partial record for all tokens
 	records := make(map[string]*backend.Record, len(allTokens))
 	for _, token := range allTokens {
 		r, err := t.tstore.RecordPartial(token, 0, nil, true)
@@ -1029,7 +1037,7 @@ func (t *tstoreBackend) Fsck() error {
 		records[r.RecordMetadata.Token] = r
 	}
 
-	// Sort records into vetted and unvetted groups.
+	// Sort the records by their record state: vetted or unvetted.
 	var (
 		vetted   = make([]*backend.Record, 0, len(allTokens))
 		unvetted = make([]*backend.Record, 0, len(allTokens))
@@ -1044,13 +1052,19 @@ func (t *tstoreBackend) Fsck() error {
 		}
 	}
 
-	// Sort records from both groups by the timestamp of their record metadata,
-	// from oldest to newest. The order of the record inventory will be
-	// slightly different. On runtime, the timestamp order is through the most
-	// recent status change metadata. On this fsck rebuild, the order is
-	// through the record timestamp from their last edit. This happens because
-	// the record timestamp gets updated on both status changes and edits, so
-	// the status change timestamp gets lost when the record is edited.
+	// Sort records by the timestamp of their record metadata, from
+	// oldest to newest.
+	//
+	// The order of the record inventory when rebuilt by this function
+	// will be slightly different than the order that is created at
+	// runtime. At runtime, the inventory cache updated when the status
+	// of the record is changed. This fsck function uses the record
+	// metadata timestamp, which is updated anytime the record status
+	// is changed, but also when the record is edited. This means that
+	// the runtime cache that was built will differ from the fsck cache
+	// that is built if there are records that were edited after their
+	// most recent status change. This difference is inconsequential,
+	// so just making a note of it is fine for now.
 	sort.Slice(vetted, func(i, j int) bool {
 		return vetted[i].RecordMetadata.Timestamp <
 			vetted[j].RecordMetadata.Timestamp
@@ -1060,8 +1074,10 @@ func (t *tstoreBackend) Fsck() error {
 			unvetted[j].RecordMetadata.Timestamp
 	})
 
-	// Now that data is sorted, delete inventory cache before building the new,
-	// updated one.
+	// Delete the inventory cache. We must actually delete
+	// the cache and rebuilt it from scratch instead of just
+	// checking the coherency of it because of the ordering
+	// difference that is noted in the comment above.
 	err = t.invRemoveVetted()
 	if err != nil {
 		return err
@@ -1071,10 +1087,14 @@ func (t *tstoreBackend) Fsck() error {
 		return err
 	}
 
-	// Add vetted tokens to inventory cache. First add to inventory as
-	// unvetted, then move to vetted. This is a temporary limitation of the
-	// inventory API, which was done this way to mimick the way records are
-	// added and updated on the politeiad API.
+	// Build the vetted inventory cache.
+	//
+	// This is done by adding the record to the unvetted inventory
+	// then moving it to the vetted inventory. This is how it is
+	// done during normal operations, so we do it the same way here
+	// because that is what the inventory API allows for.
+	log.Infof("Building the inventory cache for %v vetted records", len(vetted))
+
 	for _, record := range vetted {
 		bToken, err := hex.DecodeString(record.RecordMetadata.Token)
 		if err != nil {
@@ -1084,7 +1104,10 @@ func (t *tstoreBackend) Fsck() error {
 		t.inventoryMoveToVetted(bToken, record.RecordMetadata.Status)
 	}
 
-	// Add unvetted tokens to inventory cache.
+	// Build the unvetted inventory cache
+	log.Infof("Building the inventory cache for %v unvetted records",
+		len(unvetted))
+
 	for _, record := range unvetted {
 		bToken, err := hex.DecodeString(record.RecordMetadata.Token)
 		if err != nil {
@@ -1093,8 +1116,6 @@ func (t *tstoreBackend) Fsck() error {
 		t.inventoryAdd(record.RecordMetadata.State, bToken,
 			record.RecordMetadata.Status)
 	}
-
-	log.Infof("%v records added to the inventory", len(allTokens))
 
 	// Update all plugin caches
 	return t.tstore.Fsck(allTokens)
@@ -1122,10 +1143,10 @@ func (t *tstoreBackend) setup() error {
 }
 
 // New returns a new tstoreBackend.
-func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*tstoreBackend, error) {
+func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*tstoreBackend, error) {
 	// Setup tstore instances
 	ts, err := tstore.New(appDir, dataDir, anp, tlogHost,
-		dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert)
+		dbHost, dbPass, dcrtimeHost, dcrtimeCert)
 	if err != nil {
 		return nil, fmt.Errorf("new tstore: %v", err)
 	}

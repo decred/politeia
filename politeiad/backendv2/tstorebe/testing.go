@@ -5,7 +5,6 @@
 package tstorebe
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -20,7 +19,7 @@ func NewTestTstoreBackend(t *testing.T) (*tstoreBackend, func()) {
 	t.Helper()
 
 	// Setup home dir and data dir
-	appDir, err := ioutil.TempDir("", "tstorebackend.test")
+	appDir, err := os.MkdirTemp("", "tstorebackend.test")
 	if err != nil {
 		t.Fatal(err)
 	}

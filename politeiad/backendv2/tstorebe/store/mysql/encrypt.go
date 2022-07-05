@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,10 +10,10 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
 
 	"github.com/decred/politeia/util"
 	"github.com/marcopeereboom/sbox"
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/argon2"
 )
 
@@ -36,7 +36,7 @@ type encryptionKeyParams struct {
 // argon2idKey derives an encryption key using the provided parameters and the
 // Argon2id key derivation function. The derived key is set to be the
 // encryption key on the mysql context.
-func (s *mysql) argon2idKey(password string, ap util.Argon2Params) {
+func (s *mysqlCtx) argon2idKey(password string, ap util.Argon2Params) {
 	k := argon2.IDKey([]byte(password), ap.Salt, ap.Time, ap.Memory,
 		ap.Threads, ap.KeyLen)
 	copy(s.key[:], k)
@@ -50,7 +50,7 @@ func (s *mysql) argon2idKey(password string, ap util.Argon2Params) {
 // existing salt and params from the kv store and use them to derive the key,
 // then will use the saved encryption key digest to verify that the key has
 // not changed.
-func (s *mysql) deriveEncryptionKey(password string) error {
+func (s *mysqlCtx) deriveEncryptionKey(password string) error {
 	log.Infof("Deriving encryption key")
 
 	// Check if the key params already exist in the kv store. Existing
@@ -59,7 +59,7 @@ func (s *mysql) deriveEncryptionKey(password string) error {
 	// will be created and saved to the kv store for future use.
 	blobs, err := s.Get([]string{encryptionKeyParamsKey})
 	if err != nil {
-		return fmt.Errorf("get: %v", err)
+		return err
 	}
 	var (
 		save bool
@@ -98,7 +98,7 @@ func (s *mysql) deriveEncryptionKey(password string) error {
 		}
 		err = s.Put(kv, false)
 		if err != nil {
-			return fmt.Errorf("put: %v", err)
+			return err
 		}
 
 		log.Infof("Encryption key params saved to kv store")
@@ -106,7 +106,7 @@ func (s *mysql) deriveEncryptionKey(password string) error {
 		// This was not the first time the key was derived. Verify that
 		// the key has not changed.
 		if !bytes.Equal(ekp.Digest, keyDigest) {
-			return fmt.Errorf("attempting to use different encryption key")
+			return errors.Errorf("attempting to use different encryption key")
 		}
 	}
 
@@ -115,7 +115,7 @@ func (s *mysql) deriveEncryptionKey(password string) error {
 
 var emptyNonce = [24]byte{}
 
-func (s *mysql) getDBNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
+func (s *mysqlCtx) getDBNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
 	// Get nonce value
 	nonce, err := s.nonce(ctx, tx)
 	if err != nil {
@@ -134,7 +134,7 @@ func (s *mysql) getDBNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
 	return n.Current(), nil
 }
 
-func (s *mysql) getTestNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
+func (s *mysqlCtx) getTestNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
 	nonce, err := util.Random(8)
 	if err != nil {
 		return emptyNonce, err
@@ -146,14 +146,14 @@ func (s *mysql) getTestNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) 
 	return n.Current(), nil
 }
 
-func (s *mysql) getNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
+func (s *mysqlCtx) getNonce(ctx context.Context, tx *sql.Tx) ([24]byte, error) {
 	if s.testing {
 		return s.getTestNonce(ctx, tx)
 	}
 	return s.getDBNonce(ctx, tx)
 }
 
-func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, error) {
+func (s *mysqlCtx) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, error) {
 	nonce, err := s.getNonce(ctx, tx)
 	if err != nil {
 		return nil, err
@@ -161,7 +161,7 @@ func (s *mysql) encrypt(ctx context.Context, tx *sql.Tx, data []byte) ([]byte, e
 	return sbox.EncryptN(0, &s.key, nonce, data)
 }
 
-func (s *mysql) decrypt(data []byte) ([]byte, uint32, error) {
+func (s *mysqlCtx) decrypt(data []byte) ([]byte, uint32, error) {
 	return sbox.Decrypt(&s.key, data)
 }
 

@@ -10,7 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -93,7 +93,7 @@ func remoteIdentity(skipTLSVerify bool, host, cert string) (*identity.PublicIden
 		return nil, fmt.Errorf("%v: %v", r.Status, e)
 	}
 
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}

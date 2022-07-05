@@ -12,7 +12,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -258,7 +257,7 @@ func (c *convertCmd) convertRecordMetadata(proposalDir string) (*backend.RecordM
 
 	// Read the git backend record metadata from disk
 	fp := recordMetadataPath(proposalDir)
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +300,7 @@ func (c *convertCmd) convertFiles(proposalDir string) ([]backend.File, error) {
 
 	// Read the index file from disk
 	fp := indexFilePath(proposalDir)
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +315,7 @@ func (c *convertCmd) convertFiles(proposalDir string) ([]backend.File, error) {
 	}
 	for _, fn := range attachments {
 		fp := attachmentFilePath(proposalDir, fn)
-		b, err := ioutil.ReadFile(fp)
+		b, err := os.ReadFile(fp)
 		if err != nil {
 			return nil, err
 		}
@@ -374,7 +373,7 @@ func (c *convertCmd) convertVoteMetadata(proposalDir string) (*ticketvote.VoteMe
 	}
 
 	// Read the proposal metadata file from disk
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, err
 	}
@@ -413,7 +412,7 @@ func (c *convertCmd) convertUserMetadata(proposalDir string) (*usermd.UserMetada
 
 	// Read the proposal general mdstream from disk
 	fp := proposalGeneralPath(proposalDir)
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, err
 	}
@@ -464,7 +463,7 @@ func (c *convertCmd) convertStatusChanges(proposalDir string) ([]usermd.StatusCh
 
 	// Read the status changes mdstream from disk
 	fp := statusChangesPath(proposalDir)
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, err
 	}
@@ -728,7 +727,7 @@ func (c *convertCmd) convertAuthDetails(proposalDir string) (*ticketvote.AuthDet
 	}
 
 	// Read the authorize vote mdstream from disk
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, err
 	}
@@ -804,14 +803,14 @@ func (c *convertCmd) convertVoteDetails(proposalDir string, voteMD *ticketvote.V
 	}
 
 	// Read the start vote from disk
-	startVoteJSON, err := ioutil.ReadFile(fp)
+	startVoteJSON, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, err
 	}
 
 	// Read the start vote reply from disk
 	fp = startVoteReplyPath(proposalDir)
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, err
 	}
@@ -1025,7 +1024,7 @@ func (c *convertCmd) getUserIDByPubKey(pubKey string) string {
 func parseProposalName(proposalDir string) (string, error) {
 	// Read the index file from disk
 	fp := indexFilePath(proposalDir)
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		return "", err
 	}

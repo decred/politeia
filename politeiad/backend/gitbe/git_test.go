@@ -10,7 +10,6 @@ import (
 	"compress/zlib"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +28,7 @@ func (w *testWriter) Write(p []byte) (int, error) {
 }
 
 func newGitBackEnd() *gitBackEnd {
-	dir, err := ioutil.TempDir("", "politeiad.test")
+	dir, err := os.MkdirTemp("", "politeiad.test")
 	if err != nil {
 		panic(fmt.Sprintf("%v", err))
 	}
@@ -95,7 +94,7 @@ func TestFsck(t *testing.T) {
 	// Create a file in repo
 	tf := filepath.Join(g.root, "testfile")
 	t.Logf("fsck location: %v", tf)
-	err = ioutil.WriteFile(tf, []byte("this is a test\n"), 0644)
+	err = os.WriteFile(tf, []byte("this is a test\n"), 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +113,7 @@ func TestFsck(t *testing.T) {
 
 	// First mess up refs by reading file in memry and then corrupting it
 	masterFilename := filepath.Join(g.root, ".git/refs/heads/master")
-	master, err := ioutil.ReadFile(masterFilename)
+	master, err := os.ReadFile(masterFilename)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +122,7 @@ func TestFsck(t *testing.T) {
 	for k := range masterCorrupt {
 		masterCorrupt[k] = '0'
 	}
-	err = ioutil.WriteFile(masterFilename, masterCorrupt, 0644)
+	err = os.WriteFile(masterFilename, masterCorrupt, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +134,7 @@ func TestFsck(t *testing.T) {
 	}
 
 	// Restore master
-	err = ioutil.WriteFile(masterFilename, master, 0644)
+	err = os.WriteFile(masterFilename, master, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +201,7 @@ func TestFsck(t *testing.T) {
 	// Now we corrupt the blob object
 	blobObjectFilename := filepath.Join(g.root, ".git", "objects",
 		blobHash[:2], blobHash[2:])
-	blobObject, err := ioutil.ReadFile(blobObjectFilename)
+	blobObject, err := os.ReadFile(blobObjectFilename)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +230,7 @@ func TestFsck(t *testing.T) {
 	}
 	location := len(blobObject) - 2 // zlib error
 	blobObject[location] = ^blobObject[location]
-	err = ioutil.WriteFile(blobObjectFilename, blobObject, 0644)
+	err = os.WriteFile(blobObjectFilename, blobObject, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +256,7 @@ func TestFsck(t *testing.T) {
 	w2.Close()
 
 	// Write corrupt zlib data
-	err = ioutil.WriteFile(blobObjectFilename, bc.Bytes(), 0644)
+	err = os.WriteFile(blobObjectFilename, bc.Bytes(), 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,7 +268,7 @@ func TestFsck(t *testing.T) {
 	}
 
 	// Restore object
-	err = ioutil.WriteFile(blobObjectFilename, xxx, 0644)
+	err = os.WriteFile(blobObjectFilename, xxx, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
