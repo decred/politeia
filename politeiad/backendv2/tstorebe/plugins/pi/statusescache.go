@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,33 +13,19 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 )
 
-// statusEntry represents a cached proposal status and proposal data required
-// to determine the proposal status.
-type statusEntry struct {
-	propStatus pi.PropStatusT
-
-	// The following fields cache data in order to reduce the number of backend
-	// calls required to determine the proposal status.
-	recordState          backend.StateT
-	recordStatus         backend.StatusT
-	voteStatus           ticketvote.VoteStatusT
-	voteMetadata         *ticketvote.VoteMetadata
-	billingStatusesCount int // Number of billing status changes
-}
-
 // statusesCacheLimit is the cache's default maximum capacity. Note that it's
 // a var in order to allow setting different limit values in test files.
 var statusesCacheLimit = 1000
 
-// proposalStatuses is used to cache proposal data required to determine
-// the proposal status at runtime such as record metadata, vote metadata, the
-// vote status and the proposal billing status changes. The cache is necessary
-// to improve the performance of determining a status of a proposal at runtime
-// by reducing the number of expensive backend calls that result in the tlog
-// tree be retrieved, which gets very expensive when a tree contains tens of
-// thousands of ticket vote leaves. This is helpful when the cached data is
-// not expected to change, which means that once we store the data in cache we
-// don't need to fetch it again. The cache entries are lazy loaded.
+// proposalStatuses is a lazy loaded, memory cache that caches proposal data
+// required to determine the proposal status at runtime such as record
+// metadata, vote metadata, the vote status and the proposal billing status
+// changes. The cache is necessary to improve the performance of determining a
+// status of a proposal at runtime by reducing the number of expensive backend
+// calls that result in the tlog tree be retrieved, which gets very expensive
+// when a tree contains tens of thousands of ticket vote leaves. This is
+// helpful when the cached data is not expected to change, which means that
+// once we store the data in cache we don't need to fetch it again.
 //
 // Number of entries stored in cache is limited by statusesCacheLimit. If the
 // cache is full and a new entry is being added, the oldest entry is removed
@@ -53,6 +39,20 @@ type proposalStatuses struct {
 	sync.Mutex
 	data    map[string]*statusEntry // [token]statusEntry
 	entries *list.List              // list of cache records tokens
+}
+
+// statusEntry represents a cached proposal status and proposal data required
+// to determine the proposal status.
+type statusEntry struct {
+	propStatus pi.PropStatusT
+
+	// The following fields cache data in order to reduce the number of backend
+	// calls required to determine the proposal status.
+	recordState          backend.StateT
+	recordStatus         backend.StatusT
+	voteStatus           ticketvote.VoteStatusT
+	voteMetadata         *ticketvote.VoteMetadata
+	billingStatusesCount int // Number of billing status changes
 }
 
 // get retrieves the data associated with the given token from the
