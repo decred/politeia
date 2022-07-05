@@ -2478,57 +2478,84 @@ func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ti
 
 // summary returns the vote summary for a record.
 func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.SummaryReply, error) {
-	// Check if the summary has been cached
+	// Check if a vote summary exists in the cache for
+	// this record. Summaries are only cached once the
+	// voting period for the record has ended.
 	s, err := p.summaryCache(hex.EncodeToString(token))
 	switch {
-	case errors.Is(err, errSummaryNotFound):
-		// Cached summary not found. Continue.
-	case err != nil:
-		// Some other error
-		return nil, fmt.Errorf("summaryCache: %v", err)
-	default:
-		// Cached summary was found. Update the best block and return it.
+	case err == nil:
+		// A cached summary was found for the record.
+		// Update the summary's best block and return
+		// it.
 		s.BestBlock = bestBlock
 		return s, nil
+
+	case errors.Is(err, errSummaryNotFound):
+		// A cached summary was not found for the record.
+		// We must build it from scratch. Continue below.
+
+	case err != nil:
+		// All other errors
+		return nil, err
 	}
 
-	// Summary has not been cached. Get it manually.
-
-	// Verify that the record is eligble for a vote.
+	// Build the vote summary from scratch. We will need
+	// to pull various pieces of record data to do this,
+	// starting with the abridged record.
 	r, err := p.recordAbridged(token)
 	if err != nil {
 		return nil, err
 	}
+
+	// timestamp contains the timestamp of the most recent
+	// vote status change.
+	//
+	// The timestamp for the unauthorized vote status and
+	// the ineligible vote status will be the timestamp of
+	// the record status change associated with that vote
+	// status.
+	timestamp := r.RecordMetadata.Timestamp
+
+	// Verify that the record is eligble for a vote. Only
+	// public proposals can be voted on.
 	if r.RecordMetadata.Status != backend.StatusPublic {
 		return &ticketvote.SummaryReply{
 			Status:    ticketvote.VoteStatusIneligible,
+			Timestamp: timestamp,
 			Results:   []ticketvote.VoteOptionResult{},
 			BestBlock: bestBlock,
 		}, nil
 	}
 
-	// Assume vote is unauthorized. Only update the status when the
-	// appropriate record has been found that proves otherwise.
+	// Assume the vote status is unauthorized. The vote
+	// status is only updated when the appropriate data
+	// has been found that proves otherwise.
 	status := ticketvote.VoteStatusUnauthorized
 
-	// Check if the vote has been authorized. Not all vote types
-	// require an authorization.
+	// Check if the voting period has been authorized.
+	//
+	// Not all vote types require an authorization. For example,
+	// RFP submissions do not require an authorization prior to
+	// the runoff vote being started.
 	auths, err := p.auths(token)
 	if err != nil {
-		return nil, fmt.Errorf("auths: %v", err)
+		return nil, err
 	}
 	if len(auths) > 0 {
 		lastAuth := auths[len(auths)-1]
 		switch ticketvote.AuthActionT(lastAuth.Action) {
 		case ticketvote.AuthActionAuthorize:
-			// Vote has been authorized; continue
+			// The vote has been authorized. Continue below
+			// to see if the voting period has been started.
 			status = ticketvote.VoteStatusAuthorized
+
 		case ticketvote.AuthActionRevoke:
-			// Vote authorization has been revoked. Its not
-			// possible for the vote to have been started. We can
-			// stop looking.
+			// The vote authorization has been revoked. It's
+			// not possible for the vote to have been started.
+			// We can stop looking.
 			return &ticketvote.SummaryReply{
 				Status:    status,
+				Timestamp: lastAuth.Timestamp,
 				Results:   []ticketvote.VoteOptionResult{},
 				BestBlock: bestBlock,
 			}, nil
@@ -2538,28 +2565,30 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 	// Check if the vote has been started
 	vd, err := p.voteDetails(token)
 	if err != nil {
-		return nil, fmt.Errorf("startDetails: %v", err)
+		return nil, err
 	}
 	if vd == nil {
 		// Vote has not been started yet
 		return &ticketvote.SummaryReply{
 			Status:    status,
+			Timestamp: timestamp,
 			Results:   []ticketvote.VoteOptionResult{},
 			BestBlock: bestBlock,
 		}, nil
 	}
 
-	// Vote has been started. We need to check if the vote has ended yet
-	// and if it can be considered approved or rejected.
+	// A vote details exists which means the voting period
+	// has been started. We need to check the vote results
+	// and if the vote has ended yet.
 	status = ticketvote.VoteStatusStarted
 
-	// Tally vote results
+	// Tally the vote results
 	results, err := p.voteOptionResults(token, vd.Params.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	// Prepare summary
+	// Prepare the vote summary
 	summary := ticketvote.SummaryReply{
 		Type:             vd.Params.Type,
 		Status:           status,
