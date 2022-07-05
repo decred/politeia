@@ -2492,11 +2492,12 @@ func (p *ticketVotePlugin) summariesForRunoff(parentToken string) (map[string]ti
 }
 
 // summary returns the vote summary for a record.
-func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.SummaryReply, error) {
+func (p *ticketVotePlugin) summary(tokenB []byte, bestBlock uint32) (*ticketvote.SummaryReply, error) {
 	// Check if a vote summary exists in the cache for
 	// this record. Summaries are only cached once the
 	// voting period for the record has ended.
-	s, err := p.summaryCache(hex.EncodeToString(token))
+	token := tokenEncode(tokenB)
+	s, err := p.summaries.Get(token)
 	switch {
 	case err == nil:
 		// A cached summary was found for the record.
@@ -2517,7 +2518,7 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 	// Build the vote summary from scratch. We will need
 	// to pull various pieces of record data to do this,
 	// starting with the abridged record.
-	r, err := p.recordAbridged(token)
+	r, err := p.recordAbridged(tokenB)
 	if err != nil {
 		return nil, err
 	}
@@ -2552,7 +2553,7 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 	// Not all vote types require an authorization. For example,
 	// RFP submissions do not require an authorization prior to
 	// the runoff vote being started.
-	auths, err := p.auths(token)
+	auths, err := p.auths(tokenB)
 	if err != nil {
 		return nil, err
 	}
@@ -2578,7 +2579,7 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 	}
 
 	// Check if the vote has been started
-	vd, err := p.voteDetails(token)
+	vd, err := p.voteDetails(tokenB)
 	if err != nil {
 		return nil, err
 	}
@@ -2598,7 +2599,7 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 	status = ticketvote.VoteStatusStarted
 
 	// Tally the vote results
-	results, err := p.voteOptionResults(token, vd.Params.Options)
+	results, err := p.voteOptionResults(tokenB, vd.Params.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -2623,48 +2624,48 @@ func (p *ticketVotePlugin) summary(token []byte, bestBlock uint32) (*ticketvote.
 		return &summary, nil
 	}
 
-	// The vote has finished. Find whether the vote was approved and cache
-	// the vote summary.
+	// The vote has finished. Determine the vote result and
+	// save the vote summary to the cache.
 	switch vd.Params.Type {
 	case ticketvote.VoteTypeStandard:
-		// Standard vote uses a simple approve/reject result
+		// Standard votes use a simple approve/reject result
 		if voteIsApproved(*vd, results) {
 			summary.Status = ticketvote.VoteStatusApproved
 		} else {
 			summary.Status = ticketvote.VoteStatusRejected
 		}
 
-		// Cache summary
-		err = p.summaryCacheSave(vd.Params.Token, summary)
+		// Save the summary to the cache
+		err = p.summaries.Save(token, summary)
 		if err != nil {
 			return nil, err
 		}
 
-		// Remove record from the active votes cache
+		// Remove the record from the active votes cache
 		p.activeVotes.Del(vd.Params.Token)
 
 	case ticketvote.VoteTypeRunoff:
-		// A runoff vote requires that we pull all other runoff vote
-		// submissions to determine if the vote actually passed.
+		// A runoff vote requires that we pull all other runoff
+		// vote submissions to determine if the vote passed.
 		summaries, err := p.summariesForRunoff(vd.Params.Parent)
 		if err != nil {
 			return nil, err
 		}
 		for k, v := range summaries {
-			// Cache summary
-			err = p.summaryCacheSave(k, v)
+			// Save the summary to the cache
+			err = p.summaries.Save(k, v)
 			if err != nil {
 				return nil, err
 			}
 
-			// Remove record from active votes cache
+			// Remove the record from the active votes cache
 			p.activeVotes.Del(k)
 		}
 
 		summary = summaries[vd.Params.Token]
 
 	default:
-		return nil, fmt.Errorf("unknown vote type")
+		return nil, errors.Errorf("unknown vote type")
 	}
 
 	return &summary, nil
@@ -2870,6 +2871,11 @@ func voteIsApproved(vd ticketvote.VoteDetails, results []ticketvote.VoteOptionRe
 	}
 
 	return approved
+}
+
+// tokenEncode encodes a token byte slice.
+func tokenEncode(tokenB []byte) string {
+	return util.TokenEncode(tokenB)
 }
 
 // tokenDecode decodes a record token and only accepts full length tokens.
