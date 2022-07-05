@@ -7,7 +7,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -29,7 +29,7 @@ func userByID(c *http.Client, userID string) (*v1.User, error) {
 	}
 	defer r.Body.Close()
 
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func userByPubKey(c *http.Client, pubkey string) (*v1.AbridgedUser, error) {
 	}
 	defer r.Body.Close()
 
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
 	}

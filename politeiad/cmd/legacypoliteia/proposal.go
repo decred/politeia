@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -83,13 +82,13 @@ func writeProposal(legacyDir string, p proposal) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(fp, b, filePermissions)
+	return os.WriteFile(fp, b, filePermissions)
 }
 
 // readProposal reads a proposal from disk.
 func readProposal(legacyDir, legacyToken string) (*proposal, error) {
 	fp := proposalPath(legacyDir, legacyToken)
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, err
 	}
