@@ -64,26 +64,31 @@ func (p *ticketVotePlugin) hookSetRecordStatusPost(payload string) error {
 		return err
 	}
 
-	// Ticketvote caches only need to be updated for vetted records
-	if srs.RecordMetadata.State == backend.StateUnvetted {
+	// ticketvote plugin commands can only be run on
+	// vetted records. We can skip all hooks when the
+	// record is not vetted.
+	recordMD := srs.RecordMetadata
+	if recordMD.State == backend.StateUnvetted {
 		return nil
 	}
 
-	// Update the inventory cache
-	switch srs.RecordMetadata.Status {
+	// Update the cached inventory
+	switch recordMD.Status {
 	case backend.StatusPublic:
-		// Add to inventory
-		p.inventoryAdd(srs.RecordMetadata.Token,
-			ticketvote.VoteStatusUnauthorized)
+		// Add a new entry to the inventory for this record
+		p.inv.AddEntry(recordMD.Token, ticketvote.VoteStatusUnauthorized,
+			recordMD.Timestamp)
+
 	case backend.StatusCensored, backend.StatusArchived:
-		// These statuses do not allow for a vote. Mark as ineligible.
-		p.inventoryUpdate(srs.RecordMetadata.Token,
-			ticketvote.VoteStatusIneligible)
+		// These statuses are not allowed to be voted on. Update the inventory
+		// to reflect that this record is ineligible for a vote.
+		p.inv.UpdateEntryPreVote(recordMD.Token, ticketvote.VoteStatusIneligible,
+			recordMD.Timestamp)
 	}
 
-	// Update cached vote metadata
-	return p.voteMetadataCacheOnStatusChange(srs.RecordMetadata.Token,
-		srs.RecordMetadata.State, srs.RecordMetadata.Status, srs.Record.Files)
+	// Update the cached vote metadata
+	return p.voteMetadataCacheOnStatusChange(recordMD.Token,
+		recordMD.State, recordMD.Status, srs.Record.Files)
 }
 
 // linkByVerify verifies that the provided link by timestamp meets all
