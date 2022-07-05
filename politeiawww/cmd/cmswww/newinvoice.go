@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -94,7 +93,7 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	// Read csv file into memory and convert to type File
 	fpath := util.CleanAndExpandPath(csvFile)
 
-	csv, err = ioutil.ReadFile(fpath)
+	csv, err = os.ReadFile(fpath)
 	if err != nil {
 		return fmt.Errorf("ReadFile %v: %v", fpath, err)
 	}
@@ -152,7 +151,7 @@ func (cmd *NewInvoiceCmd) Execute(args []string) error {
 	// Read attachment files into memory and convert to type File
 	for _, file := range attachmentFiles {
 		path := util.CleanAndExpandPath(file)
-		attachment, err := ioutil.ReadFile(path)
+		attachment, err := os.ReadFile(path)
 		if err != nil {
 			return fmt.Errorf("ReadFile %v: %v", path, err)
 		}

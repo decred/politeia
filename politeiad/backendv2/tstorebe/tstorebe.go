@@ -1122,10 +1122,10 @@ func (t *tstoreBackend) setup() error {
 }
 
 // New returns a new tstoreBackend.
-func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*tstoreBackend, error) {
+func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*tstoreBackend, error) {
 	// Setup tstore instances
 	ts, err := tstore.New(appDir, dataDir, anp, tlogHost,
-		dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert)
+		dbHost, dbPass, dcrtimeHost, dcrtimeCert)
 	if err != nil {
 		return nil, fmt.Errorf("new tstore: %v", err)
 	}

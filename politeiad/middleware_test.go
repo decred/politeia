@@ -5,7 +5,7 @@
 package main
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -27,7 +27,7 @@ func TestReqBodySizeMiddleware(t *testing.T) {
 	// the request body is required in order to trigger the error.
 	testRoute := "/test"
 	router.HandleFunc(testRoute, func(w http.ResponseWriter, r *http.Request) {
-		_, err := ioutil.ReadAll(r.Body)
+		_, err := io.ReadAll(r.Body)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return

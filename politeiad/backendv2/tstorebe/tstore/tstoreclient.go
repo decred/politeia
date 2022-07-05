@@ -15,6 +15,7 @@ import (
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tlog"
 	"github.com/google/trillian"
 	"google.golang.org/grpc/codes"
 )
@@ -27,6 +28,15 @@ var (
 type tstoreClient struct {
 	pluginID string
 	tstore   *Tstore
+}
+
+// NewTstoreClient returns a new TstoreClient interface that is backed by a
+// tstoreClient structure.
+func NewTstoreClient(tstore *Tstore, pluginID string) plugins.TstoreClient {
+	return &tstoreClient{
+		pluginID: pluginID,
+		tstore:   tstore,
+	}
 }
 
 // BlobSave saves a BlobEntry to the tstore instance. The BlobEntry will be
@@ -103,7 +113,7 @@ func (t *tstoreClient) BlobSave(token []byte, be store.BlobEntry) error {
 		return err
 	}
 	leaves = []*trillian.LogLeaf{
-		newLogLeaf(digest, extraData),
+		tlog.NewLogLeaf(digest, extraData),
 	}
 
 	// Append log leaf to trillian tree
@@ -147,7 +157,7 @@ func (t *tstoreClient) BlobsDel(token []byte, digests [][]byte) error {
 	// time.
 	merkleHashes := make(map[string]struct{}, len(digests))
 	for _, v := range digests {
-		m := hex.EncodeToString(merkleLeafHash(v))
+		m := hex.EncodeToString(tlog.MerkleLeafHash(v))
 		merkleHashes[m] = struct{}{}
 	}
 
@@ -394,7 +404,7 @@ func (t *tstoreClient) Timestamp(token []byte, digest []byte) (*backend.Timestam
 	}
 
 	// Get merkle leaf hash
-	m := merkleLeafHash(digest)
+	m := tlog.MerkleLeafHash(digest)
 
 	// Get timestamp
 	return t.tstore.timestamp(treeID, m, leaves)

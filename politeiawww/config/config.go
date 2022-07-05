@@ -10,7 +10,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/mail"
 	"net/url"
@@ -589,7 +588,7 @@ func setupMailSettings(cfg *Config) error {
 			return fmt.Errorf("mail cert file '%v' not found",
 				cfg.MailCert)
 		}
-		b, err := ioutil.ReadFile(cfg.MailCert)
+		b, err := os.ReadFile(cfg.MailCert)
 		if err != nil {
 			return fmt.Errorf("read mail cert: %v", err)
 		}

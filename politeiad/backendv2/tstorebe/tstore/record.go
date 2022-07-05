@@ -14,6 +14,7 @@ import (
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tlog"
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
 	"google.golang.org/grpc/codes"
@@ -270,7 +271,7 @@ func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metad
 		if err != nil {
 			return nil, err
 		}
-		leaves = append(leaves, newLogLeaf(digest, extraData))
+		leaves = append(leaves, tlog.NewLogLeaf(digest, extraData))
 	} else {
 		// This is a duplicate. Stash is for now. We may need to save
 		// it as plain text later.
@@ -307,7 +308,7 @@ func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metad
 				return nil, err
 			}
 
-			leaves = append(leaves, newLogLeaf(digest, extraData))
+			leaves = append(leaves, tlog.NewLogLeaf(digest, extraData))
 		}
 	}
 
@@ -339,7 +340,7 @@ func (t *Tstore) recordSave(treeID int64, recordMD backend.RecordMetadata, metad
 			return nil, err
 		}
 
-		leaves = append(leaves, newLogLeaf(digest, extraData))
+		leaves = append(leaves, tlog.NewLogLeaf(digest, extraData))
 	}
 
 	// Verify at least one new blob is being saved to the kv store
@@ -1133,7 +1134,7 @@ func merkleLeafHashForBlobEntry(be store.BlobEntry) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return merkleLeafHash(leafValue), nil
+	return tlog.MerkleLeafHash(leafValue), nil
 }
 
 func convertBlobEntryFromFile(f backend.File) (*store.BlobEntry, error) {

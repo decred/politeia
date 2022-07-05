@@ -351,8 +351,8 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 			return backend.PluginError{
 				PluginID:  pi.PluginID,
 				ErrorCode: uint32(pi.ErrorCodeProposalStartDateInvalid),
-				ErrorContext: fmt.Sprintf("got %v start date, min is %v",
-					pm.StartDate, time.Now().Unix()),
+				ErrorContext: fmt.Sprintf("start date (%v) must be after %v",
+					pm.StartDate, time.Now().Unix()-p.proposalStartDateMin),
 			}
 		}
 
@@ -361,11 +361,8 @@ func (p *piPlugin) proposalFilesVerify(files []backend.File) error {
 			return backend.PluginError{
 				PluginID:  pi.PluginID,
 				ErrorCode: uint32(pi.ErrorCodeProposalEndDateInvalid),
-				ErrorContext: fmt.Sprintf("got %v end date, min is start date %v, "+
-					"max is %v",
-					pm.EndDate,
-					pm.StartDate,
-					time.Now().Unix()+pi.SettingProposalEndDateMax),
+				ErrorContext: fmt.Sprintf("end date (%v) must be before %v",
+					pm.EndDate, time.Now().Unix()+p.proposalEndDateMax),
 			}
 		}
 

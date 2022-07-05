@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -170,7 +169,7 @@ func (g *gitBackEnd) initDecredPluginJournals() error {
 // this function can be called without the lock held
 func (g *gitBackEnd) replayAllJournals() error {
 	log.Infof("replayAllJournals")
-	files, err := ioutil.ReadDir(g.journals)
+	files, err := os.ReadDir(g.journals)
 	if err != nil {
 		return fmt.Errorf("Read dir journals: %v", err)
 	}
@@ -341,7 +340,7 @@ func bestBlock() (*dcrdataapi.BlockDataBasic, error) {
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			return nil, fmt.Errorf("dcrdata error: %v %v %v",
 				r.StatusCode, url, err)
@@ -370,7 +369,7 @@ func block(block uint32) (*dcrdataapi.BlockDataBasic, error) {
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			return nil, fmt.Errorf("dcrdata error: %v %v %v",
 				r.StatusCode, url, err)
@@ -408,7 +407,7 @@ func batchTransactions(hashes []string) ([]dcrdataapi.TrimmedTx, error) {
 	defer r.Body.Close()
 
 	if r.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			return nil, fmt.Errorf("dcrdata error: %v %v %v",
 				r.StatusCode, url, err)
@@ -573,7 +572,7 @@ func (g *gitBackEnd) flushCommentJournal(token string) (string, error) {
 //
 // Must be called WITH the mutex held.
 func (g *gitBackEnd) _flushCommentJournals() ([]string, error) {
-	dirs, err := ioutil.ReadDir(g.journals)
+	dirs, err := os.ReadDir(g.journals)
 	if err != nil {
 		return nil, err
 	}
@@ -739,7 +738,7 @@ func (g *gitBackEnd) flushVotes(token string) (string, error) {
 //
 // Must be called WITH the mutex held.
 func (g *gitBackEnd) _flushVotesJournals() ([]string, error) {
-	dirs, err := ioutil.ReadDir(g.journals)
+	dirs, err := os.ReadDir(g.journals)
 	if err != nil {
 		return nil, err
 	}

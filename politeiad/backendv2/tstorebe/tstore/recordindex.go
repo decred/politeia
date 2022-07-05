@@ -14,6 +14,7 @@ import (
 
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tlog"
 	"github.com/decred/politeia/util"
 	"github.com/google/trillian"
 	"google.golang.org/grpc/codes"
@@ -123,7 +124,7 @@ func (t *Tstore) recordIndexSave(treeID int64, idx recordIndex) error {
 		return err
 	}
 	leaves := []*trillian.LogLeaf{
-		newLogLeaf(d, extraData),
+		tlog.NewLogLeaf(d, extraData),
 	}
 	queued, _, err := t.tlog.LeavesAppend(treeID, leaves)
 	if err != nil {

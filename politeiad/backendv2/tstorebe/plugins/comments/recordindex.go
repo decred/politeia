@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,13 +24,9 @@ const (
 	fnRecordIndexVetted   = "{shorttoken}-index-vetted.json"
 )
 
-// voteIndex contains the comment vote and the digest of the vote record.
-// Caching the vote allows us to tally the votes for a comment without needing
-// to pull the vote blobs from the backend. The digest allows us to retrieve
-// the vote blob if we need to.
-type voteIndex struct {
-	Vote   comments.VoteT `json:"vote"`
-	Digest []byte         `json:"digest"`
+// recordIndex contains the indexes for all comments made on a record.
+type recordIndex struct {
+	Comments map[uint32]commentIndex `json:"comments"` // [commentID]comment
 }
 
 // commentIndex contains the digests of all comment add, dels, and votes for a
@@ -49,9 +44,21 @@ type commentIndex struct {
 	Votes map[string][]voteIndex `json:"votes"` // [uuid]votes
 }
 
-// recordIndex contains the indexes for all comments made on a record.
-type recordIndex struct {
-	Comments map[uint32]commentIndex `json:"comments"` // [commentID]comment
+// newCommentIndex returns a new commentIndex.
+func newCommentIndex() commentIndex {
+	return commentIndex{
+		Adds:  make(map[uint32][]byte, 1024),
+		Votes: make(map[string][]voteIndex, 1024),
+	}
+}
+
+// voteIndex contains the comment vote and the digest of the vote record.
+// Caching the vote allows us to tally the votes for a comment without needing
+// to pull the vote blobs from the backend. The digest allows us to retrieve
+// the vote blob if we need to.
+type voteIndex struct {
+	Vote   comments.VoteT `json:"vote"`
+	Digest []byte         `json:"digest"`
 }
 
 // recordIndexPath returns the file path for a cached record index. It accepts
@@ -89,7 +96,7 @@ func (p *commentsPlugin) recordIndex(token []byte, s backend.StateT) (*recordInd
 	p.RLock()
 	defer p.RUnlock()
 
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		var e *os.PathError
 		if errors.As(err, &e) && !os.IsExist(err) {
@@ -126,7 +133,7 @@ func (p *commentsPlugin) _recordIndexSave(token []byte, s backend.StateT, ridx r
 	p.Lock()
 	defer p.Unlock()
 
-	err = ioutil.WriteFile(fp, b, 0664)
+	err = os.WriteFile(fp, b, 0664)
 	if err != nil {
 		return err
 	}

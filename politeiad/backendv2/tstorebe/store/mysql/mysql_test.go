@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,7 +15,7 @@ import (
 )
 
 // newTestMySQL returns a new mysql structure that has been setup for testing.
-func newTestMySQL(t *testing.T) (*mysql, func()) {
+func newTestMySQL(t *testing.T) (*mysqlCtx, func()) {
 	t.Helper()
 
 	// Setup the mock sql database
@@ -29,7 +29,7 @@ func newTestMySQL(t *testing.T) (*mysql, func()) {
 	}
 
 	// Setup the mysql struct
-	s := &mysql{
+	s := &mysqlCtx{
 		db:      db,
 		testing: true,
 		mock:    mock,
@@ -60,7 +60,7 @@ func TestGet(t *testing.T) {
 
 // testGetSingleQuery tests the mysql Get() method when the number of records
 // being retrieved can be fit into a single MySQL SELECT statement.
-func testGetSingleQuery(t *testing.T, s *mysql) {
+func testGetSingleQuery(t *testing.T, s *mysqlCtx) {
 	var (
 		// Test params
 		key1   = "key1"
@@ -110,7 +110,7 @@ func testGetSingleQuery(t *testing.T, s *mysql) {
 // testGetMultiQuery tests the mysql Get() method when the number of records
 // being retrieved cannot fit into a single MySQL SELECT statement and must
 // be broken up into multiple SELECT statements.
-func testGetMultiQuery(t *testing.T, s *mysql) {
+func testGetMultiQuery(t *testing.T, s *mysqlCtx) {
 	// Prepare the test data. The maximum number of records
 	// that can be returned in a single SELECT statement is
 	// limited by the maxPlaceholders variable. We multiply

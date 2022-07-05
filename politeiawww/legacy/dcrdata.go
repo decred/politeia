@@ -8,7 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -96,7 +96,7 @@ func makeRequest(ctx context.Context, url string, timeout time.Duration) ([]byte
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(response.Body)
+		body, err := io.ReadAll(response.Body)
 		if err != nil {
 			return nil, fmt.Errorf("dcrdata error: %v %v %v",
 				response.StatusCode, url, err)
@@ -105,7 +105,7 @@ func makeRequest(ctx context.Context, url string, timeout time.Duration) ([]byte
 			response.StatusCode, url, body)
 	}
 
-	return ioutil.ReadAll(response.Body)
+	return io.ReadAll(response.Body)
 }
 
 func fetchTxWithBE(ctx context.Context, url string, address string, minimumAmount uint64, txnotbefore int64, minConfirmationsRequired uint64) (string, uint64, error) {

@@ -5,7 +5,6 @@
 package comments
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -16,7 +15,7 @@ import (
 // testing.
 func newTestCommentsPlugin(t *testing.T) (*commentsPlugin, func()) {
 	// Create plugin data directory
-	dataDir, err := ioutil.TempDir("", comments.PluginID)
+	dataDir, err := os.MkdirTemp("", comments.PluginID)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -68,7 +67,7 @@ func (t *tstoreBackend) invRemoveVetted() error {
 //
 // This function must be called WITH the read lock held.
 func (t *tstoreBackend) invGetLocked(filePath string) (*inventory, error) {
-	b, err := ioutil.ReadFile(filePath)
+	b, err := os.ReadFile(filePath)
 	if err != nil {
 		var e *os.PathError
 		if errors.As(err, &e) && !os.IsExist(err) {
@@ -108,7 +107,7 @@ func (t *tstoreBackend) invSaveLocked(filePath string, inv inventory) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filePath, b, 0664)
+	return os.WriteFile(filePath, b, 0664)
 }
 
 // invAdd adds a new record to the inventory.

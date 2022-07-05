@@ -12,8 +12,8 @@ import (
 	"errors"
 	"image"
 	"image/png"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -303,13 +303,13 @@ func proposalFormatTests(t *testing.T) []proposalFormatTest {
 	indexTooLarge = file(index.Name, []byte(sb.String()))
 
 	// Load test fixtures
-	b, err := ioutil.ReadFile("testdata/valid.png")
+	b, err := os.ReadFile("testdata/valid.png")
 	if err != nil {
 		t.Fatal(err)
 	}
 	png = file("valid.png", b)
 
-	b, err = ioutil.ReadFile("testdata/too-large.png")
+	b, err = os.ReadFile("testdata/too-large.png")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,8 +12,8 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"io/ioutil"
 	"math/rand"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -228,7 +228,7 @@ func proposalFilesFromDisk(indexFile string, attachments []string) ([]rcv1.File,
 	// Setup index file
 	fp := util.CleanAndExpandPath(indexFile)
 	var err error
-	payload, err := ioutil.ReadFile(fp)
+	payload, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, fmt.Errorf("ReadFile %v: %v", fp, err)
 	}
@@ -242,7 +242,7 @@ func proposalFilesFromDisk(indexFile string, attachments []string) ([]rcv1.File,
 	// Setup attachment files
 	for _, fn := range attachments {
 		fp := util.CleanAndExpandPath(fn)
-		payload, err := ioutil.ReadFile(fp)
+		payload, err := os.ReadFile(fp)
 		if err != nil {
 			return nil, fmt.Errorf("ReadFile %v: %v", fp, err)
 		}

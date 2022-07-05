@@ -16,7 +16,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -177,8 +176,7 @@ const usageMsg = `politeiawww_dbutil usage:
           confirm identity. 
           Required DB flag : -leveldb, -cockroachdb or -mysql
           LevelDB args     : <email>
-          CockroachDB args : <username>
-`
+          CockroachDB args : <username>`
 
 func cmdDump() error {
 	// If email is provided, only dump that user.
@@ -313,7 +311,7 @@ func cmdAddCredits() error {
 }
 
 func replayCommentsJournal(path string, pubkeys map[string]struct{}) error {
-	b, err := ioutil.ReadFile(path)
+	b, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -622,7 +620,7 @@ func cmdCreateKey() error {
 	}
 
 	// Write hex encoded key to file
-	err = ioutil.WriteFile(path, []byte(hex.EncodeToString(k[:])), 0644)
+	err = os.WriteFile(path, []byte(hex.EncodeToString(k[:])), 0644)
 	if err != nil {
 		return err
 	}
@@ -645,7 +643,7 @@ func validateCockroachParams() error {
 	}
 
 	// Validate root cert
-	b, err := ioutil.ReadFile(*rootCert)
+	b, err := os.ReadFile(*rootCert)
 	if err != nil {
 		return fmt.Errorf("read rootcert: %v", err)
 	}
@@ -703,6 +701,16 @@ func cmdVerifyIdentities() error {
 	if err != nil {
 		return fmt.Errorf("UserGetByUsername(%v): %v",
 			args[0], err)
+	}
+
+	// Print all identities to help with debugging
+	fmt.Printf("\n")
+	for _, v := range u.Identities {
+		fmt.Printf("Status     : %v\n", v.Status())
+		fmt.Printf("Public Key : %v\n", v.String())
+		fmt.Printf("Activated  : %v\n", formatUnix(v.Activated))
+		fmt.Printf("Deactivated: %v\n", formatUnix(v.Deactivated))
+		fmt.Printf("\n")
 	}
 
 	// Verify inactive identities. There should only ever be one

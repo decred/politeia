@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -64,7 +63,7 @@ func DigestFileBytes(filename string) ([]byte, error) {
 
 // Base64File returns the base64 content of a file.
 func Base64File(filename string) (string, error) {
-	b, err := ioutil.ReadFile(filename)
+	b, err := os.ReadFile(filename)
 	if err != nil {
 		return "", err
 	}
@@ -77,7 +76,7 @@ func Base64File(filename string) (string, error) {
 // fail the function will return an error instead.
 func LoadFile(filename string) (mimeType string, digest string, payload string, err error) {
 	var b []byte // file payload
-	b, err = ioutil.ReadFile(filename)
+	b, err = os.ReadFile(filename)
 	if err != nil {
 		return
 	}
@@ -99,7 +98,7 @@ func LoadFile(filename string) (mimeType string, digest string, payload string, 
 // LoadFile2 returns a file and its mime type.
 func LoadFile2(filename string) (string, []byte, error) {
 	var b []byte // file payload
-	b, err := ioutil.ReadFile(filename)
+	b, err := os.ReadFile(filename)
 	if err != nil {
 		return "", nil, err
 	}

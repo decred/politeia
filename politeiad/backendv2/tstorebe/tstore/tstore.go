@@ -15,25 +15,14 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
-	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/localdb"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/mysql"
+	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tlog"
 	"github.com/decred/politeia/util"
 	"github.com/pkg/errors"
 	"github.com/robfig/cron"
 )
 
 const (
-	// DBTypeLevelDB is a config option that sets the backing key-value
-	// store to a leveldb instance.
-	DBTypeLevelDB = "leveldb"
-
-	// DBTypeMySQL is a config option that sets the backing key-value
-	// store to a MySQL instance.
-	DBTypeMySQL = "mysql"
-
-	// LevelDB settings
-	storeDirname = "store"
-
 	// MySQL settings
 	dbUser = "politeiad"
 )
@@ -61,7 +50,7 @@ type Tstore struct {
 	sync.RWMutex
 	dataDir         string
 	activeNetParams *chaincfg.Params
-	tlog            tlogClient
+	tlog            tlog.Client
 	store           store.BlobKV
 	dcrtime         *dcrtimeClient
 	cron            *cron.Cron
@@ -213,7 +202,7 @@ func (t *Tstore) Setup() error {
 }
 
 // New returns a new tstore instance.
-func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, dbType, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
+func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, dbHost, dbPass, dcrtimeHost, dcrtimeCert string) (*Tstore, error) {
 	// Setup datadir for this tstore instance
 	dataDir = filepath.Join(dataDir)
 	err := os.MkdirAll(dataDir, 0700)
@@ -221,34 +210,18 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, dbType, dbHost,
 		return nil, err
 	}
 
-	// Setup key-value store
-	log.Infof("Database type: %v", dbType)
-	var kvstore store.BlobKV
-	switch dbType {
-	case DBTypeLevelDB:
-		fp := filepath.Join(dataDir, storeDirname)
-		err = os.MkdirAll(fp, 0700)
-		if err != nil {
-			return nil, err
-		}
-		kvstore, err = localdb.New(appDir, fp)
-		if err != nil {
-			return nil, err
-		}
-	case DBTypeMySQL:
-		// Example db name: testnet3_unvetted_kv
-		dbName := fmt.Sprintf("%v_kv", anp.Name)
-		kvstore, err = mysql.New(dbHost, dbUser, dbPass, dbName)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("invalid db type: %v", dbType)
+	// Setup the key-value store
+	//
+	// Example db name: testnet3_unvetted_kv
+	dbName := fmt.Sprintf("%v_kv", anp.Name)
+	kvstore, err := mysql.New(dbHost, dbUser, dbPass, dbName)
+	if err != nil {
+		return nil, err
 	}
 
 	// Setup trillian client
 	log.Infof("Tlog host: %v", tlogHost)
-	tlogClient, err := newTClient(tlogHost)
+	tlogClient, err := tlog.NewClient(tlogHost)
 	if err != nil {
 		return nil, err
 	}

@@ -12,7 +12,6 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -271,7 +270,7 @@ func newTestPoliteiawww(t *testing.T) (*Politeiawww, func()) {
 
 	// Make a temp directory for test data. Temp directory
 	// is removed in the returned closure.
-	dataDir, err := ioutil.TempDir("", "politeiawww.test")
+	dataDir, err := os.MkdirTemp("", "politeiawww.test")
 	if err != nil {
 		t.Fatalf("open tmp dir: %v", err)
 	}
@@ -367,7 +366,7 @@ func newTestCMSwww(t *testing.T) (*Politeiawww, func()) {
 
 	// Make a temp directory for test data. Temp directory
 	// is removed in the returned closure.
-	dataDir, err := ioutil.TempDir("", "cmswww.test")
+	dataDir, err := os.MkdirTemp("", "cmswww.test")
 	if err != nil {
 		t.Fatalf("open tmp dir: %v", err)
 	}

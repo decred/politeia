@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +43,7 @@ func (p *usermdPlugin) userCachePath(userID string) string {
 // This function must be called WITH the lock held.
 func (p *usermdPlugin) userCacheLocked(userID string) (*userCache, error) {
 	fp := p.userCachePath(userID)
-	b, err := ioutil.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
 		var e *os.PathError
 		if errors.As(err, &e) && !os.IsExist(err) {
@@ -95,7 +94,7 @@ func (p *usermdPlugin) userCacheSaveLocked(userID string, uc userCache) error {
 	}
 
 	fp := p.userCachePath(userID)
-	return ioutil.WriteFile(fp, b, 0664)
+	return os.WriteFile(fp, b, 0664)
 }
 
 // userCacheAddToken adds a token to a user cache.

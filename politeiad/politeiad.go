@@ -9,7 +9,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"os"
@@ -275,9 +274,9 @@ func (p *politeia) setupBackendTstore(anp *chaincfg.Params) error {
 		return errors.Errorf("router must be initialized")
 	}
 
-	b, err := tstorebe.New(p.cfg.HomeDir, p.cfg.DataDir, anp,
-		p.cfg.TlogHost, p.cfg.DBType, p.cfg.DBHost,
-		p.cfg.DBPass, p.cfg.DcrtimeHost, p.cfg.DcrtimeCert)
+	b, err := tstorebe.New(p.cfg.HomeDir, p.cfg.DataDir,
+		anp, p.cfg.TlogHost, p.cfg.DBHost, p.cfg.DBPass,
+		p.cfg.DcrtimeHost, p.cfg.DcrtimeCert)
 	if err != nil {
 		return fmt.Errorf("new tstorebe: %v", err)
 	}
@@ -467,7 +466,7 @@ func _main() error {
 			return fmt.Errorf("unable to find dcrtime cert %v",
 				cfg.DcrtimeCert)
 		}
-		dcrtimeCert, err := ioutil.ReadFile(cfg.DcrtimeCert)
+		dcrtimeCert, err := os.ReadFile(cfg.DcrtimeCert)
 		if err != nil {
 			return fmt.Errorf("unable to read dcrtime cert %v: %v",
 				cfg.DcrtimeCert, err)

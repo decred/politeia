@@ -11,8 +11,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/url"
+	"os"
 	"sync"
 
 	"github.com/decred/politeia/politeiawww/legacy/user"
@@ -957,7 +957,7 @@ func (c *cockroachdb) createTables(tx *gorm.DB) error {
 func loadEncryptionKey(filepath string) (*[32]byte, error) {
 	log.Tracef("loadEncryptionKey: %v", filepath)
 
-	b, err := ioutil.ReadFile(filepath)
+	b, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, fmt.Errorf("load encryption key %v: %v",
 			filepath, err)

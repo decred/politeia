@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -59,7 +58,7 @@ func (p *ticketVotePlugin) invRemove() error {
 //
 // This function must be called WITH the mtxInv read lock held.
 func (p *ticketVotePlugin) invGetLocked() (*inventory, error) {
-	b, err := ioutil.ReadFile(p.invPath())
+	b, err := os.ReadFile(p.invPath())
 	if err != nil {
 		var e *os.PathError
 		if errors.As(err, &e) && !os.IsExist(err) {
@@ -100,7 +99,7 @@ func (p *ticketVotePlugin) invSaveLocked(inv inventory) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(p.invPath(), b, 0664)
+	return os.WriteFile(p.invPath(), b, 0664)
 }
 
 // invAdd adds a token to the ticketvote inventory.

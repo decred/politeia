@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/binary"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -39,7 +38,7 @@ func fakeTickets(x uint) (*pb.CommittedTicketsResponse, *pb.SignMessagesResponse
 
 func fakePiv(t *testing.T, d time.Duration, x uint) (*piv, func()) {
 	// Setup temp home dir
-	homeDir, err := ioutil.TempDir("", "politeiavoter.test")
+	homeDir, err := os.MkdirTemp("", "politeiavoter.test")
 	if err != nil {
 		t.Fatal(err)
 	}

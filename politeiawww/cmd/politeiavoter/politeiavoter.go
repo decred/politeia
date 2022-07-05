@@ -13,9 +13,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/big"
 	"math/rand"
 	"net/http"
@@ -195,7 +195,7 @@ func newPiVoter(shutdownCtx context.Context, cfg *config) (*piv, error) {
 
 	// Wallet GRPC
 	serverCAs := x509.NewCertPool()
-	serverCert, err := ioutil.ReadFile(cfg.WalletCert)
+	serverCert, err := os.ReadFile(cfg.WalletCert)
 	if err != nil {
 		return nil, err
 	}
@@ -1481,7 +1481,7 @@ func (p *piv) verifyVote(vote string) error {
 	}
 
 	// Create local work caches
-	fa, err := ioutil.ReadDir(dir)
+	fa, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
@@ -1658,7 +1658,7 @@ func (p *piv) verifyVote(vote string) error {
 func (p *piv) verify(args []string) error {
 	// Override 0 to list all possible votes.
 	if len(args) == 0 {
-		fa, err := ioutil.ReadDir(p.cfg.voteDir)
+		fa, err := os.ReadDir(p.cfg.voteDir)
 		if err != nil {
 			return err
 		}
@@ -1673,7 +1673,7 @@ func (p *piv) verify(args []string) error {
 	}
 
 	if len(args) == 1 && args[0] == "ALL" {
-		fa, err := ioutil.ReadDir(p.cfg.voteDir)
+		fa, err := os.ReadDir(p.cfg.voteDir)
 		if err != nil {
 			return err
 		}
@@ -1722,14 +1722,27 @@ func (p *piv) help(command string) {
 }
 
 func _main() error {
-	cfg, args, err := loadConfig()
+	appName := filepath.Base(os.Args[0])
+	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
+	cfg, args, err := loadConfig(appName)
 	if err != nil {
+		usageMessage := fmt.Sprintf("Use %s -h to show usage", appName)
+		fmt.Fprintln(os.Stderr, err)
+		var e errSuppressUsage
+		if !errors.As(err, &e) {
+			fmt.Fprintln(os.Stderr, usageMessage)
+		}
 		return err
 	}
+	defer func() {
+		if logRotator != nil {
+			logRotator.Close()
+		}
+	}()
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "No command specified")
-		fmt.Fprintln(os.Stderr, listCmdMessage)
-		os.Exit(1)
+		err := fmt.Errorf("No command specified\n%s", listCmdMessage)
+		fmt.Fprintln(os.Stderr, err)
+		return err
 	}
 	action := args[0]
 
@@ -1761,9 +1774,9 @@ func _main() error {
 		// valid command, continue
 
 	default:
-		fmt.Fprintf(os.Stderr, "Unrecognized command %q\n", action)
-		fmt.Fprintln(os.Stderr, listCmdMessage)
-		os.Exit(1)
+		err := fmt.Errorf("Unrecognized command %q\n%s", action, listCmdMessage)
+		fmt.Fprintln(os.Stderr, err)
+		return err
 	}
 
 	// Run command
@@ -1777,22 +1790,22 @@ func _main() error {
 	case cmdVerify:
 		err = c.verify(args[1:])
 	case cmdHelp:
+		if len(args) < 2 {
+			err := fmt.Errorf("No help command specified\n%s", listCmdMessage)
+			fmt.Fprintln(os.Stderr, err)
+			return err
+		}
 		c.help(args[1])
 	}
 
+	if err != nil {
+		log.Error(err)
+	}
 	return err
 }
 
 func main() {
-	err := _main()
-	if err != nil {
-		// Print the error to stderr if the logs have not been
-		// setup yet.
-		if logRotator == nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-		} else {
-			log.Error(err)
-		}
+	if err := _main(); err != nil {
 		os.Exit(1)
 	}
 }

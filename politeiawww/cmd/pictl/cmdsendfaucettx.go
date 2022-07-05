@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -90,7 +90,7 @@ func sendFaucetTx(faucetURL string, address, amountInDCR, overridetoken string) 
 
 	// Handle reply
 	if resp.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return "", fmt.Errorf("testnet faucet error: %v %v %v",
 				resp.StatusCode, faucetURL, err)

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 The Decred developers
+// Copyright (c) 2020-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -16,14 +16,13 @@ import (
 )
 
 var (
-	// ErrShutdown is returned when a action is attempted against a
-	// store that is shutdown.
+	// ErrShutdown is returned when a action is attempted against a store that
+	// is shutdown.
 	ErrShutdown = errors.New("store is shutdown")
 )
 
 const (
-	// DataTypeStructure describes a blob entry that contains a
-	// structure.
+	// DataTypeStructure describes a blob entry that contains a structure.
 	DataTypeStructure = "struct"
 )
 
@@ -90,20 +89,25 @@ func Deblob(blob []byte) (*BlobEntry, error) {
 
 // BlobKV represents a blob key-value store.
 type BlobKV interface {
-	// Put saves the provided key-value pairs to the store. This
-	// operation is performed atomically.
+	// Put saves the provided key-value entries to the database. New entries are
+	// inserted. Existing entries are updated.
+	//
+	// This operation is atomic.
 	Put(blobs map[string][]byte, encrypt bool) error
 
-	// Del deletes the provided blobs from the store. This operation
-	// is performed atomically.
+	// Del deletes the key-value entries from the database for the provided keys.
+	//
+	// This operation is atomic.
 	Del(keys []string) error
 
-	// Get returns blobs from the store for the provided keys. An entry
-	// will not exist in the returned map if for any blobs that are not
-	// found. It is the responsibility of the caller to ensure a blob
-	// was returned for all provided keys.
+	// Get retrieves the key-value entries from the database for the provided
+	// keys.
+	//
+	// An entry will not exist in the returned map for any blobs that are not
+	// found. It is the responsibility of the caller to ensure a blob was
+	// returned for all provided keys.
 	Get(keys []string) (map[string][]byte, error)
 
-	// Closes closes the store connection.
+	// Close closes the database connection.
 	Close()
 }

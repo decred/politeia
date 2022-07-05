@@ -12,7 +12,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -79,7 +78,7 @@ func TestAnchorWithCommits(t *testing.T) {
 	log := slog.NewBackend(&testWriter{t}).Logger("TEST")
 	UseLogger(log)
 
-	dir, err := ioutil.TempDir("", "politeia.test")
+	dir, err := os.MkdirTemp("", "politeia.test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,7 +403,7 @@ func TestAnchorWithCommits(t *testing.T) {
 }
 
 func TestFilePathVersion(t *testing.T) {
-	dir, err := ioutil.TempDir("", "pathversion")
+	dir, err := os.MkdirTemp("", "pathversion")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -469,7 +468,7 @@ func TestFilePathVersion(t *testing.T) {
 }
 
 func TestUpdateReadme(t *testing.T) {
-	dir, err := ioutil.TempDir("", "politeia.test")
+	dir, err := os.MkdirTemp("", "politeia.test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -489,7 +488,7 @@ func TestUpdateReadme(t *testing.T) {
 	}
 
 	unvettedReadmePath := filepath.Join(g.unvetted, "README.md")
-	unvettedReadmeContent, err := ioutil.ReadFile(unvettedReadmePath)
+	unvettedReadmeContent, err := os.ReadFile(unvettedReadmePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -501,7 +500,7 @@ func TestUpdateReadme(t *testing.T) {
 	}
 
 	vettedReadmePath := filepath.Join(g.vetted, "README.md")
-	vettedReadmeContent, err := ioutil.ReadFile(vettedReadmePath)
+	vettedReadmeContent, err := os.ReadFile(vettedReadmePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -577,7 +576,7 @@ func TestTokenPrefixGeneration(t *testing.T) {
 	updateTokenPrefixLength(1)
 	defer updateTokenPrefixLength(originalPrefixLength)
 
-	dir, err := ioutil.TempDir("", "politeia.test")
+	dir, err := os.MkdirTemp("", "politeia.test")
 	if err != nil {
 		t.Fatal(err)
 	}

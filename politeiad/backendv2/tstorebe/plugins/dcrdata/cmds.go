@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -200,7 +200,7 @@ func (p *dcrdataPlugin) makeReq(method string, route string, headers map[string]
 
 	// Handle response
 	if r.StatusCode != http.StatusOK {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			return nil, fmt.Errorf("%v %v %v %v",
 				r.StatusCode, method, url, err)
