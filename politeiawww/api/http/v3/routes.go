@@ -39,7 +39,7 @@ const (
 	// Version route before they'll be able to use this route. A 403 is returned
 	// if the client attempts to use this route without the proper CSRF tokens.
 	//
-	// This route accepts a PluginCmd and returns a PluginReply.
+	// This route accepts a Cmd and returns a CmdReply.
 	NewUserRoute = "/newuser"
 
 	// WriteRoute is a POST request route that executes a plugin command that
@@ -49,7 +49,7 @@ const (
 	// Version route before they'll be able to use this route. A 403 is returned
 	// if the client attempts to use this route without the proper CSRF tokens.
 	//
-	// This route accepts a PluginCmd and returns a PluginReply.
+	// This route accepts a Cmd and returns a CmdReply.
 	WriteRoute = "/write"
 
 	// ReadRoute is a POST request route that executes an individual read-only
@@ -58,7 +58,7 @@ const (
 	// requirements. This allows the sysadmin to set different rate limiting
 	// constraints for expensive commands.
 	//
-	// This route accepts a PluginCmd and returns a PluginReply.
+	// This route accepts a Cmd and returns a CmdReply.
 	ReadRoute = "/read"
 
 	// ReadBatchRoute is a POST request route that executes a batch of read-only
@@ -78,73 +78,3 @@ const (
 	// have the session cookie set the first time a plugin command route is hit.
 	SessionCookieName = "session"
 )
-
-// Version contains the GET request parameters for the VersionRoute. The
-// VersionRoute returns a VersionReply.
-//
-// This route sets CSRF tokens for clients using the double submit cookie
-// technique. A token is set in a cookie and a token is set in a header.
-// Clients MUST make a successful Version call before they'll be able to
-// use CSRF protected routes.
-type Version struct{}
-
-// VersionReply is the reply for the VersionRoute. It contains the server
-// version information and the list of plugins that the server is running. The
-// client should verify compatibility with the server version and plugins.
-type VersionReply struct {
-	// APIVersion is the lowest supported API version.
-	APIVersion uint32 `json:"apiversion"`
-
-	// BuildVersion is the sematic version of the server build.
-	BuildVersion string `json:"buildversion"`
-
-	// Plugins contains the plugin ID and lowest supported plugin API version
-	// for all registered plugins.
-	Plugins map[string]uint32 `json:"plugins"` // [pluginID]version
-}
-
-// Policy contains the GET request parameters for the PolicyRoute. The
-// PolicyRoute returns a PolicyReply.
-type Policy struct{}
-
-// PolicyReply is the reply for the PolicyRoute. It contains API policy
-// information.
-type PolicyReply struct {
-	// ReadBatchLimit contains the maximum number of plugin commands allowed in
-	// a read batch request.
-	ReadBatchLimit uint32 `json:"readbatchlimit"`
-}
-
-// Cmd represents a plugin command.
-type Cmd struct {
-	PluginID string `json:"pluginid"`
-	Version  uint32 `json:"version"` // Plugin API version
-	Cmd      string `json:"cmd"`
-	Payload  string `json:"payload"` // Cmd payload, JSON encoded
-}
-
-// CmdReply is the reply to a Cmd request.
-type CmdReply struct {
-	PluginID string       `json:"pluginid"`
-	Version  uint32       `json:"version"` // Plugin API version
-	Cmd      string       `json:"cmd"`
-	Payload  string       `json:"payload"` // Reply payload, JSON encoded
-	Error    *PluginError `json:"error,omitempty"`
-}
-
-// PluginError represents an error that occured during the execution of a
-// plugin command and that was caused by the user (ex. bad command input).
-type PluginError struct {
-	ErrorCode    uint32 `json:"errorcode"`
-	ErrorContext string `json:"errorcontext,omitempty"`
-}
-
-// Batch contains a batch of read-only plugin commands.
-type Batch struct {
-	Cmds []Cmd `json:"cmds"`
-}
-
-// BatchReply is the reply to a Batch request.
-type BatchReply struct {
-	Replies []CmdReply `json:"replies"`
-}

@@ -32,17 +32,3 @@ type AuthorizeArgs struct {
 	Version  uint32 // Plugin API version
 	Cmd      string
 }
-
-// Session contains the data that is saved as part of a user session.
-//
-// Plugins do not have direct access to the sessions database, but the
-// AuthManager plugin is able to update fields on this session struct. Updates
-// are saved to the sessions database by the backend.
-type Session struct {
-	UserID    string
-	CreatedAt int64
-
-	// Delete can be set by the AuthManager plugin to instruct the backend to
-	// delete the session.
-	Delete bool
-}

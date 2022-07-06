@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 
 	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
@@ -101,6 +102,14 @@ func (p *politeiawww) setupPlugins() error {
 
 	return nil
 }
+
+var (
+	// regexpPluginSettingMulti matches against the plugin setting
+	// value when it contains multiple values.
+	//
+	// pluginID,key,["value1","value2"] matches ["value1","value2"]
+	regexpPluginSettingMulti = regexp.MustCompile(`(\[.*\]$)`)
+)
 
 // parsePluginSetting parses a plugin setting. Plugin settings will be in
 // following format. The value may be a single value or an array of values.

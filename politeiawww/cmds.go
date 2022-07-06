@@ -8,8 +8,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"regexp"
 
+	v3 "github.com/decred/politeia/politeiawww/api/http/v3"
 	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/google/uuid"
@@ -22,9 +22,25 @@ import (
 // Any updates made to the session will be persisted by the caller.
 //
 // This function assumes the caller has verified that the plugin command is
-// for the user plugin.
-func (p *politeiawww) newUserCmd(ctx context.Context, session *plugin.Session, cmd plugin.Cmd) (*plugin.Reply, error) {
-	log.Tracef("newUserCmd: %v %v %v", cmd.PluginID, cmd.Cmd, session.UserID)
+// the user plugin.
+func (p *politeiawww) NewUserCmd(ctx context.Context, s *plugin.Session, c v3.Cmd) (*v3.CmdReply, error) {
+	log.Tracef("NewUserCmd: %+v %+v", s, c)
+
+	pc := convertCmd(c)
+	pr, err := p.newUserCmd(ctx, s, pc)
+	if err != nil {
+		var ue *plugin.UserErr
+		if errors.As(err, &ue) {
+			return convertErrReply(pc, ue), nil
+		}
+		return nil, err
+	}
+
+	return convertReply(pc, *pr), nil
+}
+
+// See the NewUserCmd function for more details.
+func (p *politeiawww) newUserCmd(ctx context.Context, session *plugin.Session, cmd plugin.Cmd) (*plugin.CmdReply, error) {
 
 	// Setup the database transaction
 	tx, cancel, err := p.beginTx()
@@ -34,70 +50,59 @@ func (p *politeiawww) newUserCmd(ctx context.Context, session *plugin.Session, c
 	defer cancel()
 
 	// Setup a new user
-	usr := &user.User{
+	u := &user.User{
 		ID:      uuid.New(),
 		Plugins: make(map[string]user.PluginData, 64),
 	}
 
 	// Verify that the session user, if one exists,
 	// is authorized to execute this plugin command.
-	reply, err := p.authorize(session, usr, cmd)
+	err = p.authorize(session, u, cmd)
 	if err != nil {
 		return nil, err
 	}
-	if reply != nil {
-		return reply, nil
-	}
 
 	// Execute the pre plugin hooks
-	reply, err = p.preHooks(tx, usr,
+	err = p.hook(tx, u,
 		plugin.HookArgs{
 			Type:  plugin.HookPreNewUser,
 			Cmd:   cmd,
 			Reply: nil,
-			User:  nil, // User is set in preHooks()
+			User:  nil, // User is set in hook()
 		})
 	if err != nil {
 		return nil, err
-	}
-	if reply != nil {
-		return reply, nil
 	}
 
 	// Execute the new user plugin command
-	pluginUser := convertUser(usr, cmd.PluginID)
-	reply, err = p.userManager.NewUser(tx,
+	pu := convertUser(u, cmd.PluginID)
+	reply, err := p.userManager.NewUser(tx,
 		plugin.WriteArgs{
 			Cmd:  cmd,
-			User: pluginUser,
+			User: pu,
 		})
 	if err != nil {
 		return nil, err
-	}
-	if reply.Error != nil {
-		// The plugin command encountered
-		// a user error. Return it.
-		return reply, nil
 	}
 
 	// Update the global user object with any changes
 	// that the plugin made to the plugin user data.
-	updateUser(usr, pluginUser, cmd.PluginID)
+	updateUser(u, pu, cmd.PluginID)
 
 	// Execute the post plugin hooks
-	err = p.postHooks(tx, usr,
+	err = p.hook(tx, u,
 		plugin.HookArgs{
 			Type:  plugin.HookPostNewUser,
 			Cmd:   cmd,
 			Reply: reply,
-			User:  nil, // User is set in postHooks()
+			User:  nil, // User is set in hook()
 		})
 	if err != nil {
 		return nil, err
 	}
 
 	// Insert the user into the database
-	err = p.userDB.TxInsert(tx, *usr)
+	err = p.userDB.TxInsert(tx, *u)
 	if err != nil {
 		return nil, err
 	}
@@ -116,13 +121,136 @@ func (p *politeiawww) newUserCmd(ctx context.Context, session *plugin.Session, c
 	return reply, nil
 }
 
+// authorize uses the AuthManager to check if the user is authorized to
+// execute the provided plugin command.
+func (p *politeiawww) authorize(s *plugin.Session, u *user.User, c plugin.Cmd) error {
+	// Setup the plugin user
+	pu := convertUser(u, p.authManager.ID())
+
+	// Check the user authorization
+	err := p.authManager.Authorize(
+		plugin.AuthorizeArgs{
+			Session:  s,
+			User:     pu,
+			PluginID: c.PluginID,
+			Version:  c.Version,
+			Cmd:      c.Cmd,
+		})
+	if err != nil {
+		return err
+	}
+
+	// Update the global user object with any changes
+	// that the plugin made to the plugin user data.
+	updateUser(u, pu, c.PluginID)
+
+	return nil
+}
+
+// hook executes a hook on on all plugins.
+//
+// A sql Tx may or may not exist depending on the whether the caller is
+// executing an atomic operation.
+func (p *politeiawww) hook(tx *sql.Tx, u *user.User, h plugin.HookArgs) error {
+	for _, pluginID := range p.pluginIDs {
+		// Get the plugin
+		p, ok := p.plugins[pluginID]
+		if !ok {
+			// Should not happen
+			return errors.Errorf("plugin not found: %v", pluginID)
+		}
+
+		// Add the plugin user to the hook payload
+		h.User = convertUser(u, h.Cmd.PluginID)
+
+		// Execute the hook. Some commands will execute
+		// the hook using a database transaction (write
+		// commands) and some won't (read-only commands).
+		if tx != nil {
+			err := p.TxHook(tx, h)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := p.Hook(h)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Update the global user object with any changes
+		// that the plugin made to the plugin user data.
+		updateUser(u, h.User, h.Cmd.PluginID)
+	}
+
+	return nil
+}
+
+// updateUser updates the global user object with any changes that were made
+// to the plugin user object during command execution.
+func updateUser(u *user.User, p *plugin.User, pluginID string) {
+	if !p.PluginData.Updated() {
+		return
+	}
+
+	d := u.Plugins[pluginID]
+	d.ClearText = p.PluginData.ClearText()
+	d.Encrypted = p.PluginData.Encrypted()
+
+	u.Plugins[pluginID] = d
+	u.Updated = true
+}
+
+// convertUser converts a global user to a plugin user.
+//
+// Only the plugin data for the provided plugin ID is included in the plugin
+// user object. This prevents plugins from accessing data that they do not own.
+func convertUser(u *user.User, pluginID string) *plugin.User {
+	d := u.Plugins[pluginID]
+	return &plugin.User{
+		ID:         u.ID,
+		PluginData: plugin.NewPluginData(d.ClearText, d.Encrypted),
+	}
+}
+
+func convertCmd(c v3.Cmd) plugin.Cmd {
+	return plugin.Cmd{
+		PluginID: c.PluginID,
+		Version:  c.Version,
+		Cmd:      c.Cmd,
+		Payload:  c.Payload,
+	}
+}
+
+func convertErrReply(c plugin.Cmd, e *plugin.UserErr) *v3.CmdReply {
+	return &v3.CmdReply{
+		PluginID: c.PluginID,
+		Version:  c.Version,
+		Cmd:      c.Cmd,
+		Error: &v3.PluginError{
+			ErrorCode:    e.ErrCode,
+			ErrorContext: e.ErrContext,
+		},
+	}
+}
+
+func convertReply(c plugin.Cmd, r plugin.CmdReply) *v3.CmdReply {
+	return &v3.CmdReply{
+		PluginID: c.PluginID,
+		Version:  c.Version,
+		Cmd:      c.Cmd,
+		Payload:  r.Payload,
+	}
+}
+
+/*
 // writeCmd executes a plugin command that writes data.
 //
 // Any updates made to the session will be persisted by the caller.
 //
 // This function assumes the caller has verified that the plugin is a
 // registered plugin.
-func (p *politeiawww) writeCmd(ctx context.Context, session *plugin.Session, cmd plugin.Cmd) (*plugin.Reply, error) {
+func (p *politeiawww) writeCmd(ctx context.Context, session *plugin.Session, cmd plugin.Cmd) (*plugin.CmdReply, error) {
 	log.Tracef("writeCmd: %v %v %v", cmd.PluginID, cmd.Cmd, session.UserID)
 
 	// Setup the database transaction
@@ -236,7 +364,7 @@ func (p *politeiawww) writeCmd(ctx context.Context, session *plugin.Session, cmd
 //
 // This function assumes the caller has verified that the plugin is a
 // registered plugin.
-func (p *politeiawww) readCmd(ctx context.Context, session *plugin.Session, cmd plugin.Cmd) (*plugin.Reply, error) {
+func (p *politeiawww) readCmd(ctx context.Context, session *plugin.Session, cmd plugin.Cmd) (*plugin.CmdReply, error) {
 	log.Tracef("readCmd: %v %v %v", cmd.PluginID, cmd.Cmd, session.UserID)
 
 	// Get the user. A session user may or may not exist.
@@ -282,134 +410,4 @@ func (p *politeiawww) readCmd(ctx context.Context, session *plugin.Session, cmd 
 
 	return reply, nil
 }
-
-// preHooks executes the provided pre hook for all plugins. Pre hooks are used
-// to perform validation on the plugin command.
-//
-// A plugin reply will be returned if one of the plugins throws a user error
-// during hook execution. The user error will be embedded in the plugin
-// reply. Unexpected errors result in a standard golang error being returned.
-func (p *politeiawww) preHooks(tx *sql.Tx, usr *user.User, h plugin.HookArgs) (*plugin.Reply, error) {
-	err := p.hook(tx, h, usr)
-	if err != nil {
-		var ue plugin.UserError
-		if errors.As(err, &ue) {
-			return &plugin.Reply{
-				Error: err,
-			}, nil
-		}
-		return nil, err
-	}
-	return nil, nil
-}
-
-// postHooks executes the provided post hook for all user plugins.
-//
-// Post hooks are not able to throw plugin errors like the pre hooks are. Any
-// error returned by a plugin from a post hook will be treated as an unexpected
-// error.
-func (p *politeiawww) postHooks(tx *sql.Tx, usr *user.User, h plugin.HookArgs) error {
-	return p.hook(tx, h, usr)
-}
-
-// hook executes a hook on on all plugins. A sql Tx may or may not exist
-// depending on the whether the caller is executing an atomic operation.
-func (p *politeiawww) hook(tx *sql.Tx, h plugin.HookArgs, usr *user.User) error {
-	for _, pluginID := range p.pluginIDs {
-		// Get the plugin
-		p, ok := p.plugins[pluginID]
-		if !ok {
-			// Should not happen
-			return errors.Errorf("plugin not found: %v", pluginID)
-		}
-
-		// Add the plugin user to the hook payload
-		h.User = convertUser(usr, h.Cmd.PluginID)
-
-		// Execute the hook. Some commands will execute
-		// the hook using a database transaction (write
-		// commands) and some won't (read-only commands).
-		if tx != nil {
-			err := p.TxHook(tx, h)
-			if err != nil {
-				return err
-			}
-		} else {
-			err := p.Hook(h)
-			if err != nil {
-				return err
-			}
-		}
-
-		// Update the global user object with any changes
-		// that the plugin made to the plugin user data.
-		updateUser(usr, h.User, h.Cmd.PluginID)
-	}
-
-	return nil
-}
-
-func (p *politeiawww) authorize(s *plugin.Session, usr *user.User, cmd plugin.Cmd) (*plugin.Reply, error) {
-	// Setup the plugin user
-	pluginUser := convertUser(usr, p.authManager.ID())
-
-	// Check user authorization
-	err := p.authManager.Authorize(
-		plugin.AuthorizeArgs{
-			Session:  s,
-			User:     pluginUser,
-			PluginID: cmd.PluginID,
-			Version:  cmd.Version,
-			Cmd:      cmd.Cmd,
-		})
-	if err != nil {
-		var ue plugin.UserError
-		if errors.As(err, &ue) {
-			return &plugin.Reply{
-				Error: err,
-			}, nil
-		}
-		return nil, err
-	}
-
-	// Update the global user object with any changes
-	// that the plugin made to the plugin user data.
-	updateUser(usr, pluginUser, cmd.PluginID)
-
-	return nil, nil
-}
-
-// updateUser updates the global user object with any changes that were made
-// to the plugin user object during plugin command execution.
-func updateUser(u *user.User, p *plugin.User, pluginID string) {
-	if !p.PluginData.Updated() {
-		return
-	}
-
-	pluginData := u.Plugins[pluginID]
-	pluginData.ClearText = p.PluginData.ClearText()
-	pluginData.Encrypted = p.PluginData.Encrypted()
-
-	u.Plugins[pluginID] = pluginData
-	u.Updated = true
-}
-
-// convertUser converts a global user to a plugin user. Only the plugin data
-// for the provided plugin ID is included in the plugin user object. This
-// prevents plugins from accessing data that they do not own.
-func convertUser(u *user.User, pluginID string) *plugin.User {
-	pluginData := u.Plugins[pluginID]
-	return &plugin.User{
-		ID: u.ID,
-		PluginData: plugin.NewPluginData(pluginData.ClearText,
-			pluginData.Encrypted),
-	}
-}
-
-var (
-	// regexpPluginSettingMulti matches against the plugin setting
-	// value when it contains multiple values.
-	//
-	// pluginID,key,["value1","value2"] matches ["value1","value2"]
-	regexpPluginSettingMulti = regexp.MustCompile(`(\[.*\]$)`)
-)
+*/

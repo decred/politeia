@@ -28,5 +28,5 @@ type UserManager interface {
 	// that has not been inserted into the user database yet, but will be
 	// inserted if this command executes successfully without any user errors
 	// or unexpected errors.
-	NewUser(*sql.Tx, WriteArgs) (*Reply, error)
+	NewUser(*sql.Tx, WriteArgs) (*CmdReply, error)
 }

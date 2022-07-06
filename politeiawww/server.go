@@ -86,16 +86,16 @@ func (p *politeiawww) setupPluginRoutes() {
 	// Unprotected routes
 	addRoute(p.router, http.MethodGet, v3.APIVersionPrefix,
 		v3.PolicyRoute, p.handlePolicy)
-	addRoute(p.router, http.MethodPost, v3.APIVersionPrefix,
-		v3.ReadRoute, p.handleRead)
-	addRoute(p.router, http.MethodPost, v3.APIVersionPrefix,
-		v3.ReadBatchRoute, p.handleReadBatch)
+	// addRoute(p.router, http.MethodPost, v3.APIVersionPrefix,
+	// 		v3.ReadRoute, p.handleRead)
+	// addRoute(p.router, http.MethodPost, v3.APIVersionPrefix,
+	//	v3.ReadBatchRoute, p.handleReadBatch)
 
 	// CSRF protected routes
 	addRoute(p.protected, http.MethodPost, v3.APIVersionPrefix,
 		v3.NewUserRoute, p.handleNewUser)
-	addRoute(p.protected, http.MethodPost, v3.APIVersionPrefix,
-		v3.WriteRoute, p.handleWrite)
+	// addRoute(p.protected, http.MethodPost, v3.APIVersionPrefix,
+	//	v3.WriteRoute, p.handleWrite)
 }
 
 // addRoute adds a route to the provided router.

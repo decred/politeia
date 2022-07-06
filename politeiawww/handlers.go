@@ -10,12 +10,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httputil"
-	"strings"
 	"time"
 
 	v3 "github.com/decred/politeia/politeiawww/api/http/v3"
 	"github.com/decred/politeia/politeiawww/logger"
-	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
@@ -85,7 +83,8 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify the plugin is the user plugin
+	// Verify that the plugin is the user plugin. Only the designated
+	// user plugin is able to create new users in the database.
 	if p.userManager.ID() != cmd.PluginID {
 		respondWithUserError(w, r, v3.ErrCodePluginNotAuthorized, "")
 		return
@@ -97,33 +96,28 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 		respondWithInternalError(w, r, err)
 		return
 	}
+	ps := convertSession(s)
 
 	// Execute the plugin command
-	var (
-		pluginSession = convertSession(s)
-		pluginCmd     = convertCmdFromHTTP(cmd)
-	)
-	pluginReply, err := p.newUserCmd(r.Context(),
-		pluginSession, pluginCmd)
+	reply, err := p.NewUserCmd(r.Context(), ps, cmd)
 	if err != nil {
 		respondWithInternalError(w, r, err)
 		return
 	}
 
-	reply := convertReplyToHTTP(pluginCmd, *pluginReply)
-
 	// Save any updates that were made to the user session
-	err = p.saveUserSession(r, w, s, pluginSession)
+	err = p.updateSession(r, w, s, ps)
 	if err != nil {
 		// The plugin command has already been executed.
 		// Handled the error gracefully.
-		log.Errorf("handleNewUser: saveSession: %v", err)
+		log.Errorf("handleNewUser: updateSession: %v", err)
 	}
 
 	// Send the response
 	respondWithOK(w, reply)
 }
 
+/*
 // handleWrite is the request handler for the http v3 WriteRoute.
 func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleWrite")
@@ -153,7 +147,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	// Execute the plugin command
 	var (
 		pluginSession = convertSession(s)
-		pluginCmd     = convertCmdFromHTTP(cmd)
+		pluginCmd     = convertCmd(cmd)
 	)
 	pluginReply, err := p.writeCmd(r.Context(), pluginSession, pluginCmd)
 	if err != nil {
@@ -164,11 +158,11 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	reply := convertReplyToHTTP(pluginCmd, *pluginReply)
 
 	// Save any updates that were made to the user session
-	err = p.saveUserSession(r, w, s, pluginSession)
+	err = p.updateSession(r, w, s, pluginSession)
 	if err != nil {
 		// The plugin command has already been executed.
 		// Handled the error gracefully.
-		log.Errorf("handleWrite: saveSession: %v", err)
+		log.Errorf("handleWrite: updateSession: %v", err)
 	}
 
 	// Send the response
@@ -204,7 +198,7 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	// Execute the plugin command
 	var (
 		pluginSession = convertSession(s)
-		pluginCmd     = convertCmdFromHTTP(cmd)
+		pluginCmd     = convertCmd(cmd)
 	)
 	pluginReply, err := p.readCmd(r.Context(), pluginSession, pluginCmd)
 	if err != nil {
@@ -215,11 +209,11 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	reply := convertReplyToHTTP(pluginCmd, *pluginReply)
 
 	// Save any updates that were made to the user session
-	err = p.saveUserSession(r, w, s, pluginSession)
+	err = p.updateSession(r, w, s, pluginSession)
 	if err != nil {
 		// The plugin command has already been executed.
 		// Handle the error gracefully.
-		log.Errorf("handleRead: saveSession: %v", err)
+		log.Errorf("handleRead: updateSession: %v", err)
 	}
 
 	// Send the response
@@ -270,7 +264,7 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 		replies       = make([]v3.CmdReply, len(batch.Cmds))
 	)
 	for i, cmd := range batch.Cmds {
-		pluginCmd := convertCmdFromHTTP(cmd)
+		pluginCmd := convertCmd(cmd)
 		pluginReply, err := p.readCmd(r.Context(), pluginSession, pluginCmd)
 		if err != nil {
 			respondWithInternalError(w, r, err)
@@ -281,16 +275,17 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save any updates that were made to the user session
-	err = p.saveUserSession(r, w, s, pluginSession)
+	err = p.updateSession(r, w, s, pluginSession)
 	if err != nil {
 		// The plugin command has already been executed. Handle
 		// the error gracefully.
-		log.Errorf("handleReadBatch: saveSession: %v", err)
+		log.Errorf("handleReadBatch: updateSession: %v", err)
 	}
 
 	// Send the response
 	respondWithOK(w, v3.BatchReply{Replies: replies})
 }
+*/
 
 // respondWithOK responses to the client request with a 200 http status code
 // and the JSON encoded body.
@@ -347,25 +342,4 @@ func respondWithInternalError(w http.ResponseWriter, r *http.Request, err error)
 		v3.InternalError{
 			ErrorCode: t,
 		})
-}
-
-// convertCmdFromHTTP converts a http v3 Cmd to a plugin Cmd.
-func convertCmdFromHTTP(c v3.Cmd) plugin.Cmd {
-	return plugin.Cmd{
-		PluginID: c.PluginID,
-		Version:  c.Version,
-		Cmd:      c.Cmd,
-		Payload:  c.Payload,
-	}
-}
-
-// convertCmdFromHTTP converts a plugin Reply to a http v3 CmdReply.
-func convertReplyToHTTP(c plugin.Cmd, r plugin.Reply) v3.CmdReply {
-	return v3.CmdReply{
-		PluginID: c.PluginID,
-		Version:  c.Version,
-		Cmd:      c.Cmd,
-		Payload:  r.Payload,
-		Error:    r.Error,
-	}
 }

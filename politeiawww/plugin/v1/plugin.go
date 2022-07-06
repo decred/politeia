@@ -6,7 +6,6 @@ package v1
 
 import (
 	"database/sql"
-	"fmt"
 )
 
 // Plugin represents a politeia plugin.
@@ -35,23 +34,23 @@ type Plugin interface {
 	Hook(HookArgs) error
 
 	// Read executes a read plugin command.
-	Read(ReadArgs) (*Reply, error)
+	Read(ReadArgs) (*CmdReply, error)
 
 	// TxHook executes a plugin hook using a database transaction.
 	TxHook(*sql.Tx, HookArgs) error
 
 	// TxWrite executes a write plugin command using a database transaction.
-	TxWrite(*sql.Tx, WriteArgs) (*Reply, error)
+	TxWrite(*sql.Tx, WriteArgs) (*CmdReply, error)
 
 	// TxRead executes a read plugin command using a database transaction.
-	TxRead(*sql.Tx, ReadArgs) (*Reply, error)
+	TxRead(*sql.Tx, ReadArgs) (*CmdReply, error)
 }
 
 // HookArgs contains the arguments for the plugin hook methods.
 type HookArgs struct {
 	Type  HookT
 	Cmd   Cmd
-	Reply *Reply
+	Reply *CmdReply
 	User  *User
 }
 
@@ -75,10 +74,9 @@ type Cmd struct {
 	Payload  string // JSON encoded
 }
 
-// Reply is the reply to a plugin command.
-type Reply struct {
+// CmdReply is the reply to a plugin command.
+type CmdReply struct {
 	Payload string // JSON encoded
-	Error   error
 }
 
 // HookT represents a plugin hook. Pre hooks allow plugins to add plugin
@@ -107,16 +105,3 @@ const (
 	// of a plugin write command.
 	HookPostWrite HookT = "post-write"
 )
-
-// UserError is the reply that is returned when a plugin command encounters an
-// error that was caused by the user.
-type UserError struct {
-	PluginID     string `json:"pluginid"`
-	ErrorCode    uint32 `json:"errorcode"`
-	ErrorContext string `json:"errorcontext,omitempty"`
-}
-
-// Error satisfies the error interface.
-func (e UserError) Error() string {
-	return fmt.Sprintf("%v plugin user error: %v", e.PluginID, e.ErrorCode)
-}
