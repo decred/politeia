@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httputil"
-	"runtime/debug"
+	"strings"
 	"time"
 
 	v3 "github.com/decred/politeia/politeiawww/api/http/v3"
@@ -53,22 +53,24 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 		plugins[plugin.ID()] = plugin.Version()
 	}
 
-	util.RespondWithJSON(w, http.StatusOK,
-		v3.VersionReply{
-			APIVersion:   v3.APIVersion,
-			BuildVersion: version.String(),
-			Plugins:      plugins,
-		})
+	vr := v3.VersionReply{
+		APIVersion:   v3.APIVersion,
+		BuildVersion: version.String(),
+		Plugins:      plugins,
+	}
+
+	respondWithOK(w, vr)
 }
 
 // handlePolicy is the request handler for the http v3 PolicyRoute.
 func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePolicy")
 
-	util.RespondWithJSON(w, http.StatusOK,
-		v3.PolicyReply{
-			ReadBatchLimit: p.cfg.PluginBatchLimit,
-		})
+	pr := v3.PolicyReply{
+		ReadBatchLimit: p.cfg.PluginBatchLimit,
+	}
+
+	respondWithOK(w, pr)
 }
 
 // handleNewUser is the request handler for the http v3 NewUserRoute.
@@ -79,31 +81,20 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	var cmd v3.Cmd
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cmd); err != nil {
-		util.RespondWithJSON(w, http.StatusOK,
-			v3.CmdReply{
-				Error: v3.UserError{
-					ErrorCode: v3.ErrorCodeInvalidInput,
-				},
-			})
+		respondWithUserError(w, r, v3.ErrCodeInvalidInput, "")
 		return
 	}
 
 	// Verify the plugin is the user plugin
 	if p.userManager.ID() != cmd.PluginID {
-		util.RespondWithJSON(w, http.StatusOK,
-			v3.CmdReply{
-				Error: v3.UserError{
-					ErrorCode: v3.ErrorCodePluginNotAuthorized,
-				},
-			})
+		respondWithUserError(w, r, v3.ErrCodePluginNotAuthorized, "")
 		return
 	}
 
 	// Extract the session data from the request cookies
 	s, err := p.extractSession(r)
 	if err != nil {
-		respondWithError(w, r,
-			"handleNewUser: extractSession: %v", err)
+		respondWithInternalError(w, r, err)
 		return
 	}
 
@@ -115,8 +106,7 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	pluginReply, err := p.newUserCmd(r.Context(),
 		pluginSession, pluginCmd)
 	if err != nil {
-		respondWithError(w, r,
-			"handleNewUser: pluginNewUser: %v", err)
+		respondWithInternalError(w, r, err)
 		return
 	}
 
@@ -131,7 +121,7 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send the response
-	util.RespondWithJSON(w, http.StatusOK, reply)
+	respondWithOK(w, reply)
 }
 
 // handleWrite is the request handler for the http v3 WriteRoute.
@@ -142,32 +132,21 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	var cmd v3.Cmd
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cmd); err != nil {
-		util.RespondWithJSON(w, http.StatusOK,
-			v3.CmdReply{
-				Error: v3.UserError{
-					ErrorCode: v3.ErrorCodeInvalidInput,
-				},
-			})
+		respondWithUserError(w, r, v3.ErrCodeInvalidInput, "")
 		return
 	}
 
 	// Verify the plugin exists
 	_, ok := p.plugins[cmd.PluginID]
 	if !ok {
-		util.RespondWithJSON(w, http.StatusOK,
-			v3.CmdReply{
-				Error: v3.UserError{
-					ErrorCode: v3.ErrorCodePluginNotFound,
-				},
-			})
+		respondWithUserError(w, r, v3.ErrCodePluginNotFound, "")
 		return
 	}
 
 	// Extract the session data from the request cookies
 	s, err := p.extractSession(r)
 	if err != nil {
-		respondWithError(w, r,
-			"handleWrite: extractSession: %v", err)
+		respondWithInternalError(w, r, err)
 		return
 	}
 
@@ -178,8 +157,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	)
 	pluginReply, err := p.writeCmd(r.Context(), pluginSession, pluginCmd)
 	if err != nil {
-		respondWithError(w, r,
-			"handleWrite: pluginWrite: %v", err)
+		respondWithInternalError(w, r, err)
 		return
 	}
 
@@ -194,7 +172,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send the response
-	util.RespondWithJSON(w, http.StatusOK, reply)
+	respondWithOK(w, reply)
 }
 
 // handleRead is the request handler for the http v3 ReadRoute.
@@ -205,32 +183,21 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	var cmd v3.Cmd
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&cmd); err != nil {
-		util.RespondWithJSON(w, http.StatusOK,
-			v3.CmdReply{
-				Error: v3.UserError{
-					ErrorCode: v3.ErrorCodeInvalidInput,
-				},
-			})
+		respondWithUserError(w, r, v3.ErrCodeInvalidInput, "")
 		return
 	}
 
 	// Verify plugin exists
 	_, ok := p.plugins[cmd.PluginID]
 	if !ok {
-		util.RespondWithJSON(w, http.StatusOK,
-			v3.CmdReply{
-				Error: v3.UserError{
-					ErrorCode: v3.ErrorCodePluginNotFound,
-				},
-			})
+		respondWithUserError(w, r, v3.ErrCodePluginNotFound, "")
 		return
 	}
 
 	// Extract the session data from the request cookies
 	s, err := p.extractSession(r)
 	if err != nil {
-		respondWithError(w, r,
-			"handleRead: extractSession: %v", err)
+		respondWithInternalError(w, r, err)
 		return
 	}
 
@@ -241,8 +208,7 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	)
 	pluginReply, err := p.readCmd(r.Context(), pluginSession, pluginCmd)
 	if err != nil {
-		respondWithError(w, r,
-			"handleRead: readCmd: %v", err)
+		respondWithInternalError(w, r, err)
 		return
 	}
 
@@ -257,7 +223,7 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send the response
-	util.RespondWithJSON(w, http.StatusOK, reply)
+	respondWithOK(w, reply)
 }
 
 // handleReadBatch is the request handler for the http v3 ReadBatchRoute.
@@ -268,56 +234,46 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 	var batch v3.Batch
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&batch); err != nil {
-		util.RespondWithJSON(w, http.StatusOK,
-			v3.CmdReply{
-				Error: v3.UserError{
-					ErrorCode: v3.ErrorCodeInvalidInput,
-				},
-			})
+		respondWithUserError(w, r, v3.ErrCodeInvalidInput, "")
 		return
 	}
+
+	// Verify the batched commands
 	if len(batch.Cmds) > int(p.cfg.PluginBatchLimit) {
-		util.RespondWithJSON(w, http.StatusOK,
-			v3.CmdReply{
-				Error: v3.UserError{
-					ErrorCode: v3.ErrorCodeBatchLimitExceeded,
-					ErrorContext: fmt.Sprintf("max number of cmds is %v",
-						p.cfg.PluginBatchLimit),
-				},
-			})
+		c := fmt.Sprintf("max number of batch cmds is %v", p.cfg.PluginBatchLimit)
+		respondWithUserError(w, r, v3.ErrCodeBatchLimitExceeded, c)
+		return
+	}
+	notFound := make([]string, 0, len(batch.Cmds))
+	for _, cmd := range batch.Cmds {
+		_, ok := p.plugins[cmd.PluginID]
+		if !ok {
+			notFound = append(notFound, cmd.PluginID)
+		}
+	}
+	if len(notFound) > 0 {
+		c := strings.Join(notFound, ", ")
+		respondWithUserError(w, r, v3.ErrCodePluginNotFound, c)
 		return
 	}
 
 	// Extract the session data from the request cookies
 	s, err := p.extractSession(r)
 	if err != nil {
-		respondWithError(w, r,
-			"handleReadBatch: extractSession: %v", err)
+		respondWithInternalError(w, r, err)
 		return
 	}
 
+	// Execute the plugin commands
 	var (
 		pluginSession = convertSession(s)
 		replies       = make([]v3.CmdReply, len(batch.Cmds))
 	)
 	for i, cmd := range batch.Cmds {
-		// Verify plugin exists
-		_, ok := p.plugins[cmd.PluginID]
-		if !ok {
-			replies[i] = v3.CmdReply{
-				Error: v3.UserError{
-					ErrorCode: v3.ErrorCodePluginNotFound,
-				},
-			}
-			continue
-		}
-
-		// Execute the plugin command
 		pluginCmd := convertCmdFromHTTP(cmd)
 		pluginReply, err := p.readCmd(r.Context(), pluginSession, pluginCmd)
 		if err != nil {
-			respondWithError(w, r,
-				"handleReadBatch: readCmd: %v", err)
+			respondWithInternalError(w, r, err)
 			return
 		}
 
@@ -333,54 +289,56 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send the response
-	util.RespondWithJSON(w, http.StatusOK,
-		v3.BatchReply{
-			Replies: replies,
+	respondWithOK(w, v3.BatchReply{Replies: replies})
+}
+
+// respondWithOK responses to the client request with a 200 http status code
+// and the JSON encoded body.
+func respondWithOK(w http.ResponseWriter, body interface{}) {
+	util.RespondWithJSON(w, http.StatusOK, body)
+}
+
+// respondWithUserError responds to the client request with a 400 http status
+// code and a JSON encoded v3 UserError in the response body.
+func respondWithUserError(w http.ResponseWriter, r *http.Request, errCode v3.ErrCode, errContext string) {
+	m := fmt.Sprintf("%v User error: %v %v",
+		util.RemoteAddr(r), errCode, v3.ErrCodes[errCode])
+	if errContext != "" {
+		m += fmt.Sprintf("- %v", errContext)
+	}
+	log.Infof(m)
+
+	util.RespondWithJSON(w, http.StatusBadRequest,
+		v3.UserError{
+			ErrorCode:    errCode,
+			ErrorContext: errContext,
 		})
 }
 
-// responseWithError checks the error type and responds with the appropriate
-// HTTP error response.
-func respondWithError(w http.ResponseWriter, r *http.Request, format string, err error) {
-	// Check if the client dropped the connection
+// respondWithInternalError responds to the client request with a 500 http
+// status code and a JSON encoded v3 InternalError in the response body.
+func respondWithInternalError(w http.ResponseWriter, r *http.Request, err error) {
+	// Check if the client dropped the connection. There
+	// is no need to send a response if the client dropped
+	// the connection.
 	if err := r.Context().Err(); err == context.Canceled {
 		log.Infof("%v %v %v %v client aborted connection",
 			util.RemoteAddr(r), r.Method, r.URL, r.Proto)
-
-		// The client dropped the connection. There
-		// is no need to send a response.
 		return
 	}
 
-	// Check if this a user error
-	var ue v3.UserError
-	if errors.As(err, &ue) {
-		m := fmt.Sprintf("%v User error: %v %v",
-			util.RemoteAddr(r), ue.ErrorCode, v3.ErrorCodes[ue.ErrorCode])
-		if ue.ErrorContext != "" {
-			m += fmt.Sprintf(": %v", ue.ErrorContext)
-		}
-		log.Infof(m)
-
-		util.RespondWithJSON(w, http.StatusOK,
-			v3.CmdReply{
-				Error: ue,
-			})
-		return
-	}
-
-	// This is an internal server error. Log it and return a 500.
+	// Log an internal server error
 	t := time.Now().Unix()
-	e := fmt.Sprintf(format, err)
 	log.Errorf("%v %v %v %v Internal error %v: %v",
-		util.RemoteAddr(r), r.Method, r.URL, r.Proto, t, e)
+		util.RemoteAddr(r), r.Method, r.URL, r.Proto, t, err)
 
 	// If this is a pkg/errors error then we can pull the
 	// stack trace out of the error, otherwise, we use the
-	// stack trace that points to this function.
+	// stack trace of this function invocation.
 	stack, ok := util.StackTrace(err)
 	if !ok {
-		stack = string(debug.Stack())
+		err = errors.WithStack(err)
+		stack, _ = util.StackTrace(err)
 	}
 
 	log.Errorf("Stacktrace (NOT A REAL CRASH): %v", stack)

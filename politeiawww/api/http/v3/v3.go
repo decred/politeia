@@ -4,8 +4,6 @@
 
 package v3
 
-import "fmt"
-
 const (
 	// APIVersion is the version of the API that this package represents.
 	APIVersion uint32 = 3
@@ -127,11 +125,18 @@ type Cmd struct {
 
 // CmdReply is the reply to a Cmd request.
 type CmdReply struct {
-	PluginID string `json:"pluginid"`
-	Version  uint32 `json:"version"` // Plugin API version
-	Cmd      string `json:"cmd"`
-	Payload  string `json:"payload"` // Reply payload, JSON encoded
-	Error    error  `json:"error,omitempty"`
+	PluginID string       `json:"pluginid"`
+	Version  uint32       `json:"version"` // Plugin API version
+	Cmd      string       `json:"cmd"`
+	Payload  string       `json:"payload"` // Reply payload, JSON encoded
+	Error    *PluginError `json:"error,omitempty"`
+}
+
+// PluginError represents an error that occured during the execution of a
+// plugin command and that was caused by the user (ex. bad command input).
+type PluginError struct {
+	ErrorCode    uint32 `json:"errorcode"`
+	ErrorContext string `json:"errorcontext,omitempty"`
 }
 
 // Batch contains a batch of read-only plugin commands.
@@ -142,86 +147,4 @@ type Batch struct {
 // BatchReply is the reply to a Batch request.
 type BatchReply struct {
 	Replies []CmdReply `json:"replies"`
-}
-
-// PluginError is returned when a plugin command encounters an error that was
-// caused by the user (ex. malformed input, bad timing, etc). The HTTP status
-// code will be 200 and the error will be returned in the Error field of the
-// PluginReply.
-type PluginError struct {
-	PluginID     string `json:"pluginid"`
-	ErrorCode    uint32 `json:"errorcode"`
-	ErrorContext string `json:"errorcontext,omitempty"`
-}
-
-// Error satisfies the error interface.
-func (e PluginError) Error() string {
-	return fmt.Sprintf("%v plugin error code: %v", e.PluginID, e.ErrorCode)
-}
-
-// UserError is returned in the response body when the server encounters an
-// error that is caused by something that the user did, such as a invalid
-// request body, and the error occurred prior to execution of the plugin
-// command. The HTTP status code will be 400.
-type UserError struct {
-	ErrorCode    ErrorCodeT `json:"errorcode"`
-	ErrorContext string     `json:"errorcontext,omitempty"`
-}
-
-// Error satisfies the error interface.
-func (e UserError) Error() string {
-	if e.ErrorContext == "" {
-		return fmt.Sprintf("user error (%v): %v",
-			e.ErrorCode, ErrorCodes[e.ErrorCode])
-	}
-	return fmt.Sprintf("user error (%v): %v, %v",
-		e.ErrorCode, ErrorCodes[e.ErrorCode], e.ErrorContext)
-}
-
-// ErrorCodeT represents a user error code.
-type ErrorCodeT uint32
-
-const (
-	// ErrorCodeInvalid is an invalid error code.
-	ErrorCodeInvalid ErrorCodeT = 0
-
-	// ErrorCodeInvalidInput is returned when the request body could not be
-	// parsed.
-	ErrorCodeInvalidInput ErrorCodeT = 1
-
-	// ErrorCodePluginNotFound is returned when a plugin ID is provided that
-	// does not correspond to a registered plugin.
-	ErrorCodePluginNotFound ErrorCodeT = 2
-
-	// ErrorCodePluginNotAuthorized is returned when a plugin is attempting to
-	// execute a command using a route that it is not authorized to use.
-	ErrorCodePluginNotAuthorized ErrorCodeT = 3
-
-	// ErrorCodeBatchLimitExceeded is return when the number of plugin commands
-	// that are allowed to be executed in a batch request is exceeded.
-	ErrorCodeBatchLimitExceeded ErrorCodeT = 4
-)
-
-var (
-	// ErrorCodes contains the human readable errors.
-	ErrorCodes = map[ErrorCodeT]string{
-		ErrorCodeInvalid:             "invalid error",
-		ErrorCodeInvalidInput:        "invalid input",
-		ErrorCodePluginNotFound:      "plugin not found",
-		ErrorCodePluginNotAuthorized: "plugin not authorized",
-		ErrorCodeBatchLimitExceeded:  "batch limit exceeded",
-	}
-)
-
-// InternalError is returned in the response body when the server encounters an
-// unrecoverable error. The ErrorCode field will contain a Unix timestamp that
-// the user can provide to the server operator to track down the error details
-// in the logs. The HTTP status code will be 500.
-type InternalError struct {
-	ErrorCode int64 `json:"errorcode"`
-}
-
-// Error satisfies the error interface.
-func (e InternalError) Error() string {
-	return fmt.Sprintf("internal server error: %v", e.ErrorCode)
 }
