@@ -11,7 +11,7 @@ import (
 	pdclient "github.com/decred/politeia/politeiad/client"
 	v1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/politeiawww/config"
-	"github.com/decred/politeia/politeiawww/events"
+	"github.com/decred/politeia/politeiawww/legacy/events"
 	"github.com/decred/politeia/politeiawww/legacy/sessions"
 	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/decred/politeia/util"
