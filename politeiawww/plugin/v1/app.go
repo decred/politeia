@@ -5,8 +5,7 @@
 package v1
 
 // App provides an API for accessing the plugin configuration of a politeia
-// app. An app is essentially just a unique configuration of plugins and
-// plugin settings.
+// app. An app is essentially just a unique configuration of plugins.
 type App interface {
 	// Plugins returns all of the plugins that are part of the app.
 	//
@@ -27,6 +26,6 @@ type App interface {
 // The value can either contain a single value or multiple values. Multiple
 // values will be formatted as a JSON encoded []string.
 type Setting struct {
-	Key   string // Name of setting
-	Value string // Value of setting
+	Name  string
+	Value string
 }

@@ -23,7 +23,7 @@ import (
 // interface.
 //
 // Plugin settings that were specified in the config file are parsed and
-// provided to the app. These runtime settings will override the existing app
+// provided to the app. These runtime settings will override any existing app
 // settings.
 func (p *politeiawww) setupApp() error {
 	// Parse the plugin settings
@@ -130,14 +130,14 @@ func parsePluginSetting(setting string) (string, *plugin.Setting, error) {
 
 	var (
 		pluginID     = parsed[0]
-		settingKey   = parsed[1]
+		settingName  = parsed[1]
 		settingValue = parsed[2]
 	)
 
 	// Clean the strings. The setting value is allowed to be case
 	// sensitive.
 	pluginID = strings.ToLower(strings.TrimSpace(pluginID))
-	settingKey = strings.ToLower(strings.TrimSpace(settingKey))
+	settingName = strings.ToLower(strings.TrimSpace(settingName))
 	settingValue = strings.TrimSpace(settingValue)
 
 	// Handle multiple values
@@ -164,7 +164,7 @@ func parsePluginSetting(setting string) (string, *plugin.Setting, error) {
 	}
 
 	return pluginID, &plugin.Setting{
-		Key:   settingKey,
+		Name:  settingName,
 		Value: settingValue,
 	}, nil
 }

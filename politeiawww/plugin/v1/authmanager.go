@@ -12,16 +12,20 @@ type AuthManager interface {
 	// ID returns the plugin ID.
 	ID() string
 
-	// Version returns the lowest supported plugin API version.
-	Version() uint32
-
-	// SetPermission sets the user permission level for a command.
-	SetPermission(pluginID, cmd, permissionLevel string)
+	// SetCmdPerms sets the user permission levels for a list of commands.
+	SetCmdPerms([]CmdPerm) error
 
 	// Authorize checks if the user is authorized to execute a plugin command.
 	//
-	// A UserError is returned if the user is not authorized.
+	// A UserErr is returned if the user is not authorized.
 	Authorize(AuthorizeArgs) error
+}
+
+// CmdPerm represents a user permission level for a plugin command.
+type CmdPerm struct {
+	PluginID string
+	Cmd      string
+	Perm     string
 }
 
 // AuthorizeArgs contains the arguments for the Authorize method.

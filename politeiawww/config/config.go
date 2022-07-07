@@ -153,7 +153,7 @@ type Config struct {
 	MailAddress    string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
 
 	// App settings
-	App            string   `long:"app" description:"Plugin app"`
+	App            string   `long:"app" description:"Poltiea app"`
 	PluginSettings []string `long:"pluginsetting" description:"Plugin settings"`
 
 	// Embedded legacy settings. This will be deleted soon.
