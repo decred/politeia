@@ -7,16 +7,25 @@ package main
 import (
 	"encoding/json"
 	"regexp"
+	"sort"
 	"strings"
 
+	"github.com/decred/politeia/politeiawww/apps/proposals"
 	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
 	"github.com/pkg/errors"
 )
 
-// setupPlugins initializes the plugins that have been specified in the
-// politeiawww config. The config plugin settings are parsed during this
-// process and passed to the appropriate plugin on initialization.
-func (p *politeiawww) setupPlugins() error {
+// setupApp sets up politeia to run the app that was specified in politeia
+// configuration.
+//
+// An app is essentially just a unique configuation of plugins. politeia
+// accesses the plugin configuration using the API provided by the plugin.App
+// interface.
+//
+// Plugin settings that were specified in the config file are parsed and
+// provided to the app. These runtime settings will override the existing app
+// settings.
+func (p *politeiawww) setupApp() error {
 	// Parse the plugin settings
 	settings := make(map[string][]plugin.Setting)
 	for _, rawSetting := range p.cfg.PluginSettings {
@@ -32,84 +41,55 @@ func (p *politeiawww) setupPlugins() error {
 		settings[pluginID] = ss
 	}
 
-	// Initialize the plugins
-	plugins := make(map[string]plugin.Plugin, len(p.cfg.Plugins))
-	for _, pluginID := range p.cfg.Plugins {
-		s, ok := settings[pluginID]
-		if !ok {
-			s = []plugin.Setting{}
-		}
-		args := plugin.InitArgs{
-			Settings: s,
-		}
-		pp, err := plugin.NewPlugin(pluginID, args)
-		if err != nil {
-			return errors.Errorf("failed to initialize %v", pluginID)
-		}
-		plugins[pluginID] = pp
-	}
-
-	// Initialize the user plugin interfaces
+	// Initialize the app
 	var (
-		um  plugin.UserManager
-		am  plugin.AuthManager
+		app plugin.App
 		err error
 	)
-	if !p.cfg.DisableUsers {
-		if p.cfg.UserPlugin == "" {
-			return errors.Errorf("user plugin not provided; a user " +
-				"plugin must be provided when the user layer is enabled")
-		}
-		if p.cfg.AuthPlugin == "" {
-			return errors.Errorf("auth plugin not provided; an auth " +
-				"plugin must be provided when the user layer is enabled")
+	switch p.cfg.App {
+	case proposals.AppID:
+		app, err = proposals.NewApp(settings)
+		if err != nil {
+			return err
 		}
 
-		// Initialize the user manager
-		s, ok := settings[p.cfg.UserPlugin]
-		if !ok {
-			s = []plugin.Setting{}
-		}
-		args := plugin.InitArgs{
-			Settings: s,
-		}
-		um, err = plugin.NewUserManager(p.cfg.UserPlugin, args)
-		if err != nil {
-			return errors.Errorf("failed to initialize the user manager plugin %v",
-				p.cfg.UserPlugin)
-		}
-
-		// Initialize the authorizer
-		s, ok = settings[p.cfg.AuthPlugin]
-		if !ok {
-			s = []plugin.Setting{}
-		}
-		args = plugin.InitArgs{
-			Settings: s,
-		}
-		am, err = plugin.NewAuthManager(p.cfg.AuthPlugin, args)
-		if err != nil {
-			return errors.Errorf("failed to initialize the auth manager plugin %v",
-				p.cfg.AuthPlugin)
-		}
+	default:
+		return errors.Errorf("%v is not a valid app", p.cfg.App)
 	}
 
-	// Set the user plugin fields
-	p.pluginIDs = p.cfg.Plugins
-	p.plugins = plugins
-	p.userManager = um
-	p.authManager = am
+	// Setup the app plugins
+	plugins, err := app.Plugins(settings)
+	if err != nil {
+		return err
+	}
+	var (
+		pluginsM  = make(map[string]plugin.Plugin, len(plugins))
+		pluginIDs = make([]string, 0, len(plugins))
+	)
+	for _, v := range plugins {
+		pluginsM[v.ID()] = v
+		pluginIDs = append(pluginIDs, v.ID())
+	}
+	// Sort the plugin IDs alphabetically
+	sort.SliceStable(pluginIDs, func(i, j int) bool {
+		return pluginIDs[i] < pluginIDs[j]
+	})
+	userManager, err := app.UserManager()
+	if err != nil {
+		return err
+	}
+	authManager, err := app.AuthManager()
+	if err != nil {
+		return err
+	}
+
+	p.plugins = pluginsM
+	p.pluginIDs = pluginIDs
+	p.userManager = userManager
+	p.authManager = authManager
 
 	return nil
 }
-
-var (
-	// regexpPluginSettingMulti matches against the plugin setting
-	// value when it contains multiple values.
-	//
-	// pluginID,key,["value1","value2"] matches ["value1","value2"]
-	regexpPluginSettingMulti = regexp.MustCompile(`(\[.*\]$)`)
-)
 
 // parsePluginSetting parses a plugin setting. Plugin settings will be in
 // following format. The value may be a single value or an array of values.
@@ -188,3 +168,11 @@ func parsePluginSetting(setting string) (string, *plugin.Setting, error) {
 		Value: settingValue,
 	}, nil
 }
+
+var (
+	// regexpPluginSettingMulti matches against the plugin setting value when it
+	// contains multiple values.
+	//
+	// pluginID,key,["value1","value2"] matches ["value1","value2"]
+	regexpPluginSettingMulti = regexp.MustCompile(`(\[.*\]$)`)
+)

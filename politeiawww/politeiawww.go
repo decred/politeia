@@ -31,33 +31,30 @@ import (
 // politeiawww represents the politeiawww server.
 type politeiawww struct {
 	cfg       *config.Config
-	router    *mux.Router // Unprotected router
+	router    *mux.Router // Public router
 	protected *mux.Router // CSRF protected subrouter
 
-	// Database layer. The sql DB is used as the backing database for the
-	// following interfaces.
+	// The following fields comprise the database layer.
+	//
+	// The *sql.DB is used as the backing database for the following interfaces
+	// and is provided to the plugins so that they can create custom tables.
 	db       *sql.DB
 	sessions sessions.Store
 	userDB   user.DB
 
-	// pluginIDs contains the plugin IDs of all registered plugins, ordered in
-	// the same order that they were provided to the config in. This is the order
-	// that the plugin hooks are executed in.
+	// pluginIDs contains the plugin IDs of all registered plugins.
+	//
+	// The plugin IDs are ordered alphabetically. This is the order that the
+	// plugin hooks are executed in.
 	pluginIDs []string
 
 	// plugins contains all registered plugins.
 	plugins map[string]plugin.Plugin // [pluginID]plugin
 
-	// userManager handles user database insertions and deletions. The plugin
-	// that is set as the cfg.UserPlugin must implement the UserManager
-	// interface. This is the only plugin that is allowed to make user database
-	// insertions and deletions, e.g. the NewUser route. A cfg.UserPlugin must
-	// be specified if the user layer is enabled.
+	// userManager handles user database insertions and deletions.
 	userManager plugin.UserManager
 
-	// authManager handles user authorization. The plugin that is set as the
-	// cfg.AuthPlugin must implement the Authorizer interface. A cfg.AuthPlugin
-	// must be specified if the user layer is enabled.
+	// authManager handles user authorization.
 	authManager plugin.AuthManager
 
 	// Legacy fields
@@ -128,7 +125,7 @@ func _main() error {
 		userDB:   nil,
 
 		// The plugin fields are setup by setupPlugins()
-		pluginIDs:   cfg.Plugins,
+		pluginIDs:   nil,
 		plugins:     nil,
 		userManager: nil,
 		authManager: nil,
@@ -145,18 +142,18 @@ func _main() error {
 		return err
 	}
 
-	// Setup the API routes. The legacy routes are
-	// used by default. If the legacy routes have been
-	// disabled then the plugin routes will be setup.
-	if cfg.DisableLegacy {
-		// Legacy routes have been disabled
+	// Setup the API routes. The legacy routes are setup
+	// by default, unless an app has been specified in
+	// the config.
+	if cfg.App != "" {
+		// Run in app mode
 		p.setupPluginRoutes()
-		err = p.setupPlugins()
+		err = p.setupApp()
 		if err != nil {
 			return err
 		}
 	} else {
-		// Legacy routes are not disabled
+		// Run in legacy mode
 		legacywww, err := legacy.NewPoliteiawww(p.cfg,
 			p.router, p.protected, cfg.ActiveNet.Params,
 			pdc)

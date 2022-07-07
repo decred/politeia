@@ -98,10 +98,6 @@ const (
 	// SMTP settings
 	defaultMailAddress = "Politeia <noreply@example.org>"
 
-	// User layer settings
-	defaultUserPlugin = ""
-	defaultAuthPlugin = ""
-
 	// Environmental variable config settings
 	envDBPass = "DBPASS"
 )
@@ -156,17 +152,11 @@ type Config struct {
 	MailPass       string `long:"mailpass" description:"Email server password"`
 	MailAddress    string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
 
-	// User layer settings
-	DisableUsers bool   `long:"disableusers" description:"Disable the user layer"`
-	UserPlugin   string `long:"userplugin" description:"ID of the plugin that manages user accounts"`
-	AuthPlugin   string `long:"authplugin" description:"ID of the plugin that handles user authorization"`
-
-	// Plugin settings
-	Plugins        []string `long:"plugin" description:"IDs of all plugins to be registered"`
+	// App settings
+	App            string   `long:"app" description:"Plugin app"`
 	PluginSettings []string `long:"pluginsetting" description:"Plugin settings"`
 
 	// Embedded legacy settings. This will be deleted soon.
-	DisableLegacy bool `long:"disablelegacy" description:"Disable legacy routes"`
 	LegacyConfig
 
 	Version     string
@@ -219,10 +209,6 @@ func Load() (*Config, []string, error) {
 
 		// SMTP settings
 		MailAddress: defaultMailAddress,
-
-		// User settings
-		UserPlugin: defaultUserPlugin,
-		AuthPlugin: defaultAuthPlugin,
 
 		// Legacy settings. These are deprecated and will be removed soon.
 		LegacyConfig: LegacyConfig{
