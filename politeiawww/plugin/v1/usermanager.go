@@ -20,13 +20,11 @@ type UserManager interface {
 	// ID returns the plugin ID.
 	ID() string
 
-	// Version returns the lowest supported plugin API version.
-	Version() uint32
-
 	// NewUserCmd executes a command that results in a new user being added to
-	// the database. The user provided to this method is a newly created user
-	// that has not been inserted into the user database yet, but will be
-	// inserted if this command executes successfully without any user errors
-	// or unexpected errors.
+	// the database.
+	//
+	// The user provided to this method is a newly created user that has not been
+	// inserted into the user database yet, but will be inserted if this command
+	// executes successfully without any user errors or unexpected errors.
 	NewUser(*sql.Tx, WriteArgs) (*CmdReply, error)
 }

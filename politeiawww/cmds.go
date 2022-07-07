@@ -39,7 +39,7 @@ func (p *politeiawww) NewUserCmd(ctx context.Context, s *plugin.Session, c v3.Cm
 	return convertReply(pc, *pr), nil
 }
 
-// See the NewUserCmd function for more details.
+// See the NewUserCmd function definition for more details.
 func (p *politeiawww) newUserCmd(ctx context.Context, session *plugin.Session, cmd plugin.Cmd) (*plugin.CmdReply, error) {
 
 	// Setup the database transaction

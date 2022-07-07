@@ -10,25 +10,15 @@ import (
 
 // Plugin represents a politeia plugin.
 //
-// Updates to the User object plugin data will be persisted by the backend for
-// operations that are part of write commands. Updates made during read-only
-// commands are ignored.
+// Updates to the User object will be persisted by the backend for operations
+// that are part of write commands. Updates made during read-only commands are
+// ignored.
 type Plugin interface {
 	// ID returns the plugin ID.
 	ID() string
 
 	// Version returns the lowest supported plugin API version.
 	Version() uint32
-
-	// Permissions returns the user permissions for each plugin commands. These
-	// are provided to the AuthPlugin on startup. The AuthPlugin handles user
-	// authorization at runtime.
-	//
-	// The permission levels are defined by the AuthPlugin and must be configured
-	// for all commands. Failure to set the permission level for a command will
-	// result in the plugin API routes returning a not authorized error when
-	// attempting to execute the command.
-	Permissions() map[string]string // [cmd]permissionLevel
 
 	// Hook executes a plugin hook.
 	Hook(HookArgs) error
@@ -48,7 +38,7 @@ type Plugin interface {
 
 // HookArgs contains the arguments for the plugin hook methods.
 type HookArgs struct {
-	Type  HookT
+	Type  Hook
 	Cmd   Cmd
 	Reply *CmdReply
 	User  *User
@@ -78,30 +68,3 @@ type Cmd struct {
 type CmdReply struct {
 	Payload string // JSON encoded
 }
-
-// HookT represents a plugin hook. Pre hooks allow plugins to add plugin
-// specific validation onto external plugin commands. Post hooks allow plugins
-// to update caches with any necessary changes that result from the execution
-// of the command.
-type HookT string
-
-const (
-	// HookInvalid is an invalid hook.
-	HookInvalid HookT = "invalid"
-
-	// HookPreNewUser is the hook that is executed before a NewUser command
-	// is executed.
-	HookPreNewUser HookT = "pre-new-user"
-
-	// HookPostNewUser is the hook that is executed after the successful
-	// execution of a NewUser command.
-	HookPostNewUser HookT = "post-new-user"
-
-	// HookPreWrite is the hook that is executed before a plugin write command
-	// is executed.
-	HookPreWrite HookT = "pre-write"
-
-	// HookPostWrite is the hook that is executed after the successful execution
-	// of a plugin write command.
-	HookPostWrite HookT = "post-write"
-)

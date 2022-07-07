@@ -6,8 +6,8 @@ package v1
 
 import "fmt"
 
-// UserErr represents an error that was caused during the execution of a plugin
-// command that was caused by the user.
+// UserErr represents an error that occured during the execution of a plugin
+// command and that was caused by the user.
 type UserErr struct {
 	ErrCode    uint32
 	ErrContext string

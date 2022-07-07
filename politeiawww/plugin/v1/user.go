@@ -6,8 +6,11 @@ package v1
 
 import "github.com/google/uuid"
 
-// User represents a politeia user. The user will contain the PluginData for
-// the plugin that is executing the command or hook.
+// User represents a politeia user.
+//
+// The user will contain the PluginData for the plugin that is executing the
+// command or hook. Plugins are not able to directly access user data that they
+// do not own.
 type User struct {
 	ID         uuid.UUID // Unique ID
 	PluginData *PluginData
@@ -21,8 +24,8 @@ type User struct {
 // read-only commands are ignored.
 //
 // The encrypted data blob will be provided to the plugin as clear text, but
-// will be saved to the database by the backend as encrypted. The plugin does
-// not need to worry about encrypting/decrypting the data.
+// will be saved to the database as encrypted. The plugin does not need to
+// worry about encrypting/decrypting the data.
 type PluginData struct {
 	clearText []byte
 	encrypted []byte
@@ -48,16 +51,20 @@ func (d *PluginData) SetClearText(b []byte) {
 	d.updated = true
 }
 
-// Encrypted returns the encrypted plugin data. The data is returned as clear
-// text to the plugin, but is saved to the database as encrypted. The plugin
-// does not need to worry about encrypting/decrypting the data.
+// Encrypted returns the encrypted plugin data.
+//
+// The data is returned as clear text to the plugin, but is saved to the
+// database as encrypted. The plugin does not need to worry about encrypting
+// or decrypting the data.
 func (d *PluginData) Encrypted() []byte {
 	return d.encrypted
 }
 
-// SetEncrypted updates the encrypted plugin data. The provided data should be
-// clear text. It will be encrypted prior to being saved to the database. The
-// plugin does not need to worry about encrypting/decrypting the data.
+// SetEncrypted updates the encrypted plugin data.
+//
+// The provided data should be clear text. It will be encrypted prior to being
+// saved to the database. The plugin does not need to worry about encrypting or
+// decrypting the data.
 func (d *PluginData) SetEncrypted(b []byte) {
 	d.encrypted = b
 	d.updated = true

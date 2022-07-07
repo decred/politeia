@@ -59,6 +59,8 @@ type CmdReply struct {
 
 // PluginError represents an error that occured during the execution of a
 // plugin command and that was caused by the user (ex. bad command input).
+//
+// A PluginError is returned in the CmdReply.
 type PluginError struct {
 	ErrorCode    uint32 `json:"errorcode"`
 	ErrorContext string `json:"errorcontext,omitempty"`

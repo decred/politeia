@@ -13,6 +13,8 @@ import (
 )
 
 const (
+	// The following entries are the keys for the key-value session data. This
+	// data is encoded and saved to the sessions database.
 	sessionValueUserID    = "user_id"
 	sessionValueCreatedAt = "created_at"
 )

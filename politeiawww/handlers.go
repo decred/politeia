@@ -109,7 +109,7 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	err = p.updateSession(r, w, s, ps)
 	if err != nil {
 		// The plugin command has already been executed.
-		// Handled the error gracefully.
+		// Handle the error gracefully.
 		log.Errorf("handleNewUser: updateSession: %v", err)
 	}
 
@@ -161,7 +161,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	err = p.updateSession(r, w, s, pluginSession)
 	if err != nil {
 		// The plugin command has already been executed.
-		// Handled the error gracefully.
+		// Handle the error gracefully.
 		log.Errorf("handleWrite: updateSession: %v", err)
 	}
 
