@@ -9,14 +9,25 @@ const (
 	PluginVersion uint32 = 1
 )
 
-type ErrorCode uint32
+const (
+	CmdNewUser        = "newuser"
+	CmdLogin          = "login"
+	CmdLogout         = "logout"
+	CmdVerifyEmail    = "verifyemail"
+	CmdResendEmail    = "resendemail"
+	CmdSetTOTP        = "settotp"
+	CmdVerifyTOTP     = "verifytotp"
+	CmdDisableTOTP    = "disabletotp"
+	CmdUpdateUserPerm = "updateuserperm"
+	CmdUpdatePassword = "updatepassword"
+	CmdResetPassword  = "resetpassword"
+	CmdUpdateEmail    = "updateemail"
+	CmdDelEmail       = "delemail"
+	CmdUpdateUsername = "updateusername"
+)
 
-var (
-	InvalidError ErrorCode = 0
-
-	InvalidPluginID ErrorCode = 1
-
-	InvalidPluginVersion ErrorCode = 2
-
-	InvalidCommand ErrorCode = 3
+const (
+	PermPublic = "public"
+	PermUser   = "user"
+	PermAdmin  = "admin"
 )
