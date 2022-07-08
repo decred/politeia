@@ -7,7 +7,6 @@ package main
 import (
 	"crypto/elliptic"
 	"crypto/tls"
-	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
@@ -16,12 +15,11 @@ import (
 	"time"
 
 	pdclient "github.com/decred/politeia/politeiad/client"
+	app "github.com/decred/politeia/politeiawww/app/v1"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/legacy"
 	"github.com/decred/politeia/politeiawww/logger"
-	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
-	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/mux"
@@ -33,26 +31,18 @@ type politeiawww struct {
 	cfg       *config.Config
 	router    *mux.Router // Public router
 	protected *mux.Router // CSRF protected subrouter
+	sessions  sessions.Store
+	app       app.App
 
-	// The following fields comprise the database layer.
+	// cmds contains all registered plugin commands.
 	//
-	// The *sql.DB is used as the backing database for the following interfaces
-	// and is provided to the plugins so that they can create custom tables.
-	db       *sql.DB
-	sessions sessions.Store
-	userDB   user.DB
-
-	// pluginIDs contains the plugin IDs of all registered plugins.
+	// This allows politeia to validate incoming plugin command requests without
+	// having to query the app.
 	//
-	// The plugin IDs are ordered alphabetically. This is the order that the
-	// plugin hooks are executed in.
-	pluginIDs []string
-
-	// plugins contains all registered plugins.
-	plugins map[string]plugin.Plugin // [pluginID]plugin
-
-	// authManager handles user authorization.
-	authManager plugin.AuthManager
+	// The map keys are [pluginID][version][cmdName].
+	//
+	// TODO map[string]string where map[pluginID]version-cmdName
+	cmds map[string]map[uint32]map[string]struct{}
 
 	// Legacy fields
 	politeiad *pdclient.Client
@@ -115,17 +105,11 @@ func _main() error {
 		cfg:       cfg,
 		router:    nil, // Set in setupRouter()
 		protected: nil, // Set in setupRouter()
+		app:       nil, // Set in setupApp()
+		cmds:      make(map[string]map[uint32]map[string]struct{}),
 
 		// Not implemented yet
-		db:       nil,
 		sessions: nil,
-		userDB:   nil,
-
-		// The plugin fields are setup by setupPlugins()
-		pluginIDs:   nil,
-		plugins:     nil,
-		userManager: nil,
-		authManager: nil,
 
 		// Legacy fields
 		politeiad: pdc,
@@ -144,7 +128,7 @@ func _main() error {
 	// the config.
 	if cfg.App != "" {
 		// Run in app mode
-		p.setupPluginRoutes()
+		p.setupRoutes()
 		err = p.setupApp()
 		if err != nil {
 			return err

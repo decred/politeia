@@ -7,11 +7,10 @@ package main
 import (
 	"encoding/json"
 	"regexp"
-	"sort"
 	"strings"
 
-	"github.com/decred/politeia/politeiawww/apps/proposals"
-	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
+	"github.com/decred/politeia/apps/proposals"
+	app "github.com/decred/politeia/politeiawww/app/v1"
 	"github.com/pkg/errors"
 )
 
@@ -19,7 +18,7 @@ import (
 // configuration.
 //
 // An app is essentially just a unique configuation of plugins. politeia
-// accesses the plugin configuration using the API provided by the plugin.App
+// accesses the plugin configuration using the API provided by the App
 // interface.
 //
 // Plugin settings that were specified in the config file are parsed and
@@ -27,7 +26,7 @@ import (
 // settings.
 func (p *politeiawww) setupApp() error {
 	// Parse the plugin settings
-	settings := make(map[string][]plugin.Setting)
+	settings := make(map[string][]app.Setting)
 	for _, rawSetting := range p.cfg.PluginSettings {
 		pluginID, s, err := parsePluginSetting(rawSetting)
 		if err != nil {
@@ -35,60 +34,65 @@ func (p *politeiawww) setupApp() error {
 		}
 		ss, ok := settings[pluginID]
 		if !ok {
-			ss = make([]plugin.Setting, 0, 16)
+			ss = make([]app.Setting, 0, 16)
 		}
 		ss = append(ss, *s)
 		settings[pluginID] = ss
 	}
 
-	// Initialize the app
+	// Setup the app
 	var (
-		app plugin.App
+		app app.App
 		err error
 	)
 	switch p.cfg.App {
 	case proposals.AppID:
-		app, err = proposals.NewApp(settings)
-		if err != nil {
-			return err
-		}
-
+		// app, err = proposals.NewApp()
 	default:
 		return errors.Errorf("%v is not a valid app", p.cfg.App)
 	}
-
-	// Setup the app plugins
-	plugins, err := app.Plugins(settings)
 	if err != nil {
-		return err
-	}
-	var (
-		pluginsM  = make(map[string]plugin.Plugin, len(plugins))
-		pluginIDs = make([]string, 0, len(plugins))
-	)
-	for _, v := range plugins {
-		pluginsM[v.ID()] = v
-		pluginIDs = append(pluginIDs, v.ID())
-	}
-	// Sort the plugin IDs alphabetically
-	sort.SliceStable(pluginIDs, func(i, j int) bool {
-		return pluginIDs[i] < pluginIDs[j]
-	})
-	userManager, err := app.UserManager()
-	if err != nil {
-		return err
-	}
-	authManager, err := app.AuthManager()
-	if err != nil {
-		return err
+		return errors.Errorf("failed to initialize %v app: %v", p.cfg.App, err)
 	}
 
-	p.plugins = pluginsM
-	p.pluginIDs = pluginIDs
-	p.userManager = userManager
-	p.authManager = authManager
+	p.app = app
+
+	// Setup the plugins
+	for _, plugin := range app.Plugins() {
+		// Update any plugin settings that were
+		// provided in the politeia config file.
+		s, ok := settings[plugin.ID()]
+		if ok {
+			err = plugin.UpdateSettings(s)
+			if err != nil {
+				return errors.Errorf("update settings for %v plugin: %v",
+					plugin.ID(), err)
+			}
+		}
+
+		// Register the plugin cmds with politeia
+		p.registerPluginCmds(plugin)
+	}
 
 	return nil
+}
+
+// registerPluginCmds registers a plugin's commands with politeia's internal
+// list of valid plugin commands.
+func (p *politeiawww) registerPluginCmds(plugin app.Plugin) {
+	versions, ok := p.cmds[plugin.ID()]
+	if !ok {
+		versions = make(map[uint32]map[string]struct{})
+	}
+	for _, cmd := range plugin.Cmds() {
+		names, ok := versions[cmd.Version]
+		if !ok {
+			names = make(map[string]struct{})
+		}
+		names[cmd.Name] = struct{}{}
+		versions[cmd.Version] = names
+	}
+	p.cmds[plugin.ID()] = versions
 }
 
 // parsePluginSetting parses a plugin setting. Plugin settings will be in
@@ -102,7 +106,7 @@ func (p *politeiawww) setupApp() error {
 //
 // pluginID,key,["value1","value2","value3"]
 // pluginsetting="pluginID,key,[\"value1\",\"value2\",\"value3\"]"
-func parsePluginSetting(setting string) (string, *plugin.Setting, error) {
+func parsePluginSetting(setting string) (string, *app.Setting, error) {
 	formatMsg := `expected plugin setting format is ` +
 		`pluginID,key,value OR pluginID,key,["value1","value2","value3"]`
 
@@ -163,7 +167,7 @@ func parsePluginSetting(setting string) (string, *plugin.Setting, error) {
 		settingValue = string(b)
 	}
 
-	return pluginID, &plugin.Setting{
+	return pluginID, &app.Setting{
 		Name:  settingName,
 		Value: settingValue,
 	}, nil

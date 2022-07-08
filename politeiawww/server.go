@@ -70,8 +70,8 @@ func (p *politeiawww) setupRouter() error {
 	return nil
 }
 
-// setupPluginRoutes set ups the http API routes for the plugin API.
-func (p *politeiawww) setupPluginRoutes() {
+// setupRoutes set ups the http/v3 API routes.
+func (p *politeiawww) setupRoutes() {
 	// NOTE: This will override the legacy version route.
 	// Disable it until we are ready to switch over.
 	// addRoute(p.protected, http.MethodGet, "", "/", p.handleVersion)
@@ -92,10 +92,8 @@ func (p *politeiawww) setupPluginRoutes() {
 	//	v3.ReadBatchRoute, p.handleReadBatch)
 
 	// CSRF protected routes
-	addRoute(p.protected, http.MethodPost, v3.APIVersionPrefix,
-		v3.NewUserRoute, p.handleNewUser)
 	// addRoute(p.protected, http.MethodPost, v3.APIVersionPrefix,
-	//	v3.WriteRoute, p.handleWrite)
+	// v3.WriteRoute, p.handleWrite)
 }
 
 // addRoute adds a route to the provided router.

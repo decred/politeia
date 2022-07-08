@@ -16,7 +16,7 @@ type UserErr struct {
 // Error satisfies the error interface.
 func (e UserErr) Error() string {
 	if e.ErrContext == "" {
-		return fmt.Sprintf("plugin user err: %v", e.ErrCode)
+		return fmt.Sprintf("app user err: %v", e.ErrCode)
 	}
-	return fmt.Sprintf("plugin user err: %v - %v", e.ErrCode, e.ErrContext)
+	return fmt.Sprintf("app user err: %v - %v", e.ErrCode, e.ErrContext)
 }

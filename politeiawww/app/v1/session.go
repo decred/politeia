@@ -4,15 +4,14 @@
 
 package v1
 
-// Session contains a user session.
+// Session contains the values for a user session.
 //
 // Plugins do not have direct access to the sessions database, but they can
 // update session values during command execution. Updates are saved to the
 // sessions database by the backend on successful completion of the plugin
 // command.
 type Session struct {
-	userID    string
-	createdAt int64 // Unix timestamp
+	values map[interface{}]interface{}
 
 	// updated represents whether any of the session values have been updated
 	// during plugin command execution.
@@ -23,33 +22,25 @@ type Session struct {
 }
 
 // NewSession returns a new Session.
-func NewSession(userID string, createdAt int64) *Session {
+func NewSession() *Session {
 	return &Session{
-		userID:    userID,
-		createdAt: createdAt,
+		values: make(map[interface{}]interface{}),
 	}
 }
 
-// SetUserID sets the user ID session value.
-func (s *Session) SetUserID(userID string) {
-	s.userID = userID
+// SetValue sets a session value.
+func (s *Session) SetValue(key, value interface{}) {
+	s.values[key] = value
 	s.updated = true
 }
 
-// UserID returns the user ID session value.
-func (s *Session) UserID() string {
-	return s.userID
-}
-
-// SetCreatedAt sets the created at session value.
-func (s *Session) SetCreatedAt(t int64) {
-	s.createdAt = t
-	s.updated = true
-}
-
-// CreatedAt returns the created at session value.
-func (s *Session) CreatedAt() int64 {
-	return s.createdAt
+// Values returns a copy of the session values.
+func (s *Session) Values() map[interface{}]interface{} {
+	c := make(map[interface{}]interface{}, len(s.values))
+	for k, v := range s.values {
+		c[k] = v
+	}
+	return c
 }
 
 // Updated returns whether the session values have been updated during plugin
@@ -59,7 +50,7 @@ func (s *Session) Updated() bool {
 }
 
 // SetDel sets the del field to true, instructing the backend to delete the
-// session.
+// session from the sessions database.
 func (s *Session) SetDel() {
 	s.del = true
 }

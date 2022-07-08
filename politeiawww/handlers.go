@@ -14,7 +14,6 @@ import (
 
 	v3 "github.com/decred/politeia/politeiawww/api/http/v3"
 	"github.com/decred/politeia/politeiawww/logger"
-	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
@@ -47,15 +46,9 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	// that sets the CSRF header.
 	w.Header().Set(v3.CSRFTokenHeader, csrf.Token(r))
 
-	plugins := make(map[string]uint32, len(p.plugins))
-	for _, plugin := range p.plugins {
-		plugins[plugin.ID()] = plugin.Version()
-	}
-
 	vr := v3.VersionReply{
 		APIVersion:   v3.APIVersion,
 		BuildVersion: version.String(),
-		Plugins:      plugins,
 	}
 
 	respondWithOK(w, vr)
@@ -72,52 +65,6 @@ func (p *politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	respondWithOK(w, pr)
 }
 
-// handleNewUser is the request handler for the http v3 NewUserRoute.
-func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleNewUser")
-
-	// Decode the request body
-	var cmd v3.Cmd
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&cmd); err != nil {
-		respondWithUserError(w, r, v3.ErrCodeInvalidInput, "")
-		return
-	}
-
-	// Verify that the plugin is the user plugin. Only the designated
-	// user plugin is able to create new users in the database.
-	if p.userManager.ID() != cmd.PluginID {
-		respondWithUserError(w, r, v3.ErrCodePluginNotAuthorized, "")
-		return
-	}
-
-	// Extract the session data from the request cookies
-	s, err := p.extractSession(r)
-	if err != nil {
-		respondWithInternalError(w, r, err)
-		return
-	}
-	ps := convertSession(s)
-
-	// Execute the plugin command
-	reply, err := p.NewUserCmd(r.Context(), ps, cmd)
-	if err != nil {
-		respondWithInternalError(w, r, err)
-		return
-	}
-
-	// Save any updates that were made to the user session
-	err = p.updateSession(r, w, s, ps)
-	if err != nil {
-		// The plugin command has already been executed.
-		// Handle the error gracefully.
-		log.Errorf("handleNewUser: updateSession: %v", err)
-	}
-
-	// Send the response
-	respondWithOK(w, reply)
-}
-
 // handleWrite is the request handler for the http v3 WriteRoute.
 func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleWrite")
@@ -130,10 +77,20 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify the plugin exists
-	_, ok := p.plugins[cmd.PluginID]
+	// Verify the plugin command
+	v, ok := p.cmds[cmd.PluginID]
 	if !ok {
 		respondWithUserError(w, r, v3.ErrCodePluginNotFound, "")
+		return
+	}
+	n, ok := v[cmd.Version]
+	if !ok {
+		respondWithUserError(w, r, v3.ErrCodePluginCmdNotFound, "")
+		return
+	}
+	_, ok = n[cmd.Name]
+	if !ok {
+		respondWithUserError(w, r, v3.ErrCodePluginCmdNotFound, "")
 		return
 	}
 
@@ -143,87 +100,23 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 		respondWithInternalError(w, r, err)
 		return
 	}
-	ps := convertSession(s)
+	as := convertSession(s)
 
 	// Execute the plugin command
-	var reply *plugin.CmdReply
-	if isNewUserCmd(cmd) {
-		// Execute a command that creates a new user
-		// in the database.
-		reply, err = p.NewUserCmd(r.Context(), ps, cmd)
-	} else {
-		// Execute a normal plugin write command
-		// TODO
-	}
+	reply, err := p.writeCmd(r.Context(), as, cmd)
 	if err != nil {
 		respondWithInternalError(w, r, err)
 		return
 	}
 
 	// Save any updates that were made to the user session
-	err = p.updateSession(r, w, s, ps)
-	if err != nil {
-		// The plugin command has already been executed.
-		// Handle the error gracefully.
-		log.Errorf("handleWrite: updateSession: %v", err)
-	}
+	p.UpdateSession(r, w, s, as)
 
 	// Send the response
 	respondWithOK(w, reply)
 }
 
 /*
-// handleRead is the request handler for the http v3 ReadRoute.
-func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
-	log.Tracef("handleRead")
-
-	// Decode the request body
-	var cmd v3.Cmd
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&cmd); err != nil {
-		respondWithUserError(w, r, v3.ErrCodeInvalidInput, "")
-		return
-	}
-
-	// Verify plugin exists
-	_, ok := p.plugins[cmd.PluginID]
-	if !ok {
-		respondWithUserError(w, r, v3.ErrCodePluginNotFound, "")
-		return
-	}
-
-	// Extract the session data from the request cookies
-	s, err := p.extractSession(r)
-	if err != nil {
-		respondWithInternalError(w, r, err)
-		return
-	}
-
-	// Execute the plugin command
-	var (
-		pluginSession = convertSession(s)
-		pluginCmd     = convertCmd(cmd)
-	)
-	pluginReply, err := p.readCmd(r.Context(), pluginSession, pluginCmd)
-	if err != nil {
-		respondWithInternalError(w, r, err)
-		return
-	}
-
-	reply := convertReplyToHTTP(pluginCmd, *pluginReply)
-
-	// Save any updates that were made to the user session
-	err = p.updateSession(r, w, s, pluginSession)
-	if err != nil {
-		// The plugin command has already been executed.
-		// Handle the error gracefully.
-		log.Errorf("handleRead: updateSession: %v", err)
-	}
-
-	// Send the response
-	respondWithOK(w, reply)
-}
-
 // handleReadBatch is the request handler for the http v3 ReadBatchRoute.
 func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleReadBatch")

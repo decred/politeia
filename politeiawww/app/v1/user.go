@@ -6,20 +6,20 @@ package v1
 
 import "github.com/google/uuid"
 
-// User represents a politeia user.
+// User represents an app user.
 //
 // The user will contain the PluginData for the plugin that is executing the
 // command or hook. Plugins are not able to directly access user data that they
 // do not own.
 type User struct {
-	ID         uuid.UUID // Unique ID
-	PluginData *PluginData
+	ID   uuid.UUID // Unique ID
+	Data *PluginData
 }
 
 // PluginData contains the user data that is owned by the plugin.
 //
 // These fields can be updated by the plugin during execution of write
-// commands. Updates are persisted by the backend on successful completion of
+// commands. Updates are persisted by the app on successful completion of
 // the plugin command execution. Any updates made during the execution of
 // read-only commands are ignored.
 //

@@ -22,10 +22,6 @@ type VersionReply struct {
 
 	// BuildVersion is the sematic version of the server build.
 	BuildVersion string `json:"buildversion"`
-
-	// Plugins contains the plugin ID and lowest supported plugin API version
-	// for all registered plugins.
-	Plugins map[string]uint32 `json:"plugins"` // [pluginID]version
 }
 
 // Policy contains the GET request parameters for the PolicyRoute. The
@@ -44,16 +40,16 @@ type PolicyReply struct {
 type Cmd struct {
 	PluginID string `json:"pluginid"`
 	Version  uint32 `json:"version"` // Plugin API version
-	Cmd      string `json:"cmd"`
-	Payload  string `json:"payload"` // Cmd payload, JSON encoded
+	Name     string `json:"name"`
+	Payload  string `json:"payload"` // JSON encoded
 }
 
 // CmdReply is the reply to a Cmd request.
 type CmdReply struct {
 	PluginID string       `json:"pluginid"`
 	Version  uint32       `json:"version"` // Plugin API version
-	Cmd      string       `json:"cmd"`
-	Payload  string       `json:"payload"` // Reply payload, JSON encoded
+	Name     string       `json:"name"`
+	Payload  string       `json:"payload"` // JSON encoded
 	Error    *PluginError `json:"error,omitempty"`
 }
 

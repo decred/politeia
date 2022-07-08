@@ -4,7 +4,7 @@
 
 package v1
 
-// Hook represents a plugin hook.
+// Hook represents an app hook.
 //
 // Pre hooks allow plugins to add plugin specific validation onto external
 // plugin commands.
