@@ -14,6 +14,7 @@ import (
 
 	v3 "github.com/decred/politeia/politeiawww/api/http/v3"
 	"github.com/decred/politeia/politeiawww/logger"
+	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
@@ -117,7 +118,6 @@ func (p *politeiawww) handleNewUser(w http.ResponseWriter, r *http.Request) {
 	respondWithOK(w, reply)
 }
 
-/*
 // handleWrite is the request handler for the http v3 WriteRoute.
 func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleWrite")
@@ -143,22 +143,25 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 		respondWithInternalError(w, r, err)
 		return
 	}
+	ps := convertSession(s)
 
 	// Execute the plugin command
-	var (
-		pluginSession = convertSession(s)
-		pluginCmd     = convertCmd(cmd)
-	)
-	pluginReply, err := p.writeCmd(r.Context(), pluginSession, pluginCmd)
+	var reply *plugin.CmdReply
+	if isNewUserCmd(cmd) {
+		// Execute a command that creates a new user
+		// in the database.
+		reply, err = p.NewUserCmd(r.Context(), ps, cmd)
+	} else {
+		// Execute a normal plugin write command
+		// TODO
+	}
 	if err != nil {
 		respondWithInternalError(w, r, err)
 		return
 	}
 
-	reply := convertReplyToHTTP(pluginCmd, *pluginReply)
-
 	// Save any updates that were made to the user session
-	err = p.updateSession(r, w, s, pluginSession)
+	err = p.updateSession(r, w, s, ps)
 	if err != nil {
 		// The plugin command has already been executed.
 		// Handle the error gracefully.
@@ -169,6 +172,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	respondWithOK(w, reply)
 }
 
+/*
 // handleRead is the request handler for the http v3 ReadRoute.
 func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleRead")

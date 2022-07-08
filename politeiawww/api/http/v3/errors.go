@@ -28,23 +28,30 @@ const (
 	// not correspond to a registered plugin.
 	ErrCodePluginNotFound ErrCode = 2
 
-	// ErrCodePluginNotAuthorized is returned when a plugin is attempting to
-	// execute a command using a route that it is not authorized to use.
-	ErrCodePluginNotAuthorized ErrCode = 3
+	// ErrCodePluginCmdNotFound is returned when a plugin cmd is provided that
+	// does not correspond to a registered plugin.
+	ErrCodePluginCmdNotFound ErrCode = 3
 
 	// ErrCodeBatchLimitExceeded is return when the number of plugin commands
 	// that are allowed to be executed in a batch request is exceeded.
 	ErrCodeBatchLimitExceeded ErrCode = 4
+
+	// ErrCodeBatchedReadNotAllowed is returned when a plugin command has been
+	// included in a read batch that is not allowed to be executed as a batched
+	// command. This is usually because the command is expensive and must be
+	// executed individually.
+	ErrCodeBatchedReadNotAllowed ErrCode = 5
 )
 
 var (
 	// ErrCodes contains the human readable errors.
 	ErrCodes = map[ErrCode]string{
-		ErrCodeInvalid:             "invalid error",
-		ErrCodeInvalidInput:        "invalid input",
-		ErrCodePluginNotFound:      "plugin not found",
-		ErrCodePluginNotAuthorized: "plugin not authorized",
-		ErrCodeBatchLimitExceeded:  "batch limit exceeded",
+		ErrCodeInvalid:               "invalid error",
+		ErrCodeInvalidInput:          "invalid input",
+		ErrCodePluginNotFound:        "plugin not found",
+		ErrCodePluginCmdNotFound:     "plugin cmd not found",
+		ErrCodeBatchLimitExceeded:    "batch limit exceeded",
+		ErrCodeBatchedReadNotAllowed: "batched read is not allowed",
 	}
 )
 

@@ -25,7 +25,7 @@ type AuthManager interface {
 type CmdPerm struct {
 	PluginID string
 	Cmd      string
-	Perm     string
+	Perm     []string
 }
 
 // AuthorizeArgs contains the arguments for the Authorize method.

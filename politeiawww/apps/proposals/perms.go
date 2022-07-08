@@ -16,7 +16,9 @@ func perms() []plugin.CmdPerm {
 		{
 			PluginID: auth.PluginID,
 			Cmd:      auth.CmdNewUser,
-			Perm:     auth.PermPublic,
+			Perm: []string{
+				auth.PermPublic,
+			},
 		},
 	}
 }

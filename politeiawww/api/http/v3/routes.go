@@ -31,20 +31,6 @@ const (
 	// This route returns a PolicyReply.
 	PolicyRoute = "/policy"
 
-	// TODO I don't need this route anymore. New user commands can be sent to the
-	// write route.
-	//
-	// NewUserRoute is a POST request route that executes a plugin command that
-	// creates a new user. This is the only route that can be used for plugin
-	// commands that result in a new user being created.
-	//
-	// This route is CSRF protected. Clients must obtain CSRF tokens from the
-	// Version route before they'll be able to use this route. A 403 is returned
-	// if the client attempts to use this route without the proper CSRF tokens.
-	//
-	// This route accepts a Cmd and returns a CmdReply.
-	NewUserRoute = "/newuser"
-
 	// WriteRoute is a POST request route that executes a plugin command that
 	// writes data to the backend.
 	//

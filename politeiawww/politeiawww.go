@@ -51,9 +51,6 @@ type politeiawww struct {
 	// plugins contains all registered plugins.
 	plugins map[string]plugin.Plugin // [pluginID]plugin
 
-	// userManager handles user database insertions and deletions.
-	userManager plugin.UserManager
-
 	// authManager handles user authorization.
 	authManager plugin.AuthManager
 

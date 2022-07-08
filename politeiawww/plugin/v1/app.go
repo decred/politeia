@@ -9,16 +9,22 @@ package v1
 type App interface {
 	// Plugins returns all of the plugins that are part of the app.
 	//
-	// The provided plugin settings are the settings that were parsed from the
-	// config file at runtime. These runtime settings should override any
-	// existing plugin settings.
+	// The plugin settings that were parsed from the politeia config file at
+	// runtime are provided. These settings should override the existing plugin
+	// settings.
 	Plugins(map[string][]Setting) ([]Plugin, error)
-
-	// UserManager returns the app's UserManager.
-	UserManager() (UserManager, error)
 
 	// AuthManager returns the app's AuthManager.
 	AuthManager() (AuthManager, error)
+
+	// DisallowBatchedReads returns the list of plugin commands that are not
+	// allowed to be included in a read batch.
+	//
+	// Prior to executing a read batch, the backend will verify that the read
+	// commands are allowed to be executed as part of a read batch.  This lets
+	// the app prevent expensive reads from being batched. By default, all read
+	// commands are allowed to be batch.
+	DisallowBatchedReads() []Cmd
 }
 
 // Setting represents a configurable plugin setting.

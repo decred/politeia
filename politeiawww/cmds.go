@@ -163,19 +163,10 @@ func (p *politeiawww) hook(tx *sql.Tx, u *user.User, h plugin.HookArgs) error {
 		// Add the plugin user to the hook payload
 		h.User = convertUser(u, h.Cmd.PluginID)
 
-		// Execute the hook. Some commands will execute
-		// the hook using a database transaction (write
-		// commands) and some won't (read-only commands).
-		if tx != nil {
-			err := p.TxHook(tx, h)
-			if err != nil {
-				return err
-			}
-		} else {
-			err := p.Hook(h)
-			if err != nil {
-				return err
-			}
+		// Execute the hook
+		err := p.HookTx(tx, h)
+		if err != nil {
+			return err
 		}
 
 		// Update the global user object with any changes

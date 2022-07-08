@@ -20,28 +20,34 @@ type Plugin interface {
 	// Version returns the lowest supported plugin API version.
 	Version() uint32
 
-	// Hook executes a plugin hook.
-	Hook(HookArgs) error
-
-	// Read executes a read plugin command.
-	Read(ReadArgs) (*CmdReply, error)
-
-	// TxHook executes a plugin hook using a database transaction.
-	TxHook(*sql.Tx, HookArgs) error
-
 	// TxWrite executes a write plugin command using a database transaction.
 	TxWrite(*sql.Tx, WriteArgs) (*CmdReply, error)
 
 	// TxRead executes a read plugin command using a database transaction.
 	TxRead(*sql.Tx, ReadArgs) (*CmdReply, error)
-}
 
-// HookArgs contains the arguments for the plugin hook methods.
-type HookArgs struct {
-	Type  Hook
-	Cmd   Cmd
-	Reply *CmdReply
-	User  *User
+	// TxHook executes a plugin hook using a database transaction.
+	TxHook(*sql.Tx, HookArgs) error
+
+	// Read executes a non-atomic read plugin command.
+	Read(ReadArgs) (*CmdReply, error)
+
+	// IsNewUserCmd returns whether the provided command is a new user command,
+	// meaning that the command will result in a new user being inserted in the
+	// database.
+	//
+	// Plugins do not have direct access to the user database, so they are not
+	// able to insert new user records. The backend handles this operation. Prior
+	// to executing a plugin command, the backend uses this method to ask the
+	// plugin if the command should result in a new user being inserted into the
+	// database.
+	//
+	// When a plugin returns true, the backend will create a new user in the
+	// database prior to executing the plugin command, pass the new user to the
+	// plugin command for execution, then commit the sql transaction that was
+	// used to insert the new user only if the plugin command executes without
+	// any errors.
+	// IsNewUserCmd(Cmd) bool
 }
 
 // WriteArgs contain the arguments for the plugin write methods.
@@ -54,6 +60,14 @@ type WriteArgs struct {
 type ReadArgs struct {
 	Cmd  Cmd
 	User *User
+}
+
+// HookArgs contains the arguments for the plugin hook methods.
+type HookArgs struct {
+	Type  Hook
+	Cmd   Cmd
+	Reply *CmdReply
+	User  *User
 }
 
 // Cmd represents a plugin command.
