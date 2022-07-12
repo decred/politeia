@@ -24,8 +24,9 @@ func (p *auth) SetCmdPerms(perms []app.CmdPerm) error {
 // An empty string is returned if a user ID does not exist.
 //
 // This function satisfies the app/v1 AuthManager interface.
-func (p *auth) SessionUserID(s app.Session) string {
-	return ""
+func (p *auth) SessionUserID(as app.Session) string {
+	s := newSession(&as)
+	return s.UserID()
 }
 
 // Authorize checks if the user is authorized to execute a plugin command.
@@ -40,5 +41,6 @@ func (p *auth) SessionUserID(s app.Session) string {
 //
 // This function satisfies the app/v1 AuthManager interface.
 func (p *auth) Authorize(a app.AuthorizeArgs) error {
+
 	return nil
 }
