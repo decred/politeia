@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/politeia/cmsplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/backend/gitbe/cmsplugin"
 	"github.com/decred/politeia/util"
 )
 

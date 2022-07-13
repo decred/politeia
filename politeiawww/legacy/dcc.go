@@ -18,10 +18,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/politeia/cmsplugin"
-	"github.com/decred/politeia/decredplugin"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
+	"github.com/decred/politeia/politeiad/backend/gitbe/cmsplugin"
+	"github.com/decred/politeia/politeiad/backend/gitbe/decredplugin"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/legacy/cmsdatabase"

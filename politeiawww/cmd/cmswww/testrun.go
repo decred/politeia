@@ -15,8 +15,8 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/hdkeychain/v3"
-	"github.com/decred/politeia/cmsplugin"
 	"github.com/decred/politeia/politeiad/api/v1/mime"
+	"github.com/decred/politeia/politeiad/backend/gitbe/cmsplugin"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/politeiawww/cmd/shared"

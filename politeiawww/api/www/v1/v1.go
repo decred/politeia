@@ -7,7 +7,7 @@ package v1
 import (
 	"fmt"
 
-	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/politeiad/backend/gitbe/decredplugin"
 )
 
 type ErrorStatusT int

@@ -14,8 +14,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/decred/politeia/decredplugin"
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
+	"github.com/decred/politeia/politeiad/backend/gitbe/decredplugin"
 	piplugin "github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
 	tkplugin "github.com/decred/politeia/politeiad/plugins/ticketvote"
