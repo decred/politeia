@@ -16,11 +16,11 @@ import (
 
 	"github.com/decred/dcrd/dcrutil/v3"
 	pstypes "github.com/decred/dcrdata/v6/pubsub/types"
-	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	cms "github.com/decred/politeia/politeiawww/api/cms/v1"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 	database "github.com/decred/politeia/politeiawww/legacy/cmsdatabase"
+	"github.com/decred/politeia/politeiawww/legacy/mdstream"
 	"github.com/decred/politeia/politeiawww/legacy/user"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/wsdcrdata"

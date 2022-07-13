@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	pdclient "github.com/decred/politeia/politeiad/client"
@@ -34,6 +33,7 @@ import (
 	"github.com/decred/politeia/politeiawww/legacy/comments"
 	"github.com/decred/politeia/politeiawww/legacy/events"
 	"github.com/decred/politeia/politeiawww/legacy/mail"
+	"github.com/decred/politeia/politeiawww/legacy/mdstream"
 	"github.com/decred/politeia/politeiawww/legacy/pi"
 	"github.com/decred/politeia/politeiawww/legacy/records"
 	"github.com/decred/politeia/politeiawww/legacy/sessions"

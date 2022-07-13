@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrd/dcrutil/v3"
-	"github.com/decred/politeia/cmsplugin"
+	"github.com/decred/politeia/politeiad/backend/gitbe/cmsplugin"
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
 )
 
