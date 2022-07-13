@@ -17,7 +17,6 @@ import (
 
 	pdclient "github.com/decred/politeia/politeiad/client"
 	"github.com/decred/politeia/politeiawww/config"
-	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/legacy"
 	"github.com/decred/politeia/politeiawww/logger"
 	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
@@ -60,10 +59,8 @@ type politeiawww struct {
 	// must be specified if the user layer is enabled.
 	authManager plugin.AuthManager
 
-	// Legacy fields
-	politeiad *pdclient.Client
-	events    *events.Manager
-	legacy    *legacy.Politeiawww
+	// legacy contains the legacy politeiawww server.
+	legacy *legacy.Politeiawww
 }
 
 func _main() error {
@@ -134,9 +131,7 @@ func _main() error {
 		authManager: nil,
 
 		// Legacy fields
-		politeiad: pdc,
-		events:    events.NewManager(),
-		legacy:    nil, // Set below
+		legacy: nil, // Set below
 	}
 
 	// Setup the HTTP router

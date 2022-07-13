@@ -14,10 +14,10 @@ import (
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	v1 "github.com/decred/politeia/politeiawww/api/pi/v1"
 	"github.com/decred/politeia/politeiawww/config"
-	"github.com/decred/politeia/politeiawww/events"
+	"github.com/decred/politeia/politeiawww/legacy/events"
+	"github.com/decred/politeia/politeiawww/legacy/mail"
 	"github.com/decred/politeia/politeiawww/legacy/sessions"
 	"github.com/decred/politeia/politeiawww/legacy/user"
-	"github.com/decred/politeia/politeiawww/mail"
 	"github.com/decred/politeia/util"
 	"github.com/pkg/errors"
 )
