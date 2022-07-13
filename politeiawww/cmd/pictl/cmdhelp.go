@@ -142,10 +142,6 @@ func (c *cmdHelp) Execute(args []string) error {
 	case "votetimestamps":
 		fmt.Printf("%s\n", voteTimestampsHelpMsg)
 
-	// Websocket commands
-	case "subscribe":
-		fmt.Printf("%s\n", subscribeHelpMsg)
-
 	// Dev commands
 	case "sendfaucettx":
 		fmt.Printf("%s\n", sendFaucetTxHelpMsg)

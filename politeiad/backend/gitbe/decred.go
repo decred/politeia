@@ -25,9 +25,9 @@ import (
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
 	dcrdataapi "github.com/decred/dcrdata/v6/api/types"
-	"github.com/decred/politeia/decredplugin"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	"github.com/decred/politeia/politeiad/backend"
+	"github.com/decred/politeia/politeiad/backend/gitbe/decredplugin"
 	"github.com/decred/politeia/util"
 )
 

@@ -105,9 +105,6 @@ type pictl struct {
 	VoteInv         cmdVoteInv         `command:"voteinv"`
 	VoteTimestamps  cmdVoteTimestamps  `command:"votetimestamps"`
 
-	// Websocket commands
-	Subscribe subscribeCmd `command:"subscribe"`
-
 	// Dev commands
 	SendFaucetTx  cmdSendFaucetTx  `command:"sendfaucettx"`
 	TestRun       cmdTestRun       `command:"testrun"`

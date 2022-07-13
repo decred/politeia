@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/politeia/mdstream"
 	pd "github.com/decred/politeia/politeiad/api/v1"
 	pdv2 "github.com/decred/politeia/politeiad/api/v2"
 	pdclient "github.com/decred/politeia/politeiad/client"
@@ -33,6 +32,7 @@ import (
 	"github.com/decred/politeia/politeiawww/legacy/codetracker"
 	ghtracker "github.com/decred/politeia/politeiawww/legacy/codetracker/github"
 	"github.com/decred/politeia/politeiawww/legacy/comments"
+	"github.com/decred/politeia/politeiawww/legacy/mdstream"
 	"github.com/decred/politeia/politeiawww/legacy/pi"
 	"github.com/decred/politeia/politeiawww/legacy/records"
 	"github.com/decred/politeia/politeiawww/legacy/sessions"
@@ -42,7 +42,6 @@ import (
 	"github.com/decred/politeia/politeiawww/legacy/user/localdb"
 	"github.com/decred/politeia/politeiawww/legacy/user/mysql"
 	"github.com/decred/politeia/politeiawww/mail"
-	"github.com/decred/politeia/politeiawww/websockets"
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/wsdcrdata"
 	"github.com/google/uuid"
@@ -63,7 +62,6 @@ type Politeiawww struct {
 	events    *events.Manager
 	http      *http.Client // Deprecated politeiad client
 	politeiad *pdclient.Client
-	ws        *websockets.Manager
 
 	// userEmails contains a mapping of all user emails to user ID.
 	// This is required for now because the email is stored as part of
@@ -187,7 +185,6 @@ func NewPoliteiawww(cfg *config.Config, router, auth *mux.Router, params *chainc
 		mail:            mailer,
 		sessions:        sessions.New(userDB, cookieKey),
 		events:          events.NewManager(),
-		ws:              websockets.NewManager(cfg.WebsocketReadLimit),
 		userEmails:      make(map[string]uuid.UUID, 1024),
 		userPaywallPool: make(map[uuid.UUID]paywallPoolMember, 1024),
 	}
