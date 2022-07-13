@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/decred/politeia/decredplugin"
+	"github.com/decred/politeia/politeiad/backend/gitbe/decredplugin"
 )
 
 // decredGetComments sends the decred plugin getcomments command to the cache

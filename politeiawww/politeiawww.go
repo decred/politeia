@@ -17,7 +17,6 @@ import (
 	pdclient "github.com/decred/politeia/politeiad/client"
 	app "github.com/decred/politeia/politeiawww/app/v1"
 	"github.com/decred/politeia/politeiawww/config"
-	"github.com/decred/politeia/politeiawww/events"
 	"github.com/decred/politeia/politeiawww/legacy"
 	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/util"
@@ -44,10 +43,8 @@ type politeiawww struct {
 	// TODO map[string]string where map[pluginID]version-cmdName
 	cmds map[string]map[uint32]map[string]struct{}
 
-	// Legacy fields
-	politeiad *pdclient.Client
-	events    *events.Manager
-	legacy    *legacy.Politeiawww
+	// legacy contains the legacy politeiawww server.
+	legacy *legacy.Politeiawww
 }
 
 func _main() error {
@@ -112,9 +109,7 @@ func _main() error {
 		sessions: nil,
 
 		// Legacy fields
-		politeiad: pdc,
-		events:    events.NewManager(),
-		legacy:    nil, // Set below
+		legacy: nil, // Set below
 	}
 
 	// Setup the HTTP router
