@@ -18,3 +18,10 @@ const (
 	PermUser   = "user"
 	PermAdmin  = "admin"
 )
+
+type UserErr uint32
+
+const (
+	UserErrInvalid       UserErr = 0
+	UserErrNotAuthorized UserErr = 1
+)

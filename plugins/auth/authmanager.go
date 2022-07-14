@@ -4,7 +4,11 @@
 
 package auth
 
-import app "github.com/decred/politeia/politeiawww/app/v1"
+import (
+	"fmt"
+
+	app "github.com/decred/politeia/politeiawww/app/v1"
+)
 
 // authmanager.go contains the methods that satisfy the app/v1 AuthManager
 // interface.
@@ -16,8 +20,10 @@ var (
 // SetCmdPerms sets the user permission levels for a list of commands.
 //
 // This function satisfies the app/v1 AuthManager interface.
-func (p *auth) SetCmdPerms(perms []app.CmdPerm) error {
-	return nil
+func (p *auth) SetCmdPerms(perms []app.CmdPerm) {
+	for _, v := range perms {
+		p.setPerm(v)
+	}
 }
 
 // SessionUserID returns the user ID from the session values if one exists.
@@ -43,4 +49,35 @@ func (p *auth) SessionUserID(as app.Session) string {
 func (p *auth) Authorize(a app.AuthorizeArgs) error {
 
 	return nil
+}
+
+// setPerm sets a permission level for a command.
+func (p *auth) setPerm(c app.CmdPerm) {
+	cmdS := cmdStr(c.PluginID, c.Version, c.Name)
+	permLevels, ok := p.perms[cmdS]
+	if !ok {
+		permLevels = make(map[string]struct{}, 64)
+	}
+	for _, v := range c.Levels {
+		permLevels[v] = struct{}{}
+	}
+	p.perms[cmdS] = permLevels
+}
+
+// cmdIsAllowed returns whether the execution of a command is allowed for
+// a permission level.
+func (p *auth) cmdIsAllowed(pluginID string, version uint32, cmdName, permLevel string) bool {
+	cmdS := cmdStr(pluginID, version, cmdName)
+	permLevels, ok := p.perms[cmdS]
+	if !ok {
+		log.Errorf("Permission level has not been set for %v", cmdS)
+		return false
+	}
+	_, ok = permLevels[permLevel]
+	return ok
+}
+
+// cmdStr returns the string representation of a plugin command.
+func cmdStr(pluginID string, pluginVersion uint32, cmdName string) string {
+	return fmt.Sprintf("%v-%s-%v", pluginID, pluginVersion, cmdName)
 }

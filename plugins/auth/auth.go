@@ -5,10 +5,12 @@
 package auth
 
 type auth struct {
-	perms map[string]string // [pluginID-version-cmd]permission
+	perms map[string]map[string]struct{} // [cmd][permissionLevel]
 }
 
 // NewPlugin returns a new auth plugin.
 func NewPlugin() *auth {
-	return &auth{}
+	return &auth{
+		perms: make(map[string]map[string]struct{}, 256),
+	}
 }
