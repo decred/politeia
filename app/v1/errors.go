@@ -9,14 +9,14 @@ import "fmt"
 // UserErr represents an error that occurred during the execution of a plugin
 // command and that was caused by the user.
 type UserErr struct {
-	ErrCode    uint32
-	ErrContext string
+	Code    uint32
+	Context string
 }
 
 // Error satisfies the error interface.
 func (e UserErr) Error() string {
-	if e.ErrContext == "" {
-		return fmt.Sprintf("app user err: %v", e.ErrCode)
+	if e.Context == "" {
+		return fmt.Sprintf("app user err: %v", e.Code)
 	}
-	return fmt.Sprintf("app user err: %v - %v", e.ErrCode, e.ErrContext)
+	return fmt.Sprintf("app user err: %v - %v", e.Code, e.Context)
 }

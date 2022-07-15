@@ -43,8 +43,8 @@ func convertErrReply(c app.Cmd, e *app.UserErr) *v3.CmdReply {
 		Version:  c.Version,
 		Name:     c.Name,
 		Error: &v3.PluginError{
-			ErrorCode:    e.ErrCode,
-			ErrorContext: e.ErrContext,
+			ErrorCode:    e.Code,
+			ErrorContext: e.Context,
 		},
 	}
 }

@@ -42,7 +42,7 @@ func NewApp() (*proposalsApp, error) {
 
 	// Setup the user permissions for the plugin
 	// cmds that are part of the proposals app.
-	authP.SetCmdPerms(perms())
+	authP.SetPerms(perms())
 
 	return &proposalsApp{
 		plugins: plugins,

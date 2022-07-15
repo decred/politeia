@@ -11,11 +11,14 @@ import (
 
 // perms returns the user permissions for all plugin commands that are part
 // of the proposals app.
-func perms() []app.CmdPerm {
-	return []app.CmdPerm{
+func perms() []app.Perm {
+	return []app.Perm{
 		{
-			PluginID: auth.PluginID,
-			CmdName:  auth.CmdNewUser,
+			Cmd: app.CmdDetails{
+				PluginID: auth.PluginID,
+				Version:  auth.PluginVersion,
+				Name:     auth.CmdNewUser,
+			},
 			Levels: []string{
 				auth.PermPublic,
 			},

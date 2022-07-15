@@ -11,8 +11,6 @@ import (
 	v1 "github.com/decred/politeia/plugins/auth/v1"
 )
 
-// plugin.go contains the methods that satisfy the app/v1 Plugin interface.
-
 var (
 	_ app.Plugin = (*plugin)(nil)
 )
@@ -23,6 +21,9 @@ var (
 // plugin satisfies the app/v1 AuthManager interface.
 type plugin struct {
 	perms map[string]map[string]struct{} // [cmd][permissionLevel]
+
+	// TODO add plugin settings
+	sessionMaxAge int64
 }
 
 // New returns a new auth plugin.

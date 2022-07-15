@@ -19,9 +19,9 @@ const (
 	PermAdmin  = "admin"
 )
 
-type UserErr uint32
+type ErrCode uint32
 
 const (
-	UserErrInvalid       UserErr = 0
-	UserErrNotAuthorized UserErr = 1
+	ErrCodeInvalid       ErrCode = 0
+	ErrCodeNotAuthorized ErrCode = 1
 )

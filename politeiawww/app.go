@@ -6,7 +6,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -74,8 +73,7 @@ func (p *politeiawww) setupApp() error {
 
 	// Register the plugin cmds with politeia
 	for _, cmd := range app.Cmds() {
-		cs := cmdStr(cmd.PluginID, cmd.Version, cmd.Name)
-		p.cmds[cs] = struct{}{}
+		p.cmds[cmd.String()] = struct{}{}
 	}
 
 	return nil
@@ -166,8 +164,3 @@ var (
 	// pluginID,key,["value1","value2"] matches ["value1","value2"]
 	regexpPluginSettingMulti = regexp.MustCompile(`(\[.*\]$)`)
 )
-
-// cmdStr returns a string representation of a plugin command.
-func cmdStr(pluginID string, version uint32, cmdName string) string {
-	return fmt.Sprintf("%v-%v-%v", pluginID, version, cmdName)
-}

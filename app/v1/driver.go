@@ -48,8 +48,7 @@ func NewDriver(plugins []Plugin, db *sql.DB, userDB user.DB, authMgr AuthManager
 	for _, p := range plugins {
 		pluginsM[p.ID()] = p
 		for _, c := range p.NewUserCmds() {
-			cmdStr := fmt.Sprintf("%v-%v-%v", p.ID(), c.Version, c.Name)
-			newUserCmds[cmdStr] = struct{}{}
+			newUserCmds[c.String()] = struct{}{}
 		}
 	}
 	return &Driver{
@@ -278,11 +277,13 @@ func (d *Driver) authorize(s *Session, u *user.User, c Cmd) error {
 	au := convertUser(u, d.authManager.ID())
 	return d.authManager.Authorize(
 		AuthorizeArgs{
-			Session:  s,
-			User:     *au,
-			PluginID: c.PluginID,
-			Version:  c.Version,
-			CmdName:  c.Name,
+			Session: s,
+			User:    *au,
+			Cmd: CmdDetails{
+				PluginID: c.PluginID,
+				Version:  c.Version,
+				Name:     c.Name,
+			},
 		})
 }
 
@@ -329,8 +330,7 @@ func (d *Driver) sortedPlugins() []Plugin {
 
 // isNewUserCmd returns whether a command is a new user command.
 func (d *Driver) isNewUserCmd(c Cmd) bool {
-	cmdStr := fmt.Sprintf("%v-%v-%v", c.PluginID, c.Version, c.Name)
-	_, ok := d.newUserCmds[cmdStr]
+	_, ok := d.newUserCmds[c.String()]
 	return ok
 }
 

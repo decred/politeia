@@ -78,7 +78,8 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify the plugin command
-	_, ok := p.cmds[cmdStr(cmd.PluginID, cmd.Version, cmd.Name)]
+	cs := cmdStr(cmd.PluginID, cmd.Version, cmd.Name)
+	_, ok := p.cmds[cs]
 	if !ok {
 		respondWithUserError(w, r, v3.ErrCodeInvalidPluginCmd, "")
 		return
@@ -104,6 +105,11 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 	// Send the response
 	respondWithOK(w, reply)
+}
+
+// cmdStr returns a string representation of a plugin command.
+func cmdStr(pluginID string, version uint32, cmdName string) string {
+	return fmt.Sprintf("%v-%v-%v", pluginID, version, cmdName)
 }
 
 /*

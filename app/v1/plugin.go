@@ -6,6 +6,7 @@ package v1
 
 import (
 	"database/sql"
+	"fmt"
 )
 
 // Plugin represents an app plugin.
@@ -65,6 +66,11 @@ type CmdDetails struct {
 	Name     string
 }
 
+// String returns a string representation of the command.
+func (c *CmdDetails) String() string {
+	return fmt.Sprintf("%v-%v-%v", c.PluginID, c.Version, c.Name)
+}
+
 // WriteArgs contain the arguments for the plugin write methods.
 //
 // Updates that are made to the User object during write command execution are
@@ -97,6 +103,11 @@ type Cmd struct {
 	Version  uint32 // API version
 	Name     string
 	Payload  string // JSON encoded
+}
+
+// String returns the string representation of a plugin command.
+func (c *Cmd) String() string {
+	return fmt.Sprintf("%v-%v-%v", c.PluginID, c.Version, c.Name)
 }
 
 // CmdReply is the reply to a plugin command.

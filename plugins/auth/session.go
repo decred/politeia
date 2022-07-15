@@ -4,7 +4,11 @@
 
 package auth
 
-import app "github.com/decred/politeia/app/v1"
+import (
+	"time"
+
+	app "github.com/decred/politeia/app/v1"
+)
 
 const (
 	// The following entries are the keys for the key-value session data.
@@ -56,9 +60,14 @@ func (s *session) SetCreatedAt(timestamp int64) {
 	s.app.SetValue(sessionKeyCreatedAt, timestamp)
 }
 
-// CreatedAt returns the created at session value.
-func (s *session) CreatedAt() int64 {
-	return s.createdAt
+// IsLoggedIn returns whether the session corresponds to a logged in user.
+func (s *session) IsLoggedIn() bool {
+	return s.userID != ""
+}
+
+// IsExpired returns whether the session has expired.
+func (s *session) IsExpired(maxAge int64) bool {
+	return time.Now().Unix() > s.createdAt+maxAge
 }
 
 // SetDel sets the del field to true, indicating that the session should be
@@ -66,4 +75,9 @@ func (s *session) CreatedAt() int64 {
 func (s *session) SetDel() {
 	s.del = true
 	s.app.SetDel()
+}
+
+// Del returns the del value.
+func (s *session) Del() bool {
+	return s.del
 }
