@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -69,30 +70,15 @@ func (p *politeiawww) setupApp() error {
 					plugin.ID(), err)
 			}
 		}
+	}
 
-		// Register the plugin cmds with politeia
-		p.registerPluginCmds(plugin)
+	// Register the plugin cmds with politeia
+	for _, cmd := range app.Cmds() {
+		cs := cmdStr(cmd.PluginID, cmd.Version, cmd.Name)
+		p.cmds[cs] = struct{}{}
 	}
 
 	return nil
-}
-
-// registerPluginCmds registers a plugin's commands with politeia's internal
-// list of valid plugin commands.
-func (p *politeiawww) registerPluginCmds(plugin app.Plugin) {
-	versions, ok := p.cmds[plugin.ID()]
-	if !ok {
-		versions = make(map[uint32]map[string]struct{})
-	}
-	for _, cmd := range plugin.Cmds() {
-		names, ok := versions[cmd.Version]
-		if !ok {
-			names = make(map[string]struct{})
-		}
-		names[cmd.Name] = struct{}{}
-		versions[cmd.Version] = names
-	}
-	p.cmds[plugin.ID()] = versions
 }
 
 // parsePluginSetting parses a plugin setting. Plugin settings will be in
@@ -180,3 +166,8 @@ var (
 	// pluginID,key,["value1","value2"] matches ["value1","value2"]
 	regexpPluginSettingMulti = regexp.MustCompile(`(\[.*\]$)`)
 )
+
+// cmdStr returns a string representation of a plugin command.
+func cmdStr(pluginID string, version uint32, cmdName string) string {
+	return fmt.Sprintf("%v-%v-%v", pluginID, version, cmdName)
+}

@@ -36,12 +36,10 @@ type politeiawww struct {
 	// cmds contains all registered plugin commands.
 	//
 	// This allows politeia to validate incoming plugin command requests without
-	// having to query the app.
+	// having to query the app. This map is built on startup and is static.
 	//
-	// The map keys are [pluginID][version][cmdName].
-	//
-	// TODO map[string]string where map[pluginID]version-cmdName
-	cmds map[string]map[uint32]map[string]struct{}
+	// The map key is the "pluginID-version-cmdName".
+	cmds map[string]struct{}
 
 	// legacy contains the legacy politeiawww server.
 	legacy *legacy.Politeiawww
@@ -103,7 +101,7 @@ func _main() error {
 		router:    nil, // Set in setupRouter()
 		protected: nil, // Set in setupRouter()
 		app:       nil, // Set in setupApp()
-		cmds:      make(map[string]map[uint32]map[string]struct{}),
+		cmds:      make(map[string]struct{}),
 
 		// Not implemented yet
 		sessions: nil,

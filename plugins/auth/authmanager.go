@@ -14,13 +14,13 @@ import (
 // interface.
 
 var (
-	_ app.AuthManager = (*auth)(nil)
+	_ app.AuthManager = (*plugin)(nil)
 )
 
 // SetCmdPerms sets the user permission levels for a list of commands.
 //
 // This function satisfies the app/v1 AuthManager interface.
-func (p *auth) SetCmdPerms(perms []app.CmdPerm) {
+func (p *plugin) SetCmdPerms(perms []app.CmdPerm) {
 	for _, v := range perms {
 		p.setPerm(v)
 	}
@@ -30,7 +30,7 @@ func (p *auth) SetCmdPerms(perms []app.CmdPerm) {
 // An empty string is returned if a user ID does not exist.
 //
 // This function satisfies the app/v1 AuthManager interface.
-func (p *auth) SessionUserID(as app.Session) string {
+func (p *plugin) SessionUserID(as app.Session) string {
 	s := newSession(&as)
 	return s.UserID()
 }
@@ -46,13 +46,24 @@ func (p *auth) SessionUserID(as app.Session) string {
 // A UserErr is returned if the user is not authorized.
 //
 // This function satisfies the app/v1 AuthManager interface.
-func (p *auth) Authorize(a app.AuthorizeArgs) error {
+func (p *plugin) Authorize(a app.AuthorizeArgs) error {
+	// TODO Implement this
+
+	// Check if the session has expired. Sessions that
+	// have expired will have their del field set to
+	// true.
+
+	// We don't need to verify any further session
+	// data if the command is a public command.
+
+	// Verify that the user has the correct permissions
+	// to execute this command.
 
 	return nil
 }
 
 // setPerm sets a permission level for a command.
-func (p *auth) setPerm(c app.CmdPerm) {
+func (p *plugin) setPerm(c app.CmdPerm) {
 	cmdS := cmdStr(c.PluginID, c.Version, c.CmdName)
 	permLevels, ok := p.perms[cmdS]
 	if !ok {
@@ -64,9 +75,9 @@ func (p *auth) setPerm(c app.CmdPerm) {
 	p.perms[cmdS] = permLevels
 }
 
-// cmdIsAllowed returns whether the execution of a command is allowed for
-// a permission level.
-func (p *auth) cmdIsAllowed(pluginID string, version uint32, cmdName, permLevel string) bool {
+// cmdIsAllowed returns whether the execution of a command is allowed for a
+// permission level.
+func (p *plugin) cmdIsAllowed(pluginID string, version uint32, cmdName, permLevel string) bool {
 	cmdS := cmdStr(pluginID, version, cmdName)
 	permLevels, ok := p.perms[cmdS]
 	if !ok {

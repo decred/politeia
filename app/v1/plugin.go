@@ -16,17 +16,16 @@ type Plugin interface {
 	// Version returns the lowest supported plugin API version.
 	Version() uint32
 
-	// UpdateSettings updates plugin setting values.
+	// UpdateSettings updates the plugin settings.
 	UpdateSettings([]Setting) error
-
-	// Cmds returns all registered plugin commands.
-	Cmds() []CmdDetails
 
 	// NewUserCmds returns all of the plugin commands that should result in a new
 	// user being inserted into the user database.
 	//
 	// Plugins do not have direct access to the user database, so they are not
-	// able to insert new user records. The app handles this operation.
+	// able to insert new user records. The app handles this operation. The app
+	// needs to know which plugin commands should be provided with a newly
+	// created user.
 	//
 	// Plugin write command that have been included in this list will be executed
 	// differently. Prior to the execution of the command, the app will create a
@@ -59,10 +58,11 @@ type Setting struct {
 	Value string
 }
 
-// CmdDetails contains the details for a registered plugin command.
+// CmdDetails contains the details of a registered plugin command.
 type CmdDetails struct {
-	Version uint32 // Plugin API version
-	Name    string // Command name
+	PluginID string
+	Version  uint32 // Plugin API version
+	Name     string
 }
 
 // WriteArgs contain the arguments for the plugin write methods.

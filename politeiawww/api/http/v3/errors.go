@@ -24,23 +24,19 @@ const (
 	// ErrCodeInvalidInput is returned when the request body could not be parsed.
 	ErrCodeInvalidInput ErrCode = 1
 
-	// ErrCodePluginNotFound is returned when a plugin ID is provided that does
-	// not correspond to a registered plugin.
-	ErrCodePluginNotFound ErrCode = 2
-
-	// ErrCodePluginCmdNotFound is returned when a plugin cmd is provided that
-	// does not correspond to a registered plugin.
-	ErrCodePluginCmdNotFound ErrCode = 3
+	// ErrCodePluginCmdNotFound is returned when a plugin command is provided
+	// that does not correspond to a registered plugin command.
+	ErrCodeInvalidPluginCmd ErrCode = 2
 
 	// ErrCodeBatchLimitExceeded is return when the number of plugin commands
 	// that are allowed to be executed in a batch request is exceeded.
-	ErrCodeBatchLimitExceeded ErrCode = 4
+	ErrCodeBatchLimitExceeded ErrCode = 3
 
 	// ErrCodeBatchedReadNotAllowed is returned when a plugin command has been
 	// included in a read batch that is not allowed to be executed as a batched
 	// command. This is usually because the command is expensive and must be
 	// executed individually.
-	ErrCodeBatchedReadNotAllowed ErrCode = 5
+	ErrCodeBatchedReadNotAllowed ErrCode = 4
 )
 
 var (
@@ -48,8 +44,7 @@ var (
 	ErrCodes = map[ErrCode]string{
 		ErrCodeInvalid:               "invalid error",
 		ErrCodeInvalidInput:          "invalid input",
-		ErrCodePluginNotFound:        "plugin not found",
-		ErrCodePluginCmdNotFound:     "plugin cmd not found",
+		ErrCodeInvalidPluginCmd:      "invalid plugin command",
 		ErrCodeBatchLimitExceeded:    "batch limit exceeded",
 		ErrCodeBatchedReadNotAllowed: "batched read is not allowed",
 	}

@@ -78,19 +78,9 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify the plugin command
-	v, ok := p.cmds[cmd.PluginID]
+	_, ok := p.cmds[cmdStr(cmd.PluginID, cmd.Version, cmd.Name)]
 	if !ok {
-		respondWithUserError(w, r, v3.ErrCodePluginNotFound, "")
-		return
-	}
-	n, ok := v[cmd.Version]
-	if !ok {
-		respondWithUserError(w, r, v3.ErrCodePluginCmdNotFound, "")
-		return
-	}
-	_, ok = n[cmd.Name]
-	if !ok {
-		respondWithUserError(w, r, v3.ErrCodePluginCmdNotFound, "")
+		respondWithUserError(w, r, v3.ErrCodeInvalidPluginCmd, "")
 		return
 	}
 
