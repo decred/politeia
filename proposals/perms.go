@@ -5,8 +5,8 @@
 package proposals
 
 import (
+	app "github.com/decred/politeia/app/v1"
 	auth "github.com/decred/politeia/plugins/auth/v1"
-	app "github.com/decred/politeia/politeiawww/app/v1"
 )
 
 // perms returns the user permissions for all plugin commands that are part
@@ -15,8 +15,8 @@ func perms() []app.CmdPerm {
 	return []app.CmdPerm{
 		{
 			PluginID: auth.PluginID,
-			Cmd:      auth.CmdNewUser,
-			Perm: []string{
+			CmdName:  auth.CmdNewUser,
+			Levels: []string{
 				auth.PermPublic,
 			},
 		},

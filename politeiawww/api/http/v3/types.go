@@ -53,7 +53,7 @@ type CmdReply struct {
 	Error    *PluginError `json:"error,omitempty"`
 }
 
-// PluginError represents an error that occured during the execution of a
+// PluginError represents an error that occurred during the execution of a
 // plugin command and that was caused by the user (ex. bad command input).
 //
 // A PluginError is returned in the CmdReply.

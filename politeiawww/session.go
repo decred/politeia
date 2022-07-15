@@ -7,8 +7,8 @@ package main
 import (
 	"net/http"
 
+	app "github.com/decred/politeia/app/v1"
 	v3 "github.com/decred/politeia/politeiawww/api/http/v3"
-	app "github.com/decred/politeia/politeiawww/app/v1"
 	"github.com/gorilla/sessions"
 )
 

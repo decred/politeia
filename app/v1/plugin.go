@@ -94,7 +94,7 @@ type HookArgs struct {
 // Cmd represents a plugin command.
 type Cmd struct {
 	PluginID string
-	Version  uint32 // Plugin API version
+	Version  uint32 // API version
 	Name     string
 	Payload  string // JSON encoded
 }

@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/decred/politeia/apps/proposals"
-	app "github.com/decred/politeia/politeiawww/app/v1"
+	app "github.com/decred/politeia/app/v1"
+	"github.com/decred/politeia/proposals"
 	"github.com/pkg/errors"
 )
 

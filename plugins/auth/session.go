@@ -4,7 +4,7 @@
 
 package auth
 
-import app "github.com/decred/politeia/politeiawww/app/v1"
+import app "github.com/decred/politeia/app/v1"
 
 const (
 	// The following entries are the keys for the key-value session data.

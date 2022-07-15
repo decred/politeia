@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	app "github.com/decred/politeia/app/v1"
 	pdclient "github.com/decred/politeia/politeiad/client"
-	app "github.com/decred/politeia/politeiawww/app/v1"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/legacy"
 	"github.com/decred/politeia/politeiawww/logger"

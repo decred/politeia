@@ -8,8 +8,8 @@ import (
 	"context"
 	"errors"
 
+	app "github.com/decred/politeia/app/v1"
 	v3 "github.com/decred/politeia/politeiawww/api/http/v3"
-	app "github.com/decred/politeia/politeiawww/app/v1"
 )
 
 func (p *politeiawww) writeCmd(ctx context.Context, s *app.Session, c v3.Cmd) (*v3.CmdReply, error) {

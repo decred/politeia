@@ -8,8 +8,8 @@ import (
 	"context"
 	"database/sql"
 
+	app "github.com/decred/politeia/app/v1"
 	"github.com/decred/politeia/plugins/auth"
-	app "github.com/decred/politeia/politeiawww/app/v1"
 	"github.com/decred/politeia/politeiawww/user"
 )
 
@@ -42,10 +42,7 @@ func NewApp() (*proposalsApp, error) {
 
 	// Setup the user permissions for the plugin
 	// cmds that are part of the proposals app.
-	err := authP.SetCmdPerms(perms())
-	if err != nil {
-		return nil, err
-	}
+	authP.SetCmdPerms(perms())
 
 	return &proposalsApp{
 		plugins: plugins,

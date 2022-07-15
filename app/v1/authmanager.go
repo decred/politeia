@@ -31,8 +31,8 @@ type AuthManager interface {
 // CmdPerm represents the user permission levels for a plugin command.
 type CmdPerm struct {
 	PluginID string
-	Version  uint32   // Plugin API version
-	Name     string   // Command name
+	Version  uint32 // API version
+	CmdName  string
 	Levels   []string // Permission levels
 }
 
@@ -40,7 +40,7 @@ type CmdPerm struct {
 type AuthorizeArgs struct {
 	Session  *Session
 	User     User
-	PluginID string
+	PluginID string // Plugin ID
 	Version  uint32 // Plugin API version
-	Cmd      string // Command name
+	CmdName  string
 }

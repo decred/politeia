@@ -7,8 +7,8 @@ package auth
 import (
 	"database/sql"
 
+	app "github.com/decred/politeia/app/v1"
 	v1 "github.com/decred/politeia/plugins/auth/v1"
-	app "github.com/decred/politeia/politeiawww/app/v1"
 )
 
 // plugin.go contains the methods that satisfy the app/v1 Plugin interface.

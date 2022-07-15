@@ -7,7 +7,7 @@ package auth
 import (
 	"fmt"
 
-	app "github.com/decred/politeia/politeiawww/app/v1"
+	app "github.com/decred/politeia/app/v1"
 )
 
 // authmanager.go contains the methods that satisfy the app/v1 AuthManager
@@ -53,7 +53,7 @@ func (p *auth) Authorize(a app.AuthorizeArgs) error {
 
 // setPerm sets a permission level for a command.
 func (p *auth) setPerm(c app.CmdPerm) {
-	cmdS := cmdStr(c.PluginID, c.Version, c.Name)
+	cmdS := cmdStr(c.PluginID, c.Version, c.CmdName)
 	permLevels, ok := p.perms[cmdS]
 	if !ok {
 		permLevels = make(map[string]struct{}, 64)
@@ -79,5 +79,5 @@ func (p *auth) cmdIsAllowed(pluginID string, version uint32, cmdName, permLevel 
 
 // cmdStr returns the string representation of a plugin command.
 func cmdStr(pluginID string, pluginVersion uint32, cmdName string) string {
-	return fmt.Sprintf("%v-%s-%v", pluginID, pluginVersion, cmdName)
+	return fmt.Sprintf("%v-%v-%v", pluginID, pluginVersion, cmdName)
 }
