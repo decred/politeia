@@ -13,10 +13,22 @@ import (
 )
 
 func (p *politeiawww) writeCmd(ctx context.Context, s *app.Session, c v3.Cmd) (*v3.CmdReply, error) {
-	log.Tracef("writeCmd: %v %v %v %+v", c.PluginID, c.Version, c.Name, s)
-
 	pc := convertCmd(c)
-	pr, err := p.app.Write(ctx, *s, pc)
+	pr, err := p.app.Write(ctx, s, pc)
+	if err != nil {
+		var ue *app.UserErr
+		if errors.As(err, &ue) {
+			return convertErrReply(pc, ue), nil
+		}
+		return nil, err
+	}
+
+	return convertReply(pc, *pr), nil
+}
+
+func (p *politeiawww) readCmd(ctx context.Context, s *app.Session, c v3.Cmd) (*v3.CmdReply, error) {
+	pc := convertCmd(c)
+	pr, err := p.app.Read(ctx, s, pc)
 	if err != nil {
 		var ue *app.UserErr
 		if errors.As(err, &ue) {
@@ -59,27 +71,6 @@ func convertReply(c app.Cmd, r app.CmdReply) *v3.CmdReply {
 }
 
 /*
-// newUserCmd executes a plugin command that results in the creation of a new
-// user in the user database.
-//
-// Any updates made to the session during command execution are persisted by
-// the politeia backend.
-func (p *politeiawww) NewUserCmd(ctx context.Context, s *plugin.Session, c v3.Cmd) (*v3.CmdReply, error) {
-	log.Tracef("NewUserCmd: %+v %+v", s, c)
-
-	pc := convertCmd(c)
-	pr, err := p.newUserCmd(ctx, s, pc)
-	if err != nil {
-		var ue *plugin.UserErr
-		if errors.As(err, &ue) {
-			return convertErrReply(pc, ue), nil
-		}
-		return nil, err
-	}
-
-	return convertReply(pc, *pr), nil
-}
-
 // readCmd executes a read-only plugin command. The read operation is not
 // atomic.
 //

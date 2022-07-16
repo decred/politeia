@@ -107,6 +107,48 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	respondWithOK(w, reply)
 }
 
+// handleRead is the request handler for the http v3 ReadRoute.
+func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("handleRead")
+
+	// Decode the request body
+	var cmd v3.Cmd
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&cmd); err != nil {
+		respondWithUserError(w, r, v3.ErrCodeInvalidInput, "")
+		return
+	}
+
+	// Verify the plugin command
+	cs := cmdStr(cmd.PluginID, cmd.Version, cmd.Name)
+	_, ok := p.cmds[cs]
+	if !ok {
+		respondWithUserError(w, r, v3.ErrCodeInvalidPluginCmd, "")
+		return
+	}
+
+	// Extract the session data from the request cookies
+	s, err := p.extractSession(r)
+	if err != nil {
+		respondWithInternalError(w, r, err)
+		return
+	}
+	as := convertSession(s)
+
+	// Execute the plugin command
+	reply, err := p.readCmd(r.Context(), as, cmd)
+	if err != nil {
+		respondWithInternalError(w, r, err)
+		return
+	}
+
+	// Save any updates that were made to the user session
+	p.UpdateSession(r, w, s, as)
+
+	// Send the response
+	respondWithOK(w, reply)
+}
+
 // cmdStr returns a string representation of a plugin command.
 func cmdStr(pluginID string, version uint32, cmdName string) string {
 	return fmt.Sprintf("%v-%v-%v", pluginID, version, cmdName)

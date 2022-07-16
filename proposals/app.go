@@ -110,7 +110,18 @@ func (a *appCtx) PreventBatchedReads() []app.CmdDetails {
 
 // Write executes a plugin write command.
 //
+// Any updates make to the session will be persisted by the politeia server.
+//
 // This function satisfies the app/v1 App interface.
-func (a *appCtx) Write(ctx context.Context, s app.Session, c app.Cmd) (*app.CmdReply, error) {
-	return a.driver.WriteCmd(ctx, &s, c)
+func (a *appCtx) Write(ctx context.Context, s *app.Session, c app.Cmd) (*app.CmdReply, error) {
+	return a.driver.WriteCmd(ctx, s, c)
+}
+
+// Read executes a read-only plugin command.
+//
+// Any updates make to the session will be persisted by the politeia server.
+//
+// This function satisfies the app/v1 App interface.
+func (a *appCtx) Read(ctx context.Context, s *app.Session, c app.Cmd) (*app.CmdReply, error) {
+	return a.driver.ReadCmd(ctx, s, c)
 }

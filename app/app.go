@@ -24,10 +24,19 @@ type App interface {
 	PreventBatchedReads() []CmdDetails
 
 	// Write executes a plugin write command.
-	Write(context.Context, Session, Cmd) (*CmdReply, error)
+	//
+	// Any updates make to the session will be persisted by the politeia server.
+	Write(context.Context, *Session, Cmd) (*CmdReply, error)
 
-	// Read(context.Context, Session, Cmd) (*CmdReply, error)
-	// ReadBatch(context.Context, Session, []Cmd) ([]CmdReply, error)
+	// Read executes a read-only plugin command.
+	//
+	// Any updates make to the session will be persisted by the politeia server.
+	Read(context.Context, *Session, Cmd) (*CmdReply, error)
+
+	// ReadBatch executes a batch of read-only plugin command.
+	//
+	// Any updates make to the session will be persisted by the politeia server.
+	// ReadBatch(context.Context, *Session, []Cmd) ([]CmdReply, error)
 }
 
 // InitArgs contains the arguments that are passed to an app initialization

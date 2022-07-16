@@ -62,13 +62,55 @@ func NewDriver(plugins []Plugin, db *sql.DB, userDB user.DB, authMgr AuthManager
 
 // WriteCmd executes a plugin command that writes data.
 //
-// Any updates made to the session during command execution are persisted by
-// the politeia backend.
+// Any updates made to the session are persisted by the politeia server.
 func (d *Driver) WriteCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, error) {
 	if d.isNewUserCmd(cmd) {
 		return d.newUserCmd(ctx, s, cmd)
 	}
 	return d.writeCmd(ctx, s, cmd)
+}
+
+// ReadCmd executes a read-only plugin command.
+//
+// Any updates made to the session are persisted by the politeia server.
+func (d *Driver) ReadCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, error) {
+	// Get the user if one exist. It's possible
+	// that this is a public command and a user
+	// may not exist.
+	var (
+		userID = d.authManager.SessionUserID(*s)
+		u      *user.User
+		err    error
+	)
+	if userID != "" {
+		u, err = d.userDB.Get(userID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Verify that the user is authorized
+	// to execute this plugin command.
+	err = d.authorize(s, u, cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// Execute the plugin command
+	var (
+		p  = d.plugin(cmd.PluginID)
+		au = convertUser(u, cmd.PluginID)
+	)
+	reply, err := p.Read(
+		ReadArgs{
+			Cmd:  cmd,
+			User: au,
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	return reply, nil
 }
 
 // newUserCmd executes a plugin command that results in the creation of a new
@@ -184,8 +226,11 @@ func (d *Driver) writeCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, 
 	}
 	defer cancel()
 
-	// Get the user. A user ID may not exist
-	// depending on the app configuration.
+	// Get the user. Even though this is a write
+	// command, the session may not correspond
+	// to a logged in user, so the user ID could
+	// be empty. It is the responsibility of the
+	// auth manager to handle this.
 	var (
 		userID = d.authManager.SessionUserID(*s)
 		u      *user.User
@@ -289,9 +334,6 @@ func (d *Driver) authorize(s *Session, u *user.User, c Cmd) error {
 }
 
 // hook executes a hook on on all plugins.
-//
-// A sql Tx may or may not exist depending on the whether the caller is
-// executing an atomic operation.
 func (d *Driver) hook(tx *sql.Tx, u *user.User, h HookArgs) error {
 	for _, p := range d.sortedPlugins() {
 		// Add the app user to the hook payload
@@ -305,7 +347,7 @@ func (d *Driver) hook(tx *sql.Tx, u *user.User, h HookArgs) error {
 		}
 
 		// Update the global user with any changes
-		// the the plugin made to the user data.
+		// that the plugin made to the user data.
 		if au.Updated() {
 			u.SetData(p.ID(), au.Data())
 		}
