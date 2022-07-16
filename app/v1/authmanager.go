@@ -9,8 +9,9 @@ type AuthManager interface {
 	// ID returns the plugin ID.
 	ID() string
 
-	// SetPerms sets the user permission levels for a list of plugin commands.
-	SetPerms([]Perm)
+	// SetCmdPerms sets the user permission levels for a list of plugin commands.
+	// The cmd permissions should be setup during app initialization.
+	SetCmdPerms([]CmdPerm)
 
 	// SessionUserID returns the user ID from the session values if one exists.
 	// An empty string is returned if a user ID does not exist.
@@ -28,8 +29,8 @@ type AuthManager interface {
 	Authorize(AuthorizeArgs) error
 }
 
-// Perm represents the user permission levels for a plugin command.
-type Perm struct {
+// CmdPerm represents the user permission levels for a plugin command.
+type CmdPerm struct {
 	Cmd    CmdDetails
 	Levels []string // Permission levels
 }

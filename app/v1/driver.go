@@ -93,10 +93,7 @@ func (d *Driver) newUserCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply
 	// Insert a new user into the database. The
 	// transaction will not be committed until
 	// the plugin command executes successfully.
-	u := &user.User{
-		ID:      uuid.New(),
-		Plugins: make(map[string]user.PluginData, 64),
-	}
+	u := user.NewUser(uuid.New())
 	err = d.userDB.TxInsert(tx, *u)
 	if err != nil {
 		return nil, err
@@ -138,7 +135,9 @@ func (d *Driver) newUserCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply
 	// Update the global user with any changes
 	// that were made to the user data by the
 	// plugin.
-	updateUser(u, au, cmd.PluginID)
+	if au.Updated() {
+		u.SetData(cmd.PluginID, au.Data())
+	}
 
 	// Execute the post plugin hooks
 	err = d.hook(tx, u,
@@ -234,7 +233,9 @@ func (d *Driver) writeCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, 
 	// Update the global user with any changes
 	// that were made to the user data by the
 	// plugin.
-	updateUser(u, au, cmd.PluginID)
+	if au.Updated() {
+		u.SetData(cmd.PluginID, au.Data())
+	}
 
 	// Execute the post plugin hooks
 	err = d.hook(tx, u,
@@ -250,7 +251,7 @@ func (d *Driver) writeCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, 
 
 	// Save any updates that were made to
 	// the user data by the plugins.
-	if u != nil && u.Updated {
+	if u != nil && u.Updated() {
 		err = d.userDB.TxUpdate(tx, *u)
 		if err != nil {
 			return nil, err
@@ -294,7 +295,8 @@ func (d *Driver) authorize(s *Session, u *user.User, c Cmd) error {
 func (d *Driver) hook(tx *sql.Tx, u *user.User, h HookArgs) error {
 	for _, p := range d.sortedPlugins() {
 		// Add the app user to the hook payload
-		h.User = convertUser(u, p.ID())
+		au := convertUser(u, p.ID())
+		h.User = au
 
 		// Execute the hook
 		err := p.TxHook(tx, h)
@@ -304,7 +306,9 @@ func (d *Driver) hook(tx *sql.Tx, u *user.User, h HookArgs) error {
 
 		// Update the global user with any changes
 		// the the plugin made to the user data.
-		updateUser(u, h.User, p.ID())
+		if au.Updated() {
+			u.SetData(p.ID(), au.Data())
+		}
 	}
 
 	return nil
@@ -334,31 +338,22 @@ func (d *Driver) isNewUserCmd(c Cmd) bool {
 	return ok
 }
 
-// convertUser converts a global user to a app user.
+// convertUser converts a global user to an app user.
 //
 // Only the plugin data for the provided plugin ID is included in the plugin
 // user object. This prevents plugins from accessing data that they do not own.
 func convertUser(u *user.User, pluginID string) *User {
-	d := u.Plugins[pluginID]
-	return &User{
-		ID:   u.ID,
-		Data: NewPluginData(d.ClearText, d.Encrypted),
-	}
+	b := u.Data(pluginID)
+	return NewUser(u.ID, b)
 }
 
 // updateUser updates the global user with any changes that were made to the
 // app user during command execution.
-func updateUser(global *user.User, app *User, pluginID string) {
-	if !app.Data.Updated() {
+func _updateUser(globalU *user.User, appU *User, pluginID string) {
+	if !appU.Updated() {
 		return
 	}
-
-	d := global.Plugins[pluginID]
-	d.ClearText = app.Data.ClearText()
-	d.Encrypted = app.Data.Encrypted()
-
-	global.Plugins[pluginID] = d
-	global.Updated = true
+	globalU.SetData(pluginID, appU.Data())
 }
 
 const (

@@ -19,7 +19,7 @@ var (
 // SetPerms sets the user permission levels for a list of commands.
 //
 // This function satisfies the app/v1 AuthManager interface.
-func (p *plugin) SetPerms(perms []app.Perm) {
+func (p *plugin) SetCmdPerms(perms []app.CmdPerm) {
 	for _, v := range perms {
 		p.setPerm(v)
 	}
@@ -91,13 +91,13 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 }
 
 // setPerm sets a permission level for a command.
-func (p *plugin) setPerm(ap app.Perm) {
-	c := ap.Cmd.String()
+func (p *plugin) setPerm(cp app.CmdPerm) {
+	c := cp.Cmd.String()
 	permLevels, ok := p.perms[c]
 	if !ok {
 		permLevels = make(map[string]struct{}, 64)
 	}
-	for _, v := range ap.Levels {
+	for _, v := range cp.Levels {
 		permLevels[v] = struct{}{}
 	}
 	p.perms[c] = permLevels

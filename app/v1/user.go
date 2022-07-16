@@ -7,70 +7,44 @@ package v1
 import "github.com/google/uuid"
 
 // User represents an app user.
-//
-// The user will contain the PluginData for the plugin that is executing the
-// command or hook. Plugins are not able to directly access user data that they
-// do not own.
 type User struct {
-	ID   uuid.UUID // Unique ID
-	Data *PluginData
+	ID uuid.UUID // Unique ID
+
+	// data contains the user data that is owned by the plugin. Plugins are not
+	// able to directly access data that they do not own.
+	//
+	// This field can be updated by the plugin during execution of write
+	// commands. Updates are persisted by the app on successful completion of
+	// the plugin command. Any updates made during the execution of read-only
+	// commands are ignored.
+	//
+	// Plugin data is encrypted by the database layer prior to being saved.
+	// Plugins do not need to worry about encrypting or decrypting this data.
+	// The data will always be provided to the plugin as clear text.
+	data    []byte
+	updated bool
 }
 
-// PluginData contains the user data that is owned by the plugin.
-//
-// These fields can be updated by the plugin during execution of write
-// commands. Updates are persisted by the app on successful completion of
-// the plugin command execution. Any updates made during the execution of
-// read-only commands are ignored.
-//
-// The encrypted data blob will be provided to the plugin as clear text, but
-// will be saved to the database as encrypted. The plugin does not need to
-// worry about encrypting/decrypting the data.
-type PluginData struct {
-	clearText []byte
-	encrypted []byte
-	updated   bool
-}
-
-// NewPluginData returns a new PluginData.
-func NewPluginData(clearText, encrypted []byte) *PluginData {
-	return &PluginData{
-		clearText: clearText,
-		encrypted: encrypted,
+// NewUser returns a new User.
+func NewUser(id uuid.UUID, data []byte) *User {
+	return &User{
+		ID:   id,
+		data: data,
 	}
 }
 
-// ClearText returns the clear text plugin data.
-func (d *PluginData) ClearText() []byte {
-	return d.clearText
+// SetData sets the plugin data.
+func (u *User) Set(data []byte) {
+	u.data = data
+	u.updated = true
 }
 
-// SetClearText updates the clear text plugin data.
-func (d *PluginData) SetClearText(b []byte) {
-	d.clearText = b
-	d.updated = true
-}
-
-// Encrypted returns the encrypted plugin data.
-//
-// The data is returned as clear text to the plugin, but is saved to the
-// database as encrypted. The plugin does not need to worry about encrypting
-// or decrypting the data.
-func (d *PluginData) Encrypted() []byte {
-	return d.encrypted
-}
-
-// SetEncrypted updates the encrypted plugin data.
-//
-// The provided data should be clear text. It will be encrypted prior to being
-// saved to the database. The plugin does not need to worry about encrypting or
-// decrypting the data.
-func (d *PluginData) SetEncrypted(b []byte) {
-	d.encrypted = b
-	d.updated = true
+// Data returns the plugin data.
+func (u *User) Data() []byte {
+	return u.data
 }
 
 // Updated returns whether the plugin data has been updated.
-func (d *PluginData) Updated() bool {
-	return d.updated
+func (u *User) Updated() bool {
+	return u.updated
 }

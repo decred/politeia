@@ -43,22 +43,41 @@ type DB interface {
 // own. The user object does not necessarily contain all plugin data for the
 // user. Plugins have two ways to save user data:
 //
-// 1. Update the user object that is provided to them by the app during the
+// 1. Update the global user that is provided to them by the app during the
 //    execution of plugin commands. These updates are saved to the database by
-//    the app. Plugins have the option of saving data to the user object as
-//    either clear text or encrypted.
+//    the app. Data saved to the global user object is encrypted prior to being
+//    saved to the database and decrypted prior to being passed to the plugins.
 //
 // 2. Plugins can create and manage a database table themselves to store
 //    plugin user data. This option should be reserved for data that would
 //    cause performance issues if saved to this global user object.
 type User struct {
-	ID      uuid.UUID             // Unique ID
-	Plugins map[string]PluginData // [pluginID]PluginData
-	Updated bool
+	ID uuid.UUID // Unique ID
+
+	data    map[string][]byte // [pluginID]data
+	updated bool
 }
 
-// PluginData contains the user data for a specific plugin.
-type PluginData struct {
-	ClearText []byte
-	Encrypted []byte
+// NewUser returns a new User.
+func NewUser(id uuid.UUID) *User {
+	return &User{
+		ID:   id,
+		data: make(map[string][]byte, 64),
+	}
+}
+
+// SetData sets the data for a plugin.
+func (u *User) SetData(pluginID string, data []byte) {
+	u.data[pluginID] = data
+	u.updated = true
+}
+
+// Data returns the data for a plugin.
+func (u *User) Data(pluginID string) []byte {
+	return u.data[pluginID]
+}
+
+// Updated returns whether the plugin data has been updated.
+func (u *User) Updated() bool {
+	return u.updated
 }
