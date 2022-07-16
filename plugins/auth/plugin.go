@@ -6,9 +6,11 @@ package auth
 
 import (
 	"database/sql"
+	"strconv"
 
 	app "github.com/decred/politeia/app/v1"
 	v1 "github.com/decred/politeia/plugins/auth/v1"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -22,14 +24,15 @@ var (
 type plugin struct {
 	perms map[string]map[string]struct{} // [cmd][permissionLevel]
 
-	// TODO add plugin settings
+	// Plugin settings
 	sessionMaxAge int64
 }
 
 // New returns a new auth plugin.
 func New() *plugin {
 	return &plugin{
-		perms: make(map[string]map[string]struct{}, 256),
+		perms:         make(map[string]map[string]struct{}, 256),
+		sessionMaxAge: v1.SessionMaxAge,
 	}
 }
 
@@ -50,7 +53,14 @@ func (p *plugin) Version() uint32 {
 // UpdateSettings updates the plugin settings.
 //
 // This function satisfies the app/v1 Plugin interface.
-func (p *plugin) UpdateSettings([]app.Setting) error {
+func (p *plugin) UpdateSettings(settings []app.Setting) error {
+	for _, s := range settings {
+		err := p.parseSetting(s)
+		if err != nil {
+			return errors.Errorf("failed to parse setting %+v: %v", s, err)
+		}
+		log.Infof("Plugin setting %v updated to %v", s.Name, s.Value)
+	}
 	return nil
 }
 
@@ -95,4 +105,22 @@ func (p *plugin) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
 // This function satisfies the app/v1 Plugin interface.
 func (p *plugin) TxRead(tx *sql.Tx, a app.ReadArgs) (*app.CmdReply, error) {
 	return nil, nil
+}
+
+// parseSetting parses the plugin setting and updates the plugin context with
+// the setting.
+func (p *plugin) parseSetting(s app.Setting) error {
+	switch s.Name {
+	case v1.SettingSessionMaxAge:
+		i, err := strconv.ParseInt(s.Value, 10, 64)
+		if err != nil {
+			return err
+		}
+		p.sessionMaxAge = i
+
+	default:
+		return errors.Errorf("setting name not recognized")
+	}
+
+	return nil
 }

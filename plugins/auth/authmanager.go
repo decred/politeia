@@ -5,6 +5,8 @@
 package auth
 
 import (
+	"encoding/json"
+
 	app "github.com/decred/politeia/app/v1"
 	v1 "github.com/decred/politeia/plugins/auth/v1"
 )
@@ -78,7 +80,6 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 			Context: "the user is not logged in",
 		}
 	case s.Del():
-		// This session has expired
 		return app.UserErr{
 			Code:    uint32(v1.ErrCodeNotAuthorized),
 			Context: "the session has expired",
@@ -86,7 +87,26 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 	}
 
 	// Check the user permissions levels
+	var u user
+	err := json.Unmarshal(a.User.Data(), &u)
+	if err != nil {
+		return err
+	}
+	var isAllowed bool
+	for _, permLevel := range u.Perms {
+		if p.cmdIsAllowed(a.Cmd, permLevel) {
+			isAllowed = true
+			break
+		}
+	}
+	if !isAllowed {
+		return app.UserErr{
+			Code:    uint32(v1.ErrCodeNotAuthorized),
+			Context: "the user does not have the correct permissions",
+		}
+	}
 
+	// The user is allowed to execute this command
 	return nil
 }
 
