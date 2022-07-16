@@ -2,20 +2,16 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package v1
+package app
 
-import "context"
+import (
+	"context"
+)
 
 // App provides an API for accessing the plugin configuration of a politeia
 // app. An app is essentially just a unique configuration of plugins.
 type App interface {
-	// Plugins returns all of the plugins that are part of the app.
-	Plugins() []Plugin
-
-	// AuthManager returns the app's AuthManager.
-	AuthManager() AuthManager
-
-	// Cmds returns all of the plugin commands that are part of the app.
+	// Cmds returns the plugin commands that are part of the app.
 	Cmds() []CmdDetails
 
 	// PreventBatchedReads returns a list of plugin commands that are not
@@ -32,4 +28,16 @@ type App interface {
 
 	// Read(context.Context, Session, Cmd) (*CmdReply, error)
 	// ReadBatch(context.Context, Session, []Cmd) ([]CmdReply, error)
+}
+
+// InitArgs contains the arguments that are passed to an app initialization
+// function.
+type InitArgs struct {
+	DBHost string
+	DBPass string
+
+	// Settings are the settings that were specified at runtime. These settings
+	// should overwrite the default plugin settings. The plugin ID is the map
+	// key.
+	Settings map[string][]Setting
 }

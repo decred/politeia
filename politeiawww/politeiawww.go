@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	app "github.com/decred/politeia/app/v1"
+	"github.com/decred/politeia/app"
 	pdclient "github.com/decred/politeia/politeiad/client"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/legacy"
@@ -33,7 +33,7 @@ type politeiawww struct {
 	sessions  sessions.Store
 	app       app.App
 
-	// cmds contains all registered plugin commands.
+	// cmds contains all valid plugin commands for the app.
 	//
 	// This allows politeia to validate incoming plugin command requests without
 	// having to query the app. This map is built on startup and is static.

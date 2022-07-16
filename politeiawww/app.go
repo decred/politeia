@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	app "github.com/decred/politeia/app/v1"
+	"github.com/decred/politeia/app"
 	"github.com/decred/politeia/proposals"
 	"github.com/pkg/errors"
 )
@@ -17,13 +17,9 @@ import (
 // setupApp sets up politeia to run the app that was specified in politeia
 // configuration.
 //
-// An app is essentially just a unique configuation of plugins. politeia
-// accesses the plugin configuration using the API provided by the App
-// interface.
-//
 // Plugin settings that were specified in the config file are parsed and
-// provided to the app. These runtime settings will override any existing app
-// settings.
+// provided to the app. These runtime settings will override the default
+// plugin settings.
 func (p *politeiawww) setupApp() error {
 	// Parse the plugin settings
 	settings := make(map[string][]app.Setting)
@@ -32,22 +28,26 @@ func (p *politeiawww) setupApp() error {
 		if err != nil {
 			return errors.Errorf("failed to parse %v", rawSetting)
 		}
-		ss, ok := settings[pluginID]
+		ps, ok := settings[pluginID]
 		if !ok {
-			ss = make([]app.Setting, 0, 16)
+			ps = make([]app.Setting, 0, 16)
 		}
-		ss = append(ss, *s)
-		settings[pluginID] = ss
+		ps = append(ps, *s)
+		settings[pluginID] = ps
 	}
 
 	// Setup the app
 	var (
-		app app.App
+		args = app.InitArgs{
+			DBHost:   p.cfg.DBHost,
+			DBPass:   p.cfg.DBPass,
+			Settings: settings,
+		}
 		err error
 	)
 	switch p.cfg.App {
 	case proposals.AppID:
-		// app, err = proposals.NewApp()
+		p.app, err = proposals.NewApp(args)
 	default:
 		return errors.Errorf("%v is not a valid app", p.cfg.App)
 	}
@@ -55,24 +55,8 @@ func (p *politeiawww) setupApp() error {
 		return errors.Errorf("failed to initialize %v app: %v", p.cfg.App, err)
 	}
 
-	p.app = app
-
-	// Setup the plugins
-	for _, plugin := range app.Plugins() {
-		// Update any plugin settings that were
-		// provided in the politeia config file.
-		s, ok := settings[plugin.ID()]
-		if ok {
-			err = plugin.UpdateSettings(s)
-			if err != nil {
-				return errors.Errorf("update settings for %v plugin: %v",
-					plugin.ID(), err)
-			}
-		}
-	}
-
-	// Register the plugin cmds with politeia
-	for _, cmd := range app.Cmds() {
+	// Build politeia's internal list of plugin commands
+	for _, cmd := range p.app.Cmds() {
 		p.cmds[cmd.String()] = struct{}{}
 	}
 

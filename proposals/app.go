@@ -8,7 +8,7 @@ import (
 	"context"
 	"database/sql"
 
-	app "github.com/decred/politeia/app/v1"
+	"github.com/decred/politeia/app"
 	"github.com/decred/politeia/plugins/auth"
 	"github.com/decred/politeia/politeiawww/user"
 )
@@ -18,25 +18,45 @@ const (
 	AppID = "proposals"
 )
 
-var _ app.App = (*proposalsApp)(nil)
+var _ app.App = (*appCtx)(nil)
 
-// proposalsApp represents the politeia app for the decred proposal system.
+// appCtx is the politeia app for the decred proposal system.
 //
-// proposalsApp satisfies the app/v1 App interface.
-type proposalsApp struct {
+// appCtx satisfies the app/v1 App interface.
+type appCtx struct {
 	plugins []app.Plugin
-	authMgr app.AuthManager
 	driver  *app.Driver
 }
 
 // NewApp returns a new proposals app.
-func NewApp() (*proposalsApp, error) {
+func NewApp(a app.InitArgs) (*appCtx, error) {
 	var (
-		// TODO
+		// TODO setup the database connection
+		// each app should have it's own database
 		db      *sql.DB
 		userDB  user.DB
 		plugins = make([]app.Plugin, 0, 64)
 	)
+	/*
+		log.Infof("MySQL host: %v:[password]@tcp(%v)/%v", user, host, dbname)
+
+		h := fmt.Sprintf("%v:%v@tcp(%v)/%v", user, password, host, dbname)
+		db, err := sql.Open("mysql", h)
+		if err != nil {
+			return nil, err
+		}
+
+		// Verify the database connection
+		err = db.Ping()
+		if err != nil {
+			return nil, err
+		}
+
+		// Setup database options
+		db.SetConnMaxLifetime(connMaxLifetime)
+		db.SetMaxOpenConns(maxOpenConns)
+		db.SetMaxIdleConns(maxIdleConns)
+	*/
 
 	authP := auth.New()
 
@@ -44,32 +64,35 @@ func NewApp() (*proposalsApp, error) {
 	// cmds that are part of the proposals app.
 	authP.SetCmdPerms(perms())
 
-	return &proposalsApp{
+	// Update the default plugin settings with
+	// the settings that were provided in the
+	// config at runtime.
+	for _, p := range plugins {
+		s, ok := a.Settings[p.ID()]
+		if !ok {
+			continue
+		}
+		p.UpdateSettings(s)
+	}
+
+	return &appCtx{
 		plugins: plugins,
-		authMgr: authP,
 		driver:  app.NewDriver(plugins, db, userDB, authP),
 	}, nil
-}
-
-// Plugins returns all of the plugins that are part of the app.
-//
-// This function satisfies the app/v1 App interface.
-func (a *proposalsApp) Plugins() []app.Plugin {
-	return nil
-}
-
-// AuthManager returns the app's AuthManager.
-//
-// This function satisfies the app/v1 App interface.
-func (a *proposalsApp) AuthManager() app.AuthManager {
-	return a.authMgr
 }
 
 // Cmds returns all of the plugin commands that are part of the app.
 //
 // This function satisfies the app/v1 App interface.
-func (a *proposalsApp) Cmds() []app.CmdDetails {
-	return nil
+func (a *appCtx) Cmds() []app.CmdDetails {
+	// We've already created a list of all the cmds
+	// that are part of the app when we created the
+	// cmd permissions list. Re-use this same list.
+	cmds := make([]app.CmdDetails, 0, 256)
+	for _, perm := range perms() {
+		cmds = append(cmds, perm.Cmd)
+	}
+	return cmds
 }
 
 // PreventBatchedReads returns the list of plugin commands that are not
@@ -81,13 +104,13 @@ func (a *proposalsApp) Cmds() []app.CmdDetails {
 // read commands are allowed to be batched.
 //
 // This function satisfies the app/v1 App interface.
-func (a *proposalsApp) PreventBatchedReads() []app.CmdDetails {
+func (a *appCtx) PreventBatchedReads() []app.CmdDetails {
 	return nil
 }
 
 // Write executes a plugin write command.
 //
 // This function satisfies the app/v1 App interface.
-func (a *proposalsApp) Write(ctx context.Context, s app.Session, c app.Cmd) (*app.CmdReply, error) {
+func (a *appCtx) Write(ctx context.Context, s app.Session, c app.Cmd) (*app.CmdReply, error) {
 	return a.driver.WriteCmd(ctx, &s, c)
 }

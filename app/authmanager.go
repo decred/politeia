@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package v1
+package app
 
 // AuthManager provides user authorization for plugin commands.
 type AuthManager interface {

@@ -7,7 +7,7 @@ package auth
 import (
 	"time"
 
-	app "github.com/decred/politeia/app/v1"
+	"github.com/decred/politeia/app"
 )
 
 const (

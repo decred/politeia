@@ -8,7 +8,7 @@ import (
 	"database/sql"
 	"strconv"
 
-	app "github.com/decred/politeia/app/v1"
+	"github.com/decred/politeia/app"
 	v1 "github.com/decred/politeia/plugins/auth/v1"
 	"github.com/pkg/errors"
 )

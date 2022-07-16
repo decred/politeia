@@ -5,7 +5,7 @@
 package proposals
 
 import (
-	app "github.com/decred/politeia/app/v1"
+	"github.com/decred/politeia/app"
 	auth "github.com/decred/politeia/plugins/auth/v1"
 )
 
