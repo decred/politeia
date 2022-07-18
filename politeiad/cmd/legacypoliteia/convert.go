@@ -26,10 +26,6 @@ import (
 
 func convertRecordMetadata(r gitbe.RecordMetadata, version uint32) backend.RecordMetadata {
 	return backend.RecordMetadata{
-		// We are using the legacy git token as the record
-		// metadata token for the sake of keeping certain
-		// signatures coherent (I think...). This needs to
-		// be verified.
 		Token:     r.Token,
 		Version:   version, // Parsed from git path
 		Iteration: uint32(r.Iteration),
@@ -68,14 +64,14 @@ func convertFile(payload []byte, fileName string) backend.File {
 	}
 }
 
-func convertProposalMetadata(name, legacyToken string) pi.ProposalMetadata {
+func convertProposalMetadata(name string) pi.ProposalMetadata {
 	return pi.ProposalMetadata{
 		Name:        name, // Parsed from index file
 		Amount:      0,
 		StartDate:   0,
 		EndDate:     0,
 		Domain:      "",
-		LegacyToken: legacyToken, // Parsed from git path
+		LegacyToken: "", // Populated by the import command
 	}
 }
 
