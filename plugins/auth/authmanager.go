@@ -21,7 +21,7 @@ var (
 // SetPerms sets the user permission levels for a list of commands.
 //
 // This function satisfies the app.AuthManager interface.
-func (p *plugin) SetCmdPerms(perms []app.CmdPerm) {
+func (p *plugin) SetCmdPerms(perms []app.CmdPerms) {
 	for _, v := range perms {
 		p.setPerm(v)
 	}
@@ -54,7 +54,7 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 	// have expired will have their del field set to
 	// true. We don't return here because the command
 	// might be a public command.
-	if s.IsLoggedIn() && s.IsExpired(p.sessionMaxAge) {
+	if s.IsLoggedIn() && s.IsExpired(p.settings.SessionMaxAge) {
 		s.SetDel()
 	}
 
@@ -112,13 +112,13 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 }
 
 // setPerm sets a permission level for a command.
-func (p *plugin) setPerm(cp app.CmdPerm) {
+func (p *plugin) setPerm(cp app.CmdPerms) {
 	c := cp.Cmd.String()
 	permLevels, ok := p.perms[c]
 	if !ok {
 		permLevels = make(map[string]struct{}, 64)
 	}
-	for _, v := range cp.Levels {
+	for _, v := range cp.Perms {
 		permLevels[v] = struct{}{}
 	}
 	p.perms[c] = permLevels
