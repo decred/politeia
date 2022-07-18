@@ -41,7 +41,7 @@ var (
 	// see usage.go, so the individual flag usage messages are left blank.
 	convertFlags = flag.NewFlagSet(convertCmdName, flag.ContinueOnError)
 	legacyDir    = convertFlags.String("legacydir", defaultLegacyDir, "")
-	token        = convertFlags.String("token", "", "")
+	convertToken = convertFlags.String("token", "", "")
 	overwrite    = convertFlags.Bool("overwrite", false, "")
 )
 
@@ -85,7 +85,7 @@ func execConvertCmd(args []string) error {
 		client:    client,
 		gitRepo:   gitRepo,
 		legacyDir: *legacyDir,
-		token:     *token,
+		token:     *convertToken,
 		overwrite: *overwrite,
 		userIDs:   make(map[string]string, 1024),
 	}
@@ -183,7 +183,7 @@ func (c *convertCmd) convertLegacyProposals() error {
 		if err != nil {
 			return err
 		}
-		statusChange, err := c.convertStatusChange(proposalDir)
+		statusChanges, err := c.convertStatusChanges(proposalDir)
 		if err != nil {
 			return err
 		}
@@ -225,7 +225,7 @@ func (c *convertCmd) convertLegacyProposals() error {
 			ProposalMetadata: *proposalMD,
 			VoteMetadata:     voteMD,
 			UserMetadata:     *userMD,
-			StatusChange:     *statusChange,
+			StatusChanges:    statusChanges,
 			CommentAdds:      ct.Adds,
 			CommentDels:      ct.Dels,
 			CommentVotes:     ct.Votes,
@@ -233,7 +233,7 @@ func (c *convertCmd) convertLegacyProposals() error {
 			VoteDetails:      voteDetails,
 			CastVotes:        castVotes,
 		}
-		err = p.verify()
+		err = verifyProposal(p)
 		if err != nil {
 			return err
 		}
@@ -244,6 +244,8 @@ func (c *convertCmd) convertLegacyProposals() error {
 			return err
 		}
 	}
+
+	fmt.Printf("Legacy proposal conversion complete\n")
 
 	return nil
 }
@@ -341,17 +343,9 @@ func (c *convertCmd) convertProposalMetadata(proposalDir string) (*pi.ProposalMe
 		return nil, err
 	}
 
-	// Get the legacy token from the proposal
-	// directory path.
-	token, ok := parseProposalToken(proposalDir)
-	if !ok {
-		return nil, fmt.Errorf("token not found in path '%v'", proposalDir)
-	}
-
-	pm := convertProposalMetadata(name, token)
+	pm := convertProposalMetadata(name)
 
 	fmt.Printf("    Name       : %v\n", pm.Name)
-	fmt.Printf("    LegacyToken: %v\n", pm.LegacyToken)
 
 	return &pm, nil
 }
@@ -388,6 +382,15 @@ func (c *convertCmd) convertVoteMetadata(proposalDir string) (*ticketvote.VoteMe
 	err = json.Unmarshal(b, &pm)
 	if err != nil {
 		return nil, err
+	}
+
+	// A VoteMetadata only needs to be built if the proposal
+	// contains fields that indicate that it's either an RFP
+	// or RFP submissions. These are the LinkBy and LinkTo
+	// fields.
+	if pm.LinkBy == 0 && pm.LinkTo == "" {
+		// We don't need a VoteMetadata for this proposal
+		return nil, nil
 	}
 
 	// Build the vote metadata
@@ -442,12 +445,20 @@ func (c *convertCmd) convertUserMetadata(proposalDir string) (*usermd.UserMetada
 	return &um, nil
 }
 
-// convertStatusChange reads the git backend data from disk that is required
+// convertStatusChanges reads the git backend data from disk that is required
 // to build the usermd plugin StatusChangeMetadata structures, then returns
-// the latest StateChangeMetadata.
+// the StateChangeMetadata that is found.
 //
-// Only the most recent status change is returned.
-func (c *convertCmd) convertStatusChange(proposalDir string) (*usermd.StatusChangeMetadata, error) {
+// A public proposal will only have one status change returned. The status
+// change of when the proposal was made public.
+//
+// An abandoned proposal will have two status changes returned. The status
+// change from when the proposal was made public and the status change from
+// when the proposal was marked as abandoned.
+//
+// All other status changes are not public data and thus will not have been
+// included in the legacy git repo.
+func (c *convertCmd) convertStatusChanges(proposalDir string) ([]usermd.StatusChangeMetadata, error) {
 	fmt.Printf("  Status changes\n")
 
 	// Read the status changes mdstream from disk
@@ -491,19 +502,42 @@ func (c *convertCmd) convertStatusChange(proposalDir string) (*usermd.StatusChan
 		return statuses[i].Timestamp < statuses[j].Timestamp
 	})
 
-	// Only the most recent status change is returned
-	latest := statuses[len(statuses)-1]
+	// Sanity checks
+	switch {
+	case len(statuses) == 0:
+		return nil, fmt.Errorf("no status changes found")
+	case len(statuses) > 2:
+		return nil, fmt.Errorf("invalid number of status changes (%v)",
+			len(statuses))
+	}
+	for _, v := range statuses {
+		switch v.Status {
+		case 2:
+			// Public status. This is expected.
+		case 4:
+			// Abandoned status. This is expected.
+		default:
+			return nil, fmt.Errorf("invalid status %v", v.Status)
+		}
+	}
 
-	status := backend.Statuses[backend.StatusT(latest.Status)]
-	fmt.Printf("    Token    : %v\n", latest.Token)
-	fmt.Printf("    Version  : %v\n", latest.Version)
-	fmt.Printf("    Status   : %v\n", status)
-	fmt.Printf("    PublicKey: %v\n", latest.PublicKey)
-	fmt.Printf("    Signature: %v\n", latest.Signature)
-	fmt.Printf("    Reason   : %v\n", latest.Reason)
-	fmt.Printf("    Timestamp: %v\n", latest.Timestamp)
+	// Print the status changes
+	for i, v := range statuses {
+		status := backend.Statuses[backend.StatusT(v.Status)]
+		fmt.Printf("    Token    : %v\n", v.Token)
+		fmt.Printf("    Version  : %v\n", v.Version)
+		fmt.Printf("    Status   : %v\n", status)
+		fmt.Printf("    PublicKey: %v\n", v.PublicKey)
+		fmt.Printf("    Signature: %v\n", v.Signature)
+		fmt.Printf("    Reason   : %v\n", v.Reason)
+		fmt.Printf("    Timestamp: %v\n", v.Timestamp)
 
-	return &latest, nil
+		if i != len(statuses)-1 {
+			fmt.Printf("    ----\n")
+		}
+	}
+
+	return statuses, nil
 }
 
 // commentTypes contains the various comment data types for a proposal.
@@ -536,11 +570,29 @@ func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) 
 		scanner = bufio.NewScanner(f)
 
 		// The legacy proposals may contain duplicate comments.
-		// We filter these duplicates out by storing them in a
-		// map where the comment signature is the key.
-		adds  = make(map[string]comments.CommentAdd)  // [sig]CommentAdd
-		dels  = make(map[string]comments.CommentDel)  // [sig]CommentDel
-		votes = make(map[string]comments.CommentVote) // [sig]CommentVote
+		// We DO NOT filter these duplicates out because of the
+		// errors it can cause:
+		//
+		// - Some of the duplicate comments have comment votes
+		//   on both of the comments. Deleting one causes issues
+		//   where a comment vote no longer references a valid
+		//   comment ID.
+		//
+		// - The backend assumes that the comment IDs will be
+		//   sequential. It will throw errors if something is
+		//   off. There needs to be either a comment add entry
+		//   or a comment del entry for each sequential comment
+		//   ID.
+		//
+		// We DO filter out duplicate comment votes. There is no
+		// unique piece of data on a duplicate comment vote like
+		// there is on a duplicate comment, i.e. the comment ID,
+		// which means that duplicate comment votes will cause a
+		// trillian duplicate leaf error when attempting to import
+		// the duplicate comment vote into the tstore backend.
+		adds  = make(map[string]comments.CommentAdd)  // [commentID]CommentAdd
+		dels  = make(map[string]comments.CommentDel)  // [commentID]CommentDel
+		votes = make(map[string]comments.CommentVote) // [signature]CommentVote
 
 		// We must track the parent IDs for new comments
 		// because the gitbe censore comment struct does
@@ -573,7 +625,7 @@ func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) 
 				return nil, err
 			}
 			ca := convertCommentAdd(cm, userID)
-			adds[ca.Signature] = ca
+			adds[cm.CommentID] = ca
 
 			// Save the parent ID
 			parentIDs[cm.CommentID] = ca.ParentID
@@ -592,7 +644,7 @@ func (c *convertCmd) convertComments(proposalDir string) (*commentTypes, error) 
 			if !ok {
 				return nil, fmt.Errorf("parent id not found for %v", cc.CommentID)
 			}
-			dels[cc.Signature] = convertCommentDel(cc, parentID, userID)
+			dels[cc.CommentID] = convertCommentDel(cc, parentID, userID)
 
 		case gitbe.JournalActionAddLike:
 			var lc gitbe.LikeComment
@@ -942,7 +994,7 @@ func (c *convertCmd) userIDByPubKey(userPubKey string) (string, error) {
 	if userID != "" {
 		return userID, nil
 	}
-	u, err := c.userByPubKey(userPubKey)
+	u, err := userByPubKey(c.client, userPubKey)
 	if err != nil {
 		return "", err
 	}
