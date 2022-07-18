@@ -59,16 +59,16 @@ type Setting struct {
 	Value string
 }
 
-// CmdDetails contains the details of a registered plugin command.
+// CmdDetails contains summary information about a plugin command.
 type CmdDetails struct {
-	PluginID string
-	Version  uint32 // Plugin API version
-	Name     string
+	Plugin  string
+	Version uint32 // Plugin API version
+	Cmd     string
 }
 
 // String returns a string representation of the command.
 func (c *CmdDetails) String() string {
-	return fmt.Sprintf("%v-%v-%v", c.PluginID, c.Version, c.Name)
+	return fmt.Sprintf("%v-%v-%v", c.Plugin, c.Version, c.Cmd)
 }
 
 // WriteArgs contain the arguments for the plugin write methods.
@@ -99,15 +99,15 @@ type HookArgs struct {
 
 // Cmd represents a plugin command.
 type Cmd struct {
-	PluginID string
-	Version  uint32 // API version
-	Name     string
-	Payload  string // JSON encoded
+	Plugin  string
+	Version uint32 // API version
+	Name    string
+	Payload string // JSON encoded
 }
 
 // String returns the string representation of a plugin command.
 func (c *Cmd) String() string {
-	return fmt.Sprintf("%v-%v-%v", c.PluginID, c.Version, c.Name)
+	return fmt.Sprintf("%v-%v-%v", c.Plugin, c.Version, c.Name)
 }
 
 // CmdReply is the reply to a plugin command.

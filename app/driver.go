@@ -98,8 +98,8 @@ func (d *Driver) ReadCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, e
 
 	// Execute the plugin command
 	var (
-		p  = d.plugin(cmd.PluginID)
-		au = convertUser(u, cmd.PluginID)
+		p  = d.plugin(cmd.Plugin)
+		au = convertUser(u, cmd.Plugin)
 	)
 	reply, err := p.Read(
 		ReadArgs{
@@ -162,8 +162,8 @@ func (d *Driver) newUserCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply
 
 	// Execute the new user plugin command
 	var (
-		p  = d.plugin(cmd.PluginID)
-		au = convertUser(u, cmd.PluginID)
+		p  = d.plugin(cmd.Plugin)
+		au = convertUser(u, cmd.Plugin)
 	)
 	reply, err := p.TxWrite(tx,
 		WriteArgs{
@@ -178,7 +178,7 @@ func (d *Driver) newUserCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply
 	// that were made to the user data by the
 	// plugin.
 	if au.Updated() {
-		u.SetData(cmd.PluginID, au.Data())
+		u.SetData(cmd.Plugin, au.Data())
 	}
 
 	// Execute the post plugin hooks
@@ -263,8 +263,8 @@ func (d *Driver) writeCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, 
 
 	// Execute the plugin command
 	var (
-		p  = d.plugin(cmd.PluginID)
-		au = convertUser(u, cmd.PluginID)
+		p  = d.plugin(cmd.Plugin)
+		au = convertUser(u, cmd.Plugin)
 	)
 	reply, err := p.TxWrite(tx,
 		WriteArgs{
@@ -279,7 +279,7 @@ func (d *Driver) writeCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, 
 	// that were made to the user data by the
 	// plugin.
 	if au.Updated() {
-		u.SetData(cmd.PluginID, au.Data())
+		u.SetData(cmd.Plugin, au.Data())
 	}
 
 	// Execute the post plugin hooks
@@ -326,9 +326,9 @@ func (d *Driver) authorize(s *Session, u *user.User, c Cmd) error {
 			Session: s,
 			User:    *au,
 			Cmd: CmdDetails{
-				PluginID: c.PluginID,
-				Version:  c.Version,
-				Name:     c.Name,
+				Plugin:  c.Plugin,
+				Version: c.Version,
+				Cmd:     c.Name,
 			},
 		})
 }

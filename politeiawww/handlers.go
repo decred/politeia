@@ -78,7 +78,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify the plugin command
-	cs := cmdStr(cmd.PluginID, cmd.Version, cmd.Name)
+	cs := cmdStr(cmd.Plugin, cmd.Version, cmd.Name)
 	_, ok := p.cmds[cs]
 	if !ok {
 		respondWithUserError(w, r, v3.ErrCodeInvalidPluginCmd, "")
@@ -120,7 +120,7 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify the plugin command
-	cs := cmdStr(cmd.PluginID, cmd.Version, cmd.Name)
+	cs := cmdStr(cmd.Plugin, cmd.Version, cmd.Name)
 	_, ok := p.cmds[cs]
 	if !ok {
 		respondWithUserError(w, r, v3.ErrCodeInvalidPluginCmd, "")
@@ -175,9 +175,9 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 	}
 	notFound := make([]string, 0, len(batch.Cmds))
 	for _, cmd := range batch.Cmds {
-		_, ok := p.plugins[cmd.PluginID]
+		_, ok := p.plugins[cmd.Plugin]
 		if !ok {
-			notFound = append(notFound, cmd.PluginID)
+			notFound = append(notFound, cmd.Plugin)
 		}
 	}
 	if len(notFound) > 0 {

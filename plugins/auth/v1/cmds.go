@@ -5,12 +5,8 @@
 package v1
 
 const (
-	PluginID             = "auth"
-	PluginVersion uint32 = 1
-)
-
-const (
-	CmdNewUser = "newuser"
+	ID             = "auth"
+	Version uint32 = 1
 )
 
 const (

@@ -19,8 +19,8 @@ var (
 
 // plugin represents the auth plugin.
 //
-// plugin satisfies the app/v1 Plugin interface.
-// plugin satisfies the app/v1 AuthManager interface.
+// plugin satisfies the app.Plugin interface.
+// plugin satisfies the app.AuthManager interface.
 type plugin struct {
 	perms map[string]map[string]struct{} // [cmd][permissionLevel]
 
@@ -38,21 +38,21 @@ func New() *plugin {
 
 // ID returns the plugin ID.
 //
-// This function satisfies the app/v1 Plugin interface.
+// This function satisfies the app.Plugin interface.
 func (p *plugin) ID() string {
-	return v1.PluginID
+	return v1.ID
 }
 
 // Version returns the lowest supported plugin API version.
 //
-// This function satisfies the app/v1 Plugin interface.
+// This function satisfies the app.Plugin interface.
 func (p *plugin) Version() uint32 {
-	return v1.PluginVersion
+	return v1.Version
 }
 
 // UpdateSettings updates the plugin settings.
 //
-// This function satisfies the app/v1 Plugin interface.
+// This function satisfies the app.Plugin interface.
 func (p *plugin) UpdateSettings(settings []app.Setting) error {
 	for _, s := range settings {
 		err := p.parseSetting(s)
@@ -67,42 +67,42 @@ func (p *plugin) UpdateSettings(settings []app.Setting) error {
 // NewUserCmds returns all of the plugin commands that should result in a new
 // user being inserted into the user database.
 //
-// This function satisfies the app/v1 Plugin interface.
+// This function satisfies the app.Plugin interface.
 func (p *plugin) NewUserCmds() []app.CmdDetails {
-	return nil
+	return []app.CmdDetails{}
 }
 
 // Hook executes a plugin hook.
 //
-// This function satisfies the app/v1 Plugin interface.
+// This function satisfies the app.Plugin interface.
 func (p *plugin) Hook(a app.HookArgs) error {
 	return nil
 }
 
 // Read executes a read plugin command.
 //
-// This function satisfies the app/v1 Plugin interface.
+// This function satisfies the app.Plugin interface.
 func (p *plugin) Read(a app.ReadArgs) (*app.CmdReply, error) {
 	return nil, nil
 }
 
 // TxHook executes a plugin hook using a database transaction.
 //
-// This function satisfies the app/v1 Plugin interface.
+// This function satisfies the app.Plugin interface.
 func (p *plugin) TxHook(tx *sql.Tx, a app.HookArgs) error {
 	return nil
 }
 
 // TxWrite executes a write plugin command using a database transaction.
 //
-// This function satisfies the app/v1 Plugin interface.
+// This function satisfies the app.Plugin interface.
 func (p *plugin) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
 	return nil, nil
 }
 
 // TxRead executes a read plugin command using a database transaction.
 //
-// This function satisfies the app/v1 Plugin interface.
+// This function satisfies the app.Plugin interface.
 func (p *plugin) TxRead(tx *sql.Tx, a app.ReadArgs) (*app.CmdReply, error) {
 	return nil, nil
 }

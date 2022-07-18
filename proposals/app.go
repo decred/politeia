@@ -22,7 +22,7 @@ var _ app.App = (*appCtx)(nil)
 
 // appCtx is the politeia app for the decred proposal system.
 //
-// appCtx satisfies the app/v1 App interface.
+// appCtx satisfies the app.App interface.
 type appCtx struct {
 	plugins []app.Plugin
 	driver  *app.Driver
@@ -83,7 +83,7 @@ func NewApp(a app.InitArgs) (*appCtx, error) {
 
 // Cmds returns all of the plugin commands that are part of the app.
 //
-// This function satisfies the app/v1 App interface.
+// This function satisfies the app.App interface.
 func (a *appCtx) Cmds() []app.CmdDetails {
 	// We've already created a list of all the cmds
 	// that are part of the app when we created the
@@ -103,7 +103,7 @@ func (a *appCtx) Cmds() []app.CmdDetails {
 // lets the app prevent expensive reads from being batched. By default, all
 // read commands are allowed to be batched.
 //
-// This function satisfies the app/v1 App interface.
+// This function satisfies the app.App interface.
 func (a *appCtx) PreventBatchedReads() []app.CmdDetails {
 	return nil
 }
@@ -112,7 +112,7 @@ func (a *appCtx) PreventBatchedReads() []app.CmdDetails {
 //
 // Any updates make to the session will be persisted by the politeia server.
 //
-// This function satisfies the app/v1 App interface.
+// This function satisfies the app.App interface.
 func (a *appCtx) Write(ctx context.Context, s *app.Session, c app.Cmd) (*app.CmdReply, error) {
 	return a.driver.WriteCmd(ctx, s, c)
 }
@@ -121,7 +121,7 @@ func (a *appCtx) Write(ctx context.Context, s *app.Session, c app.Cmd) (*app.Cmd
 //
 // Any updates make to the session will be persisted by the politeia server.
 //
-// This function satisfies the app/v1 App interface.
+// This function satisfies the app.App interface.
 func (a *appCtx) Read(ctx context.Context, s *app.Session, c app.Cmd) (*app.CmdReply, error) {
 	return a.driver.ReadCmd(ctx, s, c)
 }

@@ -11,7 +11,7 @@ import (
 	v1 "github.com/decred/politeia/plugins/auth/v1"
 )
 
-// authmanager.go contains the methods that satisfy the app/v1 AuthManager
+// authmanager.go contains the methods that satisfy the app.AuthManager
 // interface.
 
 var (
@@ -20,7 +20,7 @@ var (
 
 // SetPerms sets the user permission levels for a list of commands.
 //
-// This function satisfies the app/v1 AuthManager interface.
+// This function satisfies the app.AuthManager interface.
 func (p *plugin) SetCmdPerms(perms []app.CmdPerm) {
 	for _, v := range perms {
 		p.setPerm(v)
@@ -30,7 +30,7 @@ func (p *plugin) SetCmdPerms(perms []app.CmdPerm) {
 // SessionUserID returns the user ID from the session values if one exists.
 // An empty string is returned if a user ID does not exist.
 //
-// This function satisfies the app/v1 AuthManager interface.
+// This function satisfies the app.AuthManager interface.
 func (p *plugin) SessionUserID(as app.Session) string {
 	s := newSession(&as)
 	return s.UserID()
@@ -46,7 +46,7 @@ func (p *plugin) SessionUserID(as app.Session) string {
 //
 // A UserErr is returned if the user is not authorized.
 //
-// This function satisfies the app/v1 AuthManager interface.
+// This function satisfies the app.AuthManager interface.
 func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 	s := newSession(a.Session)
 
@@ -80,9 +80,10 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 			Context: "the user is not logged in",
 		}
 	case s.Del():
+		// The session has expired
 		return app.UserErr{
 			Code:    uint32(v1.ErrCodeNotAuthorized),
-			Context: "the session has expired",
+			Context: "the user is not logged in",
 		}
 	}
 

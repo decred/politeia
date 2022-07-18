@@ -12,6 +12,8 @@ import (
 
 const (
 	// The following entries are the keys for the key-value session data.
+	// The session data is saved to the sessions database by the politeia
+	// server. The auth plugin does not need to worry about persisting it.
 	sessionKeyUserID    = "user_id"
 	sessionKeyCreatedAt = "created_at"
 )
@@ -22,8 +24,10 @@ type session struct {
 	// saved to the sessions database by the backend.
 	app *app.Session
 
-	// Auth plugin session values. These values are saved to the app.Session as
-	// interface{} values.
+	// The following fields are the auth plugin session values. These values
+	// travel in the app.Session values as interface{} types and are type casted
+	// when we need to work with them locally. Any updates made to these values
+	// are also made to the app.Session values.
 	userID    string
 	createdAt int64 // Unix timestamp
 

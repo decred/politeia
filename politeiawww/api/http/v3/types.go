@@ -38,19 +38,19 @@ type PolicyReply struct {
 
 // Cmd represents a plugin command.
 type Cmd struct {
-	PluginID string `json:"pluginid"`
-	Version  uint32 `json:"version"` // Plugin API version
-	Name     string `json:"name"`
-	Payload  string `json:"payload"` // JSON encoded
+	Plugin  string `json:"plugin"`
+	Version uint32 `json:"version"` // Plugin API version
+	Name    string `json:"name"`
+	Payload string `json:"payload"` // JSON encoded
 }
 
 // CmdReply is the reply to a Cmd request.
 type CmdReply struct {
-	PluginID string       `json:"pluginid"`
-	Version  uint32       `json:"version"` // Plugin API version
-	Name     string       `json:"name"`
-	Payload  string       `json:"payload"` // JSON encoded
-	Error    *PluginError `json:"error,omitempty"`
+	Plugin  string       `json:"plugin"`
+	Version uint32       `json:"version"` // Plugin API version
+	Name    string       `json:"name"`
+	Payload string       `json:"payload"` // JSON encoded
+	Error   *PluginError `json:"error,omitempty"`
 }
 
 // PluginError represents an error that occurred during the execution of a
