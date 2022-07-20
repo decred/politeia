@@ -86,7 +86,7 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 	}
 
 	// Check the user permissions levels
-	u, err := p.getUserRO(a.User.ID.String())
+	u, err := p.getUserRO(s.UserID())
 	if err != nil {
 		return err
 	}

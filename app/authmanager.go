@@ -4,10 +4,6 @@
 
 package app
 
-// TODO Don't have app level NewUserCmds.  Have the UserManager plugin handle
-// user creation and authorization. All other plugins just need to know the
-// user ID and the user groups.
-
 // AuthManager provides user authorization for plugin commands.
 type AuthManager interface {
 	// ID returns the plugin ID.
@@ -43,7 +39,6 @@ type CmdPerms struct {
 // AuthorizeArgs contains the arguments for the Authorize method.
 type AuthorizeArgs struct {
 	Session *Session
-	User    User
 	// TODO make this a slice so that it can handle the batched reads without
 	// having to do multiple db lookups
 	Cmd CmdDetails

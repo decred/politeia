@@ -80,8 +80,8 @@ func (c *CmdDetails) String() string {
 // Updates that are made to the User object during write command execution are
 // persisted by the app on successful completion of the command.
 type WriteArgs struct {
-	Cmd  Cmd
-	User *User
+	Cmd    Cmd
+	UserID string
 }
 
 // ReadArgs contain the arguments for the plugin read methods.
@@ -89,16 +89,16 @@ type WriteArgs struct {
 // Updates that are made to the User object during read command execution are
 // ignored.
 type ReadArgs struct {
-	Cmd  Cmd
-	User *User
+	Cmd    Cmd
+	UserID string
 }
 
 // HookArgs contains the arguments for the plugin hook methods.
 type HookArgs struct {
-	Type  Hook
-	Cmd   Cmd
-	Reply *CmdReply
-	User  *User
+	Type   Hook
+	Cmd    Cmd
+	Reply  *CmdReply
+	UserID string
 }
 
 // Cmd represents a plugin command.
