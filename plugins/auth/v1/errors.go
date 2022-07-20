@@ -7,7 +7,10 @@ package v1
 type ErrCode uint32
 
 const (
-	ErrCodeInvalid        ErrCode = 0
-	ErrCodeNotAuthorized  ErrCode = 1
-	ErrCodeInvalidPayload ErrCode = 2
+	ErrCodeInvalid            ErrCode = 0
+	ErrCodeNotAuthorized      ErrCode = 1
+	ErrCodeInvalidPayload     ErrCode = 2
+	ErrCodeInvalidUsername    ErrCode = 3
+	ErrCodeInvalidPassword    ErrCode = 4
+	ErrCodeInvalidContactInfo ErrCode = 5
 )

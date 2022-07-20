@@ -6,22 +6,17 @@ package auth
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/decred/politeia/app"
 	v1 "github.com/decred/politeia/plugins/auth/v1"
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// write.go contains the execution logic for all auth plugin write commands.
-
-var (
-	// emailRegexp contains the regular expression that is used to validate an
-	// email address.
-	emailRegexp = regexp.MustCompile(`^[a-zA-Z0-9.!#$%&'*+/=?^_` +
-		"`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?" +
-		"(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
-)
+// write.go contains the execution logic for the auth plugin write commands.
 
 func (p *plugin) cmdNewUser(c app.Cmd) (*app.CmdReply, error) {
 	var nu v1.NewUser
@@ -32,22 +27,21 @@ func (p *plugin) cmdNewUser(c app.Cmd) (*app.CmdReply, error) {
 		}
 	}
 	var (
-		username = nu.Username
+		username = formatUsername(nu.Username)
 		password = nu.Password
 	)
 
-	// Verify the user credentials
+	// Validate the user credentials
+	err = p.validateUsername(username)
+	if err != nil {
+		return nil, err
+	}
+	err = p.validatePassword(password)
+	if err != nil {
+		return nil, err
+	}
 
 	// Verify that the username is unique
-
-	// Verify that the email is unique
-	/*
-		If email already exists:
-		- Return a success so that an attacker cannot ascertain what email
-		  addresses have politeia accounts.
-		- Send an email notification that let's the user know that they've already
-			registered an account.
-	*/
 
 	// Hash the password
 	hashedPass, err := bcrypt.GenerateFromPassword([]byte(password),
@@ -58,14 +52,83 @@ func (p *plugin) cmdNewUser(c app.Cmd) (*app.CmdReply, error) {
 
 	// Save the user
 
-	// Update the email-userID lookup table
+	// reset_password table should be a key-value table where the
+	// key is a hash of the contact info and the value should be
+	// a list of user IDs. We need a list since the contact info
+	// is not required to be unique.
+
+	// Update the reset password table. This table is needed for
+	// password resets. Hash the email using bcrypt.
 
 	// Send a verification email
-
-	// Return the user
 
 	_ = username
 	_ = hashedPass
 
 	return nil, nil
 }
+
+// formatUsername formats a username to lowercase without any leading or
+// trailing spaces.
+func formatUsername(username string) string {
+	return strings.ToLower(strings.TrimSpace(username))
+}
+
+// validateUsername validates that a username meets the username requirements.
+func (p *plugin) validateUsername(username string) error {
+	switch {
+	case formatUsername(username) != username:
+		// Sanity check. The caller should have already done this.
+		return errors.Errorf("the username has not been formatted")
+
+	case len(username) < int(p.settings.UsernameMinLength):
+		return app.UserErr{
+			Code: uint32(v1.ErrCodeInvalidUsername),
+			Context: fmt.Sprintf("must be at least %v characters long",
+				p.settings.UsernameMinLength),
+		}
+
+	case len(username) > int(p.settings.UsernameMaxLength):
+		return app.UserErr{
+			Code: uint32(v1.ErrCodeInvalidUsername),
+			Context: fmt.Sprintf("exceedes max length of %v characters",
+				p.settings.UsernameMaxLength),
+		}
+
+	case !p.usernameRegexp.MatchString(username):
+		return app.UserErr{
+			Code: uint32(v1.ErrCodeInvalidUsername),
+			Context: fmt.Sprintf("contains invalid characters; valid "+
+				"characters are %v", p.settings.UsernameChars),
+		}
+	}
+	return nil
+}
+
+// validatePassword validates that a password meets all password requirements.
+func (p *plugin) validatePassword(password string) error {
+	switch {
+	case len(password) < int(p.settings.PasswordMinLength):
+		return app.UserErr{
+			Code: uint32(v1.ErrCodeInvalidPassword),
+			Context: fmt.Sprintf("must be at least %v characters",
+				p.settings.PasswordMinLength),
+		}
+
+	case len(password) > int(p.settings.PasswordMaxLength):
+		return app.UserErr{
+			Code: uint32(v1.ErrCodeInvalidPassword),
+			Context: fmt.Sprintf("exceedes max length of %v characters",
+				p.settings.PasswordMaxLength),
+		}
+	}
+	return nil
+}
+
+var (
+	// emailRegexp contains the regular expression that is used to validate an
+	// email address.
+	emailRegexp = regexp.MustCompile(`^[a-zA-Z0-9.!#$%&'*+/=?^_` +
+		"`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?" +
+		"(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
+)

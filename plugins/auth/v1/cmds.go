@@ -73,6 +73,4 @@ type NewContactInfo struct {
 }
 
 // NewUserReply is the reply payload for the CmdNewUser.
-type NewUserReply struct {
-	User User `json:"user"`
-}
+type NewUserReply struct{}

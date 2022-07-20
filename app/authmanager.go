@@ -40,5 +40,7 @@ type CmdPerms struct {
 type AuthorizeArgs struct {
 	Session *Session
 	User    User
-	Cmd     CmdDetails
+	// TODO make this a slice so that it can handle the batched reads without
+	// having to do multiple db lookups
+	Cmd CmdDetails
 }

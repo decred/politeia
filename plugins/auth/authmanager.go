@@ -5,8 +5,6 @@
 package auth
 
 import (
-	"encoding/json"
-
 	"github.com/decred/politeia/app"
 	v1 "github.com/decred/politeia/plugins/auth/v1"
 )
@@ -88,8 +86,7 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 	}
 
 	// Check the user permissions levels
-	var u user
-	err := json.Unmarshal(a.User.Data(), &u)
+	u, err := p.getUser(a.User.ID.String())
 	if err != nil {
 		return err
 	}
