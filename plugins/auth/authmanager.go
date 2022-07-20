@@ -5,6 +5,8 @@
 package auth
 
 import (
+	"fmt"
+
 	"github.com/decred/politeia/app"
 	v1 "github.com/decred/politeia/plugins/auth/v1"
 )
@@ -56,12 +58,21 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 		s.SetDel()
 	}
 
-	// Check if the command is a public command
-	if p.cmdIsAllowed(a.Cmd, v1.PermPublic) {
-		// The command is a public command, which
-		// means we don't need to validate any
-		// session data. Execution of the command
-		// is allowed.
+	// Check if all of the the commands are public. We
+	// don't have to validate the session data or the
+	// user permissions if all of the commands are public.
+	public := true
+	for _, cmd := range a.Cmds {
+		if p.cmdIsAllowed(cmd, v1.PermPublic) {
+			// The command is public
+			continue
+		}
+		public = false
+		break
+	}
+	if public {
+		// All of the commands are public.
+		// No need to continue.
 		return nil
 	}
 
@@ -90,17 +101,20 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 	if err != nil {
 		return err
 	}
-	var isAllowed bool
-	for _, userGroup := range u.Groups {
-		if p.cmdIsAllowed(a.Cmd, userGroup) {
-			isAllowed = true
-			break
+	for _, cmd := range a.Cmds {
+		var isAllowed bool
+		for _, userGroup := range u.Groups {
+			if p.cmdIsAllowed(cmd, userGroup) {
+				isAllowed = true
+				break
+			}
 		}
-	}
-	if !isAllowed {
-		return app.UserErr{
-			Code:    uint32(v1.ErrCodeNotAuthorized),
-			Context: "the user does not have the correct permissions",
+		if !isAllowed {
+			return app.UserErr{
+				Code: uint32(v1.ErrCodeNotAuthorized),
+				Context: fmt.Sprintf("the user is not "+
+					"authorized to execute %v", cmd.Name),
+			}
 		}
 	}
 

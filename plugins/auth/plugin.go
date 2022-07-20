@@ -63,7 +63,7 @@ func (p *plugin) NewUserCmds() []app.CmdDetails {
 		{
 			Plugin:  v1.ID,
 			Version: v1.Version,
-			Cmd:     v1.CmdNewUser,
+			Name:    v1.CmdNewUser,
 		},
 	}
 }

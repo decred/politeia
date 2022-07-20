@@ -67,12 +67,12 @@ type Setting struct {
 type CmdDetails struct {
 	Plugin  string
 	Version uint32 // Plugin API version
-	Cmd     string
+	Name    string
 }
 
 // String returns a string representation of the command.
 func (c *CmdDetails) String() string {
-	return fmt.Sprintf("%v-%v-%v", c.Plugin, c.Version, c.Cmd)
+	return fmt.Sprintf("%v-%v-%v", c.Plugin, c.Version, c.Name)
 }
 
 // WriteArgs contain the arguments for the plugin write methods.

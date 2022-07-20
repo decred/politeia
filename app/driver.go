@@ -11,7 +11,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/decred/politeia/politeiawww/user"
 	"github.com/pkg/errors"
 )
 
@@ -32,7 +31,7 @@ type Driver struct {
 }
 
 // NewDriver returns a new app Driver.
-func NewDriver(plugins []Plugin, db *sql.DB, userDB user.DB, authMgr AuthManager) *Driver {
+func NewDriver(plugins []Plugin, db *sql.DB, authMgr AuthManager) *Driver {
 	p := make(map[string]Plugin, len(plugins))
 	for _, v := range plugins {
 		p[v.ID()] = v
@@ -60,10 +59,12 @@ func (d *Driver) WriteCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, 
 	err = d.authManager.Authorize(
 		AuthorizeArgs{
 			Session: s,
-			Cmd: CmdDetails{
-				Plugin:  cmd.Plugin,
-				Version: cmd.Version,
-				Cmd:     cmd.Name,
+			Cmds: []CmdDetails{
+				{
+					Plugin:  cmd.Plugin,
+					Version: cmd.Version,
+					Name:    cmd.Name,
+				},
 			},
 		})
 	if err != nil {
@@ -129,10 +130,12 @@ func (d *Driver) ReadCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, e
 	err := d.authManager.Authorize(
 		AuthorizeArgs{
 			Session: s,
-			Cmd: CmdDetails{
-				Plugin:  cmd.Plugin,
-				Version: cmd.Version,
-				Cmd:     cmd.Name,
+			Cmds: []CmdDetails{
+				{
+					Plugin:  cmd.Plugin,
+					Version: cmd.Version,
+					Name:    cmd.Name,
+				},
 			},
 		})
 	if err != nil {

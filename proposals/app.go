@@ -10,7 +10,6 @@ import (
 
 	"github.com/decred/politeia/app"
 	"github.com/decred/politeia/plugins/auth"
-	"github.com/decred/politeia/politeiawww/user"
 )
 
 const (
@@ -34,7 +33,6 @@ func NewApp(a app.AppArgs) (*appCtx, error) {
 		// TODO setup the database connection
 		// each app should have it's own database
 		db      *sql.DB
-		userDB  user.DB
 		plugins = make([]app.Plugin, 0, 64)
 	)
 	/*
@@ -58,7 +56,11 @@ func NewApp(a app.AppArgs) (*appCtx, error) {
 		db.SetMaxIdleConns(maxIdleConns)
 	*/
 
-	authP, err := auth.New()
+	settings := a.Settings["auth"]
+	authP, err := auth.New(app.PluginArgs{
+		Settings: settings,
+		DB:       db,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -67,20 +69,9 @@ func NewApp(a app.AppArgs) (*appCtx, error) {
 	// cmds that are part of the proposals app.
 	authP.SetCmdPerms(perms())
 
-	// Update the default plugin settings with
-	// the settings that were provided in the
-	// config at runtime.
-	for _, p := range plugins {
-		s, ok := a.Settings[p.ID()]
-		if !ok {
-			continue
-		}
-		p.UpdateSettings(s)
-	}
-
 	return &appCtx{
 		plugins: plugins,
-		driver:  app.NewDriver(plugins, db, userDB, authP),
+		driver:  app.NewDriver(plugins, db, authP),
 	}, nil
 }
 

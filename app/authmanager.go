@@ -17,15 +17,16 @@ type AuthManager interface {
 	// An empty string is returned if a user ID does not exist.
 	SessionUserID(Session) string
 
-	// Authorize checks if the user is authorized to execute a plugin command.
-	// This includes verifying that the user session is still valid and that the
-	// user has the correct permissions to execute the command.
+	// Authorize checks if the user is authorized to execute a list of plugin
+	// commands. This includes verifying that the user session is still valid
+	// and that the user has the correct permissions to execute the commands.
 	//
 	// Any changes made to the Session will be persisted by the politeia backend.
 	// It is the responsibility of this method to set the del field of the
 	// Session to true if the session has expired and should be deleted.
 	//
-	// A UserErr is returned if the user is not authorized.
+	// A UserErr is returned if the user is not authorized to execute any of the
+	// provided commands.
 	Authorize(AuthorizeArgs) error
 }
 
@@ -39,7 +40,5 @@ type CmdPerms struct {
 // AuthorizeArgs contains the arguments for the Authorize method.
 type AuthorizeArgs struct {
 	Session *Session
-	// TODO make this a slice so that it can handle the batched reads without
-	// having to do multiple db lookups
-	Cmd CmdDetails
+	Cmds    []CmdDetails
 }

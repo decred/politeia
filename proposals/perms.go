@@ -17,7 +17,7 @@ func perms() []app.CmdPerms {
 			Cmd: app.CmdDetails{
 				Plugin:  v1.ID,
 				Version: v1.Version,
-				Cmd:     v1.CmdNewUser,
+				Name:    v1.CmdNewUser,
 			},
 			Perms: []string{v1.PermPublic},
 		},
