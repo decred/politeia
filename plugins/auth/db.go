@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	// errNotFound is returned when a record is not found in the database.
 	errNotFound = errors.New("not found")
 )
 
@@ -19,7 +20,7 @@ const (
 	// The following fields are the database tables names for the auth plugin.
 	// It is best practice to prefix the plugin ID onto the table name.
 	//
-	// Note: these table names are hard coded into the table definition foreign
+	// Note: some table names are hard coded into the table definition foreign
 	// key constraints.
 	usersTableName = "auth_users"
 	permsTableName = "auth_perms"

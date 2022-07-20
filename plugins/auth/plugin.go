@@ -6,6 +6,7 @@ package auth
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/decred/politeia/app"
 	v1 "github.com/decred/politeia/plugins/auth/v1"
@@ -71,10 +72,30 @@ func (p *plugin) NewUserCmds() []app.CmdDetails {
 //
 // This function satisfies the app.Plugin interface.
 func (p *plugin) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
+	var (
+		reply *app.CmdReply
+		err   error
+	)
 	switch a.Cmd.Name {
 	case v1.CmdNewUser:
+		reply, err = p.cmdNewUser(tx, a.Cmd)
+	default:
+		return nil, errors.Errorf("invalid cmd")
 	}
-	return nil, errors.Errorf("invalid cmd")
+	if err != nil {
+		var ue *userErr
+		if errors.As(err, &ue) {
+			// Convert the local user error
+			// type to an app user error.
+			return nil, app.UserErr{
+				Code:    uint32(ue.Code),
+				Context: ue.Context,
+			}
+		}
+		return nil, err
+	}
+
+	return reply, nil
 }
 
 // TxRead executes a read plugin command using a database transaction.
@@ -96,4 +117,25 @@ func (p *plugin) TxHook(tx *sql.Tx, a app.HookArgs) error {
 // This function satisfies the app.Plugin interface.
 func (p *plugin) Read(a app.ReadArgs) (*app.CmdReply, error) {
 	return nil, nil
+}
+
+// userErr represents an error that occurred during the execution of a plugin
+// command and that was caused by the user.
+//
+// This local userErr is used instead of the app UserErr to allow for more
+// readable code. Using the app UserErr leads to uint32(v1.ErrCode) conversions
+// all over the place, so instead, the plugin commands will return this local
+// error type and the exported methods perform the conversion to the app
+// UserErr before returning it.
+type userErr struct {
+	Code    v1.ErrCode
+	Context string
+}
+
+// Error satisfies the error interface.
+func (e userErr) Error() string {
+	if e.Context == "" {
+		return fmt.Sprintf("auth plugin user err: %v", e.Code)
+	}
+	return fmt.Sprintf("auth plugin user err: %v - %v", e.Code, e.Context)
 }

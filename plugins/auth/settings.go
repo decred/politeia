@@ -23,6 +23,7 @@ type settings struct {
 	UsernameMaxLength uint32
 	PasswordMinLength uint32
 	PasswordMaxLength uint32
+	ContactTypes      map[string]struct{}
 
 	// usernameRegexp is used to validate usernames.
 	usernameRegexp *regexp.Regexp
@@ -37,7 +38,10 @@ func newSettings(newSettings []app.Setting) (*settings, error) {
 		UsernameMaxLength: 15,
 		PasswordMinLength: 8,
 		PasswordMaxLength: 128,
-		usernameRegexp:    nil, // Set below
+		ContactTypes: map[string]struct{}{
+			contactTypeEmail: {},
+		},
+		usernameRegexp: nil, // Set below
 	}
 
 	// Update the defaults with runtime provided settings
@@ -113,6 +117,9 @@ func (s *settings) parseSetting(v app.Setting) error {
 			return err
 		}
 		s.PasswordMaxLength = uint32(u)
+
+	case v1.SettingContactTypes:
+		// TODO
 
 	default:
 		return errors.Errorf("setting name not recognized")

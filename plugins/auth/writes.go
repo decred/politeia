@@ -13,6 +13,7 @@ import (
 
 	"github.com/decred/politeia/app"
 	v1 "github.com/decred/politeia/plugins/auth/v1"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -23,13 +24,14 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 	var nu v1.NewUser
 	err := json.Unmarshal([]byte(c.Payload), &nu)
 	if err != nil {
-		return nil, app.UserErr{
-			Code: uint32(v1.ErrCodeInvalidPayload),
+		return nil, userErr{
+			Code: v1.ErrCodeInvalidPayload,
 		}
 	}
 	var (
-		username = formatUsername(nu.Username)
-		password = nu.Password
+		username    = formatUsername(nu.Username)
+		password    = nu.Password
+		contactInfo = convertNewContactInfo(nu.ContactInfo)
 	)
 
 	// Validate the user credentials
@@ -41,14 +43,19 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO validate contact info
+	for _, v := range contactInfo {
+		err = validateContactInfo(p.settings, v)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// Verify that the username is unique
 	_, err = p.getUserByUsername(tx, username)
 	switch {
 	case err == nil:
-		return nil, app.UserErr{
-			Code:    uint32(v1.ErrCodeInvalidUsername),
+		return nil, userErr{
+			Code:    v1.ErrCodeInvalidUsername,
 			Context: fmt.Sprintf("the username %v is already taken", username),
 		}
 	case errors.Is(err, errNotFound):
@@ -65,7 +72,13 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 	}
 
 	// Insert a new user record
-	u := newUser()
+	var (
+		userID = uuid.New().String()
+		groups = []string{
+			v1.PermPublic,
+		}
+	)
+	u := newUser(userID, username, hashedPass, groups, contactInfo)
 	err = p.insertUser(tx, *u)
 	if err != nil {
 		return nil, err
@@ -79,10 +92,7 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 	// Update the reset password table. This table is needed for
 	// password resets. Hash the email using bcrypt.
 
-	// Send any external communications needed to verify the
-	// contact info.
-
-	_ = hashedPass
+	// Send external communications needed to verify the contact info.
 
 	return nil, nil
 }
@@ -105,24 +115,24 @@ func validateUsername(s settings, username string) error {
 		return errors.Errorf("the username has not been formatted")
 
 	case len(username) < int(s.UsernameMinLength):
-		return app.UserErr{
-			Code: uint32(v1.ErrCodeInvalidUsername),
-			Context: fmt.Sprintf("must be at least %v characters long",
+		return userErr{
+			Code: v1.ErrCodeInvalidUsername,
+			Context: fmt.Sprintf("username must be at least %v characters long",
 				s.UsernameMinLength),
 		}
 
 	case len(username) > int(s.UsernameMaxLength):
-		return app.UserErr{
-			Code: uint32(v1.ErrCodeInvalidUsername),
-			Context: fmt.Sprintf("exceedes max length of %v characters",
+		return userErr{
+			Code: v1.ErrCodeInvalidUsername,
+			Context: fmt.Sprintf("username exceedes the max length of %v characters",
 				s.UsernameMaxLength),
 		}
 
 	case !s.usernameRegexp.MatchString(username):
-		return app.UserErr{
-			Code: uint32(v1.ErrCodeInvalidUsername),
-			Context: fmt.Sprintf("contains invalid characters; valid "+
-				"characters are %v", s.UsernameChars),
+		return userErr{
+			Code: v1.ErrCodeInvalidUsername,
+			Context: fmt.Sprintf("username contains invalid characters; "+
+				"valid characters are %v", s.UsernameChars),
 		}
 	}
 	return nil
@@ -132,19 +142,41 @@ func validateUsername(s settings, username string) error {
 func validatePassword(s settings, password string) error {
 	switch {
 	case len(password) < int(s.PasswordMinLength):
-		return app.UserErr{
-			Code: uint32(v1.ErrCodeInvalidPassword),
-			Context: fmt.Sprintf("must be at least %v characters",
+		return userErr{
+			Code: v1.ErrCodeInvalidPassword,
+			Context: fmt.Sprintf("password must be at least %v characters",
 				s.PasswordMinLength),
 		}
 
 	case len(password) > int(s.PasswordMaxLength):
-		return app.UserErr{
-			Code: uint32(v1.ErrCodeInvalidPassword),
-			Context: fmt.Sprintf("exceedes max length of %v characters",
+		return userErr{
+			Code: v1.ErrCodeInvalidPassword,
+			Context: fmt.Sprintf("password exceedes the max length of %v characters",
 				s.PasswordMaxLength),
 		}
 	}
+	return nil
+}
+
+// validateContactInfo validates that contact info data meets the plugin
+// requirements.
+func validateContactInfo(s settings, c contactInfo) error {
+	_, ok := s.ContactTypes[c.Type]
+	if !ok {
+		return userErr{
+			Code:    v1.ErrCodeInvalidContactInfo,
+			Context: fmt.Sprintf("%v contact type is invalid", c.Type),
+		}
+	}
+
+	switch c.Type {
+	case contactTypeEmail:
+		return validateEmail(c.Contact)
+	default:
+		// Should not be possible
+		return errors.Errorf("invalid contact type")
+	}
+
 	return nil
 }
 
@@ -155,3 +187,26 @@ var (
 		"`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?" +
 		"(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
 )
+
+// validateEmail validates that an email address is sane.
+func validateEmail(email string) error {
+	if !emailRegexp.MatchString(email) {
+		return userErr{
+			Code:    v1.ErrCodeInvalidContactInfo,
+			Context: "email address is invalid",
+		}
+	}
+	return nil
+}
+
+func convertNewContactInfo(n []v1.NewContactInfo) []contactInfo {
+	c := make([]contactInfo, 0, len(n))
+	for _, v := range n {
+		c = append(c, contactInfo{
+			Type:     string(v.Type),
+			Contact:  v.Contact,
+			Verified: false,
+		})
+	}
+	return c
+}

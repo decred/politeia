@@ -4,6 +4,10 @@
 
 package app
 
+// TODO Don't have app level NewUserCmds.  Have the UserManager plugin handle
+// user creation and authorization. All other plugins just need to know the
+// user ID and the user groups.
+
 // AuthManager provides user authorization for plugin commands.
 type AuthManager interface {
 	// ID returns the plugin ID.

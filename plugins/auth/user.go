@@ -15,19 +15,33 @@ package auth
 type user struct {
 	ID          string
 	Username    string
-	Perms       []string
+	Password    []byte
+	Groups      []string
 	ContactInfo []contactInfo
 }
 
-type contactType uint32
-
 const (
-	contactTypeInvalid contactType = 0
-	contactTypeEmail   contactType = 1
+	contactTypeEmail = "email"
 )
 
+// supportedContactTypes contains the contact types that are supported by
+// this plugin.
+var supportedContactTypes = map[string]struct{}{
+	contactTypeEmail: {},
+}
+
 type contactInfo struct {
-	Type     contactType
+	Type     string
 	Contact  string
 	Verified bool
+}
+
+func newUser(id, username string, password []byte, groups []string, c []contactInfo) *user {
+	return &user{
+		ID:          id,
+		Username:    username,
+		Password:    password,
+		Groups:      groups,
+		ContactInfo: append([]contactInfo{}, c...),
+	}
 }

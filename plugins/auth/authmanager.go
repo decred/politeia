@@ -91,8 +91,8 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 		return err
 	}
 	var isAllowed bool
-	for _, permLevel := range u.Perms {
-		if p.cmdIsAllowed(a.Cmd, permLevel) {
+	for _, userGroup := range u.Groups {
+		if p.cmdIsAllowed(a.Cmd, userGroup) {
 			isAllowed = true
 			break
 		}

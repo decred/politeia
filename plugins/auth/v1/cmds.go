@@ -28,11 +28,10 @@ type User struct {
 	Perms       []string      `json:"perms"`
 }
 
-type ContactType uint32
+type ContactType string
 
 const (
-	ContactTypeInvalid ContactType = 0
-	ContactTypeEmail   ContactType = 1
+	ContactTypeEmail ContactType = "email"
 )
 
 type ContactInfo struct {

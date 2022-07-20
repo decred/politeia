@@ -18,4 +18,6 @@ const (
 	SettingPasswordMinLength = "password_min_length"
 
 	SettingPasswordMaxLength = "password_max_length"
+
+	SettingContactTypes = "contact_types"
 )
