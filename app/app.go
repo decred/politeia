@@ -39,9 +39,8 @@ type App interface {
 	// ReadBatch(context.Context, *Session, []Cmd) ([]CmdReply, error)
 }
 
-// InitArgs contains the arguments that are passed to an app initialization
-// function.
-type InitArgs struct {
+// AppArgs contains the arguments that are passed to an app on initialization.
+type AppArgs struct {
 	DBHost string
 	DBPass string
 

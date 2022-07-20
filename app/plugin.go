@@ -17,9 +17,6 @@ type Plugin interface {
 	// Version returns the lowest supported plugin API version.
 	Version() uint32
 
-	// UpdateSettings updates the plugin settings.
-	UpdateSettings([]Setting) error
-
 	// NewUserCmds returns all of the plugin commands that should result in a new
 	// user being inserted into the user database.
 	//
@@ -48,6 +45,13 @@ type Plugin interface {
 
 	// Read executes a non-atomic read plugin command.
 	Read(ReadArgs) (*CmdReply, error)
+}
+
+// PluginArgs contains the arguments that are passed to a plugin on
+// initialization.
+type PluginArgs struct {
+	Settings []Setting
+	DB       *sql.DB
 }
 
 // Setting represents a configurable plugin setting.

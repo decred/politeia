@@ -20,15 +20,6 @@ const (
 	PermAdmin  = "admin"
 )
 
-type Settings struct {
-	SessionMaxAge     int64    `json:"sessionmaxage"`
-	UsernameChars     []string `json:"usernamechars"`
-	UsernameMinLength uint32   `json:"usernameminlength"`
-	UsernameMaxLength uint32   `json:"usernamemaxlength"`
-	PasswordMinLength uint32   `json:"passwordminlength"`
-	PasswordMaxLength uint32   `json:"passwordmaxlength"`
-}
-
 // User contains the auth plugin user data.
 type User struct {
 	ID          string        `json:"id"`
@@ -53,7 +44,12 @@ type ContactInfo struct {
 type Policy struct{}
 
 type PolicyReply struct {
-	Settings Settings `json:"settings"`
+	SessionMaxAge     int64    `json:"sessionmaxage"`
+	UsernameChars     []string `json:"usernamechars"`
+	UsernameMinLength uint32   `json:"usernameminlength"`
+	UsernameMaxLength uint32   `json:"usernamemaxlength"`
+	PasswordMinLength uint32   `json:"passwordminlength"`
+	PasswordMaxLength uint32   `json:"passwordmaxlength"`
 }
 
 // NewUser is the request payload for the CmdNewUser.

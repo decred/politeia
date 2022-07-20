@@ -29,7 +29,7 @@ type appCtx struct {
 }
 
 // NewApp returns a new proposals app.
-func NewApp(a app.InitArgs) (*appCtx, error) {
+func NewApp(a app.AppArgs) (*appCtx, error) {
 	var (
 		// TODO setup the database connection
 		// each app should have it's own database
@@ -58,7 +58,10 @@ func NewApp(a app.InitArgs) (*appCtx, error) {
 		db.SetMaxIdleConns(maxIdleConns)
 	*/
 
-	authP := auth.New()
+	authP, err := auth.New()
+	if err != nil {
+		return nil, err
+	}
 
 	// Setup the user permissions for the plugin
 	// cmds that are part of the proposals app.

@@ -5,6 +5,7 @@
 package auth
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -18,7 +19,7 @@ import (
 
 // write.go contains the execution logic for the auth plugin write commands.
 
-func (p *plugin) cmdNewUser(c app.Cmd) (*app.CmdReply, error) {
+func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 	var nu v1.NewUser
 	err := json.Unmarshal([]byte(c.Payload), &nu)
 	if err != nil {
@@ -32,25 +33,43 @@ func (p *plugin) cmdNewUser(c app.Cmd) (*app.CmdReply, error) {
 	)
 
 	// Validate the user credentials
-	err = p.validateUsername(username)
+	err = validateUsername(p.settings, username)
 	if err != nil {
 		return nil, err
 	}
-	err = p.validatePassword(password)
+	err = validatePassword(p.settings, password)
 	if err != nil {
 		return nil, err
 	}
+	// TODO validate contact info
 
 	// Verify that the username is unique
+	_, err = p.getUserByUsername(tx, username)
+	switch {
+	case err == nil:
+		return nil, app.UserErr{
+			Code:    uint32(v1.ErrCodeInvalidUsername),
+			Context: fmt.Sprintf("the username %v is already taken", username),
+		}
+	case errors.Is(err, errNotFound):
+		// This username is unique; continue
+	default:
+		// All other errors
+		return nil, err
+	}
 
 	// Hash the password
-	hashedPass, err := bcrypt.GenerateFromPassword([]byte(password),
-		bcrypt.DefaultCost)
+	hashedPass, err := bcryptHash(password)
 	if err != nil {
 		return nil, err
 	}
 
-	// Save the user
+	// Insert a new user record
+	u := newUser()
+	err = p.insertUser(tx, *u)
+	if err != nil {
+		return nil, err
+	}
 
 	// reset_password table should be a key-value table where the
 	// key is a hash of the contact info and the value should be
@@ -60,12 +79,16 @@ func (p *plugin) cmdNewUser(c app.Cmd) (*app.CmdReply, error) {
 	// Update the reset password table. This table is needed for
 	// password resets. Hash the email using bcrypt.
 
-	// Send a verification email
+	// Send any external communications needed to verify the
+	// contact info.
 
-	_ = username
 	_ = hashedPass
 
 	return nil, nil
+}
+
+func bcryptHash(s string) ([]byte, error) {
+	return bcrypt.GenerateFromPassword([]byte(s), bcrypt.DefaultCost)
 }
 
 // formatUsername formats a username to lowercase without any leading or
@@ -75,51 +98,51 @@ func formatUsername(username string) string {
 }
 
 // validateUsername validates that a username meets the username requirements.
-func (p *plugin) validateUsername(username string) error {
+func validateUsername(s settings, username string) error {
 	switch {
 	case formatUsername(username) != username:
 		// Sanity check. The caller should have already done this.
 		return errors.Errorf("the username has not been formatted")
 
-	case len(username) < int(p.settings.UsernameMinLength):
+	case len(username) < int(s.UsernameMinLength):
 		return app.UserErr{
 			Code: uint32(v1.ErrCodeInvalidUsername),
 			Context: fmt.Sprintf("must be at least %v characters long",
-				p.settings.UsernameMinLength),
+				s.UsernameMinLength),
 		}
 
-	case len(username) > int(p.settings.UsernameMaxLength):
+	case len(username) > int(s.UsernameMaxLength):
 		return app.UserErr{
 			Code: uint32(v1.ErrCodeInvalidUsername),
 			Context: fmt.Sprintf("exceedes max length of %v characters",
-				p.settings.UsernameMaxLength),
+				s.UsernameMaxLength),
 		}
 
-	case !p.usernameRegexp.MatchString(username):
+	case !s.usernameRegexp.MatchString(username):
 		return app.UserErr{
 			Code: uint32(v1.ErrCodeInvalidUsername),
 			Context: fmt.Sprintf("contains invalid characters; valid "+
-				"characters are %v", p.settings.UsernameChars),
+				"characters are %v", s.UsernameChars),
 		}
 	}
 	return nil
 }
 
 // validatePassword validates that a password meets all password requirements.
-func (p *plugin) validatePassword(password string) error {
+func validatePassword(s settings, password string) error {
 	switch {
-	case len(password) < int(p.settings.PasswordMinLength):
+	case len(password) < int(s.PasswordMinLength):
 		return app.UserErr{
 			Code: uint32(v1.ErrCodeInvalidPassword),
 			Context: fmt.Sprintf("must be at least %v characters",
-				p.settings.PasswordMinLength),
+				s.PasswordMinLength),
 		}
 
-	case len(password) > int(p.settings.PasswordMaxLength):
+	case len(password) > int(s.PasswordMaxLength):
 		return app.UserErr{
 			Code: uint32(v1.ErrCodeInvalidPassword),
 			Context: fmt.Sprintf("exceedes max length of %v characters",
-				p.settings.PasswordMaxLength),
+				s.PasswordMaxLength),
 		}
 	}
 	return nil

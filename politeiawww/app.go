@@ -38,7 +38,7 @@ func (p *politeiawww) setupApp() error {
 
 	// Setup the app
 	var (
-		args = app.InitArgs{
+		args = app.AppArgs{
 			DBHost:   p.cfg.DBHost,
 			DBPass:   p.cfg.DBPass,
 			Settings: settings,

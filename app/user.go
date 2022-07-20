@@ -6,6 +6,8 @@ package app
 
 import "github.com/google/uuid"
 
+// TODO get rid of the global user object. Only pass the user ID.
+
 // User represents an app user.
 type User struct {
 	ID uuid.UUID // Unique ID
