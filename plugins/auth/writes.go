@@ -75,7 +75,7 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 	var (
 		userID = uuid.New().String()
 		groups = []string{
-			v1.PermPublic,
+			v1.StandardUser,
 		}
 	)
 	u := newUser(userID, username, hashedPass, groups, contactInfo)

@@ -17,23 +17,6 @@ type Plugin interface {
 	// Version returns the lowest supported plugin API version.
 	Version() uint32
 
-	// NewUserCmds returns all of the plugin commands that should result in a new
-	// user being inserted into the user database.
-	//
-	// Plugins do not have direct access to the user database, so they are not
-	// able to insert new user records. The app handles this operation. The app
-	// needs to know which plugin commands should be provided with a newly
-	// created user.
-	//
-	// Plugin write command that have been included in this list will be executed
-	// differently. Prior to the execution of the command, the app will create a
-	// new user record in the user database. The newly created user is passed to
-	// the plugin as a write command argument, just like during the execution of
-	// a standard write command. The database transaction that was used to create
-	// the user record will only be committed if the plugin command executes
-	// without any errors.
-	NewUserCmds() []CmdDetails
-
 	// TxWrite executes a write plugin command using a database transaction.
 	TxWrite(*sql.Tx, WriteArgs) (*CmdReply, error)
 

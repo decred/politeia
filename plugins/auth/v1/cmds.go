@@ -5,19 +5,17 @@
 package v1
 
 const (
-	ID             = "auth"
-	Version uint32 = 1
-)
+	PluginID        = "auth"
+	Version  uint32 = 1
 
-const (
-	CmdPolicy  = "policy"
 	CmdNewUser = "newuser"
 )
 
+// The following list contains the default user groups.
 const (
-	PermPublic = "public"
-	PermUser   = "user"
-	PermAdmin  = "admin"
+	PublicUser   = "public"
+	StandardUser = "standard"
+	AdminUser    = "admin"
 )
 
 // User contains the auth plugin user data.
@@ -25,7 +23,7 @@ type User struct {
 	ID          string        `json:"id"`
 	Username    string        `json:"username"`
 	ContactInfo []ContactInfo `json:"contactinfo,omitempty"`
-	Perms       []string      `json:"perms"`
+	Groups      []string      `json:"groups"`
 }
 
 type ContactType string
@@ -44,7 +42,7 @@ type Policy struct{}
 
 type PolicyReply struct {
 	SessionMaxAge     int64    `json:"sessionmaxage"`
-	UsernameChars     []string `json:"usernamechars"`
+	UsernameChars     []string `json:"usernamechars"` // Supported characters
 	UsernameMinLength uint32   `json:"usernameminlength"`
 	UsernameMaxLength uint32   `json:"usernamemaxlength"`
 	PasswordMinLength uint32   `json:"passwordminlength"`
@@ -53,8 +51,8 @@ type PolicyReply struct {
 
 // NewUser is the request payload for the CmdNewUser.
 //
-// The username must adhere to the username policy requirements and must be
-// unique. The username is not case sensitive.
+// See the PolicyReply for username and password requirements. The username is
+// not case sensitive and must be unique.
 type NewUser struct {
 	Username    string           `json:"username"`
 	Password    string           `json:"password"`

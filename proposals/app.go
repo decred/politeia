@@ -10,6 +10,7 @@ import (
 
 	"github.com/decred/politeia/app"
 	"github.com/decred/politeia/plugins/auth"
+	authv1 "github.com/decred/politeia/plugins/auth/v1"
 )
 
 const (
@@ -56,7 +57,7 @@ func NewApp(a app.AppArgs) (*appCtx, error) {
 		db.SetMaxIdleConns(maxIdleConns)
 	*/
 
-	settings := a.Settings["auth"]
+	settings := a.Settings[authv1.PluginID]
 	authP, err := auth.New(app.PluginArgs{
 		Settings: settings,
 		DB:       db,

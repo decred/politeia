@@ -24,7 +24,7 @@ var (
 type plugin struct {
 	db       *sql.DB
 	settings settings
-	perms    map[string]map[string]struct{} // [cmd][permissionLevel]
+	perms    map[string]map[string]struct{} // [cmd][userGroup]
 }
 
 // New returns a new auth plugin.
@@ -44,7 +44,7 @@ func New(a app.PluginArgs) (*plugin, error) {
 //
 // This function satisfies the app.Plugin interface.
 func (p *plugin) ID() string {
-	return v1.ID
+	return v1.PluginID
 }
 
 // Version returns the lowest supported plugin API version.
@@ -52,20 +52,6 @@ func (p *plugin) ID() string {
 // This function satisfies the app.Plugin interface.
 func (p *plugin) Version() uint32 {
 	return v1.Version
-}
-
-// NewUserCmds returns all of the plugin commands that should result in a new
-// user being inserted into the user database.
-//
-// This function satisfies the app.Plugin interface.
-func (p *plugin) NewUserCmds() []app.CmdDetails {
-	return []app.CmdDetails{
-		{
-			Plugin:  v1.ID,
-			Version: v1.Version,
-			Name:    v1.CmdNewUser,
-		},
-	}
 }
 
 // TxWrite executes a write plugin command using a database transaction.

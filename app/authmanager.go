@@ -30,11 +30,11 @@ type AuthManager interface {
 	Authorize(AuthorizeArgs) error
 }
 
-// CmdPerms represents the user permission levels for a plugin command. The
-// permission levels are defined by the AuthManager plugin.
+// CmdPerms represents the permissions for a plugin command. The groups defines
+// the user groups that are allowed to execute the command.
 type CmdPerms struct {
-	Cmd   CmdDetails
-	Perms []string
+	Cmd    CmdDetails
+	Groups []string
 }
 
 // AuthorizeArgs contains the arguments for the Authorize method.

@@ -22,8 +22,8 @@ const (
 	//
 	// Note: some table names are hard coded into the table definition foreign
 	// key constraints.
-	usersTableName = "auth_users"
-	permsTableName = "auth_perms"
+	usersTableName  = "auth_users"
+	groupsTableName = "auth_groups"
 )
 
 // usersTable is the database table for user data.
@@ -33,9 +33,11 @@ const usersTable = `
 	encrypted_blob LONGBLOB
 `
 
-// permsTable is the database table for user permissions.
-const permsTable = `
+// groupsTable is the database table for user groups. A user can be a part
+// of many groups.
+const groupsTable = `
 	user_id CHAR(36),
+	group   VARCHAR(64) NOT NULL
   FOREIGN KEY (user_id) REFERENCES auth_users(id)
 `
 
@@ -50,8 +52,8 @@ func (p *plugin) setupDB() error {
 			table: usersTable,
 		},
 		{
-			name:  permsTableName,
-			table: permsTable,
+			name:  groupsTableName,
+			table: groupsTable,
 		},
 	}
 	for _, v := range tables {

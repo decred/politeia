@@ -63,7 +63,7 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 	// user permissions if all of the commands are public.
 	public := true
 	for _, cmd := range a.Cmds {
-		if p.cmdIsAllowed(cmd, v1.PermPublic) {
+		if p.cmdIsAllowed(cmd, v1.PublicUser) {
 			// The command is public
 			continue
 		}
@@ -125,14 +125,14 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 // setPerm sets a permission level for a command.
 func (p *plugin) setPerm(cp app.CmdPerms) {
 	c := cp.Cmd.String()
-	permLevels, ok := p.perms[c]
+	userGroups, ok := p.perms[c]
 	if !ok {
-		permLevels = make(map[string]struct{}, 64)
+		userGroups = make(map[string]struct{}, 64)
 	}
-	for _, v := range cp.Perms {
-		permLevels[v] = struct{}{}
+	for _, v := range cp.Groups {
+		userGroups[v] = struct{}{}
 	}
-	p.perms[c] = permLevels
+	p.perms[c] = userGroups
 }
 
 // cmdIsAllowed returns whether the execution of a command is allowed for a
