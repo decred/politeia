@@ -6,6 +6,7 @@ package auth
 
 import (
 	"encoding/json"
+	"net/url"
 	"regexp"
 	"strconv"
 
@@ -17,6 +18,7 @@ import (
 
 // settings contains the plugin settings.
 type settings struct {
+	Host              *url.URL
 	SessionMaxAge     int64
 	UsernameChars     []string
 	UsernameMinLength uint32
@@ -30,8 +32,14 @@ type settings struct {
 }
 
 func newSettings(newSettings []app.Setting) (*settings, error) {
+	defaultHost, err := url.Parse("https://localhost:3000")
+	if err != nil {
+		return nil, err
+	}
+
 	// Default plugin settings
 	s := &settings{
+		Host:              defaultHost,
 		SessionMaxAge:     60 * 60 * 24, // 1 day
 		UsernameChars:     []string{"A-z", "0-9", "_"},
 		UsernameMinLength: 3,
@@ -45,7 +53,7 @@ func newSettings(newSettings []app.Setting) (*settings, error) {
 	}
 
 	// Update the defaults with runtime provided settings
-	err := s.update(newSettings)
+	err = s.update(newSettings)
 	if err != nil {
 		return nil, err
 	}
@@ -121,9 +129,25 @@ func (s *settings) parseSetting(v app.Setting) error {
 	case v1.SettingContactTypes:
 		// TODO
 
+	case v1.SettingHost:
+		u, err := url.Parse(v.Value)
+		if err != nil {
+			return err
+		}
+		if !u.IsAbs() {
+			u.Scheme = "https"
+		}
+		s.Host = u
+
 	default:
 		return errors.Errorf("setting name not recognized")
 	}
 
 	return nil
+}
+
+// supportedContactTypes contains the contact types that are supported by
+// this plugin.
+var supportedContactTypes = map[string]struct{}{
+	contactTypeEmail: {},
 }

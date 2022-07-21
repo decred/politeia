@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/dajohi/goemail"
 	"github.com/decred/politeia/app"
 	v1 "github.com/decred/politeia/plugins/auth/v1"
 	"github.com/pkg/errors"
@@ -25,6 +26,10 @@ type plugin struct {
 	db       *sql.DB
 	settings settings
 	perms    map[string]map[string]struct{} // [cmd][userGroup]
+
+	smtp         *goemail.SMTP
+	emailName    string // From email name
+	emailAddress string // From email address
 }
 
 // New returns a new auth plugin.
@@ -35,6 +40,7 @@ func New(a app.PluginArgs) (*plugin, error) {
 	}
 	return &plugin{
 		db:       a.DB,
+		smtp:     a.SMTP,
 		settings: *s,
 		perms:    make(map[string]map[string]struct{}, 256),
 	}, nil

@@ -13,7 +13,6 @@ import (
 
 	"github.com/decred/politeia/app"
 	v1 "github.com/decred/politeia/plugins/auth/v1"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -29,9 +28,11 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 		}
 	}
 	var (
-		username    = formatUsername(nu.Username)
-		password    = nu.Password
-		contactInfo = convertNewContactInfo(nu.ContactInfo)
+		username = formatUsername(nu.Username)
+		password = nu.Password
+
+		nc      = nu.ContactInfo
+		contact = newContactInfo(string(nc.Type), nc.Contact)
 	)
 
 	// Validate the user credentials
@@ -43,11 +44,9 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, v := range contactInfo {
-		err = validateContactInfo(p.settings, v)
-		if err != nil {
-			return nil, err
-		}
+	err = validateContactInfo(p.settings, *contact)
+	if err != nil {
+		return nil, err
 	}
 
 	// Verify that the username is unique
@@ -56,7 +55,7 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 	case err == nil:
 		return nil, userErr{
 			Code:    v1.ErrCodeInvalidUsername,
-			Context: fmt.Sprintf("the username %v is already taken", username),
+			Context: fmt.Sprintf("%v is already taken", username),
 		}
 	case errors.Is(err, errNotFound):
 		// This username is unique; continue
@@ -65,38 +64,50 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 		return nil, err
 	}
 
-	// Hash the password
-	hashedPass, err := bcryptHash(password)
+	// Send any external communications needed to verify
+	// the contact info.
+	err = p.sendContactVerification(username, contact)
 	if err != nil {
 		return nil, err
 	}
 
-	// Insert a new user record
+	// Insert a new user record. The contact is not added
+	// to the contacts table until it has been verified.
+	hashedPass, err := bcryptHash(password)
+	if err != nil {
+		return nil, err
+	}
 	var (
-		userID = uuid.New().String()
-		groups = []string{
-			v1.StandardUser,
-		}
+		groups   = []string{v1.StandardUser}
+		contacts = []contactInfo{*contact}
+
+		u = newUser(username, hashedPass, groups, contacts)
 	)
-	u := newUser(userID, username, hashedPass, groups, contactInfo)
 	err = p.insertUser(tx, *u)
 	if err != nil {
 		return nil, err
 	}
 
-	// reset_password table should be a key-value table where the
-	// key is a hash of the contact info and the value should be
-	// a list of user IDs. We need a list since the contact info
-	// is not required to be unique.
+	// Send the reply
+	var nur v1.NewUserReply
+	payload, err := json.Marshal(nur)
+	if err != nil {
+		return nil, err
+	}
 
-	// Update the reset password table. This table is needed for
-	// password resets. Hash the email using bcrypt.
-
-	// Send external communications needed to verify the contact info.
-
-	return nil, nil
+	return &app.CmdReply{
+		Payload: string(payload),
+	}, nil
 }
 
+// TODO
+func (p *plugin) sendContactVerification(username string, c *contactInfo) error {
+	// Check the TokenSent for limit
+	// Update the TokenSent after sent
+	return nil
+}
+
+// bcryptHash returns a bycrt hash of the provided string.
 func bcryptHash(s string) ([]byte, error) {
 	return bcrypt.GenerateFromPassword([]byte(s), bcrypt.DefaultCost)
 }
@@ -197,16 +208,4 @@ func validateEmail(email string) error {
 		}
 	}
 	return nil
-}
-
-func convertNewContactInfo(n []v1.NewContactInfo) []contactInfo {
-	c := make([]contactInfo, 0, len(n))
-	for _, v := range n {
-		c = append(c, contactInfo{
-			Type:     string(v.Type),
-			Contact:  v.Contact,
-			Verified: false,
-		})
-	}
-	return c
 }

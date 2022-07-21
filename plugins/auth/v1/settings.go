@@ -5,6 +5,8 @@
 package v1
 
 const (
+	SettingHost = "host"
+
 	// SettingSessionMaxAge is the plugin setting name for the max session age.
 	// The value is in seconds. Sessions expire once they exceed this age limit.
 	SettingSessionMaxAge = "session_max_age"
