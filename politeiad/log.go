@@ -20,7 +20,7 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store/mysql"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tlog"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/tstore"
-	"github.com/decred/politeia/wsdcrdata"
+	"github.com/decred/politeia/politeiawww/wsdcrdata"
 	"github.com/decred/slog"
 	"github.com/jrick/logrotate/rotator"
 )

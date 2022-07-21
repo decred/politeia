@@ -15,8 +15,8 @@ import (
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/plugins"
 	"github.com/decred/politeia/politeiad/plugins/dcrdata"
+	"github.com/decred/politeia/politeiawww/wsdcrdata"
 	"github.com/decred/politeia/util"
-	"github.com/decred/politeia/wsdcrdata"
 )
 
 const (

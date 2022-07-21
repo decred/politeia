@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/decred/politeia/unittest"
 	"github.com/decred/politeia/util"
+	"github.com/decred/politeia/util/unittest"
 )
 
 // newTestMySQL returns a new mysql structure that has been setup for testing.

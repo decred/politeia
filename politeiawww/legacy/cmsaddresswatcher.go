@@ -22,8 +22,8 @@ import (
 	database "github.com/decred/politeia/politeiawww/legacy/cmsdatabase"
 	"github.com/decred/politeia/politeiawww/legacy/mdstream"
 	"github.com/decred/politeia/politeiawww/legacy/user"
+	"github.com/decred/politeia/politeiawww/wsdcrdata"
 	"github.com/decred/politeia/util"
-	"github.com/decred/politeia/wsdcrdata"
 	"github.com/google/uuid"
 )
 

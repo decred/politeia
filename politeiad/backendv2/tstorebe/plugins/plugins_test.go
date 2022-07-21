@@ -7,7 +7,7 @@ package plugins
 import (
 	"testing"
 
-	"github.com/decred/politeia/unittest"
+	"github.com/decred/politeia/util/unittest"
 )
 
 func TestHooks(t *testing.T) {
