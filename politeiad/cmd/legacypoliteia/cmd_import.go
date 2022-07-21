@@ -879,7 +879,7 @@ func (c *importCmd) saveVoteBatch(tstoreToken []byte, votes []ticketvote.CastVot
 					fmt.Printf("\n")
 					fmt.Printf("Failed to save cast vote %v: %v\n", cvd.Ticket, err)
 					fmt.Printf("Retrying cast vote %v\n", cvd.Ticket)
-					continue
+					time.Sleep(50 * time.Millisecond)
 				}
 			}
 
@@ -909,6 +909,7 @@ func (c *importCmd) saveVoteBatch(tstoreToken []byte, votes []ticketvote.CastVot
 					fmt.Printf("\n")
 					fmt.Printf("Failed to save vote collider %v: %v\n", cvd.Ticket, err)
 					fmt.Printf("Retrying vote collider %v\n", cvd.Ticket)
+					time.Sleep(50 * time.Millisecond)
 				}
 			}
 		}(v)
