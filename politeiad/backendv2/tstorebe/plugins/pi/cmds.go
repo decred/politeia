@@ -10,10 +10,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -22,7 +20,6 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe/store"
 	"github.com/decred/politeia/politeiad/plugins/pi"
 	"github.com/decred/politeia/politeiad/plugins/ticketvote"
-	"github.com/decred/politeia/politeiad/plugins/usermd"
 	"github.com/decred/politeia/util"
 )
 
@@ -263,32 +260,6 @@ func (p *piPlugin) cmdSummary(token []byte) (string, error) {
 	}
 
 	return string(reply), nil
-}
-
-// statusChangesDecode decodes and returns the StatusChangeMetadata from the
-// metadata streams if one is present.
-func statusChangesDecode(metadata []backend.MetadataStream) ([]usermd.StatusChangeMetadata, error) {
-	statuses := make([]usermd.StatusChangeMetadata, 0, 16)
-	for _, v := range metadata {
-		if v.PluginID != usermd.PluginID ||
-			v.StreamID != usermd.StreamIDStatusChanges {
-			// Not the mdstream we're looking for
-			continue
-		}
-		d := json.NewDecoder(strings.NewReader(v.Payload))
-		for {
-			var sc usermd.StatusChangeMetadata
-			err := d.Decode(&sc)
-			if errors.Is(err, io.EOF) {
-				break
-			} else if err != nil {
-				return nil, err
-			}
-			statuses = append(statuses, sc)
-		}
-		break
-	}
-	return statuses, nil
 }
 
 // proposalBillingStatus accepts proposal's vote status with the billing status

@@ -46,7 +46,6 @@ const (
 	tableNameEmailHistories = "email_histories"
 
 	// Key-value store keys.
-	keyVersion             = "version"
 	keyPaywallAddressIndex = "paywalladdressindex"
 )
 

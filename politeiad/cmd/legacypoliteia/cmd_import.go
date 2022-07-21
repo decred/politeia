@@ -47,8 +47,6 @@ import (
 const (
 	// tstore settings
 	defaultTlogHost = "localhost:8090"
-	defaultTlogPass = "tlogpass"
-	defaultDBType   = "mysql"
 	defaultDBHost   = "localhost:3306"
 	defaultDBPass   = "politeiadpass"
 
@@ -70,8 +68,8 @@ var (
 	// tstore settings
 	politeiadHomeDir = dcrutil.AppDataDir("politeiad", false)
 	politeiadDataDir = filepath.Join(politeiadHomeDir, "data")
-	dcrtimeHost      = "" // Not needed for import
-	dcrtimeCert      = "" // Not needed for import
+	// dcrtimeHost      = "" // Not needed for import
+	// dcrtimeCert      = "" // Not needed for import
 
 	// User database settings
 	userDBEncryptionKey = filepath.Join(config.DefaultHomeDir, "sbox.key")

@@ -41,13 +41,6 @@ var testNet3Params = params{
 	WalletRPCServerPort: "19111",
 }
 
-// simNetParams contains parameters specific to the simulation test network
-// (wire.SimNet).
-var simNetParams = params{
-	Params:              chaincfg.SimNetParams(),
-	WalletRPCServerPort: "19558",
-}
-
 // netName returns the name used when referring to a decred network.  At the
 // time of writing, dcrd currently places blocks for testnet version 0 in the
 // data and log directory "testnet", which does not match the Name field of the

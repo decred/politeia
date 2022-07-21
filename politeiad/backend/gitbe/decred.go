@@ -387,44 +387,6 @@ func block(block uint32) (*dcrdataapi.BlockDataBasic, error) {
 	return &bdb, nil
 }
 
-func batchTransactions(hashes []string) ([]dcrdataapi.TrimmedTx, error) {
-	// Request body is dcrdataapi.Txns marshalled to JSON
-	reqBody, err := json.Marshal(dcrdataapi.Txns{
-		Transactions: hashes,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Make the POST request
-	url := decredPluginSettings["dcrdata"] + "/api/txs/trimmed"
-	log.Debugf("connecting to %v", url)
-	r, err := http.Post(url, "application/json; charset=utf-8",
-		bytes.NewReader(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	defer r.Body.Close()
-
-	if r.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			return nil, fmt.Errorf("dcrdata error: %v %v %v",
-				r.StatusCode, url, err)
-		}
-		return nil, fmt.Errorf("dcrdata error: %v %v %s",
-			r.StatusCode, url, body)
-	}
-
-	// Unmarshal the response
-	var ttx []dcrdataapi.TrimmedTx
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&ttx); err != nil {
-		return nil, err
-	}
-	return ttx, nil
-}
-
 // pluginBestBlock returns current best block height from wallet.
 func (g *gitBackEnd) pluginBestBlock() (string, error) {
 	bb, err := bestBlock()
