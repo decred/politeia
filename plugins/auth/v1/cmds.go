@@ -54,9 +54,9 @@ type PolicyReply struct {
 // See the PolicyReply for username and password requirements. The username is
 // not case sensitive and must be unique.
 type NewUser struct {
-	Username    string         `json:"username"`
-	Password    string         `json:"password"`
-	ContactInfo NewContactInfo `json:"contactinfo"`
+	Username    string          `json:"username"`
+	Password    string          `json:"password"`
+	ContactInfo *NewContactInfo `json:"contactinfo,omitempty"`
 }
 
 // NewContactInfo is used to setup a new type of contact info for a user.

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/decred/politeia/app"
 	v1 "github.com/decred/politeia/plugins/auth/v1"
@@ -27,24 +28,17 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 			Code: v1.ErrCodeInvalidPayload,
 		}
 	}
+
+	// Validate the user credentials
 	var (
 		username = formatUsername(nu.Username)
 		password = nu.Password
-
-		nc      = nu.ContactInfo
-		contact = newContactInfo(string(nc.Type), nc.Contact)
 	)
-
-	// Validate the user credentials
 	err = validateUsername(p.settings, username)
 	if err != nil {
 		return nil, err
 	}
 	err = validatePassword(p.settings, password)
-	if err != nil {
-		return nil, err
-	}
-	err = validateContactInfo(p.settings, *contact)
 	if err != nil {
 		return nil, err
 	}
@@ -64,29 +58,41 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 		return nil, err
 	}
 
-	// Send any external communications needed to verify
-	// the contact info.
-	err = p.sendContactVerification(username, contact)
-	if err != nil {
-		return nil, err
+	// Validate the contact info and send any external
+	// communications, such as an email, that's needed
+	// to verify ownership. Contact info is optional.
+	contacts := make([]contactInfo, 0)
+	if nu.ContactInfo != nil {
+		var (
+			nc      = nu.ContactInfo
+			contact = newContactInfo(string(nc.Type), nc.Contact)
+		)
+		err = validateContactInfo(p.settings, *contact)
+		if err != nil {
+			return nil, err
+		}
+		err = p.sendContactVerification(username, contact)
+		if err != nil {
+			return nil, err
+		}
+		contacts = append(contacts, *contact)
 	}
 
-	// Insert a new user record. The contact is not added
-	// to the contacts table until it has been verified.
+	// Insert the user into the database
 	hashedPass, err := bcryptHash(password)
 	if err != nil {
 		return nil, err
 	}
 	var (
-		groups   = []string{v1.StandardUser}
-		contacts = []contactInfo{*contact}
-
-		u = newUser(username, hashedPass, groups, contacts)
+		groups = []string{v1.StandardUser}
+		u      = newUser(username, hashedPass, groups, contacts)
 	)
 	err = p.insertUser(tx, *u)
 	if err != nil {
 		return nil, err
 	}
+
+	log.Infof("New user %v created", username)
 
 	// Send the reply
 	var nur v1.NewUserReply
@@ -100,10 +106,23 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 	}, nil
 }
 
-// TODO
 func (p *plugin) sendContactVerification(username string, c *contactInfo) error {
-	// Check the TokenSent for limit
-	// Update the TokenSent after sent
+	// Send the verification communication
+	switch c.Type {
+	case contactTypeEmail:
+		err := p.sendEmailVerification(username, c.Contact, c.Token)
+		if err != nil {
+			return err
+		}
+	default:
+		return errors.Errorf("invalid contact type %v", c.Type)
+	}
+
+	// Record the sent timestamp
+	c.TokenSent = append(c.TokenSent, time.Now().Unix())
+
+	log.Debugf("Contact info verification (%v) sent for %v", c.Type, username)
+
 	return nil
 }
 
