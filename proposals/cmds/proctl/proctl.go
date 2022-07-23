@@ -12,4 +12,6 @@ type proctl struct {
 	// to be printed in the go-flags created help message. It should not be used
 	// by the commands.
 	DoNotUse *config
+
+	NewUser cmdNewUser `command:"newuser"`
 }

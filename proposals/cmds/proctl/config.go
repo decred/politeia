@@ -8,6 +8,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +25,8 @@ const (
 	dataDirname = "data"
 	logDirname  = "logs"
 	logLevel    = "info"
+
+	host = "https://localhost:4443"
 )
 
 var (
@@ -44,6 +47,9 @@ type config struct {
 	LogDir     string `long:"logdir" description:"Log directory path"`
 	ConfigFile string `long:"configfile" description:"Config file path"`
 	LogLevel   string `short:"d" long:"loglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	Host       string `long:"host" description:"Proposals host"`
+
+	hostURL *url.URL
 }
 
 // loadConfig initializes and parses the config using a config file and command
@@ -66,6 +72,7 @@ func loadConfig() (*config, error) {
 		LogDir:     logDir,
 		ConfigFile: configFile,
 		LogLevel:   logLevel,
+		Host:       host,
 	}
 
 	// Pre-parse the command line options to see if an alternative config
@@ -159,6 +166,16 @@ func loadConfig() (*config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create data dir: %v", err)
 	}
+
+	// Parse the host
+	u, err := url.Parse(cfg.Host)
+	if err != nil {
+		return nil, err
+	}
+	if !u.IsAbs() {
+		u.Scheme = "https"
+	}
+	cfg.hostURL = u
 
 	return cfg, nil
 }

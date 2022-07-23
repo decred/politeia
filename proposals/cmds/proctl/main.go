@@ -24,6 +24,9 @@ var (
 	// log is the global log variable that commands can use to write output
 	// to the log file and stdout.
 	log = NewSubsystemLogger("PCTL")
+
+	// client is a http client for interacting with the politeia API.
+	client *httpc
 )
 
 func main() {
@@ -68,6 +71,12 @@ func _main() error {
 		return err
 	}
 	defer db.Close()
+
+	// Setup the politeia http client
+	client, err = newHttpc(cfg.hostURL, nil)
+	if err != nil {
+		return err
+	}
 
 	// Parse the CLI args and execute the command. The help message
 	// flags and unknown flag errors are caught during this parse.
