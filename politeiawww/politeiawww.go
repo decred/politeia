@@ -120,6 +120,7 @@ func _main() error {
 	// by default, unless an app has been specified in
 	// the config.
 	if cfg.App != "" {
+		log.Infof("Running app: %v", cfg.App)
 		// Run in app mode
 		p.setupRoutes()
 		err = p.setupApp()
@@ -128,6 +129,7 @@ func _main() error {
 		}
 	} else {
 		// Run in legacy mode
+		log.Infof("Running in legacy mode")
 		legacywww, err := legacy.NewPoliteiawww(p.cfg,
 			p.router, p.protected, cfg.ActiveNet.Params,
 			pdc)

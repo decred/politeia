@@ -19,7 +19,7 @@ var (
 
 	// db is the file system key-value database that commands can use to persist
 	// data.
-	db *lvldb
+	db *kvdb
 
 	// log is the global log variable that commands can use to write output
 	// to the log file and stdout.
@@ -55,8 +55,8 @@ func _main() error {
 		return errors.Errorf("load config: %v", err)
 	}
 
-	// Initialize log rotation. After the log rotation has
-	// been initialized, the log global variable may be used.
+	// Setup the log rotation. The log global variable may now
+	// be used.
 	err = InitLogRotator(filepath.Join(cfg.LogDir, logFilename))
 	if err != nil {
 		return err
@@ -66,21 +66,24 @@ func _main() error {
 	log.Tracef("App dir: %v", cfg.AppDir)
 
 	// Setup the key-value database
-	db, err = NewLvlDB(cfg.DataDir)
+	db, err = newKvdb(cfg.DataDir)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
 	// Setup the politeia http client
-	client, err = newHttpc(cfg.hostURL, nil)
+	opts := &httpcOpts{
+		CertPool: cfg.certPool,
+	}
+	client, err = newHttpc(cfg.hostURL, db, opts)
 	if err != nil {
 		return err
 	}
 
 	// Parse the CLI args and execute the command. The help message
 	// flags and unknown flag errors are caught during this parse.
-	parser := flags.NewParser(&proctl{DoNotUse: cfg}, flags.Default)
+	parser := flags.NewParser(&cmds{DoNotUse: cfg}, flags.Default)
 	_, err = parser.Parse()
 	if err != nil {
 		// An error has occurred during command

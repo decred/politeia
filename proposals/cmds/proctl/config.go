@@ -6,8 +6,10 @@
 package main
 
 import (
+	"crypto/x509"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -25,8 +27,6 @@ const (
 	dataDirname = "data"
 	logDirname  = "logs"
 	logLevel    = "info"
-
-	host = "https://localhost:4443"
 )
 
 var (
@@ -38,6 +38,11 @@ var (
 	dataDir    = filepath.Join(appDir, dataDirname)
 	logDir     = filepath.Join(appDir, logDirname)
 	configFile = filepath.Join(appDir, configFilename)
+
+	// Server settings
+	host      = "https://localhost:4443"
+	hostDir   = dcrutil.AppDataDir("politeiawww", false)
+	httpsCert = filepath.Join(hostDir, "https.cert")
 )
 
 // config is the command configuration.
@@ -48,8 +53,10 @@ type config struct {
 	ConfigFile string `long:"configfile" description:"Config file path"`
 	LogLevel   string `short:"d" long:"loglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
 	Host       string `long:"host" description:"Proposals host"`
+	HTTPSCert  string `long:"httpscert" description:"HTTP cert file path (for self signed certs)"`
 
-	hostURL *url.URL
+	hostURL  *url.URL
+	certPool *x509.CertPool
 }
 
 // loadConfig initializes and parses the config using a config file and command
@@ -73,6 +80,7 @@ func loadConfig() (*config, error) {
 		ConfigFile: configFile,
 		LogLevel:   logLevel,
 		Host:       host,
+		HTTPSCert:  httpsCert,
 	}
 
 	// Pre-parse the command line options to see if an alternative config
@@ -156,6 +164,7 @@ func loadConfig() (*config, error) {
 	cfg.DataDir = util.CleanAndExpandPath(cfg.DataDir)
 	cfg.LogDir = util.CleanAndExpandPath(cfg.LogDir)
 	cfg.ConfigFile = util.CleanAndExpandPath(cfg.ConfigFile)
+	cfg.HTTPSCert = util.CleanAndExpandPath(cfg.HTTPSCert)
 
 	// Create the app and data directories if they don't exist
 	err = os.MkdirAll(cfg.AppDir, 0700)
@@ -176,6 +185,20 @@ func loadConfig() (*config, error) {
 		u.Scheme = "https"
 	}
 	cfg.hostURL = u
+
+	// Setup the cert pool that will be used
+	certPool, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, err
+	}
+	if util.FileExists(cfg.HTTPSCert) {
+		cert, err := ioutil.ReadFile(cfg.HTTPSCert)
+		if err != nil {
+			return nil, err
+		}
+		certPool.AppendCertsFromPEM(cert)
+	}
+	cfg.certPool = certPool
 
 	return cfg, nil
 }

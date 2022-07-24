@@ -58,8 +58,8 @@ type CmdReply struct {
 //
 // A PluginError is returned in the CmdReply.
 type PluginError struct {
-	ErrorCode    uint32 `json:"errorcode"`
-	ErrorContext string `json:"errorcontext,omitempty"`
+	Code    uint32 `json:"code"`
+	Context string `json:"context,omitempty"`
 }
 
 // Batch contains a batch of read-only plugin commands.

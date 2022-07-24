@@ -7,10 +7,10 @@ package main
 // cmdNewUser creates a new user.
 type cmdNewUser struct {
 	Args struct {
-		Username string `positional-arg-name:"username"`
-		Password string `positional-arg-name:"password"`
+		Username string `positional-arg-name:"username" required:"true"`
+		Password string `positional-arg-name:"password" required:"true"`
 		Email    string `positional-arg-name:"email" optional:"true"`
-	} `positional-args:"true" required:"true"`
+	} `positional-args:"true"`
 }
 
 // Execute executes the command.
@@ -25,7 +25,7 @@ func (c *cmdNewUser) Execute(args []string) error {
 	_ = password
 	_ = email
 
-	log.Infof("New user %v created", username)
+	log.Infof("New user '%v' created", username)
 
 	return nil
 }

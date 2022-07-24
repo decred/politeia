@@ -4,8 +4,8 @@
 
 package main
 
-// proctl is the proposals app CLI tool.
-type proctl struct {
+// cmds contains the list of CLI commands.
+type cmds struct {
 	// The config is parsed separately from the commands and set as a global
 	// variable. The DoNotUse config field is here as a workaround to prevent
 	// go-flags unknown flag errors during parsing and to allow the config fields
@@ -13,5 +13,6 @@ type proctl struct {
 	// by the commands.
 	DoNotUse *config
 
+	Version cmdVersion `command:"version"`
 	NewUser cmdNewUser `command:"newuser"`
 }

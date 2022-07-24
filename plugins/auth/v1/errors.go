@@ -14,3 +14,13 @@ const (
 	ErrCodeInvalidPassword    ErrCode = 4
 	ErrCodeInvalidContactInfo ErrCode = 5
 )
+
+// ErrCodes contains the human readable error string for the error codes.
+var ErrCodes = map[ErrCode]string{
+	ErrCodeInvalid:            "invalid error code",
+	ErrCodeNotAuthorized:      "not authorized",
+	ErrCodeInvalidPayload:     "invalid payload",
+	ErrCodeInvalidUsername:    "invalid username",
+	ErrCodeInvalidPassword:    "invalid password",
+	ErrCodeInvalidContactInfo: "invalid contact info",
+}
