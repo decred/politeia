@@ -184,14 +184,14 @@ func (c *httpc) sendReqV3(method string, route string, reqData interface{}) ([]b
 	c.http.Jar.SetCookies(c.host, cookies)
 
 	// Setup the CSRF header token
-	reqCSRF, err := c.getCSRF()
+	csrf, err := c.getCSRF()
 	if err != nil {
 		return nil, err
 	}
 	var headers map[string]string
-	if reqCSRF != "" {
+	if csrf != "" {
 		headers = map[string]string{
-			v3.CSRFTokenHeader: reqCSRF,
+			v3.CSRFTokenHeader: csrf,
 		}
 	}
 
@@ -224,7 +224,7 @@ func (c *httpc) sendReqV3(method string, route string, reqData interface{}) ([]b
 	}
 
 	// Save the header CSRF token to the database
-	csrf := r.Header.Get(v3.CSRFTokenHeader)
+	csrf = r.Header.Get(v3.CSRFTokenHeader)
 	if csrf != "" {
 		err := c.saveCSRF(csrf)
 		if err != nil {

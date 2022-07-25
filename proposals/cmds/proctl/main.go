@@ -25,8 +25,8 @@ var (
 	// to the log file and stdout.
 	log = NewSubsystemLogger("PCTL")
 
-	// client is a http client for interacting with the politeia API.
-	client *httpc
+	// httpC is a http client for interacting with the politeia API.
+	httpC *httpc
 )
 
 func main() {
@@ -76,7 +76,7 @@ func _main() error {
 	opts := &httpcOpts{
 		CertPool: cfg.certPool,
 	}
-	client, err = newHttpc(cfg.hostURL, db, opts)
+	httpC, err = newHttpc(cfg.hostURL, db, opts)
 	if err != nil {
 		return err
 	}

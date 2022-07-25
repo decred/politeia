@@ -11,7 +11,7 @@ type cmdVersion struct{}
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdVersion) Execute(args []string) error {
-	r, err := client.Version()
+	r, err := httpC.Version()
 	if err != nil {
 		return err
 	}

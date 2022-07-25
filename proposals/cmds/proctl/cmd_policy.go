@@ -11,7 +11,7 @@ type cmdPolicy struct{}
 //
 // This function satisfies the go-flags Commander interface.
 func (c *cmdPolicy) Execute(args []string) error {
-	r, err := client.Policy()
+	r, err := httpC.Policy()
 	if err != nil {
 		return err
 	}

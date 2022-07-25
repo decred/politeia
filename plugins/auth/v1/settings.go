@@ -7,6 +7,8 @@ package v1
 const (
 	SettingHost = "host"
 
+	// TODO session max age belongs in the server layer. The auth manager should
+	// get it from the server on initialization.
 	// SettingSessionMaxAge is the plugin setting name for the max session age.
 	// The value is in seconds. Sessions expire once they exceed this age limit.
 	SettingSessionMaxAge = "session_max_age"
