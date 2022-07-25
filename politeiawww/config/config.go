@@ -73,11 +73,11 @@ const (
 	defaultHTTPSKeyFilename  = "https.key"
 	defaultCookieKeyFilename = "cookie.key"
 
-	defaultReadTimeout        int64  = 5               // In seconds
-	defaultWriteTimeout       int64  = 60              // In seconds
-	defaultReqBodySizeLimit   int64  = 3 * 1024 * 1024 // 3 MiB
-	defaultWebsocketReadLimit int64  = 4 * 1024 * 1024 // 4 KiB
-	defaultPluginBatchLimit   uint32 = 20
+	defaultSessionMaxAge    int64  = 60 * 60 * 24    // 1 day in seconds
+	defaultReadTimeout      int64  = 5               // In seconds
+	defaultWriteTimeout     int64  = 60              // In seconds
+	defaultReqBodySizeLimit int64  = 3 * 1024 * 1024 // 3 MiB
+	defaultPluginBatchLimit uint32 = 20
 
 	// politeiad RPC settings
 	defaultRPCHost          = "localhost"
@@ -88,11 +88,7 @@ const (
 	allowInteractive        = "i-know-this-is-a-bad-idea"
 
 	// Database settings
-	LevelDB     = "leveldb"
-	CockroachDB = "cockroachdb"
-	MySQL       = "mysql"
-
-	defaultMySQLDBHost     = "localhost:3306"
+	defaultMySQLHost       = "localhost:3306"
 	defaultCockroachDBHost = "localhost:26257"
 
 	// SMTP settings
@@ -120,15 +116,15 @@ type Config struct {
 	DebugLevel  string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
 
 	// HTTP server settings
-	Listeners          []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 4443)"`
-	HTTPSCert          string   `long:"httpscert" description:"File containing the https certificate file"`
-	HTTPSKey           string   `long:"httpskey" description:"File containing the https certificate key"`
-	CookieKeyFile      string   `long:"cookiekey" description:"File containing the secret cookies key"`
-	ReadTimeout        int64    `long:"readtimeout" description:"Maximum duration in seconds that is spent reading the request headers and body"`
-	WriteTimeout       int64    `long:"writetimeout" description:"Maximum duration in seconds that a request connection is kept open"`
-	ReqBodySizeLimit   int64    `long:"reqbodysizelimit" description:"Maximum number of bytes allowed in a request body submitted by a client"`
-	WebsocketReadLimit int64    `long:"websocketreadlimit" description:"Maximum number of bytes allowed for a message read from a websocket client"`
-	PluginBatchLimit   uint32   `long:"pluginbatchlimit" description:"Maximum number of plugins command allowed in a batch request."`
+	Listeners        []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 4443)"`
+	HTTPSCert        string   `long:"httpscert" description:"File containing the https certificate file"`
+	HTTPSKey         string   `long:"httpskey" description:"File containing the https certificate key"`
+	CookieKey        string   `long:"cookiekey" description:"File containing the secret cookie key"`
+	SessionMaxAge    int64    `long:"Session max age" description:"Max age of a session in seconds"`
+	ReadTimeout      int64    `long:"readtimeout" description:"Maximum duration in seconds that is spent reading the request headers and body"`
+	WriteTimeout     int64    `long:"writetimeout" description:"Maximum duration in seconds that a request connection is kept open"`
+	ReqBodySizeLimit int64    `long:"reqbodysizelimit" description:"Maximum number of bytes allowed in a request body submitted by a client"`
+	PluginBatchLimit uint32   `long:"pluginbatchlimit" description:"Maximum number of plugins command allowed in a batch request."`
 
 	// politeiad RPC settings
 	RPCHost         string `long:"rpchost" description:"politeiad host <host>:<port>"`
@@ -139,8 +135,7 @@ type Config struct {
 	FetchIdentity   bool   `long:"fetchidentity" description:"Fetch the identity from politeiad"`
 	Interactive     string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity"`
 
-	// User database settings
-	UserDB string `long:"userdb" description:"Database choice for the user database"`
+	// Database settings
 	DBHost string `long:"dbhost" description:"Database ip:port"`
 	DBPass string // Provided in env variable "DBPASS"
 
@@ -194,24 +189,22 @@ func Load() (*Config, []string, error) {
 		DebugLevel:  defaultLogLevel,
 
 		// HTTP server settings
-		Listeners:          []string{},
-		HTTPSCert:          "",
-		HTTPSKey:           "",
-		CookieKeyFile:      "",
-		ReadTimeout:        defaultReadTimeout,
-		WriteTimeout:       defaultWriteTimeout,
-		ReqBodySizeLimit:   defaultReqBodySizeLimit,
-		WebsocketReadLimit: defaultWebsocketReadLimit,
-		PluginBatchLimit:   defaultPluginBatchLimit,
-
-		// User database settings
-		UserDB: LevelDB,
+		Listeners:        []string{},
+		HTTPSCert:        "",
+		HTTPSKey:         "",
+		CookieKey:        "",
+		SessionMaxAge:    defaultSessionMaxAge,
+		ReadTimeout:      defaultReadTimeout,
+		WriteTimeout:     defaultWriteTimeout,
+		ReqBodySizeLimit: defaultReqBodySizeLimit,
+		PluginBatchLimit: defaultPluginBatchLimit,
 
 		// SMTP settings
 		MailAddress: defaultMailAddress,
 
 		// Legacy settings. These are deprecated and will be removed soon.
 		LegacyConfig: LegacyConfig{
+			UserDB:                   LevelDB,
 			Mode:                     PiWWWMode,
 			PaywallAmount:            defaultPaywallAmount,
 			MinConfirmationsRequired: defaultPaywallMinConfirmations,
@@ -371,7 +364,8 @@ func Load() (*Config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Setup the various config settings
+	// Validate the config settings. These settings
+	// apply to both legacy mode and non-legacy mode.
 	err = setupHTTPServerSettings(cfg)
 	if err != nil {
 		return nil, nil, err
@@ -380,17 +374,27 @@ func Load() (*Config, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	err = setupUserDBSettings(cfg)
-	if err != nil {
-		return nil, nil, err
-	}
 	err = setupMailSettings(cfg)
 	if err != nil {
 		return nil, nil, err
 	}
-	err = setupLegacyConfig(cfg)
-	if err != nil {
-		return nil, nil, err
+
+	// Validate the config settings that are specific
+	// to the legacy mode and the non-legacy mode.
+	switch {
+	case cfg.App != "":
+		// Politeia is not being run in legacy mode
+		err = setupDBSettings(cfg)
+		if err != nil {
+			return nil, nil, err
+		}
+
+	default:
+		// Polieia is being run in legacy mode
+		err = setupLegacyConfig(cfg)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// Warn about missing config file only after all other
@@ -415,14 +419,14 @@ func setupHTTPServerSettings(cfg *Config) error {
 	if cfg.HTTPSKey == "" {
 		cfg.HTTPSKey = filepath.Join(cfg.HomeDir, defaultHTTPSKeyFilename)
 	}
-	if cfg.CookieKeyFile == "" {
-		cfg.CookieKeyFile = filepath.Join(cfg.HomeDir, defaultCookieKeyFilename)
+	if cfg.CookieKey == "" {
+		cfg.CookieKey = filepath.Join(cfg.HomeDir, defaultCookieKeyFilename)
 	}
 
 	// Clean file paths
 	cfg.HTTPSCert = util.CleanAndExpandPath(cfg.HTTPSCert)
 	cfg.HTTPSKey = util.CleanAndExpandPath(cfg.HTTPSKey)
-	cfg.CookieKeyFile = util.CleanAndExpandPath(cfg.CookieKeyFile)
+	cfg.CookieKey = util.CleanAndExpandPath(cfg.CookieKey)
 
 	// Add the default listener if none were specified. The
 	// default listener is all addresses on the listen port
@@ -506,47 +510,23 @@ func setupRPCSettings(cfg *Config) error {
 	return nil
 }
 
-// setupUserDBSettings sets up the user database config settings.
-func setupUserDBSettings(cfg *Config) error {
-	// Verify database selection
-	switch cfg.UserDB {
-	case LevelDB, CockroachDB, MySQL:
-		// These are allowed
-	default:
-		return fmt.Errorf("invalid db selection '%v'",
-			cfg.UserDB)
+// setupDBSettings sets up the database config settings.
+func setupDBSettings(cfg *Config) error {
+	// Validate the database host
+	if cfg.DBHost == "" {
+		cfg.DBHost = defaultMySQLHost
+	}
+	_, err := url.Parse(cfg.DBHost)
+	if err != nil {
+		return fmt.Errorf("invalid dbhost '%v': %v", cfg.DBHost, err)
 	}
 
-	// Verify individual database requirements
-	switch cfg.UserDB {
-	case LevelDB:
-		// LevelDB should not have a host
-		if cfg.DBHost != "" {
-			return fmt.Errorf("dbhost should not be set when using leveldb")
-		}
-
-	case CockroachDB:
-		// The CockroachDB option is deprecated. All CockroachDB
-		// validation is performed in the legacy config setup.
-
-	case MySQL:
-		// Verify database host
-		if cfg.DBHost == "" {
-			cfg.DBHost = defaultMySQLDBHost
-		}
-		_, err := url.Parse(cfg.DBHost)
-		if err != nil {
-			return fmt.Errorf("invalid dbhost '%v': %v",
-				cfg.DBHost, err)
-		}
-
-		// Pull password from env variable
-		cfg.DBPass = os.Getenv(envDBPass)
-		if cfg.DBPass == "" {
-			return fmt.Errorf("dbpass not found; you must provide "+
-				"the database password for the politeiawww user in "+
-				"the env variable %v", envDBPass)
-		}
+	// Pull the password from the env variable
+	cfg.DBPass = os.Getenv(envDBPass)
+	if cfg.DBPass == "" {
+		return fmt.Errorf("dbpass not found; you must provide "+
+			"the database password for the politeiawww user in "+
+			"the env variable %v", envDBPass)
 	}
 
 	return nil

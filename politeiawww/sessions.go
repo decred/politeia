@@ -5,12 +5,44 @@
 package main
 
 import (
+	"database/sql"
 	"net/http"
+	"os"
 
 	"github.com/decred/politeia/app"
 	v3 "github.com/decred/politeia/politeiawww/api/http/v3"
+	psessions "github.com/decred/politeia/politeiawww/sessions"
+	sessionsdb "github.com/decred/politeia/politeiawww/sessions/mysql"
+	"github.com/decred/politeia/util"
 	"github.com/gorilla/sessions"
 )
+
+func (p *politeiawww) setupSessions(db *sql.DB) error {
+	cookieKey, err := os.ReadFile(p.cfg.CookieKey)
+	if err != nil {
+		log.Infof("Cookie key not found, generating one...")
+		cookieKey, err = util.Random(32)
+		if err != nil {
+			return err
+		}
+		err = os.WriteFile(p.cfg.CookieKey, cookieKey, 0400)
+		if err != nil {
+			return err
+		}
+		log.Infof("Cookie key generated")
+	}
+
+	sdb, err := sessionsdb.New(db, nil)
+	if err != nil {
+		return err
+	}
+
+	// TODO test the max age. Does gorrilla/sessions auto delete?
+	opts := psessions.NewOptions(int(p.cfg.SessionMaxAge))
+	p.sessions = psessions.NewStore(sdb, opts, cookieKey)
+
+	return nil
+}
 
 // extractSession extracts and returns the session from the http request
 // cookie.

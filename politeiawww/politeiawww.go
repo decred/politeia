@@ -7,6 +7,7 @@ package main
 import (
 	"crypto/elliptic"
 	"crypto/tls"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
@@ -95,23 +96,53 @@ func _main() error {
 		return err
 	}
 
+	// Connect to the database
+	var (
+		connMaxLifetime = 1 * time.Minute
+		maxOpenConns    = 0 // 0 is unlimited
+		maxIdleConns    = 100
+
+		// TODO this should use the db for the app
+		user     = "politeiawww"
+		password = cfg.DBPass
+		host     = cfg.DBHost
+		dbname   = "users_" + cfg.ActiveNet.Params.Name
+	)
+
+	log.Infof("MySQL host: %v:[password]@tcp(%v)/%v", user, host, dbname)
+
+	h := fmt.Sprintf("%v:%v@tcp(%v)/%v", user, password, host, dbname)
+	db, err := sql.Open("mysql", h)
+	if err != nil {
+		return err
+	}
+
+	db.SetConnMaxLifetime(connMaxLifetime)
+	db.SetMaxOpenConns(maxOpenConns)
+	db.SetMaxIdleConns(maxIdleConns)
+
+	err = db.Ping()
+	if err != nil {
+		return err
+	}
+
 	// Setup application context
 	p := &politeiawww{
 		cfg:       cfg,
-		router:    nil, // Set in setupRouter()
-		protected: nil, // Set in setupRouter()
-		app:       nil, // Set in setupApp()
+		router:    nil, // Set in setupRouter
+		protected: nil, // Set in setupRouter
+		sessions:  nil, // Set in setupSessions
+		app:       nil, // Set in setupApp
 		cmds:      make(map[string]struct{}),
-
-		// Not implemented yet
-		sessions: nil,
 
 		// Legacy fields
 		legacy: nil, // Set below
 	}
-
-	// Setup the HTTP router
 	err = p.setupRouter()
+	if err != nil {
+		return err
+	}
+	err = p.setupSessions(db)
 	if err != nil {
 		return err
 	}

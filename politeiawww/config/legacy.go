@@ -43,6 +43,11 @@ const (
 	// 	   return int64(amount)*1000/(3*int64(totalSize)) < int64(relayFeePerKb)
 	// }
 	dust = 60300
+
+	// User database settings
+	LevelDB     = "leveldb"
+	CockroachDB = "cockroachdb"
+	MySQL       = "mysql"
 )
 
 var (
@@ -65,6 +70,7 @@ var (
 // future.
 type LegacyConfig struct {
 	// Legacy user database settings
+	UserDB           string `long:"userdb" description:"Database choice for the user database"`
 	DBRootCert       string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
 	DBCert           string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
 	DBKey            string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
@@ -167,6 +173,15 @@ func setupLegacyConfig(cfg *Config) error {
 
 // setupLegacyUserDBSettings sets up the legacy user database config settings.
 func setupLegacyUserDBSettings(cfg *Config) error {
+	// Verify database selection
+	switch cfg.UserDB {
+	case LevelDB, CockroachDB, MySQL:
+		// These are allowed
+	default:
+		return fmt.Errorf("invalid db selection '%v'",
+			cfg.UserDB)
+	}
+
 	switch cfg.UserDB {
 	case LevelDB:
 		// Leveldb implementation does not require any database settings
@@ -246,16 +261,31 @@ func setupLegacyUserDBSettings(cfg *Config) error {
 
 	case MySQL:
 		// Set defaults
+		if cfg.DBHost == "" {
+			cfg.DBHost = defaultMySQLHost
+		}
 		if cfg.EncryptionKey == "" {
 			cfg.EncryptionKey = filepath.Join(cfg.HomeDir, "sbox.key")
 		}
-
-		// Clean encryption keys paths.
 		cfg.EncryptionKey = util.CleanAndExpandPath(cfg.EncryptionKey)
 		cfg.OldEncryptionKey = util.CleanAndExpandPath(cfg.OldEncryptionKey)
 
-		// Validate user database encryption keys.
-		err := validateEncryptionKeys(cfg.EncryptionKey, cfg.OldEncryptionKey)
+		// Validate the database host
+		_, err := url.Parse(cfg.DBHost)
+		if err != nil {
+			return fmt.Errorf("invalid dbhost '%v': %v", cfg.DBHost, err)
+		}
+
+		// Pull the password from the env variable
+		cfg.DBPass = os.Getenv(envDBPass)
+		if cfg.DBPass == "" {
+			return fmt.Errorf("dbpass not found; you must provide "+
+				"the database password for the politeiawww user in "+
+				"the env variable %v", envDBPass)
+		}
+
+		// Validate user database encryption keys
+		err = validateEncryptionKeys(cfg.EncryptionKey, cfg.OldEncryptionKey)
 		if err != nil {
 			return err
 		}
