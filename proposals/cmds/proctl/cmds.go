@@ -14,5 +14,6 @@ type cmds struct {
 	DoNotUse *config
 
 	Version cmdVersion `command:"version"`
+	Policy  cmdPolicy  `command:"policy"`
 	NewUser cmdNewUser `command:"newuser"`
 }

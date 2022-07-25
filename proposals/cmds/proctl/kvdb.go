@@ -23,7 +23,7 @@ var (
 	errNotFound = errors.New("entry not found")
 )
 
-// kvdb provides a concurrency safe API for interacting with the LevelDB
+// kvdb provides a concurrency safe API for interacting with a LevelDB
 // key-value database.
 type kvdb struct {
 	sync.Mutex
@@ -31,7 +31,7 @@ type kvdb struct {
 	shutdown bool
 }
 
-// newkvdb returns a new kvdb.
+// newKvdb returns a new kvdb.
 func newKvdb(dataDir string) (*kvdb, error) {
 	// Setup the LevelDB data directory
 	dataDir = filepath.Join(dataDir, "leveldb")

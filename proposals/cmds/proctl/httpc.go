@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	auth "github.com/decred/politeia/plugins/auth/v1"
@@ -60,11 +61,11 @@ func newHttpc(host *url.URL, db *kvdb, opts *httpcOpts) (*httpc, error) {
 		},
 	}
 
-	// Add any provided cookies to the client
-	copt := cookiejar.Options{
+	// Setup the cookies
+	copts := &cookiejar.Options{
 		PublicSuffixList: publicsuffix.List,
 	}
-	jar, err := cookiejar.New(&copt)
+	jar, err := cookiejar.New(copts)
 	if err != nil {
 		return nil, err
 	}
@@ -82,8 +83,13 @@ func newHttpc(host *url.URL, db *kvdb, opts *httpcOpts) (*httpc, error) {
 type serverReply struct {
 	HTTPCode int
 	Body     []byte
-	Headers  map[string]string
-	Cookies  []*http.Cookie
+
+	// Header contains all of the response headers.
+	Header http.Header
+
+	// SetCookies contains the cookies that the server returned in the
+	// Set-Cookie header.
+	SetCookies []*http.Cookie
 }
 
 // sendReq prepares and sends a http request.
@@ -132,16 +138,7 @@ func (c *httpc) sendReq(method string, route string, reqData interface{}, header
 		}
 	}
 
-	log.Debugf("Request : %v %v", method, reqURL.String())
-	log.Debugf("Body    : %s", reqBody)
-	for k, v := range headers {
-		log.Debugf("Header  : %v %v", k, v)
-	}
-	if c.http.Jar != nil {
-		log.Debugf("Cookies : %+v", c.http.Jar.Cookies(c.host))
-	}
-
-	// Setup and send the request
+	// Setup the request
 	req, err := http.NewRequest(method, reqURL.String(),
 		bytes.NewReader(reqBody))
 	if err != nil {
@@ -150,6 +147,10 @@ func (c *httpc) sendReq(method string, route string, reqData interface{}, header
 	for k, v := range headers {
 		req.Header.Add(k, v)
 	}
+
+	log.Debugf("%v", reqLogStr(req, c.http.Jar.Cookies(c.host), reqBody))
+
+	// Send the request
 	r, err := c.http.Do(req)
 	if err != nil {
 		return nil, err
@@ -157,28 +158,17 @@ func (c *httpc) sendReq(method string, route string, reqData interface{}, header
 	defer r.Body.Close()
 
 	var b bytes.Buffer
-	mw := io.MultiWriter(&b)
-	io.Copy(mw, r.Body)
+	w := io.MultiWriter(&b)
+	io.Copy(w, r.Body)
 	respBody := b.Bytes()
 
-	log.Debugf("Response: %v", r.StatusCode)
-	log.Debugf("Body    : %s", respBody)
-	respHeaders := make(map[string]string, 64)
-	for k := range headers {
-		v := r.Header.Get(k)
-		if v == "" {
-			continue
-		}
-		log.Debugf("Header   : %v %v", k, v)
-		respHeaders[k] = v
-	}
-	log.Debugf("Cookies : %+v", r.Cookies())
+	log.Debugf(respLogStr(r, respBody))
 
 	return &serverReply{
-		HTTPCode: r.StatusCode,
-		Body:     respBody,
-		Cookies:  r.Cookies(),
-		Headers:  respHeaders,
+		HTTPCode:   r.StatusCode,
+		Body:       respBody,
+		Header:     r.Header,
+		SetCookies: r.Cookies(),
 	}, nil
 }
 
@@ -198,22 +188,25 @@ func (c *httpc) sendReqV3(method string, route string, reqData interface{}) ([]b
 	if err != nil {
 		return nil, err
 	}
-	headers := map[string]string{
-		v3.CSRFTokenHeader: reqCSRF,
+	var headers map[string]string
+	if reqCSRF != "" {
+		headers = map[string]string{
+			v3.CSRFTokenHeader: reqCSRF,
+		}
 	}
 
 	// Send the request
-	sr, err := c.sendReq(method, route, reqData, headers)
+	r, err := c.sendReq(method, route, reqData, headers)
 	if err != nil {
 		return nil, err
 	}
-	switch sr.HTTPCode {
+	switch r.HTTPCode {
 	case http.StatusOK:
 		// Expected reply; continue
 
 	case http.StatusBadRequest:
 		var e v3.UserError
-		err = json.Unmarshal(sr.Body, &e)
+		err = json.Unmarshal(r.Body, &e)
 		if err != nil {
 			return nil, err
 		}
@@ -227,23 +220,28 @@ func (c *httpc) sendReqV3(method string, route string, reqData interface{}) ([]b
 
 	default:
 		return nil, errors.Errorf("unexpected server response: %v %s",
-			sr.HTTPCode, sr.Body)
+			r.HTTPCode, r.Body)
 	}
 
-	// Save any returned cookies
-	err = c.saveCookies(sr.Cookies)
-	if err != nil {
-		return nil, err
+	// Save the header CSRF token to the database
+	csrf := r.Header.Get(v3.CSRFTokenHeader)
+	if csrf != "" {
+		err := c.saveCSRF(csrf)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// Save the CSRF header token that was returned
-	// if it's different than the one we're using.
-	respCSRF := sr.Headers[v3.CSRFTokenHeader]
-	if respCSRF != reqCSRF {
-		c.saveCSRF(respCSRF)
+	// Update the cookies and save them to the database
+	if len(r.SetCookies) > 0 {
+		c.http.Jar.SetCookies(c.host, r.SetCookies)
+		err = c.saveCookies(c.http.Jar.Cookies(c.host))
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return sr.Body, nil
+	return r.Body, nil
 }
 
 // Versions sends a GET request to the politeia v3 VersionRoute.
@@ -302,7 +300,7 @@ func (c *httpc) saveCookies(cs []*http.Cookie) error {
 		c.cookiesKey(): b,
 	})
 
-	log.Debugf("Cookies saved")
+	log.Debugf("Cookies saved to the db")
 
 	return nil
 }
@@ -335,7 +333,7 @@ func (c *httpc) saveCSRF(csrfHeaderToken string) error {
 		return err
 	}
 
-	log.Debugf("CSRF header token saved")
+	log.Debugf("Header CSRF token saved to the db")
 
 	return nil
 }
@@ -353,6 +351,75 @@ func (c *httpc) getCSRF() (string, error) {
 
 func (c *httpc) csrfKey() string {
 	return fmt.Sprintf("%v-csrf", c.host.String())
+}
+
+// reqLogStr returns a multi line string that contains request details that are
+// useful for debug logging. An example string is shown below.
+//
+// HTTP request
+//   URL       : GET https://localhost:4443/v3/version
+//   Body      :
+//   Header    : X-Csrf-Token 9kx8fS2MGuTa27xN41rlXhCUwob2+O/Hxx4GdzWgCWd46r3B
+//   Cookie    : _gorilla_csrf=MTY1ODcwMTY2MHxJbXB4WWtKMlVGTlZPVk14UzFGUmFsTmt
+func reqLogStr(r *http.Request, cookies []*http.Cookie, body []byte) string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("HTTP request\n"))
+	b.WriteString(fmt.Sprintf("  URL       : %v %v\n", r.Method, r.URL.String()))
+	b.WriteString(fmt.Sprintf("  Body      : %s\n", body))
+	for k, v := range r.Header {
+		if !strings.HasPrefix(k, "X-") {
+			continue
+		}
+		b.WriteString(fmt.Sprintf("  Header    : %v %v\n",
+			k, strings.Join(v, ",")))
+	}
+	for _, ck := range cookies {
+		b.WriteString(fmt.Sprintf("  Cookie    : %v\n", ck.String()))
+	}
+
+	// Trim the last newline
+	s := b.String()
+	if strings.HasSuffix(s, "\n") {
+		s = s[:len(s)-1]
+	}
+
+	return s
+}
+
+// respLogStr returns a multi line string that contains response details that
+// are useful for debug logging. An example string is shown below.
+//
+// HTTP response
+//   Status    : 200
+//   Body      :
+//   Header    : X-Csrf-Token hMboCj1C8+JzEvbxpGcWgQjq4UWS4bMuOLgKDXQjW6kxnoVt
+//   Header    : X-Frame-Options DENY
+//   Header    : X-Xss-Protection 1; mode=block
+//   Header    : X-Content-Type-Options nosniff
+//   Set-Cookie: _gorilla_csrf=MTY1ODc2MTc3M3xJblJXYUhSYU1GWkVWM1JoTlM5UVVtcHs
+func respLogStr(r *http.Response, body []byte) string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("HTTP response\n"))
+	b.WriteString(fmt.Sprintf("  Status    : %v\n", r.StatusCode))
+	b.WriteString(fmt.Sprintf("  Body      : %s\n", body))
+	for k, v := range r.Header {
+		if !strings.HasPrefix(k, "X-") {
+			continue
+		}
+		b.WriteString(fmt.Sprintf("  Header    : %v %v\n",
+			k, strings.Join(v, ",")))
+	}
+	for _, ck := range r.Cookies() {
+		b.WriteString(fmt.Sprintf("  Set-Cookie: %v", ck.String()))
+	}
+
+	// Trim the last newline
+	s := b.String()
+	if strings.HasSuffix(s, "\n") {
+		s = s[:len(s)-1]
+	}
+
+	return s
 }
 
 type pluginErr struct {
