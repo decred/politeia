@@ -39,11 +39,24 @@ type session struct {
 // newSession returns a new auth plugin session.
 func newSession(s *app.Session) session {
 	// The interface{} values need to be type casted
-	values := s.Values()
+	var (
+		values = s.Values()
+
+		userID    string
+		createdAt int64
+	)
+	v, ok := values[sessionKeyUserID]
+	if ok {
+		userID = v.(string)
+	}
+	v, ok = values[sessionKeyCreatedAt]
+	if ok {
+		createdAt = v.(int64)
+	}
 	return session{
 		app:       s,
-		userID:    values[sessionKeyUserID].(string),
-		createdAt: values[sessionKeyCreatedAt].(int64),
+		userID:    userID,
+		createdAt: createdAt,
 	}
 }
 

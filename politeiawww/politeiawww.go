@@ -98,15 +98,15 @@ func _main() error {
 
 	// Connect to the database
 	var (
-		connMaxLifetime = 1 * time.Minute
-		maxOpenConns    = 0 // 0 is unlimited
-		maxIdleConns    = 100
+		connMaxLifetime = 0 * time.Minute // 0 is unlimited
+		maxOpenConns    = 0               // 0 is unlimited
+		maxIdleConns    = 10
 
-		// TODO this should use the db for the app
+		// TODO hardcoding bad
 		user     = "politeiawww"
 		password = cfg.DBPass
 		host     = cfg.DBHost
-		dbname   = "users_" + cfg.ActiveNet.Params.Name
+		dbname   = "proposals_testnet3"
 	)
 
 	log.Infof("MySQL host: %v:[password]@tcp(%v)/%v", user, host, dbname)
@@ -142,23 +142,27 @@ func _main() error {
 	if err != nil {
 		return err
 	}
-	err = p.setupSessions(db)
-	if err != nil {
-		return err
-	}
 
 	// Setup the API routes. The legacy routes are setup
 	// by default, unless an app has been specified in
 	// the config.
-	if cfg.App != "" {
-		log.Infof("Running app: %v", cfg.App)
+	switch {
+	case cfg.App != "":
 		// Run in app mode
 		p.setupRoutes()
+		err = p.setupSessions(db)
+		if err != nil {
+			return err
+		}
+
+		log.Infof("Running app: %v", cfg.App)
+
 		err = p.setupApp()
 		if err != nil {
 			return err
 		}
-	} else {
+
+	default:
 		// Run in legacy mode
 		log.Infof("Running in legacy mode")
 		legacywww, err := legacy.NewPoliteiawww(p.cfg,

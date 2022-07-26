@@ -7,6 +7,8 @@ package proposals
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"time"
 
 	"github.com/decred/politeia/app"
 	"github.com/decred/politeia/plugins/auth"
@@ -30,32 +32,37 @@ type appCtx struct {
 
 // NewApp returns a new proposals app.
 func NewApp(a app.AppArgs) (*appCtx, error) {
+	// TODO hardcoding bad
 	var (
-		// TODO setup the database connection
-		// each app should have it's own database
-		db      *sql.DB
+		connMaxLifetime = 0 * time.Minute // 0 is unlimited
+		maxOpenConns    = 0               // 0 is unlimited
+		maxIdleConns    = 10
+
+		user     = "politeiawww"
+		password = a.DBPass
+		host     = a.DBHost
+		dbname   = "proposals_testnet3"
+	)
+
+	h := fmt.Sprintf("%v:%v@tcp(%v)/%v", user, password, host, dbname)
+	db, err := sql.Open("mysql", h)
+	if err != nil {
+		return nil, err
+	}
+
+	db.SetConnMaxLifetime(connMaxLifetime)
+	db.SetMaxOpenConns(maxOpenConns)
+	db.SetMaxIdleConns(maxIdleConns)
+
+	err = db.Ping()
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		// TODO
 		plugins = make([]app.Plugin, 0, 64)
 	)
-	/*
-		log.Infof("MySQL host: %v:[password]@tcp(%v)/%v", user, host, dbname)
-
-		h := fmt.Sprintf("%v:%v@tcp(%v)/%v", user, password, host, dbname)
-		db, err := sql.Open("mysql", h)
-		if err != nil {
-			return nil, err
-		}
-
-		// Verify the database connection
-		err = db.Ping()
-		if err != nil {
-			return nil, err
-		}
-
-		// Setup database options
-		db.SetConnMaxLifetime(connMaxLifetime)
-		db.SetMaxOpenConns(maxOpenConns)
-		db.SetMaxIdleConns(maxIdleConns)
-	*/
 
 	settings := a.Settings[authv1.PluginID]
 	authP, err := auth.New(app.PluginArgs{

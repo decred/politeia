@@ -17,7 +17,6 @@ import (
 	"github.com/decred/politeia/util"
 	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
-	"github.com/pkg/errors"
 )
 
 // handleNotFound handles all invalid routes and returns a 404 to the client.
@@ -266,12 +265,9 @@ func respondWithInternalError(w http.ResponseWriter, r *http.Request, err error)
 	// stack trace out of the error, otherwise, we use the
 	// stack trace of this function invocation.
 	stack, ok := util.StackTrace(err)
-	if !ok {
-		err = errors.WithStack(err)
-		stack, _ = util.StackTrace(err)
+	if ok {
+		log.Errorf("Stacktrace (NOT A REAL CRASH): %v", stack)
 	}
-
-	log.Errorf("Stacktrace (NOT A REAL CRASH): %v", stack)
 
 	util.RespondWithJSON(w, http.StatusInternalServerError,
 		v3.InternalError{
