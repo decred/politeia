@@ -19,7 +19,7 @@ func perms() []app.CmdPerms {
 				Version: auth.Version,
 				Name:    auth.CmdNewUser,
 			},
-			Groups: []string{auth.StandardUser},
+			Groups: []string{auth.PublicUser},
 		},
 	}
 }

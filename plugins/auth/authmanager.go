@@ -22,6 +22,8 @@ var (
 //
 // This function satisfies the app.AuthManager interface.
 func (p *plugin) SetCmdPerms(perms []app.CmdPerms) {
+	log.Tracef("SetCmdPerms")
+
 	for _, v := range perms {
 		p.setPerm(v)
 	}
@@ -33,6 +35,9 @@ func (p *plugin) SetCmdPerms(perms []app.CmdPerms) {
 // This function satisfies the app.AuthManager interface.
 func (p *plugin) SessionUserID(as app.Session) string {
 	s := newSession(&as)
+
+	log.Tracef("SessionUserID %v", s.UserID())
+
 	return s.UserID()
 }
 
@@ -48,6 +53,8 @@ func (p *plugin) SessionUserID(as app.Session) string {
 //
 // This function satisfies the app.AuthManager interface.
 func (p *plugin) Authorize(a app.AuthorizeArgs) error {
+	log.Tracef("Authorize %v", a.Cmds)
+
 	s := newSession(a.Session)
 
 	// Check if the session has expired. Sessions that

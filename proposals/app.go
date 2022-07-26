@@ -59,11 +59,6 @@ func NewApp(a app.AppArgs) (*appCtx, error) {
 		return nil, err
 	}
 
-	var (
-		// TODO
-		plugins = make([]app.Plugin, 0, 64)
-	)
-
 	settings := a.Settings[authv1.PluginID]
 	authP, err := auth.New(app.PluginArgs{
 		Settings: settings,
@@ -76,6 +71,11 @@ func NewApp(a app.AppArgs) (*appCtx, error) {
 	// Setup the user permissions for the plugin
 	// cmds that are part of the proposals app.
 	authP.SetCmdPerms(perms())
+
+	var (
+		// TODO
+		plugins = []app.Plugin{authP}
+	)
 
 	return &appCtx{
 		plugins: plugins,
@@ -116,6 +116,8 @@ func (a *appCtx) PreventBatchedReads() []app.CmdDetails {
 //
 // This function satisfies the app.App interface.
 func (a *appCtx) Write(ctx context.Context, s *app.Session, c app.Cmd) (*app.CmdReply, error) {
+	log.Tracef("Write %v", c)
+
 	return a.driver.WriteCmd(ctx, s, c)
 }
 
@@ -125,5 +127,7 @@ func (a *appCtx) Write(ctx context.Context, s *app.Session, c app.Cmd) (*app.Cmd
 //
 // This function satisfies the app.App interface.
 func (a *appCtx) Read(ctx context.Context, s *app.Session, c app.Cmd) (*app.CmdReply, error) {
+	log.Tracef("Read %v", c)
+
 	return a.driver.ReadCmd(ctx, s, c)
 }

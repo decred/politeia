@@ -6,6 +6,7 @@ package auth
 
 import (
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/decred/politeia/util"
@@ -28,6 +29,10 @@ type user struct {
 	ContactInfo []contactInfo
 }
 
+func (u *user) String() string {
+	return fmt.Sprintf("%v %v", u.ID, u.Username)
+}
+
 func newUser(username string, password []byte, groups []string, c []contactInfo) *user {
 	return &user{
 		ID:          uuid.New().String(),
@@ -43,15 +48,15 @@ const (
 )
 
 type contactInfo struct {
-	Type      string
-	Contact   string
-	CreatedAt int64
-	Verified  bool
+	Type      string `json:"type"`
+	Contact   string `json:"contact"`
+	CreatedAt int64  `json:"createdat"`
+	Verified  bool   `json:"verified"`
 
 	// Contact verification fields
-	Token           string
-	TokenExpiration int64
-	TokenSent       []int64
+	Token           string  `json:"token,omitempty"`
+	TokenExpiration int64   `json:"tokenexpiration,omitempty"`
+	TokenSent       []int64 `json:"tokensent,omitempty"`
 }
 
 func newContactInfo(ctype, contact string) *contactInfo {

@@ -59,8 +59,8 @@ type CmdDetails struct {
 }
 
 // String returns a string representation of the command.
-func (c *CmdDetails) String() string {
-	return fmt.Sprintf("%v-%v-%v", c.Plugin, c.Version, c.Name)
+func (c CmdDetails) String() string {
+	return fmt.Sprintf("%v-v%v-%v", c.Plugin, c.Version, c.Name)
 }
 
 // WriteArgs contain the arguments for the plugin write methods.
@@ -98,8 +98,8 @@ type Cmd struct {
 }
 
 // String returns the string representation of a plugin command.
-func (c *Cmd) String() string {
-	return fmt.Sprintf("%v-%v-%v", c.Plugin, c.Version, c.Name)
+func (c Cmd) String() string {
+	return fmt.Sprintf("%v-v%v-%v", c.Plugin, c.Version, c.Name)
 }
 
 // CmdReply is the reply to a plugin command.

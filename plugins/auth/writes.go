@@ -29,8 +29,6 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 		}
 	}
 
-	return nil, errors.Errorf("here")
-
 	// Validate the user credentials
 	var (
 		username = formatUsername(nu.Username)
@@ -94,7 +92,7 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 		return nil, err
 	}
 
-	log.Infof("New user %v created", username)
+	log.Infof("New user created %v", u)
 
 	// Send the reply
 	var nur v1.NewUserReply

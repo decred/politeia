@@ -12,6 +12,7 @@ import (
 	"net/http/httputil"
 	"time"
 
+	"github.com/decred/politeia/app"
 	v3 "github.com/decred/politeia/politeiawww/api/http/v3"
 	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/util"
@@ -150,7 +151,12 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 
 // cmdStr returns a string representation of a plugin command.
 func cmdStr(pluginID string, version uint32, cmdName string) string {
-	return fmt.Sprintf("%v-%v-%v", pluginID, version, cmdName)
+	c := app.CmdDetails{
+		Plugin:  pluginID,
+		Version: version,
+		Name:    cmdName,
+	}
+	return c.String()
 }
 
 /*

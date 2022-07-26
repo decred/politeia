@@ -186,14 +186,6 @@ func (d *Driver) sortedPlugins() []Plugin {
 	return ps
 }
 
-const (
-	// timeoutOp is the timeout for a single database operation.
-	timeoutOp = 1 * time.Minute
-
-	// timeoutTx is the timeout for a database transaction.
-	timeoutTx = 3 * time.Minute
-)
-
 // beginTx returns a database transactions and a cancel function for the
 // transaction.
 //
@@ -217,11 +209,10 @@ func (d *Driver) beginTx() (*sql.Tx, func(), error) {
 	return tx, cancel, nil
 }
 
-// ctxForOp returns a context and cancel function for a single database
-// operation.
-func ctxForOp() (context.Context, func()) {
-	return context.WithTimeout(context.Background(), timeoutOp)
-}
+const (
+	// timeoutTx is the timeout for a database transaction.
+	timeoutTx = 3 * time.Minute
+)
 
 // ctxForTx returns a context and a cancel function for a database transaction.
 func ctxForTx() (context.Context, func()) {

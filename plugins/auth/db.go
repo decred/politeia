@@ -5,8 +5,11 @@
 package auth
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -14,16 +17,6 @@ import (
 var (
 	// errNotFound is returned when a record is not found in the database.
 	errNotFound = errors.New("not found")
-)
-
-const (
-	// The following fields are the database tables names for the auth plugin.
-	// It is best practice to prefix the plugin ID onto the table name.
-	//
-	// Note: some table names are hard coded into the table definition foreign
-	// key constraints.
-	usersTableName  = "auth_users"
-	groupsTableName = "auth_groups"
 )
 
 // usersTable is the database table for user data.
@@ -36,8 +29,8 @@ const usersTable = `
 // groupsTable is the database table for user groups. A user can be a part
 // of many groups.
 const groupsTable = `
-	uuid  CHAR(36),
-	group VARCHAR(64) NOT NULL
+	uuid       CHAR(36),
+	user_group VARCHAR(64) NOT NULL,
   FOREIGN KEY (uuid) REFERENCES auth_users(uuid)
 `
 
@@ -67,16 +60,20 @@ func (p *plugin) setupDB() error {
 		table string
 	}{
 		{
-			name:  usersTableName,
+			name:  "auth_users",
 			table: usersTable,
 		},
 		{
-			name:  groupsTableName,
+			name:  "auth_groups",
 			table: groupsTable,
+		},
+		{
+			name:  "auth_contacts",
+			table: contactsTable,
 		},
 	}
 	for _, v := range tables {
-		q := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (%v)`, v.name, v.table)
+		q := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (%v);`, v.name, v.table)
 		_, err := p.db.Exec(q)
 		if err != nil {
 			return errors.WithStack(err)
@@ -89,6 +86,29 @@ func (p *plugin) setupDB() error {
 }
 
 func (p *plugin) insertUser(tx *sql.Tx, u user) error {
+	e, err := encryptUser(u)
+	if err != nil {
+		return err
+	}
+
+	q := "INSERT INTO auth_users VALUES(?, ?, ?);"
+	_, err = tx.Exec(q, u.ID, u.Username, e)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	for _, group := range u.Groups {
+		q = "INSERT INTO auth_groups VALUES(?, ?);"
+		_, err = tx.Exec(q, u.ID, group)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	}
+
+	// TODO update contactsTable
+
+	log.Debugf("User inserted into database %v", u)
+
 	return nil
 }
 
@@ -101,13 +121,99 @@ func (p *plugin) getUser(tx *sql.Tx, userID string) (*user, error) {
 }
 
 func (p *plugin) getUserByUsername(tx *sql.Tx, username string) (*user, error) {
-	return nil, nil
+	q := `SELECT *
+        FROM auth_users u
+        INNER JOIN auth_groups USING(uuid)
+        WHERE u.username=?;`
+
+	rows, err := tx.Query(q, username)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer rows.Close()
+
+	// Unpack the results
+	var (
+		userID    string
+		encrypted []byte
+		group     string
+
+		groups    = make([]string, 0, 64)
+		rowsCount int
+	)
+	for rows.Next() {
+		err = rows.Scan(&userID, &username, &encrypted, &group)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		groups = append(groups, group)
+		rowsCount++
+	}
+	err = rows.Err()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	if rowsCount == 0 {
+		return nil, errNotFound
+	}
+
+	u := user{
+		ID:       userID,
+		Username: username,
+		Groups:   groups,
+	}
+	err = decryptUser(encrypted, &u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
 }
 
 func (p *plugin) getUserRO(userID string) (*user, error) {
 	return nil, nil
 }
 
-func (p *plugin) encrypt(b []byte) ([]byte, error) {
-	return nil, nil
+// eblob contains the user fields that are saved as an encrypted blob.
+type eblob struct {
+	Password    []byte        `json:"password"`
+	ContactInfo []contactInfo `json:"contactinfo,omitempty"`
+}
+
+func encryptUser(u user) ([]byte, error) {
+	e := eblob{
+		Password:    u.Password,
+		ContactInfo: u.ContactInfo,
+	}
+	b, err := json.Marshal(e)
+	if err != nil {
+		return nil, err
+	}
+	// TODO encrypt blob
+	return b, nil
+}
+
+func decryptUser(b []byte, u *user) error {
+	// TODO decrypt blob
+	var e eblob
+	err := json.Unmarshal(b, &e)
+	if err != nil {
+		return nil
+	}
+
+	u.Password = e.Password
+	u.ContactInfo = e.ContactInfo
+
+	return nil
+}
+
+const (
+	// timeoutOp is the timeout for a single database operation.
+	timeoutOp = 1 * time.Minute
+)
+
+// ctxForOp returns a context and cancel function for a single database
+// operation.
+func ctxForOp() (context.Context, func()) {
+	return context.WithTimeout(context.Background(), timeoutOp)
 }

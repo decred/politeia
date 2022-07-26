@@ -38,18 +38,25 @@ func New(a app.PluginArgs) (*plugin, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &plugin{
+	p := &plugin{
 		db:       a.DB,
 		smtp:     a.SMTP,
 		settings: *s,
 		perms:    make(map[string]map[string]struct{}, 256),
-	}, nil
+	}
+	err = p.setupDB()
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 // ID returns the plugin ID.
 //
 // This function satisfies the app.Plugin interface.
 func (p *plugin) ID() string {
+	log.Tracef("ID")
+
 	return v1.PluginID
 }
 
@@ -57,6 +64,8 @@ func (p *plugin) ID() string {
 //
 // This function satisfies the app.Plugin interface.
 func (p *plugin) Version() uint32 {
+	log.Tracef("Version")
+
 	return v1.Version
 }
 
@@ -64,6 +73,8 @@ func (p *plugin) Version() uint32 {
 //
 // This function satisfies the app.Plugin interface.
 func (p *plugin) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
+	log.Tracef("TxWrite %v %v", a.Cmd, a.UserID)
+
 	var (
 		reply *app.CmdReply
 		err   error
@@ -75,7 +86,7 @@ func (p *plugin) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
 		return nil, errors.Errorf("invalid cmd")
 	}
 	if err != nil {
-		var ue *userErr
+		var ue userErr
 		if errors.As(err, &ue) {
 			// Convert the local user error
 			// type to an app user error.
@@ -94,6 +105,8 @@ func (p *plugin) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
 //
 // This function satisfies the app.Plugin interface.
 func (p *plugin) TxRead(tx *sql.Tx, a app.ReadArgs) (*app.CmdReply, error) {
+	log.Tracef("TxRead %v %v", a.Cmd, a.UserID)
+
 	return nil, nil
 }
 
@@ -101,6 +114,8 @@ func (p *plugin) TxRead(tx *sql.Tx, a app.ReadArgs) (*app.CmdReply, error) {
 //
 // This function satisfies the app.Plugin interface.
 func (p *plugin) TxHook(tx *sql.Tx, a app.HookArgs) error {
+	log.Tracef("TxHook %v %v", a.Cmd, a.UserID)
+
 	return nil
 }
 
@@ -108,6 +123,8 @@ func (p *plugin) TxHook(tx *sql.Tx, a app.HookArgs) error {
 //
 // This function satisfies the app.Plugin interface.
 func (p *plugin) Read(a app.ReadArgs) (*app.CmdReply, error) {
+	log.Tracef("Read %v %v", a.Cmd, a.UserID)
+
 	return nil, nil
 }
 
