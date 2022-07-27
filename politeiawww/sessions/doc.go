@@ -29,5 +29,12 @@ MaxAge of <= 0.
 The key used to encode/decode the session ID and the session values is provided
 to the session store on initialization. Keys can be rotated by providing
 multiple keys on initialization.
+
+The session store does not delete expired sessions from the database. The
+gorilla/sessions API does not allow the session ID to be retrieved from a
+session cookie once the session has expired, so there is no way for the session
+store to know what IDs needs to be deleted from the database. The database
+layer must track when the session was created and manually delete expired
+sessions.
 */
 package sessions
