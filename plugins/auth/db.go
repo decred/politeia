@@ -107,19 +107,68 @@ func (p *plugin) insertUser(tx *sql.Tx, u user) error {
 
 	// TODO update contactsTable
 
-	log.Debugf("User inserted into database %v", u)
+	log.Debugf("User inserted into database %v", &u)
 
 	return nil
 }
 
+// A errNotFound error is returned if a user is not found.
 func (p *plugin) updateUser(tx *sql.Tx, u user) error {
 	return nil
 }
 
-func (p *plugin) getUser(tx *sql.Tx, userID string) (*user, error) {
-	return nil, nil
+// A errNotFound error is returned if a user is not found.
+func (p *plugin) getUser(q querier, userID string) (*user, error) {
+	qs := `SELECT *
+        FROM auth_users u
+        INNER JOIN auth_groups USING(uuid)
+        WHERE u.uuid=?;`
+
+	rows, err := q.Query(qs, userID)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer rows.Close()
+
+	// Unpack the results
+	var (
+		username  string
+		encrypted []byte
+		group     string
+
+		groups    = make([]string, 0, 64)
+		rowsCount int
+	)
+	for rows.Next() {
+		err = rows.Scan(&userID, &username, &encrypted, &group)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		groups = append(groups, group)
+		rowsCount++
+	}
+	err = rows.Err()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	if rowsCount == 0 {
+		return nil, errNotFound
+	}
+
+	u := user{
+		ID:       userID,
+		Username: username,
+		Groups:   groups,
+	}
+	err = decryptUser(encrypted, &u)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
 }
 
+// A errNotFound error is returned if a user is not found.
 func (p *plugin) getUserByUsername(tx *sql.Tx, username string) (*user, error) {
 	q := `SELECT *
         FROM auth_users u
@@ -170,16 +219,13 @@ func (p *plugin) getUserByUsername(tx *sql.Tx, username string) (*user, error) {
 	return &u, nil
 }
 
-func (p *plugin) getUserRO(userID string) (*user, error) {
-	return nil, nil
-}
-
 // eblob contains the user fields that are saved as an encrypted blob.
 type eblob struct {
 	Password    []byte        `json:"password"`
 	ContactInfo []contactInfo `json:"contactinfo,omitempty"`
 }
 
+// TODO encrypt blob
 func encryptUser(u user) ([]byte, error) {
 	e := eblob{
 		Password:    u.Password,
@@ -189,12 +235,11 @@ func encryptUser(u user) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO encrypt blob
 	return b, nil
 }
 
+// TODO decrypt blob
 func decryptUser(b []byte, u *user) error {
-	// TODO decrypt blob
 	var e eblob
 	err := json.Unmarshal(b, &e)
 	if err != nil {
@@ -205,6 +250,16 @@ func decryptUser(b []byte, u *user) error {
 	u.ContactInfo = e.ContactInfo
 
 	return nil
+}
+
+// querier contains the sql query methods.
+//
+// The querier interface is used so that query code does not need to be
+// duplicated for atomic and non-atomic queries. The caller can use either
+// a sql.Tx or the sql.DB as the querier depending on whether they need the
+// query to be atomic.
+type querier interface {
+	Query(query string, args ...interface{}) (*sql.Rows, error)
 }
 
 const (

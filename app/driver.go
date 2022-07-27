@@ -88,8 +88,9 @@ func (d *Driver) WriteCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, 
 	p := d.plugin(cmd.Plugin)
 	reply, err := p.TxWrite(tx,
 		WriteArgs{
-			Cmd:    cmd,
-			UserID: userID,
+			Cmd:     cmd,
+			Session: s,
+			UserID:  userID,
 		})
 	if err != nil {
 		return nil, err

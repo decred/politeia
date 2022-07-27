@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	v1 "github.com/decred/politeia/plugins/auth/v1"
 	"github.com/decred/politeia/util"
 	"github.com/google/uuid"
 )
@@ -47,6 +48,8 @@ const (
 	contactTypeEmail = "email"
 )
 
+// The JSON tags are defined because this structure is JSON encoded and
+// encrypted prior to being saved to the database.
 type contactInfo struct {
 	Type      string `json:"type"`
 	Contact   string `json:"contact"`
@@ -85,4 +88,25 @@ func newVerificationToken() string {
 func newTokenExpiration() int64 {
 	d := time.Duration(tokenExpiration) * time.Hour
 	return time.Now().Add(d).Unix()
+}
+
+func convertUser(u user) v1.User {
+	return v1.User{
+		ID:          u.ID,
+		Username:    u.Username,
+		Groups:      u.Groups,
+		ContactInfo: convertContactInfo(u.ContactInfo),
+	}
+}
+
+func convertContactInfo(c []contactInfo) []v1.ContactInfo {
+	cv := make([]v1.ContactInfo, 0, len(c))
+	for _, v := range c {
+		cv = append(cv, v1.ContactInfo{
+			Type:     v1.ContactType(v.Type),
+			Contact:  v.Contact,
+			Verified: v.Verified,
+		})
+	}
+	return cv
 }

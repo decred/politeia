@@ -14,17 +14,6 @@ package app
 type Hook string
 
 const (
-	// HookInvalid is an invalid hook.
-	HookInvalid Hook = "invalid"
-
-	// HookPreNewUser is the hook that is executed before a NewUser command
-	// is executed.
-	HookPreNewUser Hook = "pre-new-user"
-
-	// HookPostNewUser is the hook that is executed after the successful
-	// execution of a NewUser command.
-	HookPostNewUser Hook = "post-new-user"
-
 	// HookPreWrite is the hook that is executed before a plugin write command
 	// is executed.
 	HookPreWrite Hook = "pre-write"

@@ -53,7 +53,7 @@ func (p *plugin) SessionUserID(as app.Session) string {
 //
 // This function satisfies the app.AuthManager interface.
 func (p *plugin) Authorize(a app.AuthorizeArgs) error {
-	log.Tracef("Authorize %v", a.Cmds)
+	log.Tracef("Authorize %v", &a)
 
 	s := newSession(a.Session)
 
@@ -104,7 +104,7 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 	}
 
 	// Check the user permissions levels
-	u, err := p.getUserRO(s.UserID())
+	u, err := p.getUser(p.db, s.UserID())
 	if err != nil {
 		return err
 	}

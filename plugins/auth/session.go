@@ -20,9 +20,9 @@ const (
 
 // session represents an auth plugin user session.
 type session struct {
-	// app contains the app session. Any updates made to the app session are
-	// saved to the sessions database by the backend.
-	app *app.Session
+	// appSession contains the app session. Any updates made to the app session
+	// are saved to the sessions database by the backend.
+	appSession *app.Session
 
 	// The following fields are the auth plugin session values. These values
 	// travel in the app.Session values as interface{} types and are type casted
@@ -54,16 +54,16 @@ func newSession(s *app.Session) session {
 		createdAt = v.(int64)
 	}
 	return session{
-		app:       s,
-		userID:    userID,
-		createdAt: createdAt,
+		appSession: s,
+		userID:     userID,
+		createdAt:  createdAt,
 	}
 }
 
 // SetUserID sets the user ID session value.
 func (s *session) SetUserID(userID string) {
 	s.userID = userID
-	s.app.SetValue(sessionKeyUserID, userID)
+	s.appSession.SetValue(sessionKeyUserID, userID)
 }
 
 // UserID returns the user ID session value.
@@ -74,7 +74,7 @@ func (s *session) UserID() string {
 // SetCreatedAt sets the created at session value.
 func (s *session) SetCreatedAt(timestamp int64) {
 	s.createdAt = timestamp
-	s.app.SetValue(sessionKeyCreatedAt, timestamp)
+	s.appSession.SetValue(sessionKeyCreatedAt, timestamp)
 }
 
 // IsLoggedIn returns whether the session corresponds to a logged in user.
@@ -91,7 +91,7 @@ func (s *session) IsExpired(maxAge int64) bool {
 // deleted from the sessions database.
 func (s *session) SetDel() {
 	s.del = true
-	s.app.SetDel()
+	s.appSession.SetDel()
 }
 
 // Del returns the del value.

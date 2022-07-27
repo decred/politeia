@@ -13,6 +13,9 @@ const (
 	ErrCodeInvalidUsername    ErrCode = 3
 	ErrCodeInvalidPassword    ErrCode = 4
 	ErrCodeInvalidContactInfo ErrCode = 5
+	ErrCodeInvalidLogin       ErrCode = 6
+	ErrCodeAccountLocked      ErrCode = 7
+	ErrCodeAccountDeactivated ErrCode = 8
 )
 
 // ErrCodes contains the human readable error string for the error codes.
@@ -23,4 +26,6 @@ var ErrCodes = map[ErrCode]string{
 	ErrCodeInvalidUsername:    "invalid username",
 	ErrCodeInvalidPassword:    "invalid password",
 	ErrCodeInvalidContactInfo: "invalid contact info",
+	ErrCodeInvalidLogin:       "invalid login credentials",
+	ErrCodeAccountLocked:      "user account has been locked",
 }

@@ -58,8 +58,9 @@ this email.
 `
 
 func (p *plugin) contactVerificationLink(username, token string) string {
-	link := p.settings.Host.String() + "user/{username}/verifycontact/{token}"
+	host := strings.TrimRight(p.settings.Host.String(), "/")
 
+	link := host + "/user/{username}/verifycontact/{token}"
 	link = strings.Replace(link, "{username}", username, 1)
 	link = strings.Replace(link, "{token}", token, 1)
 

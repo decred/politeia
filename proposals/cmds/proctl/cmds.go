@@ -16,4 +16,7 @@ type cmds struct {
 	Version cmdVersion `command:"version"`
 	Policy  cmdPolicy  `command:"policy"`
 	NewUser cmdNewUser `command:"newuser"`
+	Login   cmdLogin   `command:"login"`
+	Logout  cmdLogout  `command:"logout"`
+	Me      cmdMe      `command:"me"`
 }

@@ -21,5 +21,29 @@ func perms() []app.CmdPerms {
 			},
 			Groups: []string{auth.PublicUser},
 		},
+		{
+			Cmd: app.CmdDetails{
+				Plugin:  auth.PluginID,
+				Version: auth.Version,
+				Name:    auth.CmdLogin,
+			},
+			Groups: []string{auth.PublicUser},
+		},
+		{
+			Cmd: app.CmdDetails{
+				Plugin:  auth.PluginID,
+				Version: auth.Version,
+				Name:    auth.CmdLogout,
+			},
+			Groups: []string{auth.StandardUser},
+		},
+		{
+			Cmd: app.CmdDetails{
+				Plugin:  auth.PluginID,
+				Version: auth.Version,
+				Name:    auth.CmdMe,
+			},
+			Groups: []string{auth.PublicUser},
+		},
 	}
 }

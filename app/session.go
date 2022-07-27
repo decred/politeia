@@ -22,9 +22,12 @@ type Session struct {
 }
 
 // NewSession returns a new Session.
-func NewSession() *Session {
+func NewSession(values map[interface{}]interface{}) *Session {
+	if values == nil {
+		values = make(map[interface{}]interface{})
+	}
 	return &Session{
-		values: make(map[interface{}]interface{}),
+		values: values,
 	}
 }
 

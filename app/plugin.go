@@ -59,26 +59,40 @@ type CmdDetails struct {
 }
 
 // String returns a string representation of the command.
-func (c CmdDetails) String() string {
+func (c *CmdDetails) String() string {
 	return fmt.Sprintf("%v-v%v-%v", c.Plugin, c.Version, c.Name)
 }
 
 // WriteArgs contain the arguments for the plugin write methods.
 //
-// Updates that are made to the User object during write command execution are
-// persisted by the app on successful completion of the command.
+// Updates that are made to the Session during write command execution are
+// persisted by the server on successful completion of the command.
 type WriteArgs struct {
+	Cmd     Cmd
+	Session *Session
+	UserID  string
+}
+
+func (a *WriteArgs) String() string {
+	userID := a.UserID
+	if userID == "" {
+		userID = "no-user-id"
+	}
+	return fmt.Sprintf("%v %v", &a.Cmd, userID)
+}
+
+// ReadArgs contain the arguments for the plugin read methods.
+type ReadArgs struct {
 	Cmd    Cmd
 	UserID string
 }
 
-// ReadArgs contain the arguments for the plugin read methods.
-//
-// Updates that are made to the User object during read command execution are
-// ignored.
-type ReadArgs struct {
-	Cmd    Cmd
-	UserID string
+func (a *ReadArgs) String() string {
+	userID := a.UserID
+	if userID == "" {
+		userID = "no-user-id"
+	}
+	return fmt.Sprintf("%v %v", &a.Cmd, userID)
 }
 
 // HookArgs contains the arguments for the plugin hook methods.
@@ -87,6 +101,14 @@ type HookArgs struct {
 	Cmd    Cmd
 	Reply  *CmdReply
 	UserID string
+}
+
+func (a *HookArgs) String() string {
+	userID := a.UserID
+	if userID == "" {
+		userID = "no-user-id"
+	}
+	return fmt.Sprintf("%v %v %v", a.Type, &a.Cmd, userID)
 }
 
 // Cmd represents a plugin command.
@@ -98,7 +120,7 @@ type Cmd struct {
 }
 
 // String returns the string representation of a plugin command.
-func (c Cmd) String() string {
+func (c *Cmd) String() string {
 	return fmt.Sprintf("%v-v%v-%v", c.Plugin, c.Version, c.Name)
 }
 

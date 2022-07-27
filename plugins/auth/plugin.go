@@ -73,7 +73,7 @@ func (p *plugin) Version() uint32 {
 //
 // This function satisfies the app.Plugin interface.
 func (p *plugin) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
-	log.Tracef("TxWrite %v %v", a.Cmd, a.UserID)
+	log.Tracef("TxWrite %v", &a)
 
 	var (
 		reply *app.CmdReply
@@ -82,6 +82,14 @@ func (p *plugin) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
 	switch a.Cmd.Name {
 	case v1.CmdNewUser:
 		reply, err = p.cmdNewUser(tx, a.Cmd)
+	case v1.CmdLogin:
+		reply, err = p.cmdLogin(tx, a.Cmd, a.Session)
+	case v1.CmdLogout:
+		reply, err = p.cmdLogout(tx, a.Cmd, a.Session)
+
+	// TODO this is a read command
+	case v1.CmdMe:
+		reply, err = p.cmdMe(tx, a.Cmd, a.UserID)
 	default:
 		return nil, errors.Errorf("invalid cmd")
 	}
@@ -89,7 +97,7 @@ func (p *plugin) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
 		var ue userErr
 		if errors.As(err, &ue) {
 			// Convert the local user error
-			// type to an app user error.
+			// to an app user error.
 			return nil, app.UserErr{
 				Code:    uint32(ue.Code),
 				Context: ue.Context,
@@ -105,7 +113,7 @@ func (p *plugin) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
 //
 // This function satisfies the app.Plugin interface.
 func (p *plugin) TxRead(tx *sql.Tx, a app.ReadArgs) (*app.CmdReply, error) {
-	log.Tracef("TxRead %v %v", a.Cmd, a.UserID)
+	log.Tracef("TxRead %v", &a)
 
 	return nil, nil
 }
@@ -114,7 +122,7 @@ func (p *plugin) TxRead(tx *sql.Tx, a app.ReadArgs) (*app.CmdReply, error) {
 //
 // This function satisfies the app.Plugin interface.
 func (p *plugin) TxHook(tx *sql.Tx, a app.HookArgs) error {
-	log.Tracef("TxHook %v %v", a.Cmd, a.UserID)
+	log.Tracef("TxHook %v", &a)
 
 	return nil
 }
@@ -123,7 +131,7 @@ func (p *plugin) TxHook(tx *sql.Tx, a app.HookArgs) error {
 //
 // This function satisfies the app.Plugin interface.
 func (p *plugin) Read(a app.ReadArgs) (*app.CmdReply, error) {
-	log.Tracef("Read %v %v", a.Cmd, a.UserID)
+	log.Tracef("Read %v", &a)
 
 	return nil, nil
 }

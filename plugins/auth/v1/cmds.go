@@ -9,6 +9,9 @@ const (
 	Version  uint32 = 1
 
 	CmdNewUser = "newuser"
+	CmdLogin   = "login"
+	CmdLogout  = "logout"
+	CmdMe      = "me"
 )
 
 // The following list contains the default user groups.
@@ -22,8 +25,8 @@ const (
 type User struct {
 	ID          string        `json:"id"`
 	Username    string        `json:"username"`
-	ContactInfo []ContactInfo `json:"contactinfo,omitempty"`
 	Groups      []string      `json:"groups"`
+	ContactInfo []ContactInfo `json:"contactinfo,omitempty"`
 }
 
 type ContactType string
@@ -67,3 +70,22 @@ type NewContactInfo struct {
 
 // NewUserReply is the reply payload for the CmdNewUser.
 type NewUserReply struct{}
+
+type Login struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type LoginReply struct {
+	User User `json:"user"`
+}
+
+type Logout struct{}
+
+type LogoutReply struct{}
+
+type Me struct{}
+
+type MeReply struct {
+	User *User `json:"user,omitempty"`
+}

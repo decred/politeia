@@ -52,7 +52,7 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 			Context: fmt.Sprintf("%v is already taken", username),
 		}
 	case errors.Is(err, errNotFound):
-		// This username is unique; continue
+		// The username is unique; continue
 	default:
 		// All other errors
 		return nil, err
@@ -106,6 +106,132 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 	}, nil
 }
 
+func (p *plugin) cmdLogin(tx *sql.Tx, c app.Cmd, s *app.Session) (*app.CmdReply, error) {
+	var l v1.Login
+	err := json.Unmarshal([]byte(c.Payload), &l)
+	if err != nil {
+		return nil, userErr{
+			Code: v1.ErrCodeInvalidPayload,
+		}
+	}
+	var (
+		username = l.Username
+		password = l.Password
+	)
+	u, err := p.getUserByUsername(tx, username)
+	if err != nil {
+		if err == errNotFound {
+			return nil, userErr{
+				Code: v1.ErrCodeInvalidLogin,
+			}
+		}
+		return nil, err
+	}
+	/*
+		if u.IsDeactivated() {
+			return nil, userErr{
+				Code: v1.ErrCodeAccountDeactivated,
+			}
+		}
+		if u.IsLocked() {
+			return nil, userErr{
+				Code: v1.ErrCodeAccountLocked,
+			}
+		}
+	*/
+
+	// Verify the password
+	err = bcrypt.CompareHashAndPassword(u.Password, []byte(password))
+	if err != nil {
+		// Wrong password. Update the user record with
+		// the failed attempt before returning.
+		//
+		// TODO
+		// Login attempts must be rate limited (5 attempts)
+		//
+		// On account lock, send notification
+		return nil, userErr{
+			Code: v1.ErrCodeInvalidLogin,
+		}
+	}
+
+	// Update the session. These changes will be persisted by
+	// the server. The plugin doesn't need to save anything.
+	sn := newSession(s)
+	sn.SetUserID(u.ID)
+	sn.SetCreatedAt(time.Now().Unix())
+
+	// Update and save the user
+	/*
+		u.AddLogin()
+		err = p.updateUser(u)
+		if err != nil {
+			return nil, err
+		}
+	*/
+
+	// Send the reply
+	lr := v1.LoginReply{
+		User: convertUser(*u),
+	}
+	payload, err := json.Marshal(lr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &app.CmdReply{
+		Payload: string(payload),
+	}, nil
+}
+
+func (p *plugin) cmdLogout(tx *sql.Tx, c app.Cmd, s *app.Session) (*app.CmdReply, error) {
+	// Update the session. These changes will be persisted by
+	// the server. The plugin doesn't need to save anything.
+	sn := newSession(s)
+	sn.SetDel()
+
+	// Send the reply
+	payload, err := json.Marshal(v1.LogoutReply{})
+	if err != nil {
+		return nil, err
+	}
+
+	return &app.CmdReply{
+		Payload: string(payload),
+	}, nil
+}
+
+func (p *plugin) cmdMe(tx *sql.Tx, c app.Cmd, userID string) (*app.CmdReply, error) {
+	// Get the logged in user from the database
+	var u *v1.User
+	if userID != "" {
+		usr, err := p.getUser(p.db, userID)
+		if err != nil {
+			// It should not be possible for an invalid
+			// user ID to be part of a session, so we
+			// don't need to handle not found errors.
+			return nil, err
+		}
+		cu := convertUser(*usr)
+		u = &cu
+	}
+
+	// Send the reply
+	mr := v1.MeReply{
+		User: u,
+	}
+	payload, err := json.Marshal(mr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &app.CmdReply{
+		Payload: string(payload),
+	}, nil
+}
+
+// This function updates the contactInfo. The caller must save the changes to
+// the database.
 func (p *plugin) sendContactVerification(username string, c *contactInfo) error {
 	// Send the verification communication
 	switch c.Type {

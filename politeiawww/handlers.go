@@ -91,7 +91,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 		respondWithInternalError(w, r, err)
 		return
 	}
-	as := convertSession(s)
+	as := app.NewSession(s.Values)
 
 	// Execute the plugin command
 	reply, err := p.writeCmd(r.Context(), as, cmd)
@@ -133,7 +133,7 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 		respondWithInternalError(w, r, err)
 		return
 	}
-	as := convertSession(s)
+	as := app.NewSession(s.Values)
 
 	// Execute the plugin command
 	reply, err := p.readCmd(r.Context(), as, cmd)

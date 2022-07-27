@@ -4,6 +4,11 @@
 
 package app
 
+import (
+	"fmt"
+	"strings"
+)
+
 // AuthManager provides user authorization for plugin commands.
 type AuthManager interface {
 	// ID returns the plugin ID.
@@ -41,4 +46,12 @@ type CmdPerms struct {
 type AuthorizeArgs struct {
 	Session *Session
 	Cmds    []CmdDetails
+}
+
+func (a *AuthorizeArgs) String() string {
+	var cmds strings.Builder
+	for _, v := range a.Cmds {
+		cmds.WriteString(v.String())
+	}
+	return fmt.Sprintf("%v %+v", cmds.String(), a.Session.Values())
 }

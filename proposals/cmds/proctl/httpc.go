@@ -26,14 +26,14 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
-// httpc provides a client for interacting with the politeia http API.
+// httpc provides a http client for interacting with the politeia API.
 type httpc struct {
 	host *url.URL
 	http *http.Client
 	db   *kvdb
 }
 
-// httpcOpts contains the optional http client settings.
+// httpcOpts contains the optional httpc settings.
 type httpcOpts struct {
 	CertPool *x509.CertPool
 	Cookies  []*http.Cookie
@@ -127,7 +127,7 @@ func (c *httpc) sendReq(method string, route string, reqData interface{}, header
 			reqURL.RawQuery = form.Encode()
 
 		case http.MethodPost, http.MethodPut:
-			// JSON encode the req data
+			// Prepare the request body
 			reqBody, err = json.Marshal(reqData)
 			if err != nil {
 				return nil, err
@@ -147,8 +147,16 @@ func (c *httpc) sendReq(method string, route string, reqData interface{}, header
 	for k, v := range headers {
 		req.Header.Add(k, v)
 	}
+	for _, v := range c.http.Jar.Cookies(c.host) {
+		if v.Value == "" {
+			// The cookie value is empty. This will
+			// tell the client to delete the cookie.
+			v.MaxAge = -1
+			c.http.Jar.SetCookies(c.host, []*http.Cookie{v})
+		}
+	}
 
-	log.Debugf("%v", reqLogStr(req, c.http.Jar.Cookies(c.host), reqBody))
+	log.Debugf("%v", reqStr(req, c.http.Jar.Cookies(c.host), reqBody))
 
 	// Send the request
 	r, err := c.http.Do(req)
@@ -162,7 +170,7 @@ func (c *httpc) sendReq(method string, route string, reqData interface{}, header
 	io.Copy(w, r.Body)
 	respBody := b.Bytes()
 
-	log.Debugf(respLogStr(r, respBody))
+	log.Debugf(respStr(r, respBody))
 
 	return &serverReply{
 		HTTPCode:   r.StatusCode,
@@ -176,7 +184,7 @@ func (c *httpc) sendReq(method string, route string, reqData interface{}, header
 func (c *httpc) sendReqV3(method string, route string, reqData interface{}) ([]byte, error) {
 	route = fmt.Sprintf("%v%v%v", c.host.String(), v3.APIVersionPrefix, route)
 
-	// Setup any persisted cookies
+	// Setup the cookies
 	cookies, err := c.getCookies()
 	if err != nil {
 		return nil, err
@@ -217,6 +225,10 @@ func (c *httpc) sendReqV3(method string, route string, reqData interface{}) ([]b
 			err = errors.Errorf("user error: %v - %v", errStr, e.ErrorContext)
 		}
 		return nil, err
+
+	case http.StatusForbidden:
+		return nil, errors.Errorf("%v %sRun the 'version' command to "+
+			"get a new CSRF token from the server", r.HTTPCode, r.Body)
 
 	default:
 		return nil, errors.Errorf("unexpected server response: %v %s",
@@ -353,15 +365,15 @@ func (c *httpc) csrfKey() string {
 	return fmt.Sprintf("%v-csrf", c.host.String())
 }
 
-// reqLogStr returns a multi line string that contains request details that are
-// useful for debug logging. An example string is shown below.
+// reqStr returns a multi line string that contains request details that are
+// useful for debugging. An example string is shown below.
 //
 // HTTP request
 //   URL       : GET https://localhost:4443/v3/version
 //   Body      :
 //   Header    : X-Csrf-Token 9kx8fS2MGuTa27xN41rlXhCUwob2+O/Hxx4GdzWgCWd46r3B
 //   Cookie    : _gorilla_csrf=MTY1ODcwMTY2MHxJbXB4WWtKMlVGTlZPVk14UzFGUmFsTmt
-func reqLogStr(r *http.Request, cookies []*http.Cookie, body []byte) string {
+func reqStr(r *http.Request, cookies []*http.Cookie, body []byte) string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("HTTP request\n"))
 	b.WriteString(fmt.Sprintf("  URL       : %v %v\n", r.Method, r.URL.String()))
@@ -386,8 +398,8 @@ func reqLogStr(r *http.Request, cookies []*http.Cookie, body []byte) string {
 	return s
 }
 
-// respLogStr returns a multi line string that contains response details that
-// are useful for debug logging. An example string is shown below.
+// respStr returns a multi line string that contains response details that are
+// useful for debugging. An example string is shown below.
 //
 // HTTP response
 //   Status    : 200
@@ -397,7 +409,7 @@ func reqLogStr(r *http.Request, cookies []*http.Cookie, body []byte) string {
 //   Header    : X-Xss-Protection 1; mode=block
 //   Header    : X-Content-Type-Options nosniff
 //   Set-Cookie: _gorilla_csrf=MTY1ODc2MTc3M3xJblJXYUhSYU1GWkVWM1JoTlM5UVVtcHs
-func respLogStr(r *http.Response, body []byte) string {
+func respStr(r *http.Response, body []byte) string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("HTTP response\n"))
 	b.WriteString(fmt.Sprintf("  Status    : %v\n", r.StatusCode))

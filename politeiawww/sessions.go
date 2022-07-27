@@ -61,7 +61,7 @@ func (p *politeiawww) extractSession(r *http.Request) (*sessions.Session, error)
 func (p *politeiawww) UpdateSession(r *http.Request, w http.ResponseWriter, s *sessions.Session, as *app.Session) {
 	err := p.updateSession(r, w, s, as)
 	if err != nil {
-		log.Errorf("UpdateSessions %+v: %v", as, err)
+		log.Errorf("UpdateSession %+v: %v", as, err)
 	}
 }
 
@@ -70,7 +70,14 @@ func (p *politeiawww) updateSession(r *http.Request, w http.ResponseWriter, s *s
 	// Check if the session should be deleted.
 	if as.Del() {
 		s.Options.MaxAge = 0
-		return p.sessions.Save(r, w, s)
+		err := p.sessions.Save(r, w, s)
+		if err != nil {
+			return err
+		}
+
+		log.Debugf("Session deleted %+v", as.Values())
+
+		return nil
 	}
 
 	// Check if any values were updated.
@@ -82,14 +89,12 @@ func (p *politeiawww) updateSession(r *http.Request, w http.ResponseWriter, s *s
 	// Update the orignal session with any
 	// changes that were made by the app.
 	s.Values = as.Values()
-	return p.sessions.Save(r, w, s)
-}
-
-// convertSession converts a session into an app session.
-func convertSession(s *sessions.Session) *app.Session {
-	as := app.NewSession()
-	for k, v := range s.Values {
-		as.SetValue(k, v)
+	err := p.sessions.Save(r, w, s)
+	if err != nil {
+		return err
 	}
-	return as
+
+	log.Debugf("Session saved %+v", as.Values())
+
+	return nil
 }
