@@ -56,16 +56,3 @@ func shutdownListener() context.Context {
 
 	return ctx
 }
-
-// shutdownRequested returns true when the context returned by shutdownListener
-// was canceled.  This simplifies early shutdown slightly since the caller can
-// just use an if statement instead of a select.
-func shutdownRequested(ctx context.Context) bool {
-	select {
-	case <-ctx.Done():
-		return true
-	default:
-	}
-
-	return false
-}

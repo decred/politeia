@@ -17,8 +17,7 @@ import (
 )
 
 const (
-	cacheID   = "ghtracker"
-	ghVersion = "1"
+	cacheID = "ghtracker"
 
 	// Database table names
 	tableNameVersions    = "versions"

@@ -42,7 +42,6 @@ const (
 	defaultBunches = uint(1)
 
 	// Testing stuff
-	testNormal            = 0
 	testFailUnrecoverable = 1
 )
 
