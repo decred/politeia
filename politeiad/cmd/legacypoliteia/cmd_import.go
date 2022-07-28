@@ -862,13 +862,23 @@ func (c *importCmd) saveVoteBatch(tstoreToken []byte, votes []ticketvote.CastVot
 			var voteSaved bool
 			for !voteSaved {
 				err := c.saveCastVoteDetails(tstoreToken, cvd)
-				if err != nil {
+				switch {
+				case err == nil:
+					voteSaved = true
+
+				case strings.Contains(err.Error(), "duplicate payload"):
+					fmt.Printf("\n")
+					fmt.Printf("%v: %v\n", cvd.Ticket, err)
+					fmt.Printf("Vote %v already saved; skipping\n", cvd.Ticket)
+
+					voteSaved = true
+
+				default:
 					fmt.Printf("\n")
 					fmt.Printf("Failed to save cast vote %v: %v\n", cvd.Ticket, err)
 					fmt.Printf("Retrying cast vote %v\n", cvd.Ticket)
-					continue
+					time.Sleep(50 * time.Millisecond)
 				}
-				voteSaved = true
 			}
 
 			// Not exactly sure why, but this reduces the number of failed
@@ -897,6 +907,7 @@ func (c *importCmd) saveVoteBatch(tstoreToken []byte, votes []ticketvote.CastVot
 					fmt.Printf("\n")
 					fmt.Printf("Failed to save vote collider %v: %v\n", cvd.Ticket, err)
 					fmt.Printf("Retrying vote collider %v\n", cvd.Ticket)
+					time.Sleep(50 * time.Millisecond)
 				}
 			}
 		}(v)
