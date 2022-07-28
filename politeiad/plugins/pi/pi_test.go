@@ -7,7 +7,7 @@ package pi
 import (
 	"testing"
 
-	"github.com/decred/politeia/unittest"
+	"github.com/decred/politeia/util/unittest"
 )
 
 func TestMaps(t *testing.T) {

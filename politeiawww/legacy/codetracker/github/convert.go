@@ -140,17 +140,3 @@ func convertDBCommitsToCommits(dbCommits []database.Commit) []codetracker.Commit
 	}
 	return commitInfo
 }
-
-func convertCodeStatsToUserInformation(mergedPRs []*database.PullRequest, updatedPRs []*database.PullRequest, reviews []database.PullRequestReview, commits []database.Commit) *codetracker.UserInformationResult {
-	userInfo := &codetracker.UserInformationResult{}
-	mergedPRInfo := convertDBPullRequestsToPullRequests(mergedPRs)
-	updatedPRInfo := convertDBPullRequestsToPullRequests(updatedPRs)
-	reviewInfo := convertDBPullRequestReviewsToReviews(reviews)
-	commitInfo := convertDBCommitsToCommits(commits)
-
-	userInfo.MergedPRs = mergedPRInfo
-	userInfo.UpdatedPRs = updatedPRInfo
-	userInfo.Reviews = reviewInfo
-	userInfo.Commits = commitInfo
-	return userInfo
-}

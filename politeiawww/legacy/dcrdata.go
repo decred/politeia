@@ -22,7 +22,6 @@ import (
 
 const (
 	dcrdataTimeout = 3 * time.Second // Dcrdata request timeout
-	faucetTimeout  = 5 * time.Second // Testnet faucet request timeout
 )
 
 func (p *Politeiawww) dcrdataHostHTTP() string {

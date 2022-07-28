@@ -496,35 +496,6 @@ func invUnvetted(admin user, status rcv1.RecordStatusT, page uint32) ([]string, 
 	return tokens, nil
 }
 
-// commentNew submits a new comment to a public record.
-//
-// This function returns with the user logged out.
-func commentNew(u user, token, comment string, parentID uint32) error {
-	// Login user
-	err := userLogin(u)
-	if err != nil {
-		return err
-	}
-
-	// Submit comment
-	c := cmdCommentNew{}
-	c.Args.Token = token
-	c.Args.Comment = comment
-	c.Args.ParentID = parentID
-	err = c.Execute(nil)
-	if err != nil {
-		return fmt.Errorf("cmdCommentNew: %v", err)
-	}
-
-	// Logout user
-	err = userLogout()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // commentCountForRecord returns the number of comments that have been made on
 // a record.
 func commentCountForRecord(token string) (uint32, error) {

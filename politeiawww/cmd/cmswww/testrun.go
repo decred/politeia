@@ -636,28 +636,6 @@ func dccCommentNew(u user, token, parentID, comment string) error {
 	return nil
 }
 
-// dccComments returns the comments for the provided DCC token.
-//
-// This function returns with the user logged out.
-func dccComments(u user, token string) ([]www.Comment, error) {
-	err := login(u)
-	if err != nil {
-		return nil, fmt.Errorf("login: %v", err)
-	}
-
-	gcr, err := client.DCCComments(token)
-	if err != nil {
-		return nil, fmt.Errorf("DCCComments: %v", err)
-	}
-
-	err = logout()
-	if err != nil {
-		return nil, fmt.Errorf("logout: %v", err)
-	}
-
-	return gcr.Comments, nil
-}
-
 // testDCC tests the DCC (Decred Contractor Clearance) routes. See the proposal
 // below for more information about the DCC process.
 //

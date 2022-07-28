@@ -10,7 +10,6 @@ import (
 	crand "crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -31,9 +30,6 @@ import (
 	pb "decred.org/dcrwallet/rpc/walletrpc"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
-	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	piv1 "github.com/decred/politeia/politeiawww/api/pi/v1"
@@ -95,61 +91,6 @@ func (p *piv) walletPassphrase() ([]byte, error) {
 
 		return pass, nil
 	}
-}
-
-// verifyMessage verifies a message is properly signed.
-// Copied from https://github.com/decred/dcrd/blob/0fc55252f912756c23e641839b1001c21442c38a/rpcserver.go#L5605
-func verifyMessage(params *chaincfg.Params, address, message, signature string) (bool, error) {
-	// Decode the provided address.
-	addr, err := dcrutil.DecodeAddress(address, params)
-	if err != nil {
-		return false, fmt.Errorf("Could not decode address: %v",
-			err)
-	}
-
-	// Only P2PKH addresses are valid for signing.
-	if _, ok := addr.(*dcrutil.AddressPubKeyHash); !ok {
-		return false, fmt.Errorf("Address is not a pay-to-pubkey-hash "+
-			"address: %v", address)
-	}
-
-	// Decode base64 signature.
-	sig, err := base64.StdEncoding.DecodeString(signature)
-	if err != nil {
-		return false, fmt.Errorf("Malformed base64 encoding: %v", err)
-	}
-
-	// Validate the signature - this just shows that it was valid at all.
-	// we will compare it with the key next.
-	var buf bytes.Buffer
-	wire.WriteVarString(&buf, 0, "Decred Signed Message:\n")
-	wire.WriteVarString(&buf, 0, message)
-	expectedMessageHash := chainhash.HashB(buf.Bytes())
-	pk, wasCompressed, err := ecdsa.RecoverCompact(sig,
-		expectedMessageHash)
-	if err != nil {
-		// Mirror Bitcoin Core behavior, which treats error in
-		// RecoverCompact as invalid signature.
-		return false, nil
-	}
-
-	// Reconstruct the pubkey hash.
-	dcrPK := pk
-	var serializedPK []byte
-	if wasCompressed {
-		serializedPK = dcrPK.SerializeCompressed()
-	} else {
-		serializedPK = dcrPK.SerializeUncompressed()
-	}
-	a, err := dcrutil.NewAddressSecpPubKey(serializedPK, activeNetParams.Params)
-	if err != nil {
-		// Again mirror Bitcoin Core behavior, which treats error in
-		// public key reconstruction as invalid signature.
-		return false, nil
-	}
-
-	// Return boolean if addresses match.
-	return a.Address() == address, nil
 }
 
 // piv is the client context.

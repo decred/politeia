@@ -38,9 +38,7 @@ const (
 	opposeString  = "nay"
 
 	// DCC All User Vote Configuration
-	dccVoteDuration         = 24 * 7 * time.Hour // 1 Week
-	averageMonthlyMinutes   = 180 * 60           // 180 Hours * 60 Minutes
-	userWeightMonthLookback = 6                  // Lookback 6 months to deteremine user voting weight
+	userWeightMonthLookback = 6 // Lookback 6 months to deteremine user voting weight
 )
 
 var (
