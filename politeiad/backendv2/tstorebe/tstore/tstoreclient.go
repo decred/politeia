@@ -306,14 +306,8 @@ func (t *tstoreClient) BlobsByDataDesc(token []byte, dataDesc []string) ([]store
 	}
 	if len(blobs) != len(keys) {
 		// One or more blobs were not found
-		missing := make([]string, 0, len(keys))
-		for _, v := range keys {
-			_, ok := blobs[v]
-			if !ok {
-				missing = append(missing, v)
-			}
-		}
-		return nil, fmt.Errorf("blobs not found: %v", missing)
+		return nil, fmt.Errorf("%v/%v blobs not found",
+			len(keys)-len(blobs), len(keys))
 	}
 
 	// Prepare reply. The blob entries should be in the same order as
