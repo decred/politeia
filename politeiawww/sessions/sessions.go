@@ -99,13 +99,13 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 	// Check if the session cookie already exists
 	c, err := r.Cookie(cookieName)
 	if errors.Is(err, http.ErrNoCookie) {
-		log.Debugf("Session cookie not found; returning a new session")
+		log.Tracef("Session cookie not found; returning a new session")
 		return session, nil
 	} else if err != nil {
 		return session, err
 	}
 	if c.Value == "" {
-		log.Debugf("Empty session value; returning new session")
+		log.Tracef("Empty session value; returning new session")
 		return session, nil
 	}
 
@@ -126,7 +126,7 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 		// which also means it's not possible to retrieve the
 		// encoded session values from the database. A new
 		// session with empty values is returned.
-		log.Debugf("Session expired; returning a new session")
+		log.Tracef("Session expired; returning a new session")
 		return session, nil
 
 	default:
@@ -134,7 +134,7 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 		// the existing session is considered invalid and
 		// the newly created session is returned.
 		log.Errorf("Failed to decode session: %v", err)
-		log.Debugf("Session invalid; returning new session")
+		log.Tracef("Session invalid; returning new session")
 		return session, nil
 	}
 
@@ -159,11 +159,11 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 		if err != nil {
 			return session, err
 		}
-		log.Debugf("Session found %v", session.ID)
+		log.Tracef("Session found %v", session.ID)
 
 	case ErrNotFound:
 		// Session not found in database; return the new one.
-		log.Debugf("Session not found; returning new session")
+		log.Tracef("Session not found; returning new session")
 
 	default:
 		// All other errors

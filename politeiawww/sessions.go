@@ -48,7 +48,14 @@ func (p *politeiawww) setupSessions(db *sql.DB) error {
 // extractSession extracts and returns the session from the http request
 // cookie.
 func (p *politeiawww) extractSession(r *http.Request) (*sessions.Session, error) {
-	return p.sessions.Get(r, v3.SessionCookieName)
+	s, err := p.sessions.Get(r, v3.SessionCookieName)
+	if err != nil {
+		return nil, err
+	}
+	if !s.IsNew {
+		log.Debugf("Sesssion %v", s.Values)
+	}
+	return s, nil
 }
 
 // UpdateSession updates a session with any changes that were made during
@@ -76,7 +83,7 @@ func (p *politeiawww) updateSession(r *http.Request, w http.ResponseWriter, s *s
 			return err
 		}
 
-		log.Debugf("Session deleted %+v", as.Values())
+		log.Debugf("Session deleted %v", as.Values())
 
 		return nil
 	}
@@ -96,7 +103,7 @@ func (p *politeiawww) updateSession(r *http.Request, w http.ResponseWriter, s *s
 		return err
 	}
 
-	log.Debugf("Session saved %+v", as.Values())
+	log.Debugf("Session saved %v", as.Values())
 
 	return nil
 }
