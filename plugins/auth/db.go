@@ -64,7 +64,7 @@ const contactsTable = `
 `
 
 // setupDB sets up the auth plugin database tables.
-func (p *plugin) setupDB() error {
+func (p *authp) setupDB() error {
 	var tables = []struct {
 		name  string
 		table string
@@ -95,7 +95,7 @@ func (p *plugin) setupDB() error {
 	return nil
 }
 
-func (p *plugin) insertUser(tx *sql.Tx, u user) error {
+func (p *authp) insertUser(tx *sql.Tx, u user) error {
 	e, err := encryptUser(u)
 	if err != nil {
 		return err
@@ -123,12 +123,12 @@ func (p *plugin) insertUser(tx *sql.Tx, u user) error {
 }
 
 // A errNotFound error is returned if a user is not found.
-func (p *plugin) updateUser(tx *sql.Tx, u user) error {
+func (p *authp) updateUser(tx *sql.Tx, u user) error {
 	return nil
 }
 
 // A errNotFound error is returned if a user is not found.
-func (p *plugin) getUser(q querier, userID string) (*user, error) {
+func (p *authp) getUser(q querier, userID string) (*user, error) {
 	qs := `SELECT *
         FROM auth_users u
         INNER JOIN auth_groups USING(uuid)
@@ -179,7 +179,7 @@ func (p *plugin) getUser(q querier, userID string) (*user, error) {
 }
 
 // A errNotFound error is returned if a user is not found.
-func (p *plugin) getUserByUsername(tx *sql.Tx, username string) (*user, error) {
+func (p *authp) getUserByUsername(tx *sql.Tx, username string) (*user, error) {
 	q := `SELECT *
         FROM auth_users u
         INNER JOIN auth_groups USING(uuid)

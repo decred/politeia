@@ -102,7 +102,7 @@ func (a *appCtx) Cmds() []app.CmdDetails {
 //
 // Prior to executing a read batch, the politeia server will verify that the
 // read commands are allowed to be executed as part of a read batch. This
-// lets the app prevent expensive reads from being batched. By default, all
+// allows the app prevent expensive reads from being batched. By default, all
 // read commands are allowed to be batched.
 //
 // This function satisfies the app.App interface.
@@ -122,8 +122,6 @@ func (a *appCtx) Write(ctx context.Context, s *app.Session, c app.Cmd) (*app.Cmd
 }
 
 // Read executes a read-only plugin command.
-//
-// Any updates make to the session will be persisted by the politeia server.
 //
 // This function satisfies the app.App interface.
 func (a *appCtx) Read(ctx context.Context, s app.Session, c app.Cmd) (*app.CmdReply, error) {

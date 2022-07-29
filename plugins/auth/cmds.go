@@ -20,7 +20,7 @@ import (
 
 // cmds.go contains the execution logic for the auth plugin commands.
 
-func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
+func (p *authp) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 	var nu v1.NewUser
 	err := json.Unmarshal([]byte(c.Payload), &nu)
 	if err != nil {
@@ -106,7 +106,7 @@ func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 	}, nil
 }
 
-func (p *plugin) cmdLogin(tx *sql.Tx, c app.Cmd, s *app.Session) (*app.CmdReply, error) {
+func (p *authp) cmdLogin(tx *sql.Tx, c app.Cmd, s *app.Session) (*app.CmdReply, error) {
 	var l v1.Login
 	err := json.Unmarshal([]byte(c.Payload), &l)
 	if err != nil {
@@ -183,7 +183,7 @@ func (p *plugin) cmdLogin(tx *sql.Tx, c app.Cmd, s *app.Session) (*app.CmdReply,
 	}, nil
 }
 
-func (p *plugin) cmdLogout(tx *sql.Tx, c app.Cmd, s *app.Session) (*app.CmdReply, error) {
+func (p *authp) cmdLogout(tx *sql.Tx, c app.Cmd, s *app.Session) (*app.CmdReply, error) {
 	// Update the session. These changes will be persisted by
 	// the server. The plugin doesn't need to save anything.
 	sn := newSession(s)
@@ -200,7 +200,7 @@ func (p *plugin) cmdLogout(tx *sql.Tx, c app.Cmd, s *app.Session) (*app.CmdReply
 	}, nil
 }
 
-func (p *plugin) cmdMe(q querier, c app.Cmd, userID string) (*app.CmdReply, error) {
+func (p *authp) cmdMe(q querier, c app.Cmd, userID string) (*app.CmdReply, error) {
 	// Get the logged in user from the database
 	var u *v1.User
 	if userID != "" {
@@ -231,7 +231,7 @@ func (p *plugin) cmdMe(q querier, c app.Cmd, userID string) (*app.CmdReply, erro
 
 // This function updates the contactInfo. The caller must save the changes to
 // the database.
-func (p *plugin) sendContactVerification(username string, c *contactInfo) error {
+func (p *authp) sendContactVerification(username string, c *contactInfo) error {
 	// Send the verification communication
 	switch c.Type {
 	case contactTypeEmail:

@@ -55,7 +55,7 @@ type CmdDetails struct {
 	Name    string
 }
 
-// String returns a string representation of the command.
+// String returns a string representation of the command details.
 func (c *CmdDetails) String() string {
 	return fmt.Sprintf("%v-v%v-%v", c.Plugin, c.Version, c.Name)
 }
@@ -84,6 +84,7 @@ type ReadArgs struct {
 	UserID string
 }
 
+// String returns a string representation of the read args.
 func (a *ReadArgs) String() string {
 	userID := a.UserID
 	if userID == "" {
@@ -100,7 +101,7 @@ type Cmd struct {
 	Payload string // JSON encoded
 }
 
-// String returns the string representation of a plugin command.
+// String returns the string representation of the plugin command.
 func (c *Cmd) String() string {
 	return fmt.Sprintf("%v-v%v-%v", c.Plugin, c.Version, c.Name)
 }

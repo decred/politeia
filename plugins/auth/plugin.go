@@ -8,53 +8,21 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/dajohi/goemail"
 	"github.com/decred/politeia/app"
 	v1 "github.com/decred/politeia/plugins/auth/v1"
 	"github.com/pkg/errors"
 )
 
+// plugin.go contains the methods that satisfy the app.Plugin interface.
+
 var (
-	_ app.Plugin = (*plugin)(nil)
+	_ app.Plugin = (*authp)(nil)
 )
-
-// plugin represents the auth plugin.
-//
-// plugin satisfies the app.Plugin interface.
-// plugin satisfies the app.AuthManager interface.
-type plugin struct {
-	db       *sql.DB
-	settings settings
-	perms    map[string]map[string]struct{} // [cmd][userGroup]
-
-	smtp         *goemail.SMTP
-	emailName    string // From email name
-	emailAddress string // From email address
-}
-
-// New returns a new auth plugin.
-func New(a app.PluginArgs) (*plugin, error) {
-	s, err := newSettings(a.Settings)
-	if err != nil {
-		return nil, err
-	}
-	p := &plugin{
-		db:       a.DB,
-		smtp:     a.SMTP,
-		settings: *s,
-		perms:    make(map[string]map[string]struct{}, 256),
-	}
-	err = p.setupDB()
-	if err != nil {
-		return nil, err
-	}
-	return p, nil
-}
 
 // ID returns the plugin ID.
 //
 // This function satisfies the app.Plugin interface.
-func (p *plugin) ID() string {
+func (p *authp) ID() string {
 	log.Tracef("ID")
 
 	return v1.PluginID
@@ -63,7 +31,7 @@ func (p *plugin) ID() string {
 // Version returns the lowest supported plugin API version.
 //
 // This function satisfies the app.Plugin interface.
-func (p *plugin) Version() uint32 {
+func (p *authp) Version() uint32 {
 	log.Tracef("Version")
 
 	return v1.Version
@@ -72,7 +40,7 @@ func (p *plugin) Version() uint32 {
 // TxWrite executes a write plugin command using a database transaction.
 //
 // This function satisfies the app.Plugin interface.
-func (p *plugin) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
+func (p *authp) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
 	log.Tracef("TxWrite %v", &a)
 
 	var (
@@ -108,7 +76,7 @@ func (p *plugin) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
 // TxRead executes a read plugin command using a database transaction.
 //
 // This function satisfies the app.Plugin interface.
-func (p *plugin) TxRead(tx *sql.Tx, a app.ReadArgs) (*app.CmdReply, error) {
+func (p *authp) TxRead(tx *sql.Tx, a app.ReadArgs) (*app.CmdReply, error) {
 	log.Tracef("TxRead %v", &a)
 
 	return p.read(tx, a)
@@ -117,7 +85,7 @@ func (p *plugin) TxRead(tx *sql.Tx, a app.ReadArgs) (*app.CmdReply, error) {
 // Read executes a non-atomic, read-only plugin command.
 //
 // This function satisfies the app.Plugin interface.
-func (p *plugin) Read(a app.ReadArgs) (*app.CmdReply, error) {
+func (p *authp) Read(a app.ReadArgs) (*app.CmdReply, error) {
 	log.Tracef("Read %v", &a)
 
 	return p.read(p.db, a)
@@ -126,7 +94,7 @@ func (p *plugin) Read(a app.ReadArgs) (*app.CmdReply, error) {
 // read contains all of the auth plugin read commands. The caller can decide
 // whether the command should be executed as part of a transaction or as an
 // individual command.
-func (p *plugin) read(q querier, a app.ReadArgs) (*app.CmdReply, error) {
+func (p *authp) read(q querier, a app.ReadArgs) (*app.CmdReply, error) {
 	var (
 		reply *app.CmdReply
 		err   error

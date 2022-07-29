@@ -8,13 +8,14 @@ package app
 //
 // Plugins do not have direct access to the sessions database, but they can
 // update session values during command execution. Updates are saved to the
-// sessions database by the backend on successful completion of the plugin
-// command.
+// sessions database by the politeia server on successful completion of the
+// plugin command.
 type Session struct {
 	values map[interface{}]interface{}
 
 	// updated represents whether any of the session values have been updated
-	// during plugin command execution.
+	// during plugin command execution. If updated is set to true, the politeia
+	// server will save the changes to the sessions database.
 	updated bool
 
 	// del instructs the backend to delete the session.
@@ -46,14 +47,13 @@ func (s *Session) Values() map[interface{}]interface{} {
 	return c
 }
 
-// Updated returns whether the session values have been updated during plugin
-// command execution.
+// Updated returns whether the session values have been updated.
 func (s *Session) Updated() bool {
 	return s.updated
 }
 
-// SetDel sets the del field to true, instructing the backend to delete the
-// session from the sessions database.
+// SetDel sets the del field to true, instructing the politeia server to delete
+// the session from the database.
 func (s *Session) SetDel() {
 	s.del = true
 }

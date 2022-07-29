@@ -12,7 +12,7 @@ import (
 	"github.com/dajohi/goemail"
 )
 
-func (p *plugin) sendEmail(subject, body string, recipients []string) error {
+func (p *authp) sendEmail(subject, body string, recipients []string) error {
 	if p.smtp == nil {
 		log.Debugf("Email disabled; skipping send email")
 		return nil
@@ -25,7 +25,7 @@ func (p *plugin) sendEmail(subject, body string, recipients []string) error {
 	return p.smtp.Send(msg)
 }
 
-func (p *plugin) sendEmailVerification(username, email, token string) error {
+func (p *authp) sendEmailVerification(username, email, token string) error {
 	t, err := template.New("verify_email").Parse(verifyEmailText)
 	if err != nil {
 		return err
@@ -57,7 +57,7 @@ register a Politeia account. If you did not perform this action, please ignore
 this email.
 `
 
-func (p *plugin) contactVerificationLink(username, token string) string {
+func (p *authp) contactVerificationLink(username, token string) string {
 	host := strings.TrimRight(p.settings.Host.String(), "/")
 
 	link := host + "/user/{username}/verifycontact/{token}"

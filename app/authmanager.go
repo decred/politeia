@@ -38,10 +38,11 @@ type AuthManager interface {
 	Authorize(AuthorizeArgs) error
 }
 
-// CmdPerms represents the permissions for a plugin command. The groups defines
-// the user groups that are allowed to execute the command.
+// CmdPerms represents the permissions for a plugin command.
 type CmdPerms struct {
-	Cmd    CmdDetails
+	Cmd CmdDetails
+
+	// Groups contains the user groups that are allowed to execute the command.
 	Groups []string
 }
 
@@ -51,6 +52,7 @@ type AuthorizeArgs struct {
 	Cmds    []CmdDetails
 }
 
+// String returns a string representation of the authorize structure.
 func (a *AuthorizeArgs) String() string {
 	var cmds strings.Builder
 	for _, v := range a.Cmds {

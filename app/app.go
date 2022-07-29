@@ -21,7 +21,7 @@ type App interface {
 	//
 	// Prior to executing a read batch, the politeia server will verify that the
 	// read commands are allowed to be executed as part of a read batch. This
-	// lets the app prevent expensive reads from being batched. By default, all
+	// allows the app prevent expensive reads from being batched. By default, all
 	// read commands are allowed to be batched.
 	PreventBatchedReads() []CmdDetails
 

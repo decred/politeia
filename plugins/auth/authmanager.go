@@ -15,13 +15,13 @@ import (
 // interface.
 
 var (
-	_ app.AuthManager = (*plugin)(nil)
+	_ app.AuthManager = (*authp)(nil)
 )
 
 // SetPerms sets the user permission levels for a list of commands.
 //
 // This function satisfies the app.AuthManager interface.
-func (p *plugin) SetCmdPerms(perms []app.CmdPerms) {
+func (p *authp) SetCmdPerms(perms []app.CmdPerms) {
 	log.Tracef("SetCmdPerms")
 
 	for _, v := range perms {
@@ -33,7 +33,7 @@ func (p *plugin) SetCmdPerms(perms []app.CmdPerms) {
 // An empty string is returned if a user ID does not exist.
 //
 // This function satisfies the app.AuthManager interface.
-func (p *plugin) SessionUserID(as app.Session) string {
+func (p *authp) SessionUserID(as app.Session) string {
 	s := newSession(&as)
 
 	log.Tracef("SessionUserID %v", s.UserID())
@@ -55,7 +55,7 @@ func (p *plugin) SessionUserID(as app.Session) string {
 // Changes made to the Session are not persisted by the politeia server.
 //
 // This function satisfies the app.AuthManager interface.
-func (p *plugin) Authorize(a app.AuthorizeArgs) error {
+func (p *authp) Authorize(a app.AuthorizeArgs) error {
 	log.Tracef("Authorize %v", &a)
 
 	// Check if all of the the commands are public. We
@@ -109,7 +109,7 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 }
 
 // setPerm sets a permission level for a command.
-func (p *plugin) setPerm(cp app.CmdPerms) {
+func (p *authp) setPerm(cp app.CmdPerms) {
 	c := cp.Cmd.String()
 	userGroups, ok := p.perms[c]
 	if !ok {
@@ -123,7 +123,7 @@ func (p *plugin) setPerm(cp app.CmdPerms) {
 
 // cmdIsAllowed returns whether the execution of a command is allowed for a
 // permission level.
-func (p *plugin) cmdIsAllowed(c app.CmdDetails, permLevel string) bool {
+func (p *authp) cmdIsAllowed(c app.CmdDetails, permLevel string) bool {
 	permLevels, ok := p.perms[c.String()]
 	if !ok {
 		log.Errorf("Permission level has not been set for %v", c.String())
