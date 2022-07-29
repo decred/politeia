@@ -32,7 +32,8 @@ type Plugin interface {
 // PluginArgs contains the arguments that are passed to a plugin on
 // initialization.
 type PluginArgs struct {
-	Settings     []Setting
+	Settings []Setting
+	// TODO the app needs to make these connections itself
 	DB           *sql.DB
 	SMTP         *goemail.SMTP
 	EmailName    string // From email name

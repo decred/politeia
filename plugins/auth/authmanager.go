@@ -18,7 +18,14 @@ var (
 	_ app.AuthManager = (*authp)(nil)
 )
 
-// SetPerms sets the user permission levels for a list of commands.
+// AddUserGroups adds custom user groups to the AuthManager.
+//
+// This function satisfies the app.AuthManager interface.
+func (p *authp) AddUserGroups([]app.UserGroup) {
+	log.Tracef("AddUserGroups")
+}
+
+// SetCmdPerms sets the permissions for a list of plugin commands.
 //
 // This function satisfies the app.AuthManager interface.
 func (p *authp) SetCmdPerms(perms []app.CmdPerms) {

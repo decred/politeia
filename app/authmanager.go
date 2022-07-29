@@ -14,8 +14,14 @@ type AuthManager interface {
 	// ID returns the plugin ID.
 	ID() string
 
-	// SetCmdPerms sets the user permission levels for a list of plugin commands.
-	// The cmd permissions should be setup during app initialization.
+	// AddUserGroups adds custom user groups to the AuthManager.
+	//
+	// Custom user groups should be setup by the app during app initialization.
+	AddUserGroups([]UserGroup)
+
+	// SetCmdPerms sets the permissions for a list of plugin commands.
+	//
+	// Command permissions should be setup by the app during app initialization.
 	SetCmdPerms([]CmdPerms)
 
 	// SessionUserID returns the user ID from the session values if one exists.
@@ -36,6 +42,25 @@ type AuthManager interface {
 	//
 	// Changes made to the Session are not persisted by the politeia server.
 	Authorize(AuthorizeArgs) error
+}
+
+// UserGroup represents a custom user group.
+//
+// Apps set command permissions by assigning the command a list of user groups
+// that are allowed to execute the command. The AuthManager plugin will have
+// default user groups that can be used, but an app may also want to create
+// user groups that are specific to the app's functionality.
+//
+// For example, a forum app may want to add a custom forum moderator group. The
+// forum moderator group can be given permission to run commands related to
+// moderating forum content, but without giving them access to other admin
+// commands.
+type UserGroup struct {
+	Group string
+
+	// AssignedBy contains all of the user groups that are allowed to assign
+	// this custom user group.
+	AssignedBy []string
 }
 
 // CmdPerms represents the permissions for a plugin command.

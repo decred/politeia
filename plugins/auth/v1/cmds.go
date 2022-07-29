@@ -8,17 +8,35 @@ const (
 	PluginID        = "auth"
 	Version  uint32 = 1
 
-	CmdNewUser = "newuser"
-	CmdLogin   = "login"
-	CmdLogout  = "logout"
-	CmdMe      = "me"
+	CmdNewUser      = "newuser"
+	CmdLogin        = "login"
+	CmdLogout       = "logout"
+	CmdMe           = "me"
+	CmdUpdateGroups = "updategroups"
 )
 
-// The following list contains the default user groups.
+// The following list contains the default auth plugin user groups.
+//
+// Apps set command permissions by assigning the command user groups that are
+// allowed to execute the command. Apps can add custom user groups in addition
+// to the default groups listed below.
 const (
-	PublicUser   = "public"
+	// PublicUser represents a public user. Commands that are assigned this
+	// user group can be run freely by any client. The client does not need to
+	// have a valid user session. User session data is not checked for public
+	// commands.
+	PublicUser = "public"
+
+	// StandardUser is the default user group that is assigned to an account on
+	// creation.
 	StandardUser = "standard"
-	AdminUser    = "admin"
+
+	// SuperUser is an app superuser. This group is able to assign any group to
+	// any user.
+	//
+	// The only way to add a user to the superuser group is to have the sysadmin
+	// run a command directly against the database.
+	SuperUser = "superuser"
 )
 
 // User contains the auth plugin user data.
@@ -89,3 +107,11 @@ type Me struct{}
 type MeReply struct {
 	User *User `json:"user,omitempty"`
 }
+
+type UpdateGroups struct {
+	UserID string   `json:"userid"`
+	Add    []string `json:"add,omitempty"`
+	Del    []string `json:"del,omitempty"`
+}
+
+type UpdateGroupsReply struct{}

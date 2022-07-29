@@ -26,16 +26,18 @@ type authp struct {
 }
 
 // New returns a new authp.
-func New(a app.PluginArgs) (*authp, error) {
+func New(a app.PluginArgs, userGroups, superUserGroups []string) (*authp, error) {
 	s, err := newSettings(a.Settings)
 	if err != nil {
 		return nil, err
 	}
 	p := &authp{
-		db:       a.DB,
-		smtp:     a.SMTP,
-		settings: *s,
-		perms:    make(map[string]map[string]struct{}, 256),
+		db:           a.DB,
+		settings:     *s,
+		perms:        make(map[string]map[string]struct{}, 256),
+		smtp:         a.SMTP,
+		emailName:    a.EmailName,
+		emailAddress: a.EmailAddress,
 	}
 	err = p.setupDB()
 	if err != nil {
