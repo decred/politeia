@@ -138,7 +138,7 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 	as := app.NewSession(s.Values)
 
 	// Execute the plugin command
-	reply, err := p.readCmd(r.Context(), as, cmd)
+	reply, err := p.readCmd(r.Context(), *as, cmd)
 	if err != nil {
 		respondWithInternalError(w, r, err)
 		return
@@ -146,8 +146,8 @@ func (p *politeiawww) handleRead(w http.ResponseWriter, r *http.Request) {
 
 	log.Infof("Executed read %v", cs)
 
-	// Save any updates that were made to the session
-	p.UpdateSession(r, w, s, as)
+	// Read commands aren't allowed to update the
+	// user session, so we don't need to check.
 
 	// Send the response
 	respondWithOK(w, reply)
@@ -218,13 +218,8 @@ func (p *politeiawww) handleReadBatch(w http.ResponseWriter, r *http.Request) {
 		replies[i] = convertReplyToHTTP(pluginCmd, *pluginReply)
 	}
 
-	// Save any updates that were made to the user session
-	err = p.updateSession(r, w, s, pluginSession)
-	if err != nil {
-		// The plugin command has already been executed. Handle
-		// the error gracefully.
-		log.Errorf("handleReadBatch: updateSession: %v", err)
-	}
+	// Read commands aren't allowed to update the
+	// user session, so we don't need to check.
 
 	// Send the response
 	respondWithOK(w, v3.BatchReply{Replies: replies})

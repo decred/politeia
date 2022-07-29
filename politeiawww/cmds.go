@@ -26,7 +26,7 @@ func (p *politeiawww) writeCmd(ctx context.Context, s *app.Session, c v3.Cmd) (*
 	return convertReply(pc, *pr), nil
 }
 
-func (p *politeiawww) readCmd(ctx context.Context, s *app.Session, c v3.Cmd) (*v3.CmdReply, error) {
+func (p *politeiawww) readCmd(ctx context.Context, s app.Session, c v3.Cmd) (*v3.CmdReply, error) {
 	pc := convertCmd(c)
 	pr, err := p.app.Read(ctx, s, pc)
 	if err != nil {

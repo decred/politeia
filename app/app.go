@@ -11,6 +11,8 @@ import (
 // App provides an API for accessing the plugin configuration of a politeia
 // app. An app is essentially just a unique configuration of plugins.
 type App interface {
+	// TODO this needs to return reads and writes differently so that the
+	// server can validate them appropriately.
 	// Cmds returns the plugin commands that are part of the app.
 	Cmds() []CmdDetails
 
@@ -25,18 +27,14 @@ type App interface {
 
 	// Write executes a plugin write command.
 	//
-	// Any updates make to the session will be persisted by the politeia server.
+	// Any updates made to the session will be persisted by the politeia server.
 	Write(context.Context, *Session, Cmd) (*CmdReply, error)
 
 	// Read executes a read-only plugin command.
-	//
-	// Any updates make to the session will be persisted by the politeia server.
-	Read(context.Context, *Session, Cmd) (*CmdReply, error)
+	Read(context.Context, Session, Cmd) (*CmdReply, error)
 
 	// ReadBatch executes a batch of read-only plugin command.
-	//
-	// Any updates make to the session will be persisted by the politeia server.
-	// ReadBatch(context.Context, *Session, []Cmd) ([]CmdReply, error)
+	// ReadBatch(context.Context, Session, []Cmd) ([]CmdReply, error)
 }
 
 // AppArgs contains the arguments that are passed to an app on initialization.

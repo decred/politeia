@@ -25,10 +25,11 @@ type Plugin interface {
 	// TxRead executes a read plugin command using a database transaction.
 	TxRead(*sql.Tx, ReadArgs) (*CmdReply, error)
 
+	// TODO Remove TxHook
 	// TxHook executes a plugin hook using a database transaction.
 	TxHook(*sql.Tx, HookArgs) error
 
-	// Read executes a non-atomic read plugin command.
+	// Read executes a non-atomic, read-only plugin command.
 	Read(ReadArgs) (*CmdReply, error)
 }
 

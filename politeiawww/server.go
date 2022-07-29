@@ -86,8 +86,8 @@ func (p *politeiawww) setupRoutes() {
 	// Unprotected routes
 	addRoute(p.router, http.MethodGet, v3.APIVersionPrefix,
 		v3.PolicyRoute, p.handlePolicy)
-	// addRoute(p.router, http.MethodPost, v3.APIVersionPrefix,
-	// 		v3.ReadRoute, p.handleRead)
+	addRoute(p.router, http.MethodPost, v3.APIVersionPrefix,
+		v3.ReadRoute, p.handleRead)
 	// addRoute(p.router, http.MethodPost, v3.APIVersionPrefix,
 	//	v3.ReadBatchRoute, p.handleReadBatch)
 

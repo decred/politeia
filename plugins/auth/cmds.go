@@ -18,7 +18,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// write.go contains the execution logic for the auth plugin write commands.
+// cmds.go contains the execution logic for the auth plugin commands.
 
 func (p *plugin) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 	var nu v1.NewUser
@@ -200,11 +200,11 @@ func (p *plugin) cmdLogout(tx *sql.Tx, c app.Cmd, s *app.Session) (*app.CmdReply
 	}, nil
 }
 
-func (p *plugin) cmdMe(tx *sql.Tx, c app.Cmd, userID string) (*app.CmdReply, error) {
+func (p *plugin) cmdMe(q querier, c app.Cmd, userID string) (*app.CmdReply, error) {
 	// Get the logged in user from the database
 	var u *v1.User
 	if userID != "" {
-		usr, err := p.getUser(p.db, userID)
+		usr, err := p.getUser(q, userID)
 		if err != nil {
 			// It should not be possible for an invalid
 			// user ID to be part of a session, so we

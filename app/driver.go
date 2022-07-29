@@ -125,12 +125,12 @@ func (d *Driver) WriteCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, 
 // ReadCmd executes a read-only plugin command.
 //
 // Any updates made to the session are persisted by the politeia server.
-func (d *Driver) ReadCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, error) {
+func (d *Driver) ReadCmd(ctx context.Context, s Session, cmd Cmd) (*CmdReply, error) {
 	// Verify that the user is authorized
 	// to execute this plugin command.
 	err := d.authManager.Authorize(
 		AuthorizeArgs{
-			Session: *s,
+			Session: s,
 			Cmds: []CmdDetails{
 				{
 					Plugin:  cmd.Plugin,
@@ -142,7 +142,7 @@ func (d *Driver) ReadCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, e
 	if err != nil {
 		return nil, err
 	}
-	userID := d.authManager.SessionUserID(*s)
+	userID := d.authManager.SessionUserID(s)
 
 	// Execute the plugin command
 	p := d.plugin(cmd.Plugin)

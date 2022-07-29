@@ -86,18 +86,14 @@ func (p *plugin) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
 		reply, err = p.cmdLogin(tx, a.Cmd, a.Session)
 	case v1.CmdLogout:
 		reply, err = p.cmdLogout(tx, a.Cmd, a.Session)
-
-	// TODO this is a read command
-	case v1.CmdMe:
-		reply, err = p.cmdMe(tx, a.Cmd, a.UserID)
 	default:
 		return nil, errors.Errorf("invalid cmd")
 	}
 	if err != nil {
 		var ue userErr
 		if errors.As(err, &ue) {
-			// Convert the local user error
-			// to an app user error.
+			// Convert the local user error to an app
+			// user error.
 			return nil, app.UserErr{
 				Code:    uint32(ue.Code),
 				Context: ue.Context,
@@ -115,7 +111,7 @@ func (p *plugin) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
 func (p *plugin) TxRead(tx *sql.Tx, a app.ReadArgs) (*app.CmdReply, error) {
 	log.Tracef("TxRead %v", &a)
 
-	return nil, nil
+	return p.read(tx, a)
 }
 
 // TxHook executes a plugin hook using a database transaction.
@@ -127,13 +123,43 @@ func (p *plugin) TxHook(tx *sql.Tx, a app.HookArgs) error {
 	return nil
 }
 
-// Read executes a non-atomic read plugin command.
+// Read executes a non-atomic, read-only plugin command.
 //
 // This function satisfies the app.Plugin interface.
 func (p *plugin) Read(a app.ReadArgs) (*app.CmdReply, error) {
 	log.Tracef("Read %v", &a)
 
-	return nil, nil
+	return p.read(p.db, a)
+}
+
+// read contains all of the auth plugin read commands. The caller can decide
+// whether the command should be executed as part of a transaction or as an
+// individual command.
+func (p *plugin) read(q querier, a app.ReadArgs) (*app.CmdReply, error) {
+	var (
+		reply *app.CmdReply
+		err   error
+	)
+	switch a.Cmd.Name {
+	case v1.CmdMe:
+		reply, err = p.cmdMe(q, a.Cmd, a.UserID)
+	default:
+		return nil, errors.Errorf("invalid cmd")
+	}
+	if err != nil {
+		var ue userErr
+		if errors.As(err, &ue) {
+			// Convert the local user error to an app
+			// user error.
+			return nil, app.UserErr{
+				Code:    uint32(ue.Code),
+				Context: ue.Context,
+			}
+		}
+		return nil, err
+	}
+
+	return reply, nil
 }
 
 // userErr represents an error that occurred during the execution of a plugin

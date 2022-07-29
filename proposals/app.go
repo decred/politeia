@@ -126,7 +126,7 @@ func (a *appCtx) Write(ctx context.Context, s *app.Session, c app.Cmd) (*app.Cmd
 // Any updates make to the session will be persisted by the politeia server.
 //
 // This function satisfies the app.App interface.
-func (a *appCtx) Read(ctx context.Context, s *app.Session, c app.Cmd) (*app.CmdReply, error) {
+func (a *appCtx) Read(ctx context.Context, s app.Session, c app.Cmd) (*app.CmdReply, error) {
 	log.Tracef("Read %v", &c)
 
 	return a.driver.ReadCmd(ctx, s, c)

@@ -231,8 +231,7 @@ func (c *httpc) sendReqV3(method string, route string, reqData interface{}) ([]b
 			"get a new CSRF token from the server", r.HTTPCode, r.Body)
 
 	default:
-		return nil, errors.Errorf("unexpected server response: %v %s",
-			r.HTTPCode, r.Body)
+		return nil, errors.Errorf("%v %s", r.HTTPCode, r.Body)
 	}
 
 	// Save the header CSRF token to the database
@@ -285,6 +284,26 @@ func (c *httpc) Policy() (*v3.PolicyReply, error) {
 
 func (c *httpc) WriteCmd(cmd v3.Cmd) (*v3.CmdReply, error) {
 	b, err := c.sendReqV3(http.MethodPost, v3.WriteRoute, cmd)
+	if err != nil {
+		return nil, err
+	}
+	var r v3.CmdReply
+	err = json.Unmarshal(b, &r)
+	if err != nil {
+		return nil, err
+	}
+	if r.Error != nil {
+		return nil, pluginErr{
+			Plugin:  r.Plugin,
+			Code:    r.Error.Code,
+			Context: r.Error.Context,
+		}
+	}
+	return &r, nil
+}
+
+func (c *httpc) ReadCmd(cmd v3.Cmd) (*v3.CmdReply, error) {
+	b, err := c.sendReqV3(http.MethodPost, v3.ReadRoute, cmd)
 	if err != nil {
 		return nil, err
 	}

@@ -29,7 +29,7 @@ func (c *cmdMe) Execute(args []string) error {
 		Name:    auth.CmdMe,
 		Payload: string(payload),
 	}
-	r, err := httpC.WriteCmd(cmd)
+	r, err := httpC.ReadCmd(cmd)
 	if err != nil {
 		return err
 	}

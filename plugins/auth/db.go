@@ -19,6 +19,16 @@ var (
 	errNotFound = errors.New("not found")
 )
 
+// querier contains the sql query methods.
+//
+// The querier interface is used so that query code does not need to be
+// duplicated for atomic and non-atomic queries. The caller can use either
+// a sql.Tx or the sql.DB as the querier depending on whether they need the
+// query to be atomic.
+type querier interface {
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+}
+
 // usersTable is the database table for user data.
 const usersTable = `
   uuid           CHAR(36) PRIMARY KEY,
@@ -250,16 +260,6 @@ func decryptUser(b []byte, u *user) error {
 	u.ContactInfo = e.ContactInfo
 
 	return nil
-}
-
-// querier contains the sql query methods.
-//
-// The querier interface is used so that query code does not need to be
-// duplicated for atomic and non-atomic queries. The caller can use either
-// a sql.Tx or the sql.DB as the querier depending on whether they need the
-// query to be atomic.
-type querier interface {
-	Query(query string, args ...interface{}) (*sql.Rows, error)
 }
 
 const (
