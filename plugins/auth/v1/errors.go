@@ -14,8 +14,12 @@ const (
 	ErrCodeInvalidPassword    ErrCode = 4
 	ErrCodeInvalidContactInfo ErrCode = 5
 	ErrCodeInvalidLogin       ErrCode = 6
-	ErrCodeAccountLocked      ErrCode = 7
-	ErrCodeAccountDeactivated ErrCode = 8
+	ErrCodeInvalidUserID      ErrCode = 7
+	ErrCodeInvalidAction      ErrCode = 8
+	ErrCodeInvalidGroup       ErrCode = 9
+	ErrCodeAccountLocked      ErrCode = 10
+	ErrCodeAccountDeactivated ErrCode = 11
+	ErrCodeUserNotFound       ErrCode = 12
 )
 
 // ErrCodes contains the human readable error string for the error codes.
@@ -27,5 +31,10 @@ var ErrCodes = map[ErrCode]string{
 	ErrCodeInvalidPassword:    "invalid password",
 	ErrCodeInvalidContactInfo: "invalid contact info",
 	ErrCodeInvalidLogin:       "invalid login credentials",
+	ErrCodeInvalidUserID:      "invalid user id",
+	ErrCodeInvalidAction:      "invalid action",
+	ErrCodeInvalidGroup:       "invalid user group",
 	ErrCodeAccountLocked:      "user account has been locked",
+	ErrCodeAccountDeactivated: "user account has been deactivated",
+	ErrCodeUserNotFound:       "user not found",
 }

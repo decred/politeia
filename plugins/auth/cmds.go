@@ -229,6 +229,74 @@ func (p *authp) cmdMe(q querier, c app.Cmd, userID string) (*app.CmdReply, error
 	}, nil
 }
 
+func (p *authp) cmdUpdateGroups(tx *sql.Tx, c app.Cmd, userID string) (*app.CmdReply, error) {
+	var g v1.UpdateGroups
+	err := json.Unmarshal([]byte(c.Payload), &g)
+	if err != nil {
+		return nil, userErr{
+			Code: v1.ErrCodeInvalidPayload,
+		}
+	}
+	var (
+		sessionUserID = userID
+		updateUserID  = g.UserID
+		group         = g.Group
+		action        = g.Action
+	)
+
+	// Validate the request
+	switch {
+	case !validUserID(updateUserID):
+		return nil, userErr{
+			Code: v1.ErrCodeInvalidUserID,
+		}
+
+	case action != v1.ActionAdd && action != v1.ActionDel:
+		return nil, userErr{
+			Code:    v1.ErrCodeInvalidUserID,
+			Context: "action must be either add or del",
+		}
+
+	case !p.validGroup(group):
+		return nil, userErr{
+			Code: v1.ErrCodeInvalidGroup,
+		}
+	}
+
+	// Verify that the session user is allowed
+	// to update the requested user group.
+	u, err := p.getUser(tx, sessionUserID)
+	if err != nil {
+		return nil, err
+	}
+	if !p.userCanAssignGroup(u, group) {
+		return nil, userErr{
+			Code:    v1.ErrCodeNotAuthorized,
+			Context: fmt.Sprintf("user is not allowed to update %v group", group),
+		}
+	}
+
+	// Execute the group update
+	u, err = p.getUser(tx, updateUserID)
+	if err != nil {
+		return nil, err
+	}
+	switch action {
+	case v1.ActionAdd:
+		u.AddGroup(group)
+	case v1.ActionDel:
+		u.DelGroup(group)
+	}
+	err = p.updateUser(tx, *u)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("User %v %v group %v", u.Username, action, group)
+
+	return nil, nil
+}
+
 // This function updates the contactInfo. The caller must save the changes to
 // the database.
 func (p *authp) sendContactVerification(username string, c *contactInfo) error {

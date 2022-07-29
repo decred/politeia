@@ -35,7 +35,7 @@ const (
 	// any user.
 	//
 	// The only way to add a user to the superuser group is to have the sysadmin
-	// run a command directly against the database.
+	// update the database directly.
 	SuperUser = "superuser"
 )
 
@@ -108,10 +108,17 @@ type MeReply struct {
 	User *User `json:"user,omitempty"`
 }
 
+type ActionT string
+
+const (
+	ActionAdd ActionT = "add"
+	ActionDel ActionT = "del"
+)
+
 type UpdateGroups struct {
-	UserID string   `json:"userid"`
-	Add    []string `json:"add,omitempty"`
-	Del    []string `json:"del,omitempty"`
+	UserID string  `json:"userid"`
+	Action ActionT `json:"action"`
+	Group  string  `json:"group"`
 }
 
 type UpdateGroupsReply struct{}

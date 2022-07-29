@@ -14,6 +14,8 @@ import (
 	"github.com/google/uuid"
 )
 
+// TODO log x number of both failed and successful login attempts
+
 // user contains the auth plugin user data.
 //
 // The user is saved to the database by the auth plugin. Certain fields that
