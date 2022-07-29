@@ -5,8 +5,6 @@
 package auth
 
 import (
-	"time"
-
 	"github.com/decred/politeia/app"
 )
 
@@ -14,22 +12,20 @@ const (
 	// The following entries are the keys for the key-value session data.
 	// The session data is saved to the sessions database by the politeia
 	// server. The auth plugin does not need to worry about persisting it.
-	sessionKeyUserID    = "user_id"
-	sessionKeyCreatedAt = "created_at"
+	sessionKeyUserID = "user_id"
 )
 
 // session represents an auth plugin user session.
 type session struct {
 	// appSession contains the app session. Any updates made to the app session
-	// are saved to the sessions database by the backend.
+	// are saved to the sessions database by the politeia server.
 	appSession *app.Session
 
 	// The following fields are the auth plugin session values. These values
 	// travel in the app.Session values as interface{} types and are type casted
 	// when we need to work with them locally. Any updates made to these values
 	// are also made to the app.Session values.
-	userID    string
-	createdAt int64 // Unix timestamp
+	userID string
 
 	// del indicates whether the backend should delete the session from the
 	// sessions database.
@@ -41,22 +37,15 @@ func newSession(s *app.Session) session {
 	// The interface{} values need to be type casted
 	var (
 		values = s.Values()
-
-		userID    string
-		createdAt int64
+		userID string
 	)
 	v, ok := values[sessionKeyUserID]
 	if ok {
 		userID = v.(string)
 	}
-	v, ok = values[sessionKeyCreatedAt]
-	if ok {
-		createdAt = v.(int64)
-	}
 	return session{
 		appSession: s,
 		userID:     userID,
-		createdAt:  createdAt,
 	}
 }
 
@@ -71,20 +60,9 @@ func (s *session) UserID() string {
 	return s.userID
 }
 
-// SetCreatedAt sets the created at session value.
-func (s *session) SetCreatedAt(timestamp int64) {
-	s.createdAt = timestamp
-	s.appSession.SetValue(sessionKeyCreatedAt, timestamp)
-}
-
 // IsLoggedIn returns whether the session corresponds to a logged in user.
 func (s *session) IsLoggedIn() bool {
 	return s.userID != ""
-}
-
-// IsExpired returns whether the session has expired.
-func (s *session) IsExpired(maxAge int64) bool {
-	return time.Now().Unix() > s.createdAt+maxAge
 }
 
 // SetDel sets the del field to true, indicating that the session should be

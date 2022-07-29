@@ -58,7 +58,7 @@ func (d *Driver) WriteCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, 
 	// to execute this plugin command.
 	err = d.authManager.Authorize(
 		AuthorizeArgs{
-			Session: s,
+			Session: *s,
 			Cmds: []CmdDetails{
 				{
 					Plugin:  cmd.Plugin,
@@ -130,7 +130,7 @@ func (d *Driver) ReadCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, e
 	// to execute this plugin command.
 	err := d.authManager.Authorize(
 		AuthorizeArgs{
-			Session: s,
+			Session: *s,
 			Cmds: []CmdDetails{
 				{
 					Plugin:  cmd.Plugin,

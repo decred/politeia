@@ -41,29 +41,22 @@ func (p *plugin) SessionUserID(as app.Session) string {
 	return s.UserID()
 }
 
-// Authorize checks if the user is authorized to execute a plugin command.
-// This includes verifying that the user session is still valid and that the
-// user has the correct permissions to execute the command.
+// Authorize checks if the user is authorized to execute a list of plugin
+// commands. This includes verifying that the user session is valid and that
+// the user has the correct permissions to execute the commands.
 //
-// Any changes made to the Session will be persisted by the politeia backend.
-// It is the responsibility of this method to set the del field of the Session
-// to true if the session has expired and should be deleted.
+// Configuring the session max age and checking for expired sessions is handled
+// in the server layer. This method does not need to worry about checking for
+// exipred sessions. Expired sessions will never make it to the plugin layer.
 //
-// A UserErr is returned if the user is not authorized.
+// A UserErr is returned if the user is not authorized to execute one or more
+// of the provided commands.
+//
+// Changes made to the Session are not persisted by the politeia server.
 //
 // This function satisfies the app.AuthManager interface.
 func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 	log.Tracef("Authorize %v", &a)
-
-	s := newSession(a.Session)
-
-	// Check if the session has expired. Sessions that
-	// have expired will have their del field set to
-	// true. We don't return here because the command
-	// might be a public command.
-	if s.IsLoggedIn() && s.IsExpired(p.settings.SessionMaxAge) {
-		s.SetDel()
-	}
 
 	// Check if all of the the commands are public. We
 	// don't have to validate the session data or the
@@ -78,49 +71,35 @@ func (p *plugin) Authorize(a app.AuthorizeArgs) error {
 		break
 	}
 	if public {
-		// All of the commands are public.
-		// No need to continue.
+		// All of the commands are public. No need
+		// to continue. Execution is allowed.
 		return nil
 	}
 
-	// Verify that session has not expired and that the
-	// user has the correct permissions to execute this
-	// command.
-	switch {
-	case !s.IsLoggedIn():
-		// The session does not correspond to a logged in
-		// user and the command is not a public command.
+	// Verify that the session user has the correct
+	// permissions to execute this command.
+	s := newSession(&a.Session)
+	if !s.IsLoggedIn() {
+		// The session does not correspond to a logged
+		// in user and the commands are not public.
 		// Execution is not allowed.
 		return app.UserErr{
 			Code:    uint32(v1.ErrCodeNotAuthorized),
 			Context: "the user is not logged in",
 		}
-	case s.Del():
-		// The session has expired
-		return app.UserErr{
-			Code:    uint32(v1.ErrCodeNotAuthorized),
-			Context: "the user is not logged in",
-		}
 	}
-
-	// Check the user permissions levels
 	u, err := p.getUser(p.db, s.UserID())
 	if err != nil {
 		return err
 	}
 	for _, cmd := range a.Cmds {
-		var isAllowed bool
 		for _, userGroup := range u.Groups {
-			if p.cmdIsAllowed(cmd, userGroup) {
-				isAllowed = true
-				break
-			}
-		}
-		if !isAllowed {
-			return app.UserErr{
-				Code: uint32(v1.ErrCodeNotAuthorized),
-				Context: fmt.Sprintf("the user is not "+
-					"authorized to execute %v", cmd.Name),
+			if !p.cmdIsAllowed(cmd, userGroup) {
+				return app.UserErr{
+					Code: uint32(v1.ErrCodeNotAuthorized),
+					Context: fmt.Sprintf("the user is not "+
+						"authorized to execute %v", &cmd),
+				}
 			}
 		}
 	}

@@ -17,6 +17,8 @@ import (
 	"github.com/gorilla/sessions"
 )
 
+// setupSessions sets up the politeia sessions store. The provided database
+// is used as the backing database for the sessions store.
 func (p *politeiawww) setupSessions(db *sql.DB) error {
 	cookieKey, err := os.ReadFile(p.cfg.CookieKey)
 	if err != nil {
@@ -32,12 +34,11 @@ func (p *politeiawww) setupSessions(db *sql.DB) error {
 		log.Infof("Cookie key generated")
 	}
 
-	sdb, err := sessionsdb.New(db, nil)
+	sdb, err := sessionsdb.New(db, p.cfg.SessionMaxAge, nil)
 	if err != nil {
 		return err
 	}
 
-	// TODO test the max age. Does gorrilla/sessions auto delete?
 	opts := psessions.NewOptions(int(p.cfg.SessionMaxAge))
 	p.sessions = psessions.NewStore(sdb, opts, cookieKey)
 
@@ -56,7 +57,7 @@ func (p *politeiawww) extractSession(r *http.Request) (*sessions.Session, error)
 //
 // Session updates occur after plugin commands have already executed. If the
 // plugin command executed successfully then the server response must reflect
-// that. For this reason, any errors that occur during a session update are
+// this. For this reason, any errors that occur during a session update are
 // handled gracefully and logged, rather than returning an error to the user.
 func (p *politeiawww) UpdateSession(r *http.Request, w http.ResponseWriter, s *sessions.Session, as *app.Session) {
 	err := p.updateSession(r, w, s, as)
@@ -86,8 +87,9 @@ func (p *politeiawww) updateSession(r *http.Request, w http.ResponseWriter, s *s
 		return nil
 	}
 
-	// Update the orignal session with any
-	// changes that were made by the app.
+	// Update the orignal session with any changes that
+	// were made by the app and save the session to the
+	// database.
 	s.Values = as.Values()
 	err := p.sessions.Save(r, w, s)
 	if err != nil {

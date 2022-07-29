@@ -159,7 +159,6 @@ func (p *plugin) cmdLogin(tx *sql.Tx, c app.Cmd, s *app.Session) (*app.CmdReply,
 	// the server. The plugin doesn't need to save anything.
 	sn := newSession(s)
 	sn.SetUserID(u.ID)
-	sn.SetCreatedAt(time.Now().Unix())
 
 	// Update and save the user
 	/*

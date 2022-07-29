@@ -120,7 +120,7 @@ type Config struct {
 	HTTPSCert        string   `long:"httpscert" description:"File containing the https certificate file"`
 	HTTPSKey         string   `long:"httpskey" description:"File containing the https certificate key"`
 	CookieKey        string   `long:"cookiekey" description:"File containing the secret cookie key"`
-	SessionMaxAge    int64    `long:"Session max age" description:"Max age of a session in seconds"`
+	SessionMaxAge    int64    `long:"sessionmaxage" description:"Max age of a session in seconds"`
 	ReadTimeout      int64    `long:"readtimeout" description:"Maximum duration in seconds that is spent reading the request headers and body"`
 	WriteTimeout     int64    `long:"writetimeout" description:"Maximum duration in seconds that a request connection is kept open"`
 	ReqBodySizeLimit int64    `long:"reqbodysizelimit" description:"Maximum number of bytes allowed in a request body submitted by a client"`

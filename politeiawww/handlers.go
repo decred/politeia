@@ -100,7 +100,7 @@ func (p *politeiawww) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Save any updates that were made to the user session
+	// Save any updates that were made to the session
 	p.UpdateSession(r, w, s, as)
 
 	// Send the response

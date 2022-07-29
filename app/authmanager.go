@@ -23,15 +23,18 @@ type AuthManager interface {
 	SessionUserID(Session) string
 
 	// Authorize checks if the user is authorized to execute a list of plugin
-	// commands. This includes verifying that the user session is still valid
-	// and that the user has the correct permissions to execute the commands.
+	// commands. This includes verifying that the user session is valid and that
+	// the user has the correct permissions to execute the commands.
 	//
-	// Any changes made to the Session will be persisted by the politeia backend.
-	// It is the responsibility of this method to set the del field of the
-	// Session to true if the session has expired and should be deleted.
+	// Configuring the session max age and checking for expired sessions is
+	// handled in the server layer. This method does not need to worry about
+	// checking for exipred sessions. Expired sessions will never make it to the
+	// plugin layer.
 	//
-	// A UserErr is returned if the user is not authorized to execute any of the
-	// provided commands.
+	// A UserErr is returned if the user is not authorized to execute one or more
+	// of the provided commands.
+	//
+	// Changes made to the Session are not persisted by the politeia server.
 	Authorize(AuthorizeArgs) error
 }
 
@@ -44,7 +47,7 @@ type CmdPerms struct {
 
 // AuthorizeArgs contains the arguments for the Authorize method.
 type AuthorizeArgs struct {
-	Session *Session
+	Session Session
 	Cmds    []CmdDetails
 }
 

@@ -19,7 +19,6 @@ import (
 // settings contains the plugin settings.
 type settings struct {
 	Host              *url.URL
-	SessionMaxAge     int64
 	UsernameChars     []string
 	UsernameMinLength uint32
 	UsernameMaxLength uint32
@@ -40,7 +39,6 @@ func newSettings(newSettings []app.Setting) (*settings, error) {
 	// Default plugin settings
 	s := &settings{
 		Host:              defaultHost,
-		SessionMaxAge:     60 * 60 * 24, // 1 day
 		UsernameChars:     []string{"A-z", "0-9", "_"},
 		UsernameMinLength: 3,
 		UsernameMaxLength: 15,
@@ -83,13 +81,6 @@ func (s *settings) update(newSettings []app.Setting) error {
 // parseSetting parses the plugin setting and updates the settings context.
 func (s *settings) parseSetting(v app.Setting) error {
 	switch v.Name {
-	case v1.SettingSessionMaxAge:
-		i, err := strconv.ParseInt(v.Value, 10, 64)
-		if err != nil {
-			return err
-		}
-		s.SessionMaxAge = i
-
 	case v1.SettingsUsernameChars:
 		var chars []string
 		err := json.Unmarshal([]byte(v.Value), &chars)
