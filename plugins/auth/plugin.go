@@ -114,15 +114,6 @@ func (p *plugin) TxRead(tx *sql.Tx, a app.ReadArgs) (*app.CmdReply, error) {
 	return p.read(tx, a)
 }
 
-// TxHook executes a plugin hook using a database transaction.
-//
-// This function satisfies the app.Plugin interface.
-func (p *plugin) TxHook(tx *sql.Tx, a app.HookArgs) error {
-	log.Tracef("TxHook %v", &a)
-
-	return nil
-}
-
 // Read executes a non-atomic, read-only plugin command.
 //
 // This function satisfies the app.Plugin interface.

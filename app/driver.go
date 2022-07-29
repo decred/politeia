@@ -8,22 +8,21 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/pkg/errors"
 )
 
 // Driver provides a standardized set of methods for executing plugin commands
-// so that apps do not have to re-implement the same execution logic.
+// so that apps do not have to re-implement this execution logic.
 //
-// This logic resides in the app layer and not in the politeia backend because,
+// This logic resides in the app layer and not in the politeia server because,
 // as of writing this, I'm not aware of a way to pass a sql transaction from
 // the backend to the app if we are using golang plugins (or some variant)
 // where the app is run as a separate process that communicates with the main
-// politeia process via a RPC or gRPC connection. For this reason, all database
-// transaction operations must be performed entirely in the app layer, creating
-// the need for this driver.
+// politeia process via an RPC or gRPC connection. For this reason, all
+// database transaction operations must be performed entirely in the app layer,
+// creating the need for this driver.
 type Driver struct {
 	plugins     map[string]Plugin
 	db          *sql.DB
@@ -44,8 +43,6 @@ func NewDriver(plugins []Plugin, db *sql.DB, authMgr AuthManager) *Driver {
 }
 
 // WriteCmd executes a plugin command that writes data.
-//
-// Any updates made to the session are persisted by the politeia server.
 func (d *Driver) WriteCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, error) {
 	// Setup the database transaction
 	tx, cancel, err := d.beginTx()
@@ -72,18 +69,6 @@ func (d *Driver) WriteCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, 
 	}
 	userID := d.authManager.SessionUserID(*s)
 
-	// Execute the pre plugin hooks
-	err = d.hook(tx,
-		HookArgs{
-			Type:   HookPreWrite,
-			Cmd:    cmd,
-			Reply:  nil,
-			UserID: userID,
-		})
-	if err != nil {
-		return nil, err
-	}
-
 	// Execute the plugin command
 	p := d.plugin(cmd.Plugin)
 	reply, err := p.TxWrite(tx,
@@ -91,18 +76,6 @@ func (d *Driver) WriteCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, 
 			Cmd:     cmd,
 			Session: s,
 			UserID:  userID,
-		})
-	if err != nil {
-		return nil, err
-	}
-
-	// Execute the post plugin hooks
-	err = d.hook(tx,
-		HookArgs{
-			Type:   HookPostWrite,
-			Cmd:    cmd,
-			Reply:  reply,
-			UserID: userID,
 		})
 	if err != nil {
 		return nil, err
@@ -123,8 +96,6 @@ func (d *Driver) WriteCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, 
 }
 
 // ReadCmd executes a read-only plugin command.
-//
-// Any updates made to the session are persisted by the politeia server.
 func (d *Driver) ReadCmd(ctx context.Context, s Session, cmd Cmd) (*CmdReply, error) {
 	// Verify that the user is authorized
 	// to execute this plugin command.
@@ -158,33 +129,9 @@ func (d *Driver) ReadCmd(ctx context.Context, s Session, cmd Cmd) (*CmdReply, er
 	return reply, nil
 }
 
-// hook executes a hook on all plugins.
-func (d *Driver) hook(tx *sql.Tx, h HookArgs) error {
-	for _, p := range d.sortedPlugins() {
-		err := p.TxHook(tx, h)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // plugin returns a registered plugin.
 func (d *Driver) plugin(pluginID string) Plugin {
 	return d.plugins[pluginID]
-}
-
-// sortedPlugins returns all registered plugins, sorted alphabetically.
-func (d *Driver) sortedPlugins() []Plugin {
-	ps := make([]Plugin, 0, len(d.plugins))
-	for _, v := range d.plugins {
-		ps = append(ps, v)
-	}
-	// Sort plugins alphabetically
-	sort.SliceStable(ps, func(i, j int) bool {
-		return ps[i].ID() < ps[j].ID()
-	})
-	return ps
 }
 
 // beginTx returns a database transactions and a cancel function for the

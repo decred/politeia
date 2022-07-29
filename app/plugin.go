@@ -25,10 +25,6 @@ type Plugin interface {
 	// TxRead executes a read plugin command using a database transaction.
 	TxRead(*sql.Tx, ReadArgs) (*CmdReply, error)
 
-	// TODO Remove TxHook
-	// TxHook executes a plugin hook using a database transaction.
-	TxHook(*sql.Tx, HookArgs) error
-
 	// Read executes a non-atomic, read-only plugin command.
 	Read(ReadArgs) (*CmdReply, error)
 }
@@ -94,22 +90,6 @@ func (a *ReadArgs) String() string {
 		userID = "no-user-id"
 	}
 	return fmt.Sprintf("%v %v", &a.Cmd, userID)
-}
-
-// HookArgs contains the arguments for the plugin hook methods.
-type HookArgs struct {
-	Type   Hook
-	Cmd    Cmd
-	Reply  *CmdReply
-	UserID string
-}
-
-func (a *HookArgs) String() string {
-	userID := a.UserID
-	if userID == "" {
-		userID = "no-user-id"
-	}
-	return fmt.Sprintf("%v %v %v", a.Type, &a.Cmd, userID)
 }
 
 // Cmd represents a plugin command.
