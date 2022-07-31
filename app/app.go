@@ -36,14 +36,3 @@ type App interface {
 	// ReadBatch executes a batch of read-only plugin command.
 	// ReadBatch(context.Context, Session, []Cmd) ([]CmdReply, error)
 }
-
-// AppArgs contains the arguments that are passed to an app on initialization.
-type AppArgs struct {
-	DBHost string
-	DBPass string
-
-	// Settings are the settings that were specified at runtime. These settings
-	// should overwrite the default plugin settings. The plugin ID is the map
-	// key.
-	Settings map[string][]Setting
-}

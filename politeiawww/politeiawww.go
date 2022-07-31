@@ -5,45 +5,21 @@
 package main
 
 import (
-	"crypto/elliptic"
 	"crypto/tls"
-	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
-	"github.com/decred/politeia/app"
-	pdclient "github.com/decred/politeia/politeiad/client"
 	"github.com/decred/politeia/politeiawww/config"
 	"github.com/decred/politeia/politeiawww/legacy"
 	"github.com/decred/politeia/politeiawww/logger"
+	"github.com/decred/politeia/server"
 	"github.com/decred/politeia/util"
-	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
 )
-
-// politeiawww represents the politeiawww server.
-type politeiawww struct {
-	cfg       *config.Config
-	router    *mux.Router // Public router
-	protected *mux.Router // CSRF protected subrouter
-	sessions  sessions.Store
-	app       app.App
-
-	// cmds contains all valid plugin commands for the app.
-	//
-	// This allows politeia to validate incoming plugin command requests without
-	// having to query the app. This map is built on startup and is static.
-	//
-	// The map key is the "pluginID-version-cmdName".
-	cmds map[string]struct{}
-
-	// legacy contains the legacy politeiawww server.
-	legacy *legacy.Politeiawww
-}
 
 func _main() error {
 	// Load the configuration and parse the command line. This
@@ -60,12 +36,6 @@ func _main() error {
 	log.Infof("Network : %v", cfg.ActiveNet.Name)
 	log.Infof("Home dir: %v", cfg.HomeDir)
 
-	// Create the data directory in case it does not exist.
-	err = os.MkdirAll(cfg.DataDir, 0700)
-	if err != nil {
-		return err
-	}
-
 	// Check if this command is being run to fetch the politeiad
 	// identity.
 	if cfg.FetchIdentity {
@@ -73,104 +43,17 @@ func _main() error {
 			cfg.RPCIdentityFile, cfg.Interactive)
 	}
 
-	// Generate the TLS cert and key file if both don't already exist.
-	if !util.FileExists(cfg.HTTPSKey) &&
-		!util.FileExists(cfg.HTTPSCert) {
-		log.Infof("Generating HTTPS keypair...")
-
-		err := util.GenCertPair(elliptic.P256(), "politeiadwww",
-			cfg.HTTPSCert, cfg.HTTPSKey)
-		if err != nil {
-			return fmt.Errorf("unable to create https keypair: %v",
-				err)
-		}
-
-		log.Infof("HTTPS keypair created")
-	}
-
-	// Setup the politeiad client
-	pdc, err := pdclient.New(cfg.RPCHost, cfg.RPCCert,
-		cfg.RPCUser, cfg.RPCPass, cfg.Identity)
+	// Setup politeiawww
+	csrfKey, err := loadCSRF(cfg.DataDir)
 	if err != nil {
 		return err
 	}
+	router, protected := server.NewRouter(cfg.ReqBodySizeLimit,
+		csrfKey, csrfMaxAge)
 
-	// Connect to the database
-	var (
-		connMaxLifetime = 0 * time.Minute // 0 is unlimited
-		maxOpenConns    = 0               // 0 is unlimited
-		maxIdleConns    = 10
-
-		// TODO hardcoding bad
-		user     = "politeiawww"
-		password = cfg.DBPass
-		host     = cfg.DBHost
-		dbname   = "proposals_testnet3"
-	)
-
-	log.Infof("MySQL host: %v:[password]@tcp(%v)/%v", user, host, dbname)
-
-	h := fmt.Sprintf("%v:%v@tcp(%v)/%v", user, password, host, dbname)
-	db, err := sql.Open("mysql", h)
+	p, err := legacy.NewPoliteiawww(cfg, router, protected, log)
 	if err != nil {
 		return err
-	}
-
-	db.SetConnMaxLifetime(connMaxLifetime)
-	db.SetMaxOpenConns(maxOpenConns)
-	db.SetMaxIdleConns(maxIdleConns)
-
-	err = db.Ping()
-	if err != nil {
-		return err
-	}
-
-	// Setup application context
-	p := &politeiawww{
-		cfg:       cfg,
-		router:    nil, // Set in setupRouter
-		protected: nil, // Set in setupRouter
-		sessions:  nil, // Set in setupSessions
-		app:       nil, // Set in setupApp
-		cmds:      make(map[string]struct{}),
-
-		// Legacy fields
-		legacy: nil, // Set below
-	}
-	err = p.setupRouter()
-	if err != nil {
-		return err
-	}
-
-	// Setup the API routes. The legacy routes are setup
-	// by default, unless an app has been specified in
-	// the config.
-	switch {
-	case cfg.App != "":
-		// Run in app mode
-		p.setupRoutes()
-		err = p.setupSessions(db)
-		if err != nil {
-			return err
-		}
-
-		log.Infof("Running app: %v", cfg.App)
-
-		err = p.setupApp()
-		if err != nil {
-			return err
-		}
-
-	default:
-		// Run in legacy mode
-		log.Infof("Running in legacy mode")
-		legacywww, err := legacy.NewPoliteiawww(p.cfg,
-			p.router, p.protected, cfg.ActiveNet.Params,
-			pdc)
-		if err != nil {
-			return err
-		}
-		p.legacy = legacywww
 	}
 
 	// Bind to a port and pass our router in
@@ -193,7 +76,7 @@ func _main() error {
 				},
 			}
 			srv := &http.Server{
-				Handler:      p.router,
+				Handler:      router,
 				Addr:         listen,
 				ReadTimeout:  time.Duration(cfg.ReadTimeout) * time.Second,
 				WriteTimeout: time.Duration(cfg.WriteTimeout) * time.Second,
@@ -229,9 +112,7 @@ func _main() error {
 done:
 	log.Infof("Exiting")
 
-	if p.legacy != nil {
-		p.legacy.Close()
-	}
+	p.Close()
 
 	return nil
 }
@@ -242,4 +123,64 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
+}
+
+const (
+	csrfKeyLength = 32    // In bytes
+	csrfMaxAge    = 86400 // 1 day in seconds
+)
+
+// loadCSRF loads the CSRF key from disk. If a CSRF key does not exist then one
+// is created and saved to disk for future use.
+func loadCSRF(dataDir string) ([]byte, error) {
+	log.Infof("Load CSRF key")
+
+	// Open the CSRF key file
+	fp := filepath.Join(dataDir, "csrf.key")
+	fCSRF, err := os.Open(fp)
+	switch {
+	case err == nil:
+		// CSRF key exists; continue
+
+	case os.IsNotExist(err):
+		// CSRF key does not exist. Create one
+		// and save it to disk.
+		key, err := util.Random(csrfKeyLength)
+		if err != nil {
+			return nil, err
+		}
+
+		fCSRF, err = os.OpenFile(fp, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+		if err != nil {
+			return nil, err
+		}
+		_, err = fCSRF.Write(key)
+		if err != nil {
+			return nil, err
+		}
+		_, err = fCSRF.Seek(0, 0)
+		if err != nil {
+			return nil, err
+		}
+
+		log.Infof("CSRF key created and saved to %v", fp)
+
+	default:
+		// All other errors
+		return nil, err
+	}
+
+	// Read the CSRF key from the file
+	csrfKey := make([]byte, csrfKeyLength)
+	r, err := fCSRF.Read(csrfKey)
+	if err != nil {
+		return nil, err
+	}
+	fCSRF.Close()
+
+	if r != csrfKeyLength {
+		return nil, fmt.Errorf("CSRF key corrupt")
+	}
+
+	return csrfKey, nil
 }

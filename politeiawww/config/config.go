@@ -6,6 +6,7 @@
 package config
 
 import (
+	"crypto/elliptic"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -73,7 +74,6 @@ const (
 	defaultHTTPSKeyFilename  = "https.key"
 	defaultCookieKeyFilename = "cookie.key"
 
-	defaultSessionMaxAge    int64  = 60 * 60 * 24    // 1 day in seconds
 	defaultReadTimeout      int64  = 5               // In seconds
 	defaultWriteTimeout     int64  = 60              // In seconds
 	defaultReqBodySizeLimit int64  = 3 * 1024 * 1024 // 3 MiB
@@ -119,12 +119,10 @@ type Config struct {
 	Listeners        []string `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 4443)"`
 	HTTPSCert        string   `long:"httpscert" description:"File containing the https certificate file"`
 	HTTPSKey         string   `long:"httpskey" description:"File containing the https certificate key"`
-	CookieKey        string   `long:"cookiekey" description:"File containing the secret cookie key"`
-	SessionMaxAge    int64    `long:"sessionmaxage" description:"Max age of a session in seconds"`
+	CookieKeyFile    string   `long:"cookiekey" description:"File containing the secret cookie key"`
 	ReadTimeout      int64    `long:"readtimeout" description:"Maximum duration in seconds that is spent reading the request headers and body"`
 	WriteTimeout     int64    `long:"writetimeout" description:"Maximum duration in seconds that a request connection is kept open"`
 	ReqBodySizeLimit int64    `long:"reqbodysizelimit" description:"Maximum number of bytes allowed in a request body submitted by a client"`
-	PluginBatchLimit uint32   `long:"pluginbatchlimit" description:"Maximum number of plugins command allowed in a batch request."`
 
 	// politeiad RPC settings
 	RPCHost         string `long:"rpchost" description:"politeiad host <host>:<port>"`
@@ -135,24 +133,44 @@ type Config struct {
 	FetchIdentity   bool   `long:"fetchidentity" description:"Fetch the identity from politeiad"`
 	Interactive     string `long:"interactive" description:"Set to i-know-this-is-a-bad-idea to turn off interactive mode during --fetchidentity"`
 
-	// Database settings
-	DBHost string `long:"dbhost" description:"Database ip:port"`
-	DBPass string // Provided in env variable "DBPASS"
-
 	// SMTP settings
-	MailHost       string `long:"mailhost" description:"Email server address <host>:<port>"`
-	MailCert       string `long:"mailcert" description:"Email server certificate file"`
-	MailSkipVerify bool   `long:"mailskipverify" description:"Skip email server TLS verification"`
-	MailUser       string `long:"mailuser" description:"Email server username"`
-	MailPass       string `long:"mailpass" description:"Email server password"`
-	MailAddress    string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
+	MailHost         string `long:"mailhost" description:"Email server address <host>:<port>"`
+	MailCert         string `long:"mailcert" description:"Email server certificate file"`
+	MailSkipVerify   bool   `long:"mailskipverify" description:"Skip email server TLS verification"`
+	MailUser         string `long:"mailuser" description:"Email server username"`
+	MailPass         string `long:"mailpass" description:"Email server password"`
+	MailAddress      string `long:"mailaddress" description:"Email address for outgoing email in the format: name <address>"`
+	MailRateLimit    int    `long:"mailratelimit" description:"Limits the amount of emails a user can receive in 24h"`
+	WebServerAddress string `long:"webserveraddress" description:"Web server address used to create email links (format: <scheme>://<host>[:<port>])"`
 
-	// App settings
-	App            string   `long:"app" description:"Poltiea app"`
-	PluginSettings []string `long:"pluginsetting" description:"Plugin settings"`
+	// User database settings
+	UserDB        string `long:"userdb" description:"Database choice for the user database"`
+	DBHost        string `long:"dbhost" description:"Database ip:port"`
+	DBPass        string // Provided in env variable "DBPASS"
+	DBRootCert    string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
+	DBCert        string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
+	DBKey         string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
+	EncryptionKey string `long:"encryptionkey" description:"File containing encryption key used for encrypting user data at rest"`
 
-	// Embedded legacy settings. This will be deleted soon.
-	LegacyConfig
+	// Application settings
+	Mode        string `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
+	DcrdataHost string `long:"dcrdatahost" description:"Dcrdata ip:port"`
+
+	// Proposal settings
+	PaywallAmount            uint64 `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register or submit a proposal."`
+	PaywallXpub              string `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
+	MinConfirmationsRequired uint64 `long:"minconfirmations" description:"Minimum blocks confirmation for accepting paywall as paid. Only works in TestNet."`
+
+	// CMS settings
+	BuildCMSDB           bool     `long:"buildcmsdb" description:"Build the cmsdb from scratch"`
+	GithubAPIToken       string   `long:"githubapitoken" description:"API Token used to communicate with github API.  When populated in cmswww mode, github-tracker is enabled."`
+	CodeStatRepos        []string `long:"codestatrepos" description:"Org/Repositories to crawl for code statistics"`
+	CodeStatOrganization string   `long:"codestatorg" description:"Organization to crawl for code statistics"`
+	CodeStatStart        int64    `long:"codestatstart" description:"Date in which to look back to for code stat crawl (default 6 months back)"`
+	CodeStatEnd          int64    `long:"codestatend" description:"Date in which to end look back to for code stat crawl (default today)"`
+	CodeStatSkipSync     bool     `long:"codestatskipsync" description:"Skip pull request crawl on startup"`
+	VoteDurationMin      uint32   `long:"votedurationmin" description:"Minimum duration of a dcc vote in blocks"`
+	VoteDurationMax      uint32   `long:"votedurationmax" description:"Maximum duration of a dcc vote in blocks"`
 
 	Version     string
 	ActiveNet   *ChainParams             // Active DCR network
@@ -192,26 +210,28 @@ func Load() (*Config, []string, error) {
 		Listeners:        []string{},
 		HTTPSCert:        "",
 		HTTPSKey:         "",
-		CookieKey:        "",
-		SessionMaxAge:    defaultSessionMaxAge,
+		CookieKeyFile:    "",
 		ReadTimeout:      defaultReadTimeout,
 		WriteTimeout:     defaultWriteTimeout,
 		ReqBodySizeLimit: defaultReqBodySizeLimit,
-		PluginBatchLimit: defaultPluginBatchLimit,
 
 		// SMTP settings
-		MailAddress: defaultMailAddress,
+		MailAddress:   defaultMailAddress,
+		MailRateLimit: defaultMailRateLimit,
 
-		// Legacy settings. These are deprecated and will be removed soon.
-		LegacyConfig: LegacyConfig{
-			UserDB:                   LevelDB,
-			Mode:                     PiWWWMode,
-			PaywallAmount:            defaultPaywallAmount,
-			MinConfirmationsRequired: defaultPaywallMinConfirmations,
-			VoteDurationMin:          defaultVoteDurationMin,
-			VoteDurationMax:          defaultVoteDurationMax,
-			MailRateLimit:            defaultMailRateLimit,
-		},
+		// User database settings
+		UserDB: LevelDB,
+
+		// Application settings
+		Mode: PiWWWMode,
+
+		// Proposal settings
+		PaywallAmount:            defaultPaywallAmount,
+		MinConfirmationsRequired: defaultPaywallMinConfirmations,
+
+		// CMS settings
+		VoteDurationMin: defaultVoteDurationMin,
+		VoteDurationMax: defaultVoteDurationMax,
 
 		Version: version.Version,
 	}
@@ -348,6 +368,12 @@ func Load() (*Config, []string, error) {
 	cfg.DataDir = filepath.Join(cfg.DataDir, cfg.ActiveNet.Name)
 	cfg.LogDir = filepath.Join(cfg.LogDir, cfg.ActiveNet.Name)
 
+	// Create the data directory
+	err = os.MkdirAll(cfg.DataDir, 0700)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	// Parse, validate, and set debug log level(s).
 	if err := parseAndSetDebugLevels(cfg.DebugLevel); err != nil {
 		err := fmt.Errorf("%s: %v", funcName, err.Error())
@@ -356,15 +382,15 @@ func Load() (*Config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Initialize log rotation. After the log rotation has
-	// been initialized, the logger variables may be used.
-	logger.InitLogRotator(filepath.Join(cfg.LogDir, defaultLogFilename))
-
 	// Load the system cert pool
 	cfg.SystemCerts, err = x509.SystemCertPool()
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// Initialize log rotation. After the log rotation has
+	// been initialized, the logger variables may be used.
+	logger.InitLogRotator(filepath.Join(cfg.LogDir, defaultLogFilename))
 
 	// Validate the config settings. These settings
 	// apply to both legacy mode and non-legacy mode.
@@ -380,23 +406,9 @@ func Load() (*Config, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-
-	// Validate the config settings that are specific
-	// to the legacy mode and the non-legacy mode.
-	switch {
-	case cfg.App != "":
-		// Politeia is not being run in legacy mode
-		err = setupDBSettings(cfg)
-		if err != nil {
-			return nil, nil, err
-		}
-
-	default:
-		// Polieia is being run in legacy mode
-		err = setupLegacyConfig(cfg)
-		if err != nil {
-			return nil, nil, err
-		}
+	err = setupLegacyConfig(cfg)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// Warn about missing config file only after all other
@@ -421,14 +433,14 @@ func setupHTTPServerSettings(cfg *Config) error {
 	if cfg.HTTPSKey == "" {
 		cfg.HTTPSKey = filepath.Join(cfg.HomeDir, defaultHTTPSKeyFilename)
 	}
-	if cfg.CookieKey == "" {
-		cfg.CookieKey = filepath.Join(cfg.HomeDir, defaultCookieKeyFilename)
+	if cfg.CookieKeyFile == "" {
+		cfg.CookieKeyFile = filepath.Join(cfg.HomeDir, defaultCookieKeyFilename)
 	}
 
 	// Clean file paths
 	cfg.HTTPSCert = util.CleanAndExpandPath(cfg.HTTPSCert)
 	cfg.HTTPSKey = util.CleanAndExpandPath(cfg.HTTPSKey)
-	cfg.CookieKey = util.CleanAndExpandPath(cfg.CookieKey)
+	cfg.CookieKeyFile = util.CleanAndExpandPath(cfg.CookieKeyFile)
 
 	// Add the default listener if none were specified. The
 	// default listener is all addresses on the listen port
@@ -446,6 +458,27 @@ func setupHTTPServerSettings(cfg *Config) error {
 	// Add default port to all listener addresses if needed
 	// and remove duplicate addresses.
 	cfg.Listeners = normalizeAddresses(cfg.Listeners, port)
+
+	// Generate the TLS cert and key files
+	switch {
+	case util.FileExists(cfg.HTTPSKey) && !util.FileExists(cfg.HTTPSCert):
+		// The cert doesn't exist
+		return fmt.Errorf("https key exists (%v) but the cert doesn't (%v)",
+			cfg.HTTPSKey, cfg.HTTPSCert)
+
+	case !util.FileExists(cfg.HTTPSKey) && util.FileExists(cfg.HTTPSCert):
+		// The key doesn't exist
+		return fmt.Errorf("https cert exists (%v) but the key doesn't (%v)",
+			cfg.HTTPSCert, cfg.HTTPSKey)
+
+	case !util.FileExists(cfg.HTTPSKey) && !util.FileExists(cfg.HTTPSCert):
+		// Neither the cert or key exist. Generate a TLS cert and key file.
+		err := util.GenCertPair(elliptic.P256(), "politeia",
+			cfg.HTTPSCert, cfg.HTTPSKey)
+		if err != nil {
+			return fmt.Errorf("unable to create https keypair: %v", err)
+		}
+	}
 
 	return nil
 }
@@ -508,28 +541,6 @@ func setupRPCSettings(cfg *Config) error {
 	}
 
 	log.Infof("Identity loaded from: %v", cfg.RPCIdentityFile)
-
-	return nil
-}
-
-// setupDBSettings sets up the database config settings.
-func setupDBSettings(cfg *Config) error {
-	// Validate the database host
-	if cfg.DBHost == "" {
-		cfg.DBHost = defaultMySQLHost
-	}
-	_, err := url.Parse(cfg.DBHost)
-	if err != nil {
-		return fmt.Errorf("invalid dbhost '%v': %v", cfg.DBHost, err)
-	}
-
-	// Pull the password from the env variable
-	cfg.DBPass = os.Getenv(envDBPass)
-	if cfg.DBPass == "" {
-		return fmt.Errorf("dbpass not found; you must provide "+
-			"the database password for the politeiawww user in "+
-			"the env variable %v", envDBPass)
-	}
 
 	return nil
 }
