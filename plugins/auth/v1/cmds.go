@@ -8,11 +8,11 @@ const (
 	PluginID        = "auth"
 	Version  uint32 = 1
 
-	CmdNewUser      = "newuser"
-	CmdLogin        = "login"
-	CmdLogout       = "logout"
-	CmdMe           = "me"
-	CmdUpdateGroups = "updategroups"
+	CmdNewUser     = "newuser"
+	CmdLogin       = "login"
+	CmdLogout      = "logout"
+	CmdMe          = "me"
+	CmdUpdateGroup = "updategroups"
 )
 
 // The following list contains the default auth plugin user groups.
@@ -115,10 +115,10 @@ const (
 	ActionDel ActionT = "del"
 )
 
-type UpdateGroups struct {
+type UpdateGroup struct {
 	UserID string  `json:"userid"`
 	Action ActionT `json:"action"`
 	Group  string  `json:"group"`
 }
 
-type UpdateGroupsReply struct{}
+type UpdateGroupReply struct{}

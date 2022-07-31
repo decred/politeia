@@ -68,7 +68,10 @@ func (c *CmdDetails) String() string {
 type WriteArgs struct {
 	Cmd     Cmd
 	Session *Session
-	UserID  string
+
+	// UserID is the user ID that was pull from the session of the user that is
+	// executing the command.
+	UserID string
 }
 
 func (a *WriteArgs) String() string {
@@ -81,7 +84,10 @@ func (a *WriteArgs) String() string {
 
 // ReadArgs contain the arguments for the plugin read methods.
 type ReadArgs struct {
-	Cmd    Cmd
+	Cmd Cmd
+
+	// UserID is the user ID that was pull from the session of the user that is
+	// executing the command.
 	UserID string
 }
 

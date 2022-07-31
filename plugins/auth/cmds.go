@@ -14,6 +14,7 @@ import (
 
 	"github.com/decred/politeia/app"
 	v1 "github.com/decred/politeia/plugins/auth/v1"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -229,8 +230,8 @@ func (p *authp) cmdMe(q querier, c app.Cmd, userID string) (*app.CmdReply, error
 	}, nil
 }
 
-func (p *authp) cmdUpdateGroups(tx *sql.Tx, c app.Cmd, userID string) (*app.CmdReply, error) {
-	var g v1.UpdateGroups
+func (p *authp) cmdUpdateGroup(tx *sql.Tx, c app.Cmd, userID string) (*app.CmdReply, error) {
+	var g v1.UpdateGroup
 	err := json.Unmarshal([]byte(c.Payload), &g)
 	if err != nil {
 		return nil, userErr{
@@ -269,14 +270,14 @@ func (p *authp) cmdUpdateGroups(tx *sql.Tx, c app.Cmd, userID string) (*app.CmdR
 	if err != nil {
 		return nil, err
 	}
-	if !p.userCanAssignGroup(u, group) {
+	if !p.userCanAssignGroup(*u, group) {
 		return nil, userErr{
 			Code:    v1.ErrCodeNotAuthorized,
 			Context: fmt.Sprintf("user is not allowed to update %v group", group),
 		}
 	}
 
-	// Execute the group update
+	// Execute the update
 	u, err = p.getUser(tx, updateUserID)
 	if err != nil {
 		return nil, err
@@ -289,12 +290,20 @@ func (p *authp) cmdUpdateGroups(tx *sql.Tx, c app.Cmd, userID string) (*app.CmdR
 	}
 	err = p.updateUser(tx, *u)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	log.Infof("User %v %v group %v", u.Username, action, group)
 
-	return nil, nil
+	// Send the reply
+	payload, err := json.Marshal(v1.UpdateGroupReply{})
+	if err != nil {
+		return nil, err
+	}
+
+	return &app.CmdReply{
+		Payload: string(payload),
+	}, nil
 }
 
 // This function updates the contactInfo. The caller must save the changes to
@@ -420,4 +429,13 @@ func validateEmail(email string) error {
 		}
 	}
 	return nil
+}
+
+// validUserID returns whether the provided string is a valid uuid.
+func validUserID(userID string) bool {
+	_, err := uuid.Parse(userID)
+	if err != nil {
+		return false
+	}
+	return true
 }
