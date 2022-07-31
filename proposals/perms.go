@@ -12,14 +12,16 @@ import (
 // perms returns the user permissions for all plugin commands that are part
 // of the proposals app.
 func perms() []app.CmdPerms {
-	return []app.CmdPerms{
-		authPerms(),
-	}
+	perms := make([]app.CmdPerms, 0, 256)
+
+	perms = append(perms, authPerms()...)
+
+	return perms
 }
 
 // authPerms returns the CmdDetails for all of the auth plugin commands that
 // are part of the app.
-func authPerms() []app.CmdDetails {
+func authPerms() []app.CmdPerms {
 	// This is an abbreviated way of populating
 	// the CmdDetails list since the PluginID
 	// and Version will be the same for all of
@@ -46,13 +48,15 @@ func authPerms() []app.CmdDetails {
 		},
 	}
 
-	cmds := make([]app.CmdDetails, 0, len(c))
+	cmds := make([]app.CmdPerms, 0, len(c))
 	for _, v := range c {
-		cmds = append(cmds, app.Details{
-			Plugin:  auth.PluginID,
-			Version: auth.Version,
-			Name:    v.Name,
-			Groups:  v.Groups,
+		cmds = append(cmds, app.CmdPerms{
+			Cmd: app.CmdDetails{
+				Plugin:  auth.PluginID,
+				Version: auth.Version,
+				Name:    v.Name,
+			},
+			Groups: v.Groups,
 		})
 	}
 

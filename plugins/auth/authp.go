@@ -26,7 +26,7 @@ type authp struct {
 }
 
 // New returns a new authp.
-func New(a app.PluginArgs, userGroups, superUserGroups []string) (*authp, error) {
+func New(a app.PluginArgs) (*authp, error) {
 	s, err := newSettings(a.Settings)
 	if err != nil {
 		return nil, err

@@ -284,9 +284,9 @@ func (p *authp) cmdUpdateGroup(tx *sql.Tx, c app.Cmd, userID string) (*app.CmdRe
 	}
 	switch action {
 	case v1.ActionAdd:
-		u.AddGroup(group)
+		// u.AddGroup(group)
 	case v1.ActionDel:
-		u.DelGroup(group)
+		// u.DelGroup(group)
 	}
 	err = p.updateUser(tx, *u)
 	if err != nil {

@@ -29,6 +29,11 @@ type querier interface {
 	Query(query string, args ...interface{}) (*sql.Rows, error)
 }
 
+// TODO add created_at to every table. This allows iterating through all
+// records using LIMIT and ORDER BY created_at and knowing that you won't miss
+// any newly added records because they'll never be inserted into the middle
+// of the list you're retrieving.
+
 // usersTable is the database table for user data.
 const usersTable = `
   uuid           CHAR(36) PRIMARY KEY,
