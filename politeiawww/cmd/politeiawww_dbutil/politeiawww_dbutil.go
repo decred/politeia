@@ -489,63 +489,54 @@ func cmdMigrate() error {
 		return nil
 	}
 
-	fromType := args[0]
-	toType := args[1]
-
+	var (
+		fromType = args[0]
+		toType   = args[1]
+	)
 	if fromType == toType {
-		return fmt.Errorf("origin and destination databases can not " +
-			"be the same")
+		return fmt.Errorf("origin and destination databases cannot be the same")
 	}
 
-	// Connect to origin database.
+	// Connect to the databases
 	fromDB, err := connectDB(fromType)
 	if err != nil {
 		return err
 	}
 	defer fromDB.Close()
 
-	// Connect to destination database.
 	toDB, err := connectDB(toType)
 	if err != nil {
 		return err
 	}
 	defer toDB.Close()
 
-	fmt.Printf("Migrating records from %v to %v...\n", fromType, toType)
+	fmt.Printf("Migrating users from %v to %v...\n", fromType, toType)
 
-	var users []user.User
-	var paywallIndex uint64
-	var userCount int
-
-	// Populate the user slice from the origin database users.
+	// Migrate the users
+	var (
+		paywallIndex uint64
+		userCount    int
+	)
 	err = fromDB.AllUsers(func(u *user.User) {
-		users = append(users, *u)
-	})
-	if err != nil {
-		return fmt.Errorf("origin database allusers request: %v", err)
-	}
-
-	// Make sure the migration went ok.
-	if len(users) == 0 {
-		return fmt.Errorf("no users found in origin database")
-	}
-
-	for i := 0; i < len(users); i++ {
-		u := users[i]
-		// Check if username already exists in db. There was a
-		// ~2 month period where a bug allowed for users to be
-		// created with duplicate usernames.
-		_, err = toDB.UserGetByUsername(u.Username)
-
+		// Record the highest paywall address index found in the
+		// database. This will be saved in the new database once
+		// all of the users have been migrated.
 		if u.PaywallAddressIndex > paywallIndex {
 			paywallIndex = u.PaywallAddressIndex
 		}
+
+		// Check if username already exists. There was a ~2
+		// month period where a bug allowed for users to be
+		// created with duplicate usernames.
+		_, err = toDB.UserGetByUsername(u.Username)
 		switch err {
+		case user.ErrUserNotFound:
+			// Username doesn't exist; continue
+
 		case nil:
+			// The username already exists in the database. Allow the
+			// caller to update the username so that it's unique.
 			for !errors.Is(err, user.ErrUserNotFound) {
-				// Username is a duplicate. Allow for the username to be
-				// updated here. The migration will fail if the username
-				// is not unique.
 				fmt.Printf("Username '%v' already exists. Username must be "+
 					"updated for the following user before the migration can "+
 					"continue.\n", u.Username)
@@ -559,37 +550,55 @@ func cmdMigrate() error {
 				r := bufio.NewReader(os.Stdin)
 				input, err = r.ReadString('\n')
 				if err != nil {
-					return err
+					panic(err)
 				}
-
 				username := strings.TrimSuffix(input, "\n")
-				u.Username = strings.ToLower(strings.TrimSpace(username))
+				username = strings.ToLower(strings.TrimSpace(username))
+
+				u.Username = username
+
+				// Verify that the updated username is unique
 				_, err = toDB.UserGetByUsername(u.Username)
 			}
 
 			fmt.Printf("Username updated to '%v'\n", u.Username)
 
-		case user.ErrUserNotFound:
-			// Username doesn't exist; continue
 		default:
-			return err
+			panic(err)
 		}
 
-		err = toDB.InsertUser(u)
+		err = toDB.InsertUser(*u)
 		if err != nil {
-			return fmt.Errorf("migrate user '%v': %v",
-				u.ID, err)
+			panic(fmt.Sprintf("InsertUser %v: %v", u.ID, err))
 		}
 		userCount++
+	})
+	if err != nil {
+		return fmt.Errorf("AllUsers: %v", err)
 	}
-	// If at least one user was migrated, update paywall address index in
-	// destination database.
-	if userCount > 0 {
-		err = toDB.SetPaywallAddressIndex(paywallIndex)
-		if err != nil {
-			return fmt.Errorf("update paywall index '%v': %v", paywallIndex,
-				err)
-		}
+	if userCount == 0 {
+		fmt.Printf("No users found\n")
+		return nil
+	}
+
+	// Save the paywall address index to the new database.
+	// The index should be the same value as the number of
+	// users in the database. If it's not, update it and
+	// inform the caller. This can happen if the database
+	// has user stubs in it.
+	if int(paywallIndex) < userCount {
+		fmt.Printf("WARN: Paywall address index does not match the "+
+			"user count; user count %v, paywall address index %v\n",
+			userCount, paywallIndex)
+
+		paywallIndex = uint64(userCount)
+
+		fmt.Printf("Updated paywall address index to %v\n", paywallIndex)
+	}
+
+	err = toDB.SetPaywallAddressIndex(paywallIndex)
+	if err != nil {
+		return fmt.Errorf("set paywall index '%v': %v", paywallIndex, err)
 	}
 
 	fmt.Printf("Users migrated : %v\n", userCount)
