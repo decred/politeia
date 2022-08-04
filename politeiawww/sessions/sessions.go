@@ -122,7 +122,7 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 
 	case strings.Contains(err.Error(), "expired timestamp"):
 		// The session has expired. It's not possible anymore
-		// retreive the encoded session ID from the session,
+		// retrieve the encoded session ID from the session,
 		// which also means it's not possible to retrieve the
 		// encoded session values from the database. A new
 		// session with empty values is returned.
