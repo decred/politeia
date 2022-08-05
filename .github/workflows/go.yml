@@ -9,11 +9,11 @@ jobs:
         go: [1.17, 1.18]
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@f6164bd8c8acb4a71fb2791a8b6c4024ff038dab #v3.0.0
         with:
           go-version: ${{ matrix.go }}
       - name: Check out source
-        uses: actions/checkout@v2
+        uses: actions/a12a3943b4bdde767164f792f33f40b04645d846 #v3.0.0
       - name: Install Linters
         run: "curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.46.2"
       - name: Build
