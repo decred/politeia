@@ -774,7 +774,7 @@ type LoginReply struct {
 	TOTPVerified       bool   `json:"totpverified"`       // Whether current totp secret has been verified with
 }
 
-//Logout attempts to log the user out.
+// Logout attempts to log the user out.
 type Logout struct{}
 
 // LogoutReply indicates whether the Logout command was success or not.

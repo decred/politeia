@@ -93,8 +93,9 @@ func printVoteResults(votes []tkv1.CastVoteDetails) {
 // Eligible Tickets  : 4638 tickets
 // Best Block        : 800051
 // Results
-//   1 yes 0 votes
-//   2 no  60 votes
+//
+//	1 yes 0 votes
+//	2 no  60 votes
 //
 // indentInSpaces can be used to add indentation to each line of the string.
 // The provided number of spaces will be inserted at the beginning of each

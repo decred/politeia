@@ -126,13 +126,13 @@ func (p *usermdPlugin) addMissingRecord(tokens []string, missingRecord *backend.
 //
 // It verifies the user cache using the following process:
 //
-// 1. For each record, get the user metadata file from the db.
-// 2. Get the user cache for the record's author.
-// 3. Verify that the record is listed in the user cache under the
-//    correct category.  If the record is not found in the user
-//    cache, add it.  The tokens listed in the user cache are
-//    ordered by the timestamp of their most recent status change
-//    from oldest to newest.
+//  1. For each record, get the user metadata file from the db.
+//  2. Get the user cache for the record's author.
+//  3. Verify that the record is listed in the user cache under the
+//     correct category.  If the record is not found in the user
+//     cache, add it.  The tokens listed in the user cache are
+//     ordered by the timestamp of their most recent status change
+//     from oldest to newest.
 //
 // This function satisfies the plugins PluginClient interface.
 func (p *usermdPlugin) Fsck(tokens [][]byte) error {
