@@ -877,7 +877,7 @@ func _main() error {
 		}
 	case *verifyIdentities, *setEmail:
 		// These commands must be run with either -cockroachdb or -mysql.
-		if !*cockroach || *level {
+		if !*cockroach && !*mysql {
 			return fmt.Errorf("invalid database flag; must use " +
 				"either -mysql or -cockroachdb with this command")
 		}
