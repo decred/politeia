@@ -269,7 +269,7 @@ func loadConfig() (*config, []string, error) {
 		LogDir:           defaultLogDir,
 		HTTPSKey:         defaultHTTPSKeyFile,
 		HTTPSCert:        defaultHTTPSCertFile,
-		Version:          version.String(),
+		Version:          version.Version,
 		Backend:          defaultBackend,
 		ReadTimeout:      defaultReadTimeout,
 		WriteTimeout:     defaultWriteTimeout,
@@ -302,7 +302,7 @@ func loadConfig() (*config, []string, error) {
 	usageMessage := fmt.Sprintf("Use %s -h to show usage", appName)
 	if preCfg.ShowVersion {
 		fmt.Printf("%s version %s (Go version %s %s/%s)\n", appName,
-			version.String(), runtime.Version(), runtime.GOOS,
+			cfg.Version, runtime.Version(), runtime.GOOS,
 			runtime.GOARCH)
 		os.Exit(0)
 	}

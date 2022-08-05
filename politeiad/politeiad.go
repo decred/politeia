@@ -28,7 +28,6 @@ import (
 	"github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/backendv2/tstorebe"
 	"github.com/decred/politeia/util"
-	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 )
@@ -393,8 +392,7 @@ func _main() error {
 		}
 	}()
 
-	log.Infof("Version : %v", version.String())
-	log.Infof("Build   : %v", version.BuildMainVersion())
+	log.Infof("Version : %v", cfg.Version)
 	log.Infof("Network : %v", activeNetParams.Params.Name)
 	log.Infof("Home dir: %v", cfg.HomeDir)
 

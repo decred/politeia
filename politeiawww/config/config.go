@@ -233,6 +233,8 @@ func Load() (*Config, []string, error) {
 			VoteDurationMax:          defaultVoteDurationMax,
 			MailRateLimit:            defaultMailRateLimit,
 		},
+
+		Version: version.Version,
 	}
 
 	// Service options which are only added on Windows.
@@ -261,7 +263,7 @@ func Load() (*Config, []string, error) {
 	// Show the version and exit if the version flag was specified.
 	if preCfg.ShowVersion {
 		fmt.Printf("%s version %s (Go version %s %s/%s)\n", AppName,
-			version.String(), runtime.Version(), runtime.GOOS,
+			cfg.Version, runtime.Version(), runtime.GOOS,
 			runtime.GOARCH)
 		os.Exit(0)
 	}

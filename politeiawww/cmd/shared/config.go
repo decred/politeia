@@ -91,7 +91,7 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 		WalletHost: defaultWalletHost + ":" + defaultWalletTestnetPort,
 		WalletCert: defaultWalletCertFile,
 		FaucetHost: defaultFaucetHost,
-		Version:    version.String(),
+		Version:    version.Version,
 	}
 
 	// Pre-parse the command line options to see if an alternative config
@@ -110,7 +110,7 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
 	if cfg.ShowVersion {
 		fmt.Printf("%s version %s (Go version %s %s/%s)\n", appName,
-			version.String(), runtime.Version(), runtime.GOOS,
+			cfg.Version, runtime.Version(), runtime.GOOS,
 			runtime.GOARCH)
 		os.Exit(0)
 	}
