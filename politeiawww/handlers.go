@@ -17,7 +17,6 @@ import (
 	"github.com/decred/politeia/politeiawww/logger"
 	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
 	"github.com/decred/politeia/util"
-	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
 	"github.com/pkg/errors"
 )
@@ -56,7 +55,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	util.RespondWithJSON(w, http.StatusOK,
 		v3.VersionReply{
 			APIVersion:   v3.APIVersion,
-			BuildVersion: version.String(),
+			BuildVersion: p.cfg.Version,
 			Plugins:      plugins,
 		})
 }

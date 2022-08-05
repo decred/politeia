@@ -103,7 +103,7 @@ func (g *gitBackEnd) initCMSPluginJournals() error {
 	return nil
 }
 
-//SetCMSPluginSetting removes a setting if the value is "" and adds a setting otherwise.
+// SetCMSPluginSetting removes a setting if the value is "" and adds a setting otherwise.
 func setCMSPluginSetting(key, value string) {
 	if value == "" {
 		delete(cmsPluginSettings, key)

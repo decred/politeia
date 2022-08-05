@@ -224,10 +224,10 @@ func (e errSuppressUsage) Error() string {
 // line options.
 //
 // The configuration proceeds as follows:
-// 	1) Start with a default config with sane settings
-// 	2) Pre-parse the command line to check for an alternative config file
-// 	3) Load configuration file overwriting defaults with any specified options
-// 	4) Parse CLI options and overwrite/add any specified options
+//  1. Start with a default config with sane settings
+//  2. Pre-parse the command line to check for an alternative config file
+//  3. Load configuration file overwriting defaults with any specified options
+//  4. Parse CLI options and overwrite/add any specified options
 //
 // The above results in daemon functioning properly without any config settings
 // while still allowing the user to override settings with config files and
@@ -240,7 +240,7 @@ func loadConfig(appName string) (*config, []string, error) {
 		DebugLevel: defaultLogLevel,
 		LogDir:     defaultLogDir,
 		voteDir:    defaultVoteDir,
-		Version:    version.String(),
+		Version:    version.Version,
 		WalletCert: defaultWalletCert,
 		ClientCert: defaultClientCert,
 		ClientKey:  defaultClientKey,
@@ -274,7 +274,7 @@ func loadConfig(appName string) (*config, []string, error) {
 	// Show the version and exit if the version flag was specified.
 	if preCfg.ShowVersion {
 		fmt.Printf("%s version %s (Go version %s %s/%s)\n", appName,
-			version.String(), runtime.Version(), runtime.GOOS,
+			cfg.Version, runtime.Version(), runtime.GOOS,
 			runtime.GOARCH)
 		os.Exit(0)
 	}

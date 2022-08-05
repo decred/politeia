@@ -179,10 +179,10 @@ type Config struct {
 // options.
 //
 // The configuration proceeds as follows:
-// 	1) Start with a default config with sane settings
-// 	2) Pre-parse the command line to check for an alternative config file
-// 	3) Load configuration file overwriting defaults with any specified options
-// 	4) Parse CLI options and overwrite/add any specified options
+//  1. Start with a default config with sane settings
+//  2. Pre-parse the command line to check for an alternative config file
+//  3. Load configuration file overwriting defaults with any specified options
+//  4. Parse CLI options and overwrite/add any specified options
 //
 // The above results in rpc functioning properly without any config settings
 // while still allowing the user to override settings with config files and
@@ -233,6 +233,8 @@ func Load() (*Config, []string, error) {
 			VoteDurationMax:          defaultVoteDurationMax,
 			MailRateLimit:            defaultMailRateLimit,
 		},
+
+		Version: version.Version,
 	}
 
 	// Service options which are only added on Windows.
@@ -261,7 +263,7 @@ func Load() (*Config, []string, error) {
 	// Show the version and exit if the version flag was specified.
 	if preCfg.ShowVersion {
 		fmt.Printf("%s version %s (Go version %s %s/%s)\n", AppName,
-			version.String(), runtime.Version(), runtime.GOOS,
+			cfg.Version, runtime.Version(), runtime.GOOS,
 			runtime.GOARCH)
 		os.Exit(0)
 	}

@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Decred developers
+// Copyright (c) 2021-2022 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,6 +8,7 @@ import (
 	"encoding/base32"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
@@ -28,6 +29,9 @@ type sessionStore struct {
 // NewOptions returns a Options for the session store that is configured
 // conservatively. Only deviate from this configuration if you know what
 // you're doing.
+//
+// sessionMaxAge should be given in seconds. The session store prevents
+// session values from being returned once a session expires.
 func NewOptions(sessionMaxAge int) *sessions.Options {
 	return &sessions.Options{
 		Path:     "/",
@@ -83,7 +87,7 @@ func NewStore(db DB, opts *sessions.Options, keyPairs ...[]byte) *sessionStore {
 //
 // This function satisfies the gorilla/sessions Store interface.
 func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Session, error) {
-	log.Tracef("New: %v", cookieName)
+	log.Tracef("New %v", cookieName)
 
 	// Setup new session
 	session := sessions.NewSession(s, cookieName)
@@ -95,10 +99,14 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 	// Check if the session cookie already exists
 	c, err := r.Cookie(cookieName)
 	if errors.Is(err, http.ErrNoCookie) {
-		log.Debugf("Session cookie not found; returning a new session")
+		log.Tracef("Session cookie not found; returning a new session")
 		return session, nil
 	} else if err != nil {
 		return session, err
+	}
+	if c.Value == "" {
+		log.Tracef("Empty session value; returning new session")
+		return session, nil
 	}
 
 	// Session cookie already exists. The encoded session ID travels in
@@ -108,12 +116,25 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 	// Decode session ID (overwrites existing session ID)
 	err = securecookie.DecodeMulti(cookieName, c.Value,
 		&session.ID, s.Codecs...)
-	if err != nil {
+	switch {
+	case err == nil:
+		// Expected; continue
+
+	case strings.Contains(err.Error(), "expired timestamp"):
+		// The session has expired. It's not possible anymore
+		// retrieve the encoded session ID from the session,
+		// which also means it's not possible to retrieve the
+		// encoded session values from the database. A new
+		// session with empty values is returned.
+		log.Tracef("Session expired; returning a new session")
+		return session, nil
+
+	default:
 		// If there are any issues decoding the session ID,
 		// the existing session is considered invalid and
 		// the newly created session is returned.
 		log.Errorf("Failed to decode session: %v", err)
-		log.Debugf("Session invalid; returning new session")
+		log.Tracef("Session invalid; returning new session")
 		return session, nil
 	}
 
@@ -138,11 +159,11 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 		if err != nil {
 			return session, err
 		}
-		log.Debugf("Session found %v", session.ID)
+		log.Tracef("Session found %v", session.ID)
 
 	case ErrNotFound:
 		// Session not found in database; return the new one.
-		log.Debugf("Session not found; returning new session")
+		log.Tracef("Session not found; returning new session")
 
 	default:
 		// All other errors
@@ -162,7 +183,7 @@ func (s *sessionStore) New(r *http.Request, cookieName string) (*sessions.Sessio
 //
 // This function satisfies the gorrila/sessions Store interface.
 func (s *sessionStore) Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error {
-	log.Tracef("Save: %v", session.ID)
+	log.Tracef("Save %v", session.ID)
 
 	// Delete session if max-age is <= 0
 	if session.Options.MaxAge <= 0 {
@@ -214,7 +235,7 @@ func (s *sessionStore) Save(r *http.Request, w http.ResponseWriter, session *ses
 //
 // This function satisfies the gorilla/sessions Store interface.
 func (s *sessionStore) Get(r *http.Request, cookieName string) (*sessions.Session, error) {
-	log.Tracef("Get: %v", cookieName)
+	log.Tracef("Get %v", cookieName)
 
 	return sessions.GetRegistry(r).Get(s, cookieName)
 }

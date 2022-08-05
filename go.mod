@@ -1,6 +1,6 @@
 module github.com/decred/politeia
 
-go 1.17
+go 1.18
 
 require (
 	decred.org/dcrwallet v1.7.0
@@ -33,7 +33,6 @@ require (
 	github.com/gorilla/schema v1.1.0
 	github.com/gorilla/securecookie v1.1.1
 	github.com/gorilla/sessions v1.2.1
-	github.com/gorilla/websocket v1.4.2
 	github.com/h2non/go-is-svg v0.0.0-20160927212452-35e8c4b0612c
 	github.com/jessevdk/go-flags v1.4.1-0.20200711081900-c17162fe8fd7
 	github.com/jinzhu/gorm v1.9.12
@@ -76,6 +75,7 @@ require (
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/certificate-transparency-go v1.1.2-0.20210512142713-bed466244fa6 // indirect
+	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/lib/pq v1.9.0 // indirect
 	github.com/transparency-dev/merkle v0.0.1 // indirect
