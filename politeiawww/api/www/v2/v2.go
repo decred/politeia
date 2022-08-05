@@ -72,10 +72,10 @@ type AuthorizeVote struct {
 // be considered approved.
 //
 // Differences between v1 and v2:
-// * Added the Version field that specifies the version of the proposal that is
-//   being voted on. This was added so that the proposal version is included in
-//   the StartVote signature.
-// * Added the Type field that specifies the vote type.
+//   - Added the Version field that specifies the version of the proposal that is
+//     being voted on. This was added so that the proposal version is included in
+//     the StartVote signature.
+//   - Added the Type field that specifies the vote type.
 type Vote struct {
 	Token            string       `json:"token"`            // Proposal token
 	ProposalVersion  uint32       `json:"proposalversion"`  // Proposal version of vote
@@ -93,9 +93,9 @@ type Vote struct {
 // encoded v2 Vote struct.
 //
 // Differences between v1 and v2:
-// * Signature has been updated to be a signature of the Vote hash. It was
-//   previously a signature of just the proposal token.
-// * Vote has been updated. See the Vote comment for more details.
+//   - Signature has been updated to be a signature of the Vote hash. It was
+//     previously a signature of just the proposal token.
+//   - Vote has been updated. See the Vote comment for more details.
 //
 // This request is NO LONGER SUPPORTED. Use the pi/v1 API instead.
 type StartVote struct {
@@ -107,9 +107,9 @@ type StartVote struct {
 // StartVoteReply is the reply to the StartVote command.
 //
 // Differences between v1 and v2:
-// * StartBlockHeight was changed from a string to a uint32.
-// * EndBlockHeight was changed from a string to a uint32. It was also renamed
-//   from EndHeight to EndBlockHeight to be consistent with StartBlockHeight.
+//   - StartBlockHeight was changed from a string to a uint32.
+//   - EndBlockHeight was changed from a string to a uint32. It was also renamed
+//     from EndHeight to EndBlockHeight to be consistent with StartBlockHeight.
 //
 // This request is NO LONGER SUPPORTED. Use the pi/v1 API instead.
 type StartVoteReply struct {

@@ -185,7 +185,7 @@ func (g *gitBackEnd) replayAllJournals() error {
 	return nil
 }
 
-//SetDecredPluginSetting removes a setting if the value is "" and adds a setting otherwise.
+// SetDecredPluginSetting removes a setting if the value is "" and adds a setting otherwise.
 func setDecredPluginSetting(key, value string) {
 	if value == "" {
 		delete(decredPluginSettings, key)

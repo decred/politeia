@@ -216,23 +216,23 @@ func newImportCmd(legacyDir, tlogHost, dbHost, dbPass, importToken string, stubU
 //
 // 2. Retrieve the tstore token inventory.
 //
-// 3. Iterate through each record in the existing tstore inventory and check
-//    if the record corresponds to one of the legacy proposals.
+//  3. Iterate through each record in the existing tstore inventory and check
+//     if the record corresponds to one of the legacy proposals.
 //
-// 4. Perform an fsck on all legacy proposals that already exist in tstore to
-//    verify that the full legacy proposal has been imported. Any missing
-//    legacy proposal content is added to tstore during this step. A partial
-//    import can happen if the import command was being run and was stopped
-//    prior to completion or if it encountered an unexpected error.
+//  4. Perform an fsck on all legacy proposals that already exist in tstore to
+//     verify that the full legacy proposal has been imported. Any missing
+//     legacy proposal content is added to tstore during this step. A partial
+//     import can happen if the import command was being run and was stopped
+//     prior to completion or if it encountered an unexpected error.
 //
-// 5. Add the legacy RFP proposals to tstore. This must be done first so that
-//    the RFP submissions can link to the tstore RFP proposal token.
+//  5. Add the legacy RFP proposals to tstore. This must be done first so that
+//     the RFP submissions can link to the tstore RFP proposal token.
 //
 // 6. Add the remaining legacy proposals to tstore.
 //
-// 7. Add a startRunoffRecord for each RFP proposal vote. The record is added
-//    to the RFP parent's tlog tree. This is required in order to mimic what
-//    would happen under normal operating conditions.
+//  7. Add a startRunoffRecord for each RFP proposal vote. The record is added
+//     to the RFP parent's tlog tree. This is required in order to mimic what
+//     would happen under normal operating conditions.
 func (c *importCmd) importLegacyProposals() error {
 	// 1. Inventory all legacy proposals being imported
 	legacyInv, err := parseLegacyTokens(c.legacyDir)
