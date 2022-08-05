@@ -240,7 +240,7 @@ func loadConfig(appName string) (*config, []string, error) {
 		DebugLevel: defaultLogLevel,
 		LogDir:     defaultLogDir,
 		voteDir:    defaultVoteDir,
-		Version:    version.String(),
+		Version:    version.Version,
 		WalletCert: defaultWalletCert,
 		ClientCert: defaultClientCert,
 		ClientKey:  defaultClientKey,
@@ -274,7 +274,7 @@ func loadConfig(appName string) (*config, []string, error) {
 	// Show the version and exit if the version flag was specified.
 	if preCfg.ShowVersion {
 		fmt.Printf("%s version %s (Go version %s %s/%s)\n", appName,
-			version.String(), runtime.Version(), runtime.GOOS,
+			cfg.Version, runtime.Version(), runtime.GOOS,
 			runtime.GOARCH)
 		os.Exit(0)
 	}

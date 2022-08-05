@@ -22,7 +22,6 @@ import (
 	plugin "github.com/decred/politeia/politeiawww/plugin/v1"
 	"github.com/decred/politeia/politeiawww/user"
 	"github.com/decred/politeia/util"
-	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 )
@@ -74,7 +73,7 @@ func _main() error {
 		logger.CloseLogRotator()
 	}()
 
-	log.Infof("Version : %v", version.String())
+	log.Infof("Version : %v", cfg.Version)
 	log.Infof("Network : %v", cfg.ActiveNet.Name)
 	log.Infof("Home dir: %v", cfg.HomeDir)
 
