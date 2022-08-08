@@ -154,7 +154,11 @@ func (t *Tstore) fullLengthToken(token []byte) ([]byte, error) {
 
 // Fsck performs a filesystem check on the tstore.
 func (t *Tstore) Fsck(allTokens [][]byte) error {
-	err := t.freezeCheck()
+	err := t.anchorTrees()
+	if err != nil {
+		return err
+	}
+	err = t.freezeTreeCheck()
 	if err != nil {
 		return err
 	}
@@ -258,6 +262,10 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, dbHost, dbPass,
 		err := t.anchorTrees()
 		if err != nil {
 			log.Errorf("anchorTrees: %v", err)
+		}
+		err = t.freezeTreeCheck()
+		if err != nil {
+			log.Errorf("freeTreeCheck: %v", err)
 		}
 	})
 	if err != nil {

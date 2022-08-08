@@ -11,8 +11,8 @@ import (
 	"github.com/google/trillian"
 )
 
-// freezeCheck checks if any trillian trees meet the requirements to be frozen.
-// If they do, their status is updated in trillian to frozen.
+// freezeTreeCheck checks if any trillian trees meet the requirements to be
+// frozen. If they do, their status is updated in trillian to frozen.
 //
 // A frozen trillian tree can no longer be appended to. The trillian_log_signer
 // will no longer poll the MySQL database for updates to a tree once it has
@@ -24,22 +24,28 @@ import (
 // frozen until the record is frozen AND a final timestamp has been added to
 // tree. This means that we cannot simply freeze the tree at the same time that
 // the record is frozen since the trees are only timestamped episodically.
-//
-// This check is run after a timestamp anchor is dropped and during the tstore
-// fsck.
-func (t *Tstore) freezeCheck() error {
-	log.Infof("Checking for tlog trees that need to be frozen")
+func (t *Tstore) freezeTreeCheck() error {
+	log.Infof("Checking for trillian trees to freeze")
 
 	trees, err := t.tlog.TreesAll()
 	if err != nil {
 		return err
 	}
 
+	active := make([]*trillian.Tree, 0, len(trees))
+	for _, v := range trees {
+		if v.TreeState == trillian.TreeState_ACTIVE {
+			active = append(active, v)
+		}
+	}
+
+	log.Infof("%v/%v trees are active", len(active), len(trees))
+
 	var count int
-	for i, tree := range trees {
+	for i, tree := range active {
 		// Log progress every 10 trees
 		if i%10 == 0 {
-			log.Debugf("Checking for trees to freeze %v/%v", i+1, len(trees))
+			log.Debugf("Checking for trees to freeze %v/%v", i+1, len(active))
 		}
 		freeze, err := t.treeShouldBeFrozen(tree)
 		if err != nil {
@@ -54,12 +60,13 @@ func (t *Tstore) freezeCheck() error {
 		if err != nil {
 			return err
 		}
+
 		log.Infof("Tree frozen %v %x", tree.TreeId, tokenFromTreeID(tree.TreeId))
+
 		count++
 	}
 
-	log.Infof("Done checking for trees to freeze (%v/%v frozen)",
-		count, len(trees))
+	log.Infof("%v/%v active trees were frozen", count, len(active))
 
 	return nil
 }

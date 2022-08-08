@@ -568,12 +568,8 @@ func (t *Tstore) anchorTrees() error {
 		return fmt.Errorf("dcrtime failed to timestamp digests")
 	}
 
-	// Launch the go routine that polls dcrtime for the anchor tx
+	// Launch go routine that polls dcrtime for the anchor tx
 	go t.anchorWait(anchors, digests)
-
-	// Launch the go routine that checks if any trillian trees need
-	// to be frozen.
-	go t.freezeCheck()
 
 	return nil
 }
