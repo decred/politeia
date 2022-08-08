@@ -155,7 +155,7 @@ const usageMsg = `politeiawww_dbutil usage:
           CockroachDB args : <importDir>
     -dump
           Dump the entire database or the contents of a specific user
-          Required DB flag : -leveldb
+          Required DB flag : -leveldb or -cockroachdb or -mysql
           LevelDB args     : <username>
     -createkey
           Create a new encryption key that can be used to encrypt data at rest
@@ -179,28 +179,19 @@ const usageMsg = `politeiawww_dbutil usage:
           CockroachDB args : <username>`
 
 func cmdDump() error {
-	// If email is provided, only dump that user.
 	args := flag.Args()
-	if len(args) == 1 {
-		username := args[0]
-		u, err := userDB.UserGetByUsername(username)
-
-		if err != nil {
-			return err
-		}
-
-		fmt.Printf("Key    : %v\n", username)
-		fmt.Printf("Record : %v", spew.Sdump(u))
-		return nil
+	if len(args) == 0 {
+		return fmt.Errorf("username was not provided")
 	}
 
-	err := userDB.AllUsers(func(u *user.User) {
-		fmt.Printf("Key    : %v\n", u.Username)
-		fmt.Printf("Record : %v\n", spew.Sdump(u))
-	})
+	username := args[0]
+	u, err := userDB.UserGetByUsername(username)
 	if err != nil {
 		return err
 	}
+
+	fmt.Printf("%v", spew.Sdump(u))
+
 	return nil
 }
 
@@ -863,17 +854,11 @@ func _main() error {
 	}
 
 	switch {
-	case *addCredits || *setAdmin || *stubUsers || *resetTotp:
+	case *addCredits || *setAdmin || *stubUsers || *resetTotp || *dump:
 		// These commands must be run with -cockroachdb, -mysql or -leveldb.
 		if !*level && !*cockroach && !*mysql {
 			return fmt.Errorf("missing database flag; must use " +
 				"-leveldb, -cockroachdb or -mysql")
-		}
-	case *dump:
-		// These commands must be run with -leveldb.
-		if !*level {
-			return fmt.Errorf("missing database flag; must use " +
-				"-leveldb with this command")
 		}
 	case *verifyIdentities, *setEmail:
 		// These commands must be run with either -cockroachdb or -mysql.
