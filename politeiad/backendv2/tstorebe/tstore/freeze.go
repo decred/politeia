@@ -25,7 +25,7 @@ import (
 // tree. This means that we cannot simply freeze the tree at the same time that
 // the record is frozen since the trees are only timestamped episodically.
 func (t *Tstore) freezeTreeCheck() error {
-	log.Infof("Checking for trillian trees to freeze")
+	log.Infof("Checking if any trillian trees can be frozen")
 
 	trees, err := t.tlog.TreesAll()
 	if err != nil {
@@ -39,14 +39,10 @@ func (t *Tstore) freezeTreeCheck() error {
 		}
 	}
 
-	log.Infof("%v/%v trees are active", len(active), len(trees))
+	log.Infof("%v/%v active trillian trees found", len(active), len(trees))
 
-	var count int
-	for i, tree := range active {
-		// Log progress every 10 trees
-		if i%10 == 0 {
-			log.Debugf("Checking for trees to freeze %v/%v", i+1, len(active))
-		}
+	var frozen int
+	for _, tree := range active {
 		freeze, err := t.treeShouldBeFrozen(tree)
 		if err != nil {
 			log.Errorf("treeShouldBeFrozen %v: %v", tree.TreeId, err)
@@ -63,10 +59,11 @@ func (t *Tstore) freezeTreeCheck() error {
 
 		log.Infof("Tree frozen %v %x", tree.TreeId, tokenFromTreeID(tree.TreeId))
 
-		count++
+		frozen++
 	}
 
-	log.Infof("%v/%v active trees were frozen", count, len(active))
+	log.Infof("%v trees were frozen; %v active trees remaining",
+		frozen, len(active)-frozen)
 
 	return nil
 }
