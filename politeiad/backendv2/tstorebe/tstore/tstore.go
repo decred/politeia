@@ -154,11 +154,17 @@ func (t *Tstore) fullLengthToken(token []byte) ([]byte, error) {
 
 // Fsck performs a filesystem check on the tstore.
 func (t *Tstore) Fsck(allTokens [][]byte) error {
+	log.Infof("Starting tstore fsck")
+
 	err := t.anchorTrees()
 	if err != nil {
-		return err
+		// Anchoring trees relies on the external dcrtime API.
+		// Don't allow a dcrtime error to stop execution. The
+		// anchoring process will be kicked off again by the
+		// tstore cron job at a later time.
+		log.Errorf("anchorTrees: %v", err)
 	}
-	err = t.freezeTreeCheck()
+	err = t.freezeTrees()
 	if err != nil {
 		return err
 	}
@@ -167,12 +173,11 @@ func (t *Tstore) Fsck(allTokens [][]byte) error {
 	for _, pluginID := range t.pluginIDs() {
 		p, _ := t.plugin(pluginID)
 
-		log.Infof("Performing fsck on the %v plugin", pluginID)
+		log.Infof("Starting %v plugin fsck", pluginID)
 
 		err := p.client.Fsck(allTokens)
 		if err != nil {
-			return errors.Errorf("plugin %v fsck: %v",
-				pluginID, err)
+			return errors.Errorf("plugin %v fsck: %v", pluginID, err)
 		}
 	}
 
@@ -263,9 +268,9 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, dbHost, dbPass,
 		if err != nil {
 			log.Errorf("anchorTrees: %v", err)
 		}
-		err = t.freezeTreeCheck()
+		err = t.freezeTrees()
 		if err != nil {
-			log.Errorf("freeTreeCheck: %v", err)
+			log.Errorf("freeTrees: %v", err)
 		}
 	})
 	if err != nil {

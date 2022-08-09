@@ -442,8 +442,6 @@ func (t *Tstore) anchorWait(anchors []anchor, digests []string) {
 // The anchor data is saved to the key-value store and the tlog tree is updated
 // with an anchor leaf.
 func (t *Tstore) anchorTrees() error {
-	log.Debugf("Start anchor process")
-
 	// Ensure we are not reentrant
 	if t.droppingAnchorGet() {
 		// An anchor is not considered dropped until dcrtime returns the
@@ -463,6 +461,8 @@ func (t *Tstore) anchorTrees() error {
 	if err != nil {
 		return fmt.Errorf("TreesAll: %v", err)
 	}
+
+	log.Infof("Starting anchor process; checking %v trees", len(trees))
 
 	// digests contains the SHA256 digests of the LogRootV1.RootHash
 	// for all trees that need to be anchored. These will be submitted

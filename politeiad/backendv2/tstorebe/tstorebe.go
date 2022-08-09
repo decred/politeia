@@ -1025,19 +1025,20 @@ func (t *tstoreBackend) Fsck() error {
 	}
 
 	log.Infof("%v records found in the tstore backend", len(allTokens))
-	log.Infof("Sorting the records by timestamp")
 
-	// Get the partial record for all tokens
+	// Categorize the records by their record state, vetted or
+	// unvetted, then sort each category by timestamp.
 	records := make(map[string]*backend.Record, len(allTokens))
-	for _, token := range allTokens {
+	for i, token := range allTokens {
+		if i%50 == 0 {
+			log.Infof("Sorting records by timestamp %v/%v", i+1, len(allTokens))
+		}
 		r, err := t.tstore.RecordPartial(token, 0, nil, true)
 		if err != nil {
 			return err
 		}
 		records[r.RecordMetadata.Token] = r
 	}
-
-	// Sort the records by their record state: vetted or unvetted.
 	var (
 		vetted   = make([]*backend.Record, 0, len(allTokens))
 		unvetted = make([]*backend.Record, 0, len(allTokens))
@@ -1117,7 +1118,7 @@ func (t *tstoreBackend) Fsck() error {
 			record.RecordMetadata.Status)
 	}
 
-	// Update all plugin caches
+	// Perform a tstore fsck. This will fsck all plugins all well.
 	return t.tstore.Fsck(allTokens)
 }
 
