@@ -100,7 +100,7 @@ type config struct {
 	RPCUser     string `long:"rpcuser" description:"RPC user name for privileged commands"`
 	RPCPass     string `long:"rpcpass" description:"RPC password for privileged commands"`
 	DcrtimeHost string `long:"dcrtimehost" description:"Dcrtime ip:port"`
-	DcrtimeCert string // Provided in env variable "DCRTIMECERT"
+	DcrtimeCert string `long:"dcrtimecert" description:"Dcrtime HTTPS certificate"`
 	Identity    string `long:"identity" description:"File containing the politeiad identity file"`
 	Backend     string `long:"backend" description:"Backend type"`
 	Fsck        bool   `long:"fsck" description:"Perform filesystem checks on all record and plugin data"`

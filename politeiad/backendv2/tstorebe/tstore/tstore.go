@@ -154,11 +154,16 @@ func (t *Tstore) fullLengthToken(token []byte) ([]byte, error) {
 
 // Fsck performs a filesystem check on the tstore.
 func (t *Tstore) Fsck(allTokens [][]byte) error {
-	// Set tree status to frozen for any trees that are frozen and have
-	// been anchored one last time.
-	// Verify all file blobs have been deleted for censored records.
+	err := t.anchorTrees()
+	if err != nil {
+		return err
+	}
+	err = t.freezeTreeCheck()
+	if err != nil {
+		return err
+	}
 
-	// Run plugin fscks's
+	// Run the plugin fscks
 	for _, pluginID := range t.pluginIDs() {
 		p, _ := t.plugin(pluginID)
 
@@ -257,6 +262,10 @@ func New(appDir, dataDir string, anp *chaincfg.Params, tlogHost, dbHost, dbPass,
 		err := t.anchorTrees()
 		if err != nil {
 			log.Errorf("anchorTrees: %v", err)
+		}
+		err = t.freezeTreeCheck()
+		if err != nil {
+			log.Errorf("freeTreeCheck: %v", err)
 		}
 	})
 	if err != nil {
