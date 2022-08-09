@@ -21,9 +21,10 @@ import (
 //
 // A record is marked as frozen when it can no longer be updated, such as when
 // a record status is set to archived. The trillian tree, however, cannot be
-// frozen until the record is frozen AND a final timestamp has been added to
-// tree. This means that we cannot simply freeze the tree at the same time that
-// the record is frozen since the trees are only timestamped episodically.
+// frozen until the record is frozen AND a final dcr timestamp has been added
+// to tree. This means that we cannot simply freeze the tree at the same time
+// that the record is frozen since it will still need to be timestamped one
+// last time.
 func (t *Tstore) freezeTreeCheck() error {
 	log.Infof("Checking if any trillian trees can be frozen")
 
@@ -71,7 +72,7 @@ func (t *Tstore) freezeTreeCheck() error {
 // treeShouldBeFrozen returns whether a trillian tree meets the requirements to
 // have it's status updated from ACTIVE to FROZEN. The requirments are that the
 // tree is currently active, the record saved to the tree has been frozen, and
-// that a final timestamp anchor record has been added to the tree.
+// a final dcr timestamp has been added to the tree.
 func (t *Tstore) treeShouldBeFrozen(tree *trillian.Tree) (bool, error) {
 	if tree.TreeState != trillian.TreeState_ACTIVE {
 		return false, nil
@@ -96,7 +97,7 @@ func (t *Tstore) treeShouldBeFrozen(tree *trillian.Tree) (bool, error) {
 		return false, nil
 	}
 	// The record has been frozen. Check for a final
-	// timestamp.
+	// timestamp leaf.
 	lastLeaf := leaves[len(leaves)-1]
 	d, err := extraDataDecode(lastLeaf.ExtraData)
 	if err != nil {
