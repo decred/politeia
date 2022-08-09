@@ -5,7 +5,7 @@ politeiad
 
 ### Install dependencies
 
-<details><summary><b>Go 1.17</b></summary>
+<details><summary><b>Go 1.18 or 1.19</b></summary>
 
   Installation instructions can be at https://golang.org/doc/install.
   Ensure Go was installed properly and is a supported version:

@@ -29,16 +29,16 @@ import (
 //
 // 1. Record content is saved to the kv store.
 //
-// 2. A trillian leaf is created for each piece of record content. The kv store
-//    key for each piece of content is stuffed into the LogLeaf.ExtraData
-//    field. The leaves are appended onto the trillian tree.
+//  2. A trillian leaf is created for each piece of record content. The kv store
+//     key for each piece of content is stuffed into the LogLeaf.ExtraData
+//     field. The leaves are appended onto the trillian tree.
 //
-// 3. If there are failures in steps 1 or 2 for any of the blobs then the
-//    update will exit without completing. No unwinding is performed. Blobs
-//    will be left in the kv store as orphaned blobs. The trillian tree is
-//    append-only so once a leaf is appended, it's there permanently. If steps
-//    1 and 2 are successful then a recordIndex is created, saved to the kv
-//    store, and appended onto the trillian tree.
+//  3. If there are failures in steps 1 or 2 for any of the blobs then the
+//     update will exit without completing. No unwinding is performed. Blobs
+//     will be left in the kv store as orphaned blobs. The trillian tree is
+//     append-only so once a leaf is appended, it's there permanently. If steps
+//     1 and 2 are successful then a recordIndex is created, saved to the kv
+//     store, and appended onto the trillian tree.
 //
 // Appending a recordIndex onto the trillian tree is the last operation that
 // occurs during a record update. If a recordIndex exists in the tree then the

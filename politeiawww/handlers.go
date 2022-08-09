@@ -48,7 +48,7 @@ func (p *politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 
 	vr := v3.VersionReply{
 		APIVersion:   v3.APIVersion,
-		BuildVersion: version.String(),
+		BuildVersion: version.Version,
 	}
 
 	respondWithOK(w, vr)

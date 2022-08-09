@@ -643,15 +643,15 @@ func dccCommentNew(u user, token, parentID, comment string) error {
 //
 // A new cms user must have their contractor type updated before they are able
 // to submit invoices. There are currently two ways for this to happen.
-// 1. An admin can update it manually using the CMSManageUser route.
-// 2. The contractor can undergo the DCC process. The DCC process is where
-//    the new contractor is nominated by an existing contractor then other
-//    existing contractors can support or oppose the DCC nomination. Admins
-//    currently have final say in the approval of a DCC. If a DCC is
-//    contentious, it can be put up for an all contractor vote where existing
-//    contractor votes are weighted by the amount of hours they've billed.
-//    Once a DCC has been approved, the user's ContractorType is automatically
-//    updated and they are able to submit invoices.
+//  1. An admin can update it manually using the CMSManageUser route.
+//  2. The contractor can undergo the DCC process. The DCC process is where
+//     the new contractor is nominated by an existing contractor then other
+//     existing contractors can support or oppose the DCC nomination. Admins
+//     currently have final say in the approval of a DCC. If a DCC is
+//     contentious, it can be put up for an all contractor vote where existing
+//     contractor votes are weighted by the amount of hours they've billed.
+//     Once a DCC has been approved, the user's ContractorType is automatically
+//     updated and they are able to submit invoices.
 //
 // testDCC runs through the full DCC process with the exception of the all
 // contractor vote for contentious DCCs. See testDCCVote() for details on the

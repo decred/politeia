@@ -100,7 +100,7 @@ type config struct {
 	RPCUser     string `long:"rpcuser" description:"RPC user name for privileged commands"`
 	RPCPass     string `long:"rpcpass" description:"RPC password for privileged commands"`
 	DcrtimeHost string `long:"dcrtimehost" description:"Dcrtime ip:port"`
-	DcrtimeCert string // Provided in env variable "DCRTIMECERT"
+	DcrtimeCert string `long:"dcrtimecert" description:"Dcrtime HTTPS certificate"`
 	Identity    string `long:"identity" description:"File containing the politeiad identity file"`
 	Backend     string `long:"backend" description:"Backend type"`
 	Fsck        bool   `long:"fsck" description:"Perform filesystem checks on all record and plugin data"`
@@ -251,10 +251,10 @@ func newConfigParser(cfg *config, so *serviceOptions, options flags.Options) *fl
 // line options.
 //
 // The configuration proceeds as follows:
-// 	1) Start with a default config with sane settings
-// 	2) Pre-parse the command line to check for an alternative config file
-// 	3) Load configuration file overwriting defaults with any specified options
-// 	4) Parse CLI options and overwrite/add any specified options
+//  1. Start with a default config with sane settings
+//  2. Pre-parse the command line to check for an alternative config file
+//  3. Load configuration file overwriting defaults with any specified options
+//  4. Parse CLI options and overwrite/add any specified options
 //
 // The above results in daemon functioning properly without any config settings
 // while still allowing the user to override settings with config files and
@@ -269,7 +269,7 @@ func loadConfig() (*config, []string, error) {
 		LogDir:           defaultLogDir,
 		HTTPSKey:         defaultHTTPSKeyFile,
 		HTTPSCert:        defaultHTTPSCertFile,
-		Version:          version.String(),
+		Version:          version.Version,
 		Backend:          defaultBackend,
 		ReadTimeout:      defaultReadTimeout,
 		WriteTimeout:     defaultWriteTimeout,
@@ -302,7 +302,7 @@ func loadConfig() (*config, []string, error) {
 	usageMessage := fmt.Sprintf("Use %s -h to show usage", appName)
 	if preCfg.ShowVersion {
 		fmt.Printf("%s version %s (Go version %s %s/%s)\n", appName,
-			version.String(), runtime.Version(), runtime.GOOS,
+			cfg.Version, runtime.Version(), runtime.GOOS,
 			runtime.GOARCH)
 		os.Exit(0)
 	}

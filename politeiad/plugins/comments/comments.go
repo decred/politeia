@@ -263,11 +263,11 @@ type Comment struct {
 // The structure of the signature field depends on whether the CommentAdd is
 // associated with a new comment or a comment edit:
 //
-//   1. When a comment is created it's the user signature of the:
-//   State + Token + ParentID + Comment + ExtraData + ExtraDataHint.
+//  1. When a comment is created it's the user signature of the:
+//     State + Token + ParentID + Comment + ExtraData + ExtraDataHint.
 //
-//   2. When a comment is edited it's the user signature of the:
-//   State + Token + ParentID + CommentID + Comment + ExtraData + ExtraDataHint.
+//  2. When a comment is edited it's the user signature of the:
+//     State + Token + ParentID + CommentID + Comment + ExtraData + ExtraDataHint.
 //
 // Receipt is the server signature of the user signature.
 //

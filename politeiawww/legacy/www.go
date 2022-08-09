@@ -12,7 +12,6 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/mime"
 	v1 "github.com/decred/politeia/politeiawww/api/www/v1"
 	"github.com/decred/politeia/util"
-	"github.com/decred/politeia/util/version"
 	"github.com/gorilla/csrf"
 )
 
@@ -24,7 +23,7 @@ func (p *Politeiawww) handleVersion(w http.ResponseWriter, r *http.Request) {
 	versionReply := v1.VersionReply{
 		Version:      v1.PoliteiaWWWAPIVersion,
 		Route:        v1.PoliteiaWWWAPIRoute,
-		BuildVersion: version.BuildMainVersion(),
+		BuildVersion: p.cfg.Version,
 		PubKey:       hex.EncodeToString(p.cfg.Identity.Key[:]),
 		TestNet:      p.cfg.TestNet,
 		Mode:         p.cfg.Mode,
@@ -76,7 +75,7 @@ func (p *Politeiawww) handlePolicy(w http.ResponseWriter, r *http.Request) {
 		ProposalNameSupportedChars: v1.PolicyProposalNameSupportedChars,
 		MaxCommentLength:           v1.PolicyMaxCommentLength,
 		TokenPrefixLength:          v1.TokenPrefixLength,
-		BuildInformation:           version.BuildInformation(),
+		BuildInformation:           []string{p.cfg.Version},
 		IndexFilename:              v1.PolicyIndexFilename,
 		MinLinkByPeriod:            0,
 		MaxLinkByPeriod:            0,

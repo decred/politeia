@@ -105,9 +105,9 @@ type VoteOption struct {
 // The message being signed is the SHA256 digest of the VoteV2 JSON byte slice.
 //
 // Differences between StartVoteV1 and StartVoteV2:
-// * Signature is the signature of a hash of the Vote struct. It was
-//   previously the signature of just the proposal token.
-// * Vote is now a VoteV2. See the VoteV2 comment for more details.
+//   - Signature is the signature of a hash of the Vote struct. It was
+//     previously the signature of just the proposal token.
+//   - Vote is now a VoteV2. See the VoteV2 comment for more details.
 type StartVoteV2 struct {
 	Version   uint   `json:"version"`   // Version of this structure
 	PublicKey string `json:"publickey"` // Key used for signature
@@ -118,10 +118,10 @@ type StartVoteV2 struct {
 // VoteV2 represents the vote options and vote parameters for a StartVoteV2.
 //
 // Differences between VoteV1 and VoteV2:
-// * Added the ProposalVersion field that specifies the version of the proposal
-//   that is being voted on. This was added so that the proposal version is
-//   explicitly included in the StartVote signature.
-// * Added a Type field in order to specify the vote type.
+//   - Added the ProposalVersion field that specifies the version of the proposal
+//     that is being voted on. This was added so that the proposal version is
+//     explicitly included in the StartVote signature.
+//   - Added a Type field in order to specify the vote type.
 type VoteV2 struct {
 	Token            string       `json:"token"`
 	ProposalVersion  uint32       `json:"proposalversion"`

@@ -12,16 +12,16 @@ import (
 // fsck performs the ticketvote plugin file system check. The following checks
 // are performed:
 //
-// 1. Rebuild the vote summaries cache. Records that have finished voting
-//    will have a vote summary saved to the cache. This cache is rebuilt
-//    from scratch.
+//  1. Rebuild the vote summaries cache. Records that have finished voting
+//     will have a vote summary saved to the cache. This cache is rebuilt
+//     from scratch.
 //
-// 2. Rebuild the vote inventory cache. All vetted records are included in the
-//    vote inventory cache. This cache is rebuilt from scratch.
+//  2. Rebuild the vote inventory cache. All vetted records are included in the
+//     vote inventory cache. This cache is rebuilt from scratch.
 //
-// 3. Rebuild the runoff vote submissions cache. The submissions cache contains
-//    the list of runoff vote parent records and all of their runoff vote
-//    submissions. This cache is built from scratch.
+//  3. Rebuild the runoff vote submissions cache. The submissions cache contains
+//     the list of runoff vote parent records and all of their runoff vote
+//     submissions. This cache is built from scratch.
 func (p *ticketVotePlugin) fsck(tokens [][]byte) error {
 	log.Infof("Starting ticketvote fsck for %v records", len(tokens))
 

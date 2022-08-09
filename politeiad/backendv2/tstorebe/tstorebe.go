@@ -797,12 +797,12 @@ func (t *tstoreBackend) RecordSetStatus(token []byte, status backend.StatusT, md
 // error, was encoutered prior to the record being saved to the tree. We ignore
 // this edge case because:
 //
-// 1. A user has no way to obtain this token unless the trillian instance has
-//    been opened to the public.
+//  1. A user has no way to obtain this token unless the trillian instance has
+//     been opened to the public.
 //
-// 2. Even if they have the token they cannot do anything with it. Any attempt
-//  	to read from the tree or write to the tree will return a RecordNotFound
-//    error.
+//  2. Even if they have the token they cannot do anything with it. Any attempt
+//     to read from the tree or write to the tree will return a RecordNotFound
+//     error.
 //
 // Pulling the leaves from the tree to see if a record has been saved to the
 // tree adds a large amount of overhead to this call, which should be a very

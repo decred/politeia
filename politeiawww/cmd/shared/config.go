@@ -73,10 +73,10 @@ type Config struct {
 // line options.
 //
 // The configuration proceeds as follows:
-// 	1) Start with a default config with sane settings
-// 	2) Pre-parse the command line to check for an alternative config file
-// 	3) Load configuration file overwriting defaults with any specified options
-// 	4) Parse CLI options and overwrite/add any specified options
+//  1. Start with a default config with sane settings
+//  2. Pre-parse the command line to check for an alternative config file
+//  3. Load configuration file overwriting defaults with any specified options
+//  4. Parse CLI options and overwrite/add any specified options
 //
 // The above results in the cli functioning properly without any config
 // settings while still allowing the user to override settings with config
@@ -91,7 +91,7 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 		WalletHost: defaultWalletHost + ":" + defaultWalletTestnetPort,
 		WalletCert: defaultWalletCertFile,
 		FaucetHost: defaultFaucetHost,
-		Version:    version.String(),
+		Version:    version.Version,
 	}
 
 	// Pre-parse the command line options to see if an alternative config
@@ -110,7 +110,7 @@ func LoadConfig(homeDir, dataDirname, configFilename string) (*Config, error) {
 	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
 	if cfg.ShowVersion {
 		fmt.Printf("%s version %s (Go version %s %s/%s)\n", appName,
-			version.String(), runtime.Version(), runtime.GOOS,
+			cfg.Version, runtime.Version(), runtime.GOOS,
 			runtime.GOARCH)
 		os.Exit(0)
 	}
