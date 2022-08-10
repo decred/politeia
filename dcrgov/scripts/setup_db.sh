@@ -10,11 +10,11 @@
 #   the app user database (default: root)
 # - ROOT_PASSWORD: The password for the ROOT_USER (default: none)
 # - APP_DB: The database name of the app database that will be created
-#   (default: dcrpro_testnet3)
+#   (default: dcrgov_testnet3)
 # - APP_USER: The name of the MySQL user that will be created for the app
-#   (default: dcrpro)
+#   (default: dcrgov)
 # - APP_PASSWORD: The password for the APP_USER that will be created
-#   (default: dcrpropass)
+#   (default: dcrgovpass)
 # - APP_HOST: The host that the APP_USER will connect from; use '%' as a
 #   wildcard (default: localhost)
 
@@ -23,9 +23,9 @@
 [ -z ${PORT+x} ] && PORT="3306"
 [ -z ${ROOT_USER+x} ] && ROOT_USER="root"
 [ -z ${ROOT_PASSWORD+x} ] && ROOT_PASSWORD=""
-[ -z ${APP_DB+x} ] && APP_DB="dcrpro_testnet3"
-[ -z ${APP_USER+x} ] && APP_USER="dcrpro"
-[ -z ${APP_PASSWORD+x} ] && APP_PASSWORD="dcrpropass"
+[ -z ${APP_DB+x} ] && APP_DB="dcrgov_testnet3"
+[ -z ${APP_USER+x} ] && APP_USER="dcrgov"
+[ -z ${APP_PASSWORD+x} ] && APP_PASSWORD="dcrgovpass"
 [ -z ${APP_HOST+x} ] && APP_HOST="localhost"
 
 # Run all commands as the MySQL root user

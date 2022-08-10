@@ -58,6 +58,7 @@ func (s *Server) handlePolicy(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handlePolicy")
 
 	pr := v1.PolicyReply{
+		SessionMaxAge:  s.cfg.SessionMaxAge,
 		ReadBatchLimit: s.cfg.PluginBatchLimit,
 	}
 
@@ -84,6 +85,8 @@ func (s *Server) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Infof("%v Exec %v", util.RemoteAddr(r), cs)
+
 	// Extract the session data from the request cookies
 	sn, err := s.extractSession(r)
 	if err != nil {
@@ -98,8 +101,6 @@ func (s *Server) handleWrite(w http.ResponseWriter, r *http.Request) {
 		respondWithInternalError(w, r, err)
 		return
 	}
-
-	log.Infof("Executed write %v", cs)
 
 	// Save any updates that were made to the session
 	err = s.updateSession(r, w, sn, asn)
@@ -137,6 +138,8 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Infof("%v Exec %v", util.RemoteAddr(r), cs)
+
 	// Extract the session data from the request cookies
 	sn, err := s.extractSession(r)
 	if err != nil {
@@ -151,8 +154,6 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request) {
 		respondWithInternalError(w, r, err)
 		return
 	}
-
-	log.Infof("Executed read %v", cs)
 
 	// Read commands aren't allowed to update the
 	// user session, so we don't need to check.

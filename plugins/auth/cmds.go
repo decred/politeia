@@ -5,6 +5,7 @@
 package auth
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -30,7 +31,7 @@ func (p *authp) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 		}
 	}
 
-	// Validate the user credentials
+	// Verify the user credentials
 	var (
 		username = formatUsername(nu.Username)
 		password = nu.Password
@@ -59,7 +60,7 @@ func (p *authp) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 		return nil, err
 	}
 
-	// Validate the contact info and send any external
+	// Verify the contact info and send any external
 	// communications, such as an email, that's needed
 	// to verify ownership. Contact info is optional.
 	contacts := make([]contactInfo, 0)
@@ -128,29 +129,26 @@ func (p *authp) cmdLogin(tx *sql.Tx, c app.Cmd, s *app.Session) (*app.CmdReply, 
 		}
 		return nil, err
 	}
-	/*
-		if u.IsDeactivated() {
-			return nil, userErr{
-				Code: v1.ErrCodeAccountDeactivated,
-			}
+	if u.Deactivated {
+		return nil, userErr{
+			Code: v1.ErrCodeAccountDeactivated,
 		}
-		if u.IsLocked() {
-			return nil, userErr{
-				Code: v1.ErrCodeAccountLocked,
-			}
+	}
+	if u.IsLocked(p.settings.MaxFailedLogins) {
+		return nil, userErr{
+			Code: v1.ErrCodeAccountLocked,
 		}
-	*/
+	}
 
 	// Verify the password
 	err = bcrypt.CompareHashAndPassword(u.Password, []byte(password))
 	if err != nil {
 		// Wrong password. Update the user record with
 		// the failed attempt before returning.
-		//
-		// TODO
-		// Login attempts must be rate limited (5 attempts)
-		//
-		// On account lock, send notification
+		err = p.handleFailedLogin(u.ID)
+		if err != nil {
+			return nil, err
+		}
 		return nil, userErr{
 			Code: v1.ErrCodeInvalidLogin,
 		}
@@ -162,13 +160,11 @@ func (p *authp) cmdLogin(tx *sql.Tx, c app.Cmd, s *app.Session) (*app.CmdReply, 
 	sn.SetUserID(u.ID)
 
 	// Update and save the user
-	/*
-		u.AddLogin()
-		err = p.updateUser(u)
-		if err != nil {
-			return nil, err
-		}
-	*/
+	u.AddLogin()
+	err = p.updateUser(tx, *u)
+	if err != nil {
+		return nil, err
+	}
 
 	// Send the reply
 	lr := v1.LoginReply{
@@ -245,7 +241,7 @@ func (p *authp) cmdUpdateGroup(tx *sql.Tx, c app.Cmd, userID string) (*app.CmdRe
 		action        = g.Action
 	)
 
-	// Validate the request
+	// Verify the request
 	switch {
 	case !validUserID(updateUserID):
 		return nil, userErr{
@@ -324,6 +320,55 @@ func (p *authp) sendContactVerification(username string, c *contactInfo) error {
 	c.TokenSent = append(c.TokenSent, time.Now().Unix())
 
 	log.Debugf("Contact info verification (%v) sent for %v", c.Type, username)
+
+	return nil
+}
+
+// handleFailedLogin updates the user's account with a failed login attempt
+// and sends a notification to the user if they've reached the max allowed
+// number of failed attempts and their account is now locked.
+//
+// This database update occurs in an error path, which means the database
+// transaction provided to the plugin will no be committed. For this reason,
+// we must perform the update using a new transaction.
+func (p *authp) handleFailedLogin(userID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+
+	tx, err := p.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	u, err := p.getUser(tx, userID)
+	if err != nil {
+		return err
+	}
+	err = u.AddFailedLogin(p.settings.MaxFailedLogins)
+	if err != nil {
+		return err
+	}
+	err = p.updateUser(tx, *u)
+	if err != nil {
+		return err
+	}
+	err = tx.Commit()
+	if err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			return errors.Errorf("commit err: %v, rollback err: %v", err, err2)
+		}
+		return errors.WithStack(err)
+	}
+
+	if !u.IsLocked(p.settings.MaxFailedLogins) {
+		// User has not reached the max allowed
+		// failed logins. Nothing else to do.
+		return nil
+	}
+
+	// The user has reached the max allowed failed
+	// logins. Send them a notification letting them
+	// know that their account is locked.
+	// TODO
 
 	return nil
 }

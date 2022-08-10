@@ -17,9 +17,9 @@ const (
 
 // The following list contains the default auth plugin user groups.
 //
-// Apps set command permissions by assigning the command user groups that are
-// allowed to execute the command. Apps can add custom user groups in addition
-// to the default groups listed below.
+// Apps set command permissions by assigning the command a list of user groups
+// that are allowed to execute the command. Apps can add custom user groups in
+// addition to the default groups listed below.
 const (
 	// PublicUser represents a public user. Commands that are assigned this
 	// user group can be run freely by any client. The client does not need to
@@ -62,15 +62,16 @@ type ContactInfo struct {
 type Policy struct{}
 
 type PolicyReply struct {
-	SessionMaxAge     int64    `json:"sessionmaxage"`
 	UsernameChars     []string `json:"usernamechars"` // Supported characters
 	UsernameMinLength uint32   `json:"usernameminlength"`
 	UsernameMaxLength uint32   `json:"usernamemaxlength"`
 	PasswordMinLength uint32   `json:"passwordminlength"`
 	PasswordMaxLength uint32   `json:"passwordmaxlength"`
+	MaxFailedLogins   uint32   `json:"maxfailedlogins"`
+	ContactTypes      []string `json:"contacttypes"`
 }
 
-// NewUser is the request payload for the CmdNewUser.
+// NewUser is the request payload for the CmdNewUser command.
 //
 // See the PolicyReply for username and password requirements. The username is
 // not case sensitive and must be unique.

@@ -24,6 +24,7 @@ type settings struct {
 	UsernameMaxLength uint32
 	PasswordMinLength uint32
 	PasswordMaxLength uint32
+	MaxFailedLogins   uint32
 	ContactTypes      map[string]struct{}
 
 	// usernameRegexp is used to validate usernames.
@@ -44,6 +45,7 @@ func newSettings(newSettings []app.Setting) (*settings, error) {
 		UsernameMaxLength: 15,
 		PasswordMinLength: 8,
 		PasswordMaxLength: 128,
+		MaxFailedLogins:   10,
 		ContactTypes: map[string]struct{}{
 			contactTypeEmail: {},
 		},
@@ -81,6 +83,16 @@ func (s *settings) update(newSettings []app.Setting) error {
 // parseSetting parses the plugin setting and updates the settings context.
 func (s *settings) parseSetting(v app.Setting) error {
 	switch v.Name {
+	case v1.SettingHost:
+		u, err := url.Parse(v.Value)
+		if err != nil {
+			return err
+		}
+		if !u.IsAbs() {
+			u.Scheme = "https"
+		}
+		s.Host = u
+
 	case v1.SettingsUsernameChars:
 		var chars []string
 		err := json.Unmarshal([]byte(v.Value), &chars)
@@ -117,18 +129,15 @@ func (s *settings) parseSetting(v app.Setting) error {
 		}
 		s.PasswordMaxLength = uint32(u)
 
-	case v1.SettingContactTypes:
-		// TODO
-
-	case v1.SettingHost:
-		u, err := url.Parse(v.Value)
+	case v1.SettingMaxFailedLogins:
+		u, err := strconv.ParseUint(v.Value, 10, 64)
 		if err != nil {
 			return err
 		}
-		if !u.IsAbs() {
-			u.Scheme = "https"
-		}
-		s.Host = u
+		s.MaxFailedLogins = uint32(u)
+
+	case v1.SettingContactTypes:
+		// TODO
 
 	default:
 		return errors.Errorf("setting name not recognized")

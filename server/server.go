@@ -42,6 +42,7 @@ type Server struct {
 	cmds map[string]struct{}
 }
 
+// New returns a new Server.
 func New(cfg *Config, db *sql.DB, a app.App) (*Server, error) {
 	err := verifyConfig(cfg)
 	if err != nil {
@@ -61,8 +62,7 @@ func New(cfg *Config, db *sql.DB, a app.App) (*Server, error) {
 	}
 
 	// Setup the router
-	csrfMaxAge := int(cfg.CSRFMaxAge)
-	router, protected := NewRouter(cfg.ReqBodySizeLimit, csrfKey, csrfMaxAge)
+	router, protected := NewRouter(cfg.ReqBodySizeLimit, csrfKey, cfg.CSRFMaxAge)
 
 	// Setup the sessions store
 	sdb, err := sndb.New(db, cfg.SessionMaxAge, nil)

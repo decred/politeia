@@ -25,6 +25,9 @@ type App interface {
 	// read commands are allowed to be batched.
 	PreventBatchedReads() []CmdDetails
 
+	// TODO I don't think I need to pass the context anymore since it's
+	// all one binary now
+
 	// Write executes a plugin write command.
 	//
 	// Any updates made to the session will be persisted by the politeia server.

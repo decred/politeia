@@ -27,25 +27,28 @@ var (
 // query to be atomic.
 type querier interface {
 	Query(query string, args ...interface{}) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
 }
 
-// TODO add created_at to every table. This allows iterating through all
-// records using LIMIT and ORDER BY created_at and knowing that you won't miss
-// any newly added records because they'll never be inserted into the middle
-// of the list you're retrieving.
-
 // usersTable is the database table for user data.
+//
+// encrypted contains the full user object as a JSON encoded, encrypted blob.
+// Some public fields are duplicated in clear text so that they can be queried
+// using SQL.
 const usersTable = `
-  uuid           CHAR(36) PRIMARY KEY,
-  username       VARCHAR(64) NOT NULL UNIQUE,
-	encrypted_blob LONGBLOB
+  uuid       CHAR(36) PRIMARY KEY,
+  username   VARCHAR(64) NOT NULL UNIQUE,
+  created_at BIGINT NOT NULL,
+  encrypted  LONGBLOB
 `
 
 // groupsTable is the database table for user groups. A user can be a part
 // of many groups.
 const groupsTable = `
-	uuid       CHAR(36),
-	user_group VARCHAR(64) NOT NULL,
+  id          INT PRIMARY KEY AUTO_INCREMENT,
+  uuid        CHAR(36),
+  user_group  VARCHAR(64) NOT NULL,
+  created_at  BIGINT NOT NULL,
   FOREIGN KEY (uuid) REFERENCES auth_users(uuid)
 `
 
@@ -56,16 +59,17 @@ const groupsTable = `
 // providing the email address for the account. This table allows us to lookup
 // the user ID using the email address.
 //
-// The primary key is a base64 encoded bcyrpt hash of the contact information.
+// contact_hash is a base64 encoded bcyrpt hash of the contact information.
 // It's hashed using bcrypt to add a layer of protection in the event that the
 // database is compromised.
 //
-// user_ids contains a JSON encoded []string, where each entry is a user ID.
 // Contact information is not required to be unique, so it's possible that a
-// contact, such as an email address, corresponds to multiple user IDs.
+// contact hash corresponds to multiple user IDs.
 const contactsTable = `
-  contact_hash CHAR(80) PRIMARY KEY,
-	user_ids     BLOB NOT NULL
+  id           INT PRIMARY KEY AUTO_INCREMENT,
+  contact_hash CHAR(80),
+  uuid         CHAR(36),
+  FOREIGN KEY (uuid) REFERENCES auth_users(uuid)
 `
 
 // setupDB sets up the auth plugin database tables.
@@ -106,20 +110,13 @@ func (p *authp) insertUser(tx *sql.Tx, u user) error {
 		return err
 	}
 
-	q := "INSERT INTO auth_users VALUES(?, ?, ?);"
-	_, err = tx.Exec(q, u.ID, u.Username, e)
+	q := "INSERT INTO auth_users VALUES(?, ?, ?, ?);"
+	_, err = tx.Exec(q, u.ID, u.Username, u.CreatedAt, e)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	for _, group := range u.Groups {
-		q = "INSERT INTO auth_groups VALUES(?, ?);"
-		_, err = tx.Exec(q, u.ID, group)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-	}
-
+	// TODO update groupsTable
 	// TODO update contactsTable
 
 	log.Debugf("User inserted into database %v", &u)
@@ -129,124 +126,64 @@ func (p *authp) insertUser(tx *sql.Tx, u user) error {
 
 // A errNotFound error is returned if a user is not found.
 func (p *authp) updateUser(tx *sql.Tx, u user) error {
+	e, err := encryptUser(u)
+	if err != nil {
+		return err
+	}
+
+	q := `UPDATE auth_users
+        SET username = ?, encrypted = ?
+        WHERE uuid = ?;`
+	_, err = tx.Exec(q, u.Username, e, u.ID)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// TODO update groupsTable
+	// TODO update contactsTable
+
 	return nil
 }
 
 // A errNotFound error is returned if a user is not found.
 func (p *authp) getUser(q querier, userID string) (*user, error) {
-	qs := `SELECT *
-        FROM auth_users u
-        INNER JOIN auth_groups USING(uuid)
-        WHERE u.uuid=?;`
-
-	rows, err := q.Query(qs, userID)
+	var b []byte
+	qs := `SELECT encrypted FROM auth_users WHERE uuid = ?;`
+	err := q.QueryRow(qs, userID).Scan(&b)
 	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	defer rows.Close()
-
-	// Unpack the results
-	var (
-		username  string
-		encrypted []byte
-		group     string
-
-		groups    = make([]string, 0, 64)
-		rowsCount int
-	)
-	for rows.Next() {
-		err = rows.Scan(&userID, &username, &encrypted, &group)
-		if err != nil {
-			return nil, errors.WithStack(err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errNotFound
 		}
-		groups = append(groups, group)
-		rowsCount++
+		return nil, err
 	}
-	err = rows.Err()
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	if rowsCount == 0 {
-		return nil, errNotFound
-	}
-
-	u := user{
-		ID:       userID,
-		Username: username,
-		Groups:   groups,
-	}
-	err = decryptUser(encrypted, &u)
+	u, err := decryptUser(b)
 	if err != nil {
 		return nil, err
 	}
-
-	return &u, nil
+	return u, nil
 }
 
 // A errNotFound error is returned if a user is not found.
-func (p *authp) getUserByUsername(tx *sql.Tx, username string) (*user, error) {
-	q := `SELECT *
-        FROM auth_users u
-        INNER JOIN auth_groups USING(uuid)
-        WHERE u.username=?;`
-
-	rows, err := tx.Query(q, username)
+func (p *authp) getUserByUsername(q querier, username string) (*user, error) {
+	var b []byte
+	qs := `SELECT encrypted FROM auth_users WHERE username = ?;`
+	err := q.QueryRow(qs, username).Scan(&b)
 	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	defer rows.Close()
-
-	// Unpack the results
-	var (
-		userID    string
-		encrypted []byte
-		group     string
-
-		groups    = make([]string, 0, 64)
-		rowsCount int
-	)
-	for rows.Next() {
-		err = rows.Scan(&userID, &username, &encrypted, &group)
-		if err != nil {
-			return nil, errors.WithStack(err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errNotFound
 		}
-		groups = append(groups, group)
-		rowsCount++
+		return nil, err
 	}
-	err = rows.Err()
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	if rowsCount == 0 {
-		return nil, errNotFound
-	}
-
-	u := user{
-		ID:       userID,
-		Username: username,
-		Groups:   groups,
-	}
-	err = decryptUser(encrypted, &u)
+	u, err := decryptUser(b)
 	if err != nil {
 		return nil, err
 	}
-
-	return &u, nil
-}
-
-// eblob contains the user fields that are saved as an encrypted blob.
-type eblob struct {
-	Password    []byte        `json:"password"`
-	ContactInfo []contactInfo `json:"contactinfo,omitempty"`
+	return u, nil
 }
 
 // TODO encrypt blob
 func encryptUser(u user) ([]byte, error) {
-	e := eblob{
-		Password:    u.Password,
-		ContactInfo: u.ContactInfo,
-	}
-	b, err := json.Marshal(e)
+	b, err := json.Marshal(u)
 	if err != nil {
 		return nil, err
 	}
@@ -254,17 +191,13 @@ func encryptUser(u user) ([]byte, error) {
 }
 
 // TODO decrypt blob
-func decryptUser(b []byte, u *user) error {
-	var e eblob
-	err := json.Unmarshal(b, &e)
+func decryptUser(b []byte) (*user, error) {
+	var u user
+	err := json.Unmarshal(b, &u)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-
-	u.Password = e.Password
-	u.ContactInfo = e.ContactInfo
-
-	return nil
+	return &u, nil
 }
 
 const (

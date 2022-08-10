@@ -14,7 +14,7 @@ import (
 
 func (p *authp) sendEmail(subject, body string, recipients []string) error {
 	if p.smtp == nil {
-		log.Debugf("Email disabled; skipping send email")
+		log.Debugf("Email is disabled; skipping send email")
 		return nil
 	}
 	msg := goemail.NewMessage(p.emailAddress, subject, body)

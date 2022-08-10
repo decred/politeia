@@ -11,7 +11,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func NewRouter(reqBodySizeLimit int64, csrfKey []byte, csrfMaxAge int) (*mux.Router, *mux.Router) {
+func NewRouter(reqBodySizeLimit int64, csrfKey []byte, csrfMaxAge uint32) (*mux.Router, *mux.Router) {
 	// Setup the public router
 	public := mux.NewRouter()
 	public.StrictSlash(true) // Ignore trailing slashes
@@ -46,7 +46,7 @@ func NewRouter(reqBodySizeLimit int64, csrfKey []byte, csrfMaxAge int) (*mux.Rou
 		csrfKey,
 		// Set the CSRF cookie on all auth router paths and subpaths.
 		csrf.Path("/"),
-		csrf.MaxAge(csrfMaxAge),
+		csrf.MaxAge(int(csrfMaxAge)),
 	)
 	protected.Use(csrfMiddleware)
 

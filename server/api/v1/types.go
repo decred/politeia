@@ -31,6 +31,10 @@ type Policy struct{}
 // PolicyReply is the reply for the PolicyRoute. It contains API policy
 // information.
 type PolicyReply struct {
+	// SessionMaxAge is the maximum age of a session. Sessions that are older
+	// than the max age are considered expired and invalid.
+	SessionMaxAge uint32 `json:"sessionmaxage"`
+
 	// ReadBatchLimit contains the maximum number of plugin commands allowed in
 	// a read batch request.
 	ReadBatchLimit uint32 `json:"readbatchlimit"`

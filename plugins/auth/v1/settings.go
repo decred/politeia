@@ -17,5 +17,11 @@ const (
 
 	SettingPasswordMaxLength = "password_max_length"
 
+	// SettingMaxFailedLogins is the maximum number of logins that a user can
+	// attempt over a 24 hour period due to the wrong password. Once the failed
+	// login attempts has been exceeded, the user account is locked and must be
+	// unlocked by an admin.
+	SettingMaxFailedLogins = "max_failed_logins"
+
 	SettingContactTypes = "contact_types"
 )

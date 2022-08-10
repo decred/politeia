@@ -7,7 +7,6 @@ package app
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
@@ -84,12 +83,10 @@ func (d *Driver) WriteCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, 
 	// Commit the database transaction
 	err = tx.Commit()
 	if err != nil {
-		// Attempt to roll back the transaction
 		if err2 := tx.Rollback(); err2 != nil {
-			// We're in trouble!
-			panic(fmt.Sprintf("commit err: %v, rollback err: %v", err, err2))
+			return nil, errors.Errorf("commit err: %v, rollback err: %v", err, err2)
 		}
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return reply, nil

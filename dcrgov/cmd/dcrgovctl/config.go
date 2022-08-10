@@ -23,7 +23,8 @@ import (
 
 const (
 	// General application settings
-	appName     = "proctl"
+	appName     = "dcrgovctl"
+	hostAppName = "dcrgov"
 	dataDirname = "data"
 	logDirname  = "logs"
 	logLevel    = "info"
@@ -41,7 +42,7 @@ var (
 
 	// Server settings
 	host      = "https://localhost:4443"
-	hostDir   = dcrutil.AppDataDir("dcrpro", false)
+	hostDir   = dcrutil.AppDataDir(hostAppName, false)
 	httpsCert = filepath.Join(hostDir, "https.cert")
 )
 

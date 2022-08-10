@@ -45,7 +45,7 @@ type mysql struct {
 	// periodically clean up expired sessions from the database. The
 	// gorilla/sessions Store implemenation does not do this automatically. It
 	// must be done manually in the database layer.
-	sessionMaxAge int64
+	sessionMaxAge uint32
 
 	// opts contains the session database options.
 	opts *Opts
@@ -74,9 +74,9 @@ const (
 //
 // The sessionMaxAge is the max age in seconds of a session. This function
 // cleans up any expired sessions from the database as part of the
-// initialization. A sessionMaxAge of <=0 will cause the sessions database
+// initialization. A sessionMaxAge of 0 will cause the sessions database
 // to be dropped and recreated.
-func New(db *sql.DB, sessionMaxAge int64, opts *Opts) (*mysql, error) {
+func New(db *sql.DB, sessionMaxAge uint32, opts *Opts) (*mysql, error) {
 	// Setup the database options
 	if opts == nil {
 		opts = &Opts{}
@@ -96,7 +96,7 @@ func New(db *sql.DB, sessionMaxAge int64, opts *Opts) (*mysql, error) {
 	}
 
 	// Perform database setup
-	if sessionMaxAge <= 0 {
+	if sessionMaxAge == 0 {
 		err := m.dropTable()
 		if err != nil {
 			return nil, err

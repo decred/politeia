@@ -19,7 +19,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/politeia/app"
-	"github.com/decred/politeia/dcrpro/version"
+	"github.com/decred/politeia/dcrgov/version"
 	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/politeia/util"
 	"github.com/decred/slog"
@@ -29,7 +29,7 @@ import (
 
 var (
 	// General application defaults
-	appName            = "dcrpro"
+	appName            = "dcrgov"
 	defaultDataDirname = "data"
 	defaultLogDirname  = "logs"
 	defaultLogLevel    = "info"
@@ -45,9 +45,9 @@ var (
 	// HTTP server defaults
 	defaultHTTPSCertFilename        = "https.cert"
 	defaultHTTPSKeyFilename         = "https.key"
-	defaultSessionMaxAge     int64  = 60 * 60 * 24    // 1 day in seconds
-	defaultReadTimeout       int64  = 5               // In seconds
-	defaultWriteTimeout      int64  = 60              // In seconds
+	defaultSessionMaxAge     uint32 = 60 * 60 * 24    // 1 day in seconds
+	defaultReadTimeout       uint32 = 5               // In seconds
+	defaultWriteTimeout      uint32 = 60              // In seconds
 	defaultReqBodySizeLimit  int64  = 3 * 1024 * 1024 // 3 MiB
 	defaultPluginBatchLimit  uint32 = 20
 	defaultListen                   = "4443"
@@ -81,9 +81,9 @@ type config struct {
 	Listen           string `long:"listen" description:"Port that the http server will listen on"`
 	HTTPSCert        string `long:"httpscert" description:"HTTPS certificate file path"`
 	HTTPSKey         string `long:"httpskey" description:"HTTPS certificate key path"`
-	SessionMaxAge    int64  `long:"sessionmaxage" description:"Max age of a session in seconds"`
-	ReadTimeout      int64  `long:"readtimeout" description:"Max duration in seconds that is spent reading the request headers and body"`
-	WriteTimeout     int64  `long:"writetimeout" description:"Max duration in seconds that a request connection is kept open"`
+	SessionMaxAge    uint32 `long:"sessionmaxage" description:"Max age of a session in seconds"`
+	ReadTimeout      uint32 `long:"readtimeout" description:"Max duration in seconds that is spent reading the request headers and body"`
+	WriteTimeout     uint32 `long:"writetimeout" description:"Max duration in seconds that a request connection is kept open"`
 	ReqBodySizeLimit int64  `long:"reqbodysizelimit" description:"Max number of bytes allowed in a request body submitted by a client"`
 	PluginBatchLimit uint32 `long:"pluginbatchlimit" description:"Max number of plugins command allowed in a batch request."`
 
