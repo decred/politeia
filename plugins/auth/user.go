@@ -83,7 +83,9 @@ const (
 
 func newVerificationToken() string {
 	b, err := util.Random(tokenSize)
-	panic(err)
+	if err != nil {
+		panic(err)
+	}
 	return hex.EncodeToString(b)
 }
 

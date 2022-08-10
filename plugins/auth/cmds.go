@@ -404,12 +404,10 @@ func validateContactInfo(s settings, c contactInfo) error {
 	switch c.Type {
 	case contactTypeEmail:
 		return validateEmail(c.Contact)
-	default:
-		// Should not be possible
-		return errors.Errorf("invalid contact type")
 	}
 
-	return nil
+	// Should not be possible
+	return errors.Errorf("invalid contact type")
 }
 
 var (
@@ -434,8 +432,5 @@ func validateEmail(email string) error {
 // validUserID returns whether the provided string is a valid uuid.
 func validUserID(userID string) bool {
 	_, err := uuid.Parse(userID)
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
