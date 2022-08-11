@@ -54,6 +54,8 @@ func (p *authp) TxWrite(tx *sql.Tx, a app.WriteArgs) (*app.CmdReply, error) {
 		reply, err = p.cmdLogin(tx, a.Cmd, a.Session)
 	case v1.CmdLogout:
 		reply, err = p.cmdLogout(tx, a.Cmd, a.Session)
+	case v1.CmdUpdateGroup:
+		reply, err = p.cmdUpdateGroup(tx, a.Cmd, a.UserID)
 	default:
 		return nil, errors.Errorf("invalid cmd")
 	}

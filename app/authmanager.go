@@ -9,21 +9,10 @@ import (
 	"strings"
 )
 
+// TODO split these up into a session manager and an authorizer
+
 // AuthManager provides user authorization for plugin commands.
 type AuthManager interface {
-	// ID returns the plugin ID.
-	ID() string
-
-	// AddUserGroups adds custom user groups to the AuthManager.
-	//
-	// Custom user groups should be setup by the app during app initialization.
-	AddUserGroups([]UserGroup)
-
-	// SetCmdPerms sets the permissions for a list of plugin commands.
-	//
-	// Command permissions should be setup by the app during app initialization.
-	SetCmdPerms([]CmdPerms)
-
 	// SessionUserID returns the user ID from the session values if one exists.
 	// An empty string is returned if a user ID does not exist.
 	SessionUserID(Session) string
@@ -35,7 +24,7 @@ type AuthManager interface {
 	// Configuring the session max age and checking for expired sessions is
 	// handled in the server layer. This method does not need to worry about
 	// checking for exipred sessions. Expired sessions will never make it to the
-	// plugin layer.
+	// app layer.
 	//
 	// A UserErr is returned if the user is not authorized to execute one or more
 	// of the provided commands.
@@ -44,6 +33,22 @@ type AuthManager interface {
 	Authorize(AuthorizeArgs) error
 }
 
+// AuthorizeArgs contains the arguments for the Authorize method.
+type AuthorizeArgs struct {
+	Session Session
+	Cmds    []CmdDetails
+}
+
+// String returns a string representation of the authorize structure.
+func (a *AuthorizeArgs) String() string {
+	var cmds strings.Builder
+	for _, v := range a.Cmds {
+		cmds.WriteString(v.String())
+	}
+	return fmt.Sprintf("%v %+v", cmds.String(), a.Session.Values())
+}
+
+// TODO this belongs in the auth plugin
 // UserGroup represents a custom user group.
 //
 // Apps set command permissions by assigning the command a list of user groups
@@ -63,25 +68,11 @@ type UserGroup struct {
 	AssignedBy []string
 }
 
+// TODO this belongs in the auth plugin
 // CmdPerms represents the permissions for a plugin command.
 type CmdPerms struct {
 	Cmd CmdDetails
 
 	// Groups contains the user groups that are allowed to execute the command.
 	Groups []string
-}
-
-// AuthorizeArgs contains the arguments for the Authorize method.
-type AuthorizeArgs struct {
-	Session Session
-	Cmds    []CmdDetails
-}
-
-// String returns a string representation of the authorize structure.
-func (a *AuthorizeArgs) String() string {
-	var cmds strings.Builder
-	for _, v := range a.Cmds {
-		cmds.WriteString(v.String())
-	}
-	return fmt.Sprintf("%v %+v", cmds.String(), a.Session.Values())
 }

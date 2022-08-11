@@ -13,10 +13,11 @@ type cmds struct {
 	// by the commands.
 	DoNotUse *config
 
-	Version cmdVersion `command:"version"`
-	Policy  cmdPolicy  `command:"policy"`
-	NewUser cmdNewUser `command:"newuser"`
-	Login   cmdLogin   `command:"login"`
-	Logout  cmdLogout  `command:"logout"`
-	Me      cmdMe      `command:"me"`
+	Version     cmdVersion     `command:"version"`
+	Policy      cmdPolicy      `command:"policy"`
+	NewUser     cmdNewUser     `command:"newuser"`
+	Login       cmdLogin       `command:"login"`
+	Logout      cmdLogout      `command:"logout"`
+	UpdateGroup cmdUpdateGroup `command:"updategroup"`
+	Me          cmdMe          `command:"me"`
 }

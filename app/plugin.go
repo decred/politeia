@@ -7,8 +7,6 @@ package app
 import (
 	"database/sql"
 	"fmt"
-
-	"github.com/dajohi/goemail"
 )
 
 // Plugin represents an app plugin.
@@ -27,17 +25,6 @@ type Plugin interface {
 
 	// Read executes a non-atomic, read-only plugin command.
 	Read(ReadArgs) (*CmdReply, error)
-}
-
-// PluginArgs contains the arguments that are passed to a plugin on
-// initialization.
-type PluginArgs struct {
-	Settings []Setting
-	// TODO the app needs to make these connections itself
-	DB           *sql.DB
-	SMTP         *goemail.SMTP
-	EmailName    string // From email name
-	EmailAddress string // From email address
 }
 
 // Setting represents a configurable plugin setting.

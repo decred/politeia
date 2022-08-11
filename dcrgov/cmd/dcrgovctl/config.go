@@ -52,9 +52,9 @@ type config struct {
 	DataDir    string `long:"datadir" description:"Data directory path"`
 	LogDir     string `long:"logdir" description:"Log directory path"`
 	ConfigFile string `long:"configfile" description:"Config file path"`
-	LogLevel   string `short:"d" long:"loglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	Host       string `long:"host" description:"Proposals host"`
-	HTTPSCert  string `long:"httpscert" description:"HTTP cert file path (for self signed certs)"`
+	LogLevel   string `short:"d" long:"loglevel" description:"Logging level {trace, debug, info, warn, error, critical}"`
+	Host       string `long:"host" description:"App host"`
+	HTTPSCert  string `long:"httpscert" description:"App HTTPS cert"`
 
 	hostURL  *url.URL
 	certPool *x509.CertPool

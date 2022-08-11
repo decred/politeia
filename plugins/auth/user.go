@@ -7,6 +7,7 @@ package auth
 import (
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"time"
 
 	v1 "github.com/decred/politeia/plugins/auth/v1"
@@ -100,6 +101,49 @@ func (u *user) AddFailedLogin(maxFailedLogins uint32) error {
 // login attempts.
 func (u *user) IsLocked(maxFailedLogins uint32) bool {
 	return len(u.FailedLogins) >= int(maxFailedLogins)
+}
+
+// AddGroup adds a group to the list of groups that a user belongs to. The
+// groups are sorted alphabetically.
+func (u *user) AddGroup(group string) {
+	// Ensure there are no duplicates
+	g := make(map[string]struct{}, len(u.Groups)+1)
+	for _, v := range u.Groups {
+		g[v] = struct{}{}
+	}
+	g[group] = struct{}{}
+
+	// Sort alphabetically
+	groups := make([]string, 0, len(g))
+	for v := range g {
+		groups = append(groups, v)
+	}
+	sort.SliceStable(groups, func(i, j int) bool {
+		return groups[i] < groups[j]
+	})
+
+	u.Groups = groups
+}
+
+// DelGroup deletes the group from the list of groups that the user belongs to.
+func (u *user) DelGroup(group string) {
+	// Delete the group
+	g := make(map[string]struct{}, len(u.Groups)+1)
+	for _, v := range u.Groups {
+		g[v] = struct{}{}
+	}
+	delete(g, group)
+
+	// Sort alphabetically
+	groups := make([]string, 0, len(g))
+	for v := range g {
+		groups = append(groups, v)
+	}
+	sort.SliceStable(groups, func(i, j int) bool {
+		return groups[i] < groups[j]
+	})
+
+	u.Groups = groups
 }
 
 const (

@@ -18,25 +18,6 @@ var (
 	_ app.AuthManager = (*authp)(nil)
 )
 
-// AddUserGroups adds custom user groups to the AuthManager.
-//
-// This function satisfies the app.AuthManager interface.
-func (p *authp) AddUserGroups([]app.UserGroup) {
-	log.Tracef("AddUserGroups")
-
-}
-
-// SetCmdPerms sets the permissions for a list of plugin commands.
-//
-// This function satisfies the app.AuthManager interface.
-func (p *authp) SetCmdPerms(perms []app.CmdPerms) {
-	log.Tracef("SetCmdPerms")
-
-	for _, v := range perms {
-		p.setPerm(v)
-	}
-}
-
 // SessionUserID returns the user ID from the session values if one exists.
 // An empty string is returned if a user ID does not exist.
 //
@@ -101,42 +82,27 @@ func (p *authp) Authorize(a app.AuthorizeArgs) error {
 		return err
 	}
 	for _, cmd := range a.Cmds {
+		var allowed bool
 		for _, userGroup := range u.Groups {
 			if !p.cmdIsAllowed(cmd, userGroup) {
-				return app.UserErr{
-					Code: uint32(v1.ErrCodeNotAuthorized),
-					Context: fmt.Sprintf("the user is not "+
-						"authorized to execute %v", &cmd),
-				}
+				continue
 			}
+			// The user is part of a group that
+			// is allowed to execute this command.
+			allowed = true
+			break
+		}
+		if !allowed {
+			return app.UserErr{
+				Code: uint32(v1.ErrCodeNotAuthorized),
+				Context: fmt.Sprintf("the user is not "+
+					"authorized to execute %v", &cmd),
+			}
+
+			// Check the next command
 		}
 	}
 
 	// The user is allowed to execute this command
 	return nil
-}
-
-// setPerm sets a permission level for a command.
-func (p *authp) setPerm(cp app.CmdPerms) {
-	c := cp.Cmd.String()
-	userGroups, ok := p.perms[c]
-	if !ok {
-		userGroups = make(map[string]struct{}, 64)
-	}
-	for _, v := range cp.Groups {
-		userGroups[v] = struct{}{}
-	}
-	p.perms[c] = userGroups
-}
-
-// cmdIsAllowed returns whether the execution of a command is allowed for a
-// permission level.
-func (p *authp) cmdIsAllowed(c app.CmdDetails, permLevel string) bool {
-	permLevels, ok := p.perms[c.String()]
-	if !ok {
-		log.Errorf("Permission level has not been set for %v", c.String())
-		return false
-	}
-	_, ok = permLevels[permLevel]
-	return ok
 }

@@ -272,7 +272,7 @@ func respondWithInternalError(w http.ResponseWriter, r *http.Request, err error)
 
 	// Log an internal server error
 	t := time.Now().Unix()
-	log.Errorf("%v %v %v %v Internal error %v: %v",
+	e := fmt.Sprintf("%v %v %v %v Internal error %v: %v",
 		util.RemoteAddr(r), r.Method, r.URL, r.Proto, t, err)
 
 	// If this is a pkg/errors error then we can pull the
@@ -280,8 +280,10 @@ func respondWithInternalError(w http.ResponseWriter, r *http.Request, err error)
 	// stack trace of this function invocation.
 	stack, ok := util.StackTrace(err)
 	if ok {
-		log.Errorf("Stacktrace (NOT A REAL CRASH): %v", stack)
+		e += fmt.Sprintf("\nInternal error stacktrace (NOT A PANIC): %v", stack)
 	}
+
+	log.Error(e)
 
 	util.RespondWithJSON(w, http.StatusInternalServerError,
 		v1.InternalError{

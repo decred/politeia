@@ -8,11 +8,14 @@ const (
 	PluginID        = "auth"
 	Version  uint32 = 1
 
+	// Write commands
 	CmdNewUser     = "newuser"
 	CmdLogin       = "login"
 	CmdLogout      = "logout"
-	CmdMe          = "me"
-	CmdUpdateGroup = "updategroups"
+	CmdUpdateGroup = "updategroup"
+
+	// Read commands
+	CmdMe = "me"
 )
 
 // The following list contains the default auth plugin user groups.
@@ -69,6 +72,7 @@ type PolicyReply struct {
 	PasswordMaxLength uint32   `json:"passwordmaxlength"`
 	MaxFailedLogins   uint32   `json:"maxfailedlogins"`
 	ContactTypes      []string `json:"contacttypes"`
+	Groups            []string `json:"groups"`
 }
 
 // NewUser is the request payload for the CmdNewUser command.
@@ -103,12 +107,6 @@ type Logout struct{}
 
 type LogoutReply struct{}
 
-type Me struct{}
-
-type MeReply struct {
-	User *User `json:"user,omitempty"`
-}
-
 type ActionT string
 
 const (
@@ -123,3 +121,9 @@ type UpdateGroup struct {
 }
 
 type UpdateGroupReply struct{}
+
+type Me struct{}
+
+type MeReply struct {
+	User *User `json:"user,omitempty"`
+}

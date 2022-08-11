@@ -124,7 +124,6 @@ func (p *authp) insertUser(tx *sql.Tx, u user) error {
 	return nil
 }
 
-// A errNotFound error is returned if a user is not found.
 func (p *authp) updateUser(tx *sql.Tx, u user) error {
 	e, err := encryptUser(u)
 	if err != nil {
@@ -154,7 +153,7 @@ func (p *authp) getUser(q querier, userID string) (*user, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errNotFound
 		}
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	u, err := decryptUser(b)
 	if err != nil {
@@ -172,7 +171,7 @@ func (p *authp) getUserByUsername(q querier, username string) (*user, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errNotFound
 		}
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	u, err := decryptUser(b)
 	if err != nil {

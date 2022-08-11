@@ -31,7 +31,7 @@ type settings struct {
 	usernameRegexp *regexp.Regexp
 }
 
-func newSettings(newSettings []app.Setting) (*settings, error) {
+func parseSettings(newSettings []app.Setting) (*settings, error) {
 	defaultHost, err := url.Parse("https://localhost:3000")
 	if err != nil {
 		return nil, err

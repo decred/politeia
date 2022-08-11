@@ -27,11 +27,24 @@ type appCtx struct {
 
 // newAppCtx returns a new appCtx.
 func newAppCtx(cfg *config, db *sql.DB) (*appCtx, error) {
+	// TODO take out
+	// TODO add a politeia admin user group
+	groups := []app.UserGroup{
+		{
+			Group:      "testgroup",
+			AssignedBy: []string{authv1.StandardUser},
+		},
+	}
+
 	// Setup the plugins
 	settings := cfg.PluginSettings[authv1.PluginID]
-	authP, err := auth.New(app.PluginArgs{
-		Settings: settings,
-		DB:       db,
+	authP, err := auth.New(auth.Args{
+		Settings:     settings,
+		DB:           db,
+		SMTP:         nil,
+		EmailName:    "",
+		EmailAddress: "",
+		Groups:       groups,
 	})
 	if err != nil {
 		return nil, err
@@ -39,12 +52,9 @@ func newAppCtx(cfg *config, db *sql.DB) (*appCtx, error) {
 
 	// Setup the user permissions for the plugin
 	// cmds that are part of the proposals app.
-	authP.SetCmdPerms(perms())
+	authP.SetCmdPerms(cmdPerms())
 
-	var (
-		// TODO
-		plugins = []app.Plugin{authP}
-	)
+	plugins := []app.Plugin{authP}
 
 	return &appCtx{
 		cfg:     cfg,
@@ -62,7 +72,7 @@ func (a *appCtx) Cmds() []app.CmdDetails {
 	// that are part of the app when we created the
 	// cmd permissions list. Re-use this same list.
 	cmds := make([]app.CmdDetails, 0, 256)
-	for _, perm := range perms() {
+	for _, perm := range cmdPerms() {
 		cmds = append(cmds, perm.Cmd)
 	}
 	return cmds

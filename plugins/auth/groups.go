@@ -25,9 +25,28 @@ const (
 )
 
 func (p *authp) validGroup(group string) bool {
-	return false
+	_, ok := p.groups[group]
+	return ok
 }
 
 func (p *authp) userCanAssignGroup(u user, group string) bool {
+	for _, assignedFrom := range u.Groups {
+		if p.canAssignGroup(group, assignedFrom) {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *authp) canAssignGroup(group, assignedFrom string) bool {
+	if assignedFrom == superUser {
+		return true
+	}
+	canAssign := p.groups[group]
+	for _, v := range canAssign {
+		if v == assignedFrom {
+			return true
+		}
+	}
 	return false
 }

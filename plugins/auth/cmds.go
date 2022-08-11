@@ -36,11 +36,11 @@ func (p *authp) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 		username = formatUsername(nu.Username)
 		password = nu.Password
 	)
-	err = validateUsername(p.settings, username)
+	err = verifyUsername(p.settings, username)
 	if err != nil {
 		return nil, err
 	}
-	err = validatePassword(p.settings, password)
+	err = verifyPassword(p.settings, password)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (p *authp) cmdNewUser(tx *sql.Tx, c app.Cmd) (*app.CmdReply, error) {
 			nc      = nu.ContactInfo
 			contact = newContactInfo(string(nc.Type), nc.Contact)
 		)
-		err = validateContactInfo(p.settings, *contact)
+		err = verifyContactInfo(p.settings, *contact)
 		if err != nil {
 			return nil, err
 		}
@@ -197,35 +197,6 @@ func (p *authp) cmdLogout(tx *sql.Tx, c app.Cmd, s *app.Session) (*app.CmdReply,
 	}, nil
 }
 
-func (p *authp) cmdMe(q querier, c app.Cmd, userID string) (*app.CmdReply, error) {
-	// Get the logged in user from the database
-	var u *v1.User
-	if userID != "" {
-		usr, err := p.getUser(q, userID)
-		if err != nil {
-			// It should not be possible for an invalid
-			// user ID to be part of a session, so we
-			// don't need to handle not found errors.
-			return nil, err
-		}
-		cu := convertUser(*usr)
-		u = &cu
-	}
-
-	// Send the reply
-	mr := v1.MeReply{
-		User: u,
-	}
-	payload, err := json.Marshal(mr)
-	if err != nil {
-		return nil, err
-	}
-
-	return &app.CmdReply{
-		Payload: string(payload),
-	}, nil
-}
-
 func (p *authp) cmdUpdateGroup(tx *sql.Tx, c app.Cmd, userID string) (*app.CmdReply, error) {
 	var g v1.UpdateGroup
 	err := json.Unmarshal([]byte(c.Payload), &g)
@@ -262,11 +233,11 @@ func (p *authp) cmdUpdateGroup(tx *sql.Tx, c app.Cmd, userID string) (*app.CmdRe
 
 	// Verify that the session user is allowed
 	// to update the requested user group.
-	u, err := p.getUser(tx, sessionUserID)
+	su, err := p.getUser(tx, sessionUserID)
 	if err != nil {
 		return nil, err
 	}
-	if !p.userCanAssignGroup(*u, group) {
+	if !p.userCanAssignGroup(*su, group) {
 		return nil, userErr{
 			Code:    v1.ErrCodeNotAuthorized,
 			Context: fmt.Sprintf("user is not allowed to update %v group", group),
@@ -274,25 +245,55 @@ func (p *authp) cmdUpdateGroup(tx *sql.Tx, c app.Cmd, userID string) (*app.CmdRe
 	}
 
 	// Execute the update
-	u, err = p.getUser(tx, updateUserID)
+	u, err := p.getUser(tx, updateUserID)
 	if err != nil {
 		return nil, err
 	}
 	switch action {
 	case v1.ActionAdd:
-		// u.AddGroup(group)
+		u.AddGroup(group)
 	case v1.ActionDel:
-		// u.DelGroup(group)
+		u.DelGroup(group)
 	}
 	err = p.updateUser(tx, *u)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Infof("User %v %v group %v", u.Username, action, group)
+	log.Infof("User group updated; %v %v group %v by %v",
+		u.Username, action, group, su.Username)
 
 	// Send the reply
 	payload, err := json.Marshal(v1.UpdateGroupReply{})
+	if err != nil {
+		return nil, err
+	}
+
+	return &app.CmdReply{
+		Payload: string(payload),
+	}, nil
+}
+
+func (p *authp) cmdMe(q querier, c app.Cmd, userID string) (*app.CmdReply, error) {
+	// Get the logged in user from the database
+	var u *v1.User
+	if userID != "" {
+		usr, err := p.getUser(q, userID)
+		if err != nil {
+			// It should not be possible for an invalid
+			// user ID to be part of a session, so we
+			// don't need to handle not found errors.
+			return nil, err
+		}
+		cu := convertUser(*usr)
+		u = &cu
+	}
+
+	// Send the reply
+	mr := v1.MeReply{
+		User: u,
+	}
+	payload, err := json.Marshal(mr)
 	if err != nil {
 		return nil, err
 	}
@@ -384,8 +385,8 @@ func formatUsername(username string) string {
 	return strings.ToLower(strings.TrimSpace(username))
 }
 
-// validateUsername validates that a username meets the username requirements.
-func validateUsername(s settings, username string) error {
+// verifyUsername verifies that a username meets the username requirements.
+func verifyUsername(s settings, username string) error {
 	switch {
 	case formatUsername(username) != username:
 		// Sanity check. The caller should have already done this.
@@ -415,8 +416,8 @@ func validateUsername(s settings, username string) error {
 	return nil
 }
 
-// validatePassword validates that a password meets all password requirements.
-func validatePassword(s settings, password string) error {
+// verifyPassword verifies that a password meets all password requirements.
+func verifyPassword(s settings, password string) error {
 	switch {
 	case len(password) < int(s.PasswordMinLength):
 		return userErr{
@@ -435,9 +436,9 @@ func validatePassword(s settings, password string) error {
 	return nil
 }
 
-// validateContactInfo validates that contact info data meets the plugin
+// verifyContactInfo verifies that contact info data meets the plugin
 // requirements.
-func validateContactInfo(s settings, c contactInfo) error {
+func verifyContactInfo(s settings, c contactInfo) error {
 	_, ok := s.ContactTypes[c.Type]
 	if !ok {
 		return userErr{
@@ -448,7 +449,7 @@ func validateContactInfo(s settings, c contactInfo) error {
 
 	switch c.Type {
 	case contactTypeEmail:
-		return validateEmail(c.Contact)
+		return verifyEmail(c.Contact)
 	}
 
 	// Should not be possible
@@ -456,15 +457,15 @@ func validateContactInfo(s settings, c contactInfo) error {
 }
 
 var (
-	// emailRegexp contains the regular expression that is used to validate an
+	// emailRegexp contains the regular expression that is used to verify an
 	// email address.
 	emailRegexp = regexp.MustCompile(`^[a-zA-Z0-9.!#$%&'*+/=?^_` +
 		"`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?" +
 		"(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
 )
 
-// validateEmail validates that an email address is sane.
-func validateEmail(email string) error {
+// verifyEmail verifies that an email address is sane.
+func verifyEmail(email string) error {
 	if !emailRegexp.MatchString(email) {
 		return userErr{
 			Code:    v1.ErrCodeInvalidContactInfo,

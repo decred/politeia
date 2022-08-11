@@ -9,9 +9,9 @@ import (
 	auth "github.com/decred/politeia/plugins/auth/v1"
 )
 
-// perms returns the user permissions for all plugin commands that are part
+// cmdPerms returns the user permissions for all plugin commands that are part
 // of the proposals app.
-func perms() []app.CmdPerms {
+func cmdPerms() []app.CmdPerms {
 	perms := make([]app.CmdPerms, 0, 256)
 
 	perms = append(perms, authPerms()...)
@@ -40,6 +40,10 @@ func authPerms() []app.CmdPerms {
 		},
 		{
 			Name:   auth.CmdLogout,
+			Groups: []string{auth.StandardUser},
+		},
+		{
+			Name:   auth.CmdUpdateGroup,
 			Groups: []string{auth.StandardUser},
 		},
 		{
