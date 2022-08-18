@@ -439,21 +439,6 @@ func isInCommentTree(rootID, leafID uint32, cs []comments.Comment) bool {
 	return false
 }
 
-// latestAuthorUpdate gets the latest author update on a record, if
-// the record has no author update it returns nil.
-func latestAuthorUpdate(token []byte, cs []comments.Comment) *comments.Comment {
-	var latestAuthorUpdate comments.Comment
-	for _, c := range cs {
-		if c.ExtraDataHint != pi.ProposalUpdateHint {
-			continue
-		}
-		if c.Timestamp > latestAuthorUpdate.Timestamp {
-			latestAuthorUpdate = c
-		}
-	}
-	return &latestAuthorUpdate
-}
-
 // recordAuthor returns the author's userID of the record associated with
 // the provided token.
 func (p *piPlugin) recordAuthor(token []byte) (string, error) {
@@ -750,4 +735,27 @@ func voteMetadataDecode(files []backend.File) (*ticketvote.VoteMetadata, error) 
 		break
 	}
 	return voteMD, nil
+}
+
+// latestAuthorUpdate returns the most recent author update comment. If no
+// author updates are present, nil is returned.
+func latestAuthorUpdate(token []byte, cs []comments.Comment) *comments.Comment {
+	var update comments.Comment
+	for _, c := range cs {
+		switch {
+		case c.ExtraDataHint != pi.ProposalUpdateHint:
+			// This is not an author update comment
+			continue
+
+		case c.CreatedAt < update.CreatedAt:
+			// This is an author update comment, but is
+			// not the most recent one.
+			continue
+		}
+
+		// We've found a new author update comment
+		update = c
+	}
+
+	return &update
 }
