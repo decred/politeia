@@ -11,8 +11,8 @@ import (
 	"github.com/google/trillian"
 )
 
-// freezeTreeCheck checks if any trillian trees meet the requirements to be
-// frozen. If they do, their status is updated in trillian to frozen.
+// freezeTrees checks if any trillian trees meet the requirements to be frozen.
+// If they do, their status is updated in trillian to frozen.
 //
 // A frozen trillian tree can no longer be appended to. The trillian_log_signer
 // will no longer poll the MySQL database for updates to a tree once it has
@@ -25,13 +25,13 @@ import (
 // to tree. This means that we cannot simply freeze the tree at the same time
 // that the record is frozen since it will still need to be timestamped one
 // last time.
-func (t *Tstore) freezeTreeCheck() error {
-	log.Infof("Checking if any trillian trees can be frozen")
-
+func (t *Tstore) freezeTrees() error {
 	trees, err := t.tlog.TreesAll()
 	if err != nil {
 		return err
 	}
+
+	log.Infof("Starting tree freezing process; checking %v trees", len(trees))
 
 	active := make([]*trillian.Tree, 0, len(trees))
 	for _, v := range trees {
@@ -40,7 +40,7 @@ func (t *Tstore) freezeTreeCheck() error {
 		}
 	}
 
-	log.Infof("%v/%v active trillian trees found", len(active), len(trees))
+	log.Infof("%v active trees found", len(active))
 
 	var frozen int
 	for _, tree := range active {
