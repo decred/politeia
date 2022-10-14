@@ -3,37 +3,34 @@ package main
 import (
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	pb "decred.org/dcrwallet/rpc/walletrpc"
+	"github.com/decred/dcrd/chaincfg/chainhash"
+	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 )
 
 const keepFiles = false
 
-func fakeTickets(x uint) (*pb.CommittedTicketsResponse, *pb.SignMessagesResponse) {
-	ctres := pb.CommittedTicketsResponse{
-		TicketAddresses: make([]*pb.CommittedTicketsResponse_TicketAddress, x),
-	}
-	for k := range ctres.TicketAddresses {
-		ticket := make([]byte, 32)
-		binary.LittleEndian.PutUint64(ticket[:], uint64(k))
-		ctres.TicketAddresses[k] = &pb.CommittedTicketsResponse_TicketAddress{
-			Ticket: ticket,
-		}
-	}
-	smr := pb.SignMessagesResponse{
-		Replies: make([]*pb.SignMessagesResponse_SignReply, x),
-	}
-	for k := range smr.Replies {
-		smr.Replies[k] = &pb.SignMessagesResponse_SignReply{
-			Signature: make([]byte, 64),
-		}
+func fakeVotesToCast(x uint) []tkv1.CastVote {
+	fakeSignature := hex.EncodeToString(make([]byte, 64))
+	votesToCast := make([]tkv1.CastVote, 0, x)
+	for i := uint(0); i < x; i++ {
+		var ticket [chainhash.HashSize]byte
+		binary.LittleEndian.PutUint64(ticket[:], uint64(i))
+		ticketHash := chainhash.Hash(ticket)
+		votesToCast = append(votesToCast, tkv1.CastVote{
+			Token:     "token",
+			Ticket:    ticketHash.String(),
+			VoteBit:   "voteBit",
+			Signature: fakeSignature,
+		})
 	}
 
-	return &ctres, &smr
+	return votesToCast
 }
 
 func fakePiv(t *testing.T, d time.Duration, x uint) (*piv, func()) {
@@ -72,8 +69,7 @@ func TestTrickleWorkers(t *testing.T) {
 	defer cleanup()
 
 	nrVotes := uint(20)
-	ctres, smr := fakeTickets(nrVotes)
-	err := c.alarmTrickler("token", "voteBit", ctres, smr)
+	err := c.alarmTrickler("token", fakeVotesToCast(nrVotes))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,8 +81,7 @@ func TestUnrecoverableTrickleWorkers(t *testing.T) {
 
 	c.cfg.testingMode = testFailUnrecoverable
 
-	ctres, smr := fakeTickets(1)
-	err := c.alarmTrickler("token", "voteBit", ctres, smr)
+	err := c.alarmTrickler("token", fakeVotesToCast(1))
 	if err == nil {
 		t.Fatal("expected unrecoverable error")
 	}
@@ -102,8 +97,7 @@ func TestManyTrickleWorkers(t *testing.T) {
 	defer cleanup()
 
 	nrVotes := uint(20000)
-	ctres, smr := fakeTickets(nrVotes)
-	err := c.alarmTrickler("token", "voteBit", ctres, smr)
+	err := c.alarmTrickler("token", fakeVotesToCast(nrVotes))
 	if err != nil {
 		t.Fatal(err)
 	}
