@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -10,8 +9,6 @@ import (
 
 	"crypto/rand"
 
-	pb "decred.org/dcrwallet/rpc/walletrpc"
-	"github.com/decred/dcrd/chaincfg/chainhash"
 	tkv1 "github.com/decred/politeia/politeiawww/api/ticketvote/v1"
 	"github.com/decred/politeia/util"
 	"golang.org/x/sync/errgroup"
@@ -51,17 +48,10 @@ type voteAlarm struct {
 	At   time.Time     `json:"at"`   // When initial vote will be submitted
 }
 
-func (p *piv) generateVoteAlarm(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) ([]*voteAlarm, error) {
-	// Assert arrays are same length.
-	if len(ctres.TicketAddresses) != len(smr.Replies) {
-		return nil, fmt.Errorf("assert len(TicketAddresses) != "+
-			"len(Replies) -- %v != %v", len(ctres.TicketAddresses),
-			len(smr.Replies))
-	}
-
+func (p *piv) generateVoteAlarm(votesToCast []tkv1.CastVote) ([]*voteAlarm, error) {
 	bunches := int(p.cfg.Bunches)
 	voteDuration := p.cfg.voteDuration
-	fmt.Printf("Total number of votes  : %v\n", len(ctres.TicketAddresses))
+	fmt.Printf("Total number of votes  : %v\n", len(votesToCast))
 	fmt.Printf("Total number of bunches: %v\n", bunches)
 	fmt.Printf("Vote duration          : %v\n", voteDuration)
 
@@ -78,8 +68,8 @@ func (p *piv) generateVoteAlarm(token, voteBit string, ctres *pb.CommittedTicket
 			i, tStart[i], tEnd[i], tEnd[i].Sub(tStart[i]))
 	}
 
-	va := make([]*voteAlarm, len(ctres.TicketAddresses))
-	for k := range ctres.TicketAddresses {
+	va := make([]*voteAlarm, len(votesToCast))
+	for k := range votesToCast {
 		x := k % bunches
 		start := new(big.Int).SetInt64(tStart[x].Unix())
 		end := new(big.Int).SetInt64(tEnd[x].Unix())
@@ -92,20 +82,9 @@ func (p *piv) generateVoteAlarm(token, voteBit string, ctres *pb.CommittedTicket
 		t := time.Unix(tStart[x].Unix()+r.Int64(), 0)
 		//fmt.Printf("at time  : %v\n", t)
 
-		// Assemble missing vote bits
-		h, err := chainhash.NewHash(ctres.TicketAddresses[k].Ticket)
-		if err != nil {
-			return nil, err
-		}
-		signature := hex.EncodeToString(smr.Replies[k].Signature)
 		va[k] = &voteAlarm{
-			Vote: tkv1.CastVote{
-				Token:     token,
-				Ticket:    h.String(),
-				VoteBit:   voteBit,
-				Signature: signature,
-			},
-			At: t,
+			Vote: votesToCast[k],
+			At:   t,
 		}
 	}
 
@@ -299,9 +278,9 @@ func randomTime(d time.Duration) (time.Time, time.Time, error) {
 	return time.Unix(startTime, 0), time.Unix(endTime, 0), nil
 }
 
-func (p *piv) alarmTrickler(token, voteBit string, ctres *pb.CommittedTicketsResponse, smr *pb.SignMessagesResponse) error {
+func (p *piv) alarmTrickler(token string, votesToCast []tkv1.CastVote) error {
 	// Generate work queue
-	votes, err := p.generateVoteAlarm(token, voteBit, ctres, smr)
+	votes, err := p.generateVoteAlarm(votesToCast)
 	if err != nil {
 		return err
 	}
@@ -317,7 +296,7 @@ func (p *piv) alarmTrickler(token, voteBit string, ctres *pb.CommittedTicketsRes
 
 	// Launch voting go routines
 	eg, ectx := errgroup.WithContext(p.ctx)
-	p.ballotResults = make([]tkv1.CastVoteReply, 0, len(ctres.TicketAddresses))
+	p.ballotResults = make([]tkv1.CastVoteReply, 0, len(votesToCast))
 	div := len(votes) / int(p.cfg.Bunches)
 	mod := len(votes) % int(p.cfg.Bunches)
 	for k := range votes {

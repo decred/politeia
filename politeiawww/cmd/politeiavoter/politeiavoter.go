@@ -904,18 +904,29 @@ func (p *piv) _vote(token, voteID string) error {
 	}
 	ctres.TicketAddresses = eligible
 
-	// Sign all tickets
-	sm := &pb.SignMessagesRequest{
-		Passphrase: passphrase,
-		Messages: make([]*pb.SignMessagesRequest_Message, 0,
-			len(ctres.TicketAddresses)),
-	}
+	// Create unsigned votes to cast.
+	votesToCast := make([]tkv1.CastVote, 0, len(ctres.TicketAddresses))
 	for _, v := range ctres.TicketAddresses {
 		h, err := chainhash.NewHash(v.Ticket)
 		if err != nil {
 			return err
 		}
-		msg := token + h.String() + voteBit
+		votesToCast = append(votesToCast, tkv1.CastVote{
+			Token:   token,
+			Ticket:  h.String(),
+			VoteBit: voteBit,
+			// Signature set from reply below.
+		})
+	}
+
+	// Sign all messages that comprise the votes.
+	sm := &pb.SignMessagesRequest{
+		Passphrase: passphrase,
+		Messages:   make([]*pb.SignMessagesRequest_Message, 0, len(votesToCast)),
+	}
+	for k, v := range ctres.TicketAddresses {
+		cv := &votesToCast[k]
+		msg := cv.Token + cv.Ticket + cv.VoteBit
 		sm.Messages = append(sm.Messages, &pb.SignMessagesRequest_Message{
 			Address: v.Address,
 			Message: msg,
@@ -926,12 +937,20 @@ func (p *piv) _vote(token, voteID string) error {
 		return err
 	}
 
-	// Make sure all signatures worked
+	// Assert arrays are same length.
+	if len(votesToCast) != len(smr.Replies) {
+		return fmt.Errorf("assert len(votesToCast)) != len(Replies) -- %v "+
+			"!= %v", len(votesToCast), len(smr.Replies))
+	}
+
+	// Ensure all the signatures worked while simultaneously setting the
+	// signature in the vote.
 	for k, v := range smr.Replies {
-		if v.Error == "" {
-			continue
+		if v.Error != "" {
+			return fmt.Errorf("signature failed index %v: %v", k, v.Error)
 		}
-		return fmt.Errorf("signature failed index %v: %v", k, v.Error)
+
+		votesToCast[k].Signature = hex.EncodeToString(v.Signature)
 	}
 
 	// Trickle in the votes if specified
@@ -948,33 +967,14 @@ func (p *piv) _vote(token, voteID string) error {
 		}
 
 		// Trickle votes
-		return p.alarmTrickler(token, voteBit, ctres, smr)
+		return p.alarmTrickler(token, votesToCast)
 	}
 
-	// Vote everything at once.
-
-	// Note that ctres, sm and smr use the same index.
-	cv := tkv1.CastBallot{
-		Votes: make([]tkv1.CastVote, 0, len(ctres.TicketAddresses)),
-	}
-	p.ballotResults = make([]tkv1.CastVoteReply, 0, len(ctres.TicketAddresses))
-	for k, v := range ctres.TicketAddresses {
-		h, err := chainhash.NewHash(v.Ticket)
-		if err != nil {
-			return err
-		}
-		signature := hex.EncodeToString(smr.Replies[k].Signature)
-		cv.Votes = append(cv.Votes, tkv1.CastVote{
-			Token:     token,
-			Ticket:    h.String(),
-			VoteBit:   voteBit,
-			Signature: signature,
-		})
-	}
-
-	// Vote on the supplied proposal
-	responseBody, err := p.makeRequest(http.MethodPost,
-		tkv1.APIRoute, tkv1.RouteCastBallot, &cv)
+	// Vote everything at once on the supplied proposal.
+	cv := tkv1.CastBallot{Votes: votesToCast}
+	p.ballotResults = make([]tkv1.CastVoteReply, 0, len(votesToCast))
+	responseBody, err := p.makeRequest(http.MethodPost, tkv1.APIRoute,
+		tkv1.RouteCastBallot, &cv)
 	if err != nil {
 		return err
 	}
