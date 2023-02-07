@@ -354,7 +354,7 @@ Voting has started on a Politeia proposal.
 var voteStartedTmpl = template.Must(
 	template.New("voteStarted").Parse(voteStartedText))
 
-func (p *Pi) mailNtfnVoteStarted(token, name string, recipients map[uuid.UUID]string) error {
+func (p *Pi) mailNtfnVoteStarted(token, name string, recipients []string) error {
 	route := strings.Replace(guiRouteRecordDetails, "{token}", token, 1)
 	u, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -371,7 +371,9 @@ func (p *Pi) mailNtfnVoteStarted(token, name string, recipients map[uuid.UUID]st
 		return err
 	}
 
-	return p.mail.SendToUsers(subject, body, recipients)
+	// Don't subject this email to rate limits because proposal voting can only
+	// be started by admins, not regular users.
+	return p.mail.SendTo(subject, body, recipients)
 }
 
 type voteStartedToAuthor struct {
