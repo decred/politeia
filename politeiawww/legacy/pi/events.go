@@ -342,9 +342,7 @@ func (p *Pi) ntfnCommentNewProposalAuthor(c cmv1.Comment, proposalAuthorID, prop
 	}
 
 	// Send notification email
-	recipient := map[uuid.UUID]string{
-		pauthor.ID: pauthor.Email,
-	}
+	recipient := []string{pauthor.Email}
 	err = p.mailNtfnCommentNewToProposalAuthor(c.Token, c.CommentID,
 		c.Username, proposalName, recipient)
 	if err != nil {
