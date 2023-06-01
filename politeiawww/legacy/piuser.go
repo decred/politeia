@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	www "github.com/decred/politeia/politeiawww/api/www/v1"
@@ -40,7 +41,9 @@ func (p *Politeiawww) processUserRegistrationPayment(ctx context.Context, u *use
 		u.NewUserPaywallTxNotBefore, p.cfg.MinConfirmationsRequired,
 		p.dcrdataHostHTTP())
 	if err != nil {
-		log.Debugf("couldn't fetch tx details; err: %v", err)
+		if !strings.Contains(err.Error(), "Unprocessable Entity") {
+			log.Errorf("couldn't fetch tx: %v\n", strings.TrimSpace(err.Error()))
+		}
 		reply.PaywallAddress = u.NewUserPaywallAddress
 		reply.PaywallAmount = u.NewUserPaywallAmount
 		reply.PaywallTxNotBefore = u.NewUserPaywallTxNotBefore
