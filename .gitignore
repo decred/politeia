@@ -12,3 +12,5 @@ politeiawww/politeiawww
 *.sw?
 *.orig
 *.diff
+
+.idea

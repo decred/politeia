@@ -40,7 +40,11 @@ func (p *Politeiawww) processUserRegistrationPayment(ctx context.Context, u *use
 		u.NewUserPaywallTxNotBefore, p.cfg.MinConfirmationsRequired,
 		p.dcrdataHostHTTP())
 	if err != nil {
-		return nil, err
+		log.Debugf("couldn't fetch tx details; err: %v", err)
+		reply.PaywallAddress = u.NewUserPaywallAddress
+		reply.PaywallAmount = u.NewUserPaywallAmount
+		reply.PaywallTxNotBefore = u.NewUserPaywallTxNotBefore
+		return &reply, nil
 	}
 
 	if tx != "" {
@@ -57,7 +61,7 @@ func (p *Politeiawww) processUserRegistrationPayment(ctx context.Context, u *use
 	return &reply, nil
 }
 
-// processUserProposalPaywall returns a proposal paywall that enables the
+// processUserProposalPaywall returns a proposal paywall that enables
 // the user to purchase proposal credits. The user can only have one paywall
 // active at a time.  If no paywall currently exists, a new one is created and
 // the user is added to the paywall pool.
