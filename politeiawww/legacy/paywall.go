@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/decred/politeia/politeiawww/legacy/user"
@@ -487,7 +488,9 @@ func (p *Politeiawww) checkForUserPayments(ctx context.Context, pool map[uuid.UU
 			poolMember.amount, poolMember.txNotBefore,
 			p.cfg.MinConfirmationsRequired, p.dcrdataHostHTTP())
 		if err != nil {
-			log.Errorf("cannot fetch tx: %v\n", err)
+			if !strings.Contains(err.Error(), "Unprocessable Entity") {
+				log.Errorf("couldn't fetch tx: %v\n", strings.TrimSpace(err.Error()))
+			}
 			continue
 		}
 
