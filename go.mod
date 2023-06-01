@@ -1,6 +1,6 @@
 module github.com/decred/politeia
 
-go 1.18
+go 1.19
 
 require (
 	decred.org/dcrwallet v1.7.0
