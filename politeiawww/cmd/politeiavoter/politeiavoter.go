@@ -1695,6 +1695,8 @@ func _main() error {
 	// Contact WWW
 	c, err := firstContact(shutdownCtx, cfg)
 	if err != nil {
+		err := fmt.Errorf("Network error: %v\n", err)
+		fmt.Fprintln(os.Stderr, err)
 		return err
 	}
 	// Close GRPC
@@ -1707,6 +1709,8 @@ func _main() error {
 		// block height to validate GPRC creds.
 		ar, err := c.wallet.Accounts(c.ctx, &pb.AccountsRequest{})
 		if err != nil {
+			err := fmt.Errorf("Error pulling wallet accounts: %v\n", err)
+			fmt.Fprintln(os.Stderr, err)
 			return err
 		}
 		log.Debugf("Current wallet height: %v", ar.CurrentBlockHeight)
