@@ -964,24 +964,35 @@ func (m *mysql) SessionsDeleteByUserID(uid uuid.UUID, exemptSessionIDs []string)
 	ctx, cancel := ctxWithTimeout()
 	defer cancel()
 
-	// Session primary key is a SHA256 hash of the session ID.
-	exempt := make([]string, 0, len(exemptSessionIDs))
-	for _, v := range exemptSessionIDs {
-		exempt = append(exempt, hex.EncodeToString(util.Digest([]byte(v))))
+	// Build the sql query. Using an empty NOT IN() set
+	// results in no records being deleted, so the queries
+	// will differ when exempt session IDs are present.
+	var q string
+	if len(exemptSessionIDs) == 0 {
+		q = "DELETE FROM sessions WHERE user_id = ?"
+	} else {
+		q = fmt.Sprintf("DELETE FROM sessions WHERE user_id = ? AND k NOT IN %v",
+			buildPlaceholders(len(exemptSessionIDs)))
 	}
 
-	// Using an empty NOT IN() set will result in no records being
-	// deleted.
-	if len(exempt) == 0 {
-		_, err := m.userDB.
-			ExecContext(ctx, "DELETE FROM sessions WHERE user_id = ?", uid.String())
+	// Prepare the query arguments
+	args := []interface{}{
+		uid.String(),
+	}
+	for _, v := range exemptSessionIDs {
+		// Convert the exemptSessionIDs to hex encoded
+		// SHA256 hashes. These hashes are the primary
+		// keys for the sessions in the database.
+		h := hex.EncodeToString(util.Digest([]byte(v)))
+		args = append(args, h)
+	}
+
+	_, err := m.userDB.ExecContext(ctx, q, args...)
+	if err != nil {
 		return err
 	}
 
-	_, err := m.userDB.
-		ExecContext(ctx, "DELETE FROM sessions WHERE user_id = ? AND k NOT IN (?)",
-			uid.String(), exempt)
-	return err
+	return nil
 }
 
 // SetPaywallAddressIndex updates the paywall address index.
@@ -1412,4 +1423,25 @@ func New(host, password, network, encryptionKey string) (*mysql, error) {
 		userDB:        db,
 		encryptionKey: key,
 	}, nil
+}
+
+// buildPlaceholders builds and returns a parameter placeholder string with the
+// specified number of placeholders.
+//
+// Input: 1  Output: "(?)"
+// Input: 3  Output: "(?,?,?)"
+func buildPlaceholders(placeholders int) string {
+	var b strings.Builder
+
+	b.WriteString("(")
+	for i := 0; i < placeholders; i++ {
+		b.WriteString("?")
+		// Don't add a comma on the last one
+		if i < placeholders-1 {
+			b.WriteString(",")
+		}
+	}
+	b.WriteString(")")
+
+	return b.String()
 }
