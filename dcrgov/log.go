@@ -2,9 +2,10 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package legacy
+package main
 
 import (
+	"github.com/decred/politeia/politeiawww/logger"
 	"github.com/decred/slog"
 )
 
@@ -24,4 +25,9 @@ func DisableLog() {
 // using slog.
 func UseLogger(logger slog.Logger) {
 	log = logger
+}
+
+// Initialize the package logger.
+func init() {
+	UseLogger(logger.NewSubsystem("DCRP"))
 }

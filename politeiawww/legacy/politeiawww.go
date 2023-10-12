@@ -44,6 +44,7 @@ import (
 	"github.com/decred/politeia/politeiawww/legacy/user/mysql"
 	"github.com/decred/politeia/politeiawww/wsdcrdata"
 	"github.com/decred/politeia/util"
+	"github.com/decred/slog"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/robfig/cron"
@@ -85,9 +86,19 @@ type Politeiawww struct {
 }
 
 // NewPoliteiawww returns a new legacy Politeiawww.
-func NewPoliteiawww(cfg *config.Config, router, auth *mux.Router, params *chaincfg.Params, pdclient *pdclient.Client) (*Politeiawww, error) {
-	// Setup http client for politeiad calls
+func NewPoliteiawww(cfg *config.Config, router, auth *mux.Router, l slog.Logger) (*Politeiawww, error) {
+	// Setup the logger
+	log = l
+
+	// Setup http client for politeiad calls. CMS uses the
+	// regular http client. Pi uses the http client provided
+	// by the politeiad package.
 	httpClient, err := util.NewHTTPClient(false, cfg.RPCCert)
+	if err != nil {
+		return nil, err
+	}
+	pdc, err := pdclient.New(cfg.RPCHost, cfg.RPCCert,
+		cfg.RPCUser, cfg.RPCPass, cfg.Identity)
 	if err != nil {
 		return nil, err
 	}
@@ -106,44 +117,26 @@ func NewPoliteiawww(cfg *config.Config, router, auth *mux.Router, params *chainc
 		userDB = db
 
 	case config.MySQL, config.CockroachDB:
-		// If old encryption key is set it means that we need
-		// to open a db connection using the old key and then
-		// rotate keys.
-		var encryptionKey string
-		if cfg.OldEncryptionKey != "" {
-			encryptionKey = cfg.OldEncryptionKey
-		} else {
-			encryptionKey = cfg.EncryptionKey
-		}
-
-		// Open db connection.
-		network := filepath.Base(cfg.DataDir)
+		network := cfg.ActiveNet.Params.Name
 		switch cfg.UserDB {
 		case config.MySQL:
 			mysql, err := mysql.New(cfg.DBHost,
-				cfg.DBPass, network, encryptionKey)
+				cfg.DBPass, network, cfg.EncryptionKey)
 			if err != nil {
 				return nil, fmt.Errorf("new mysql db: %v", err)
 			}
 			userDB = mysql
 			mailerDB = mysql
+
 		case config.CockroachDB:
 			cdb, err := cockroachdb.New(cfg.DBHost, network,
 				cfg.DBRootCert, cfg.DBCert, cfg.DBKey,
-				encryptionKey)
+				cfg.EncryptionKey)
 			if err != nil {
 				return nil, fmt.Errorf("new cdb db: %v", err)
 			}
 			userDB = cdb
 			mailerDB = cdb
-		}
-
-		// Rotate keys.
-		if cfg.OldEncryptionKey != "" {
-			err = userDB.RotateKeys(cfg.EncryptionKey)
-			if err != nil {
-				return nil, fmt.Errorf("rotate userdb keys: %v", err)
-			}
 		}
 
 	default:
@@ -176,10 +169,10 @@ func NewPoliteiawww(cfg *config.Config, router, auth *mux.Router, params *chainc
 	// Setup legacy politeiawww context
 	p := &Politeiawww{
 		cfg:             cfg,
-		params:          params,
+		params:          cfg.ActiveNet.Params,
 		router:          router,
 		auth:            auth,
-		politeiad:       pdclient,
+		politeiad:       pdc,
 		http:            httpClient,
 		db:              userDB,
 		mail:            mailer,

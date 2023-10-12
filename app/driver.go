@@ -1,0 +1,165 @@
+// Copyright (c) 2022 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
+package app
+
+import (
+	"context"
+	"database/sql"
+	"time"
+
+	"github.com/pkg/errors"
+)
+
+// Driver provides a standardized set of methods for executing plugin commands
+// so that apps do not have to re-implement this execution logic.
+//
+// This logic resides in the app layer and not in the politeia server because,
+// as of writing this, I'm not aware of a way to pass a sql transaction from
+// the backend to the app if we are using golang plugins (or some variant)
+// where the app is run as a separate process that communicates with the main
+// politeia process via an RPC or gRPC connection. For this reason, all
+// database transaction operations must be performed entirely in the app layer,
+// creating the need for this driver.
+type Driver struct {
+	plugins     map[string]Plugin
+	db          *sql.DB
+	authManager AuthManager
+}
+
+// NewDriver returns a new app Driver.
+func NewDriver(plugins []Plugin, db *sql.DB, authMgr AuthManager) *Driver {
+	p := make(map[string]Plugin, len(plugins))
+	for _, v := range plugins {
+		p[v.ID()] = v
+	}
+	return &Driver{
+		plugins:     p,
+		db:          db,
+		authManager: authMgr,
+	}
+}
+
+// WriteCmd executes a plugin command that writes data.
+func (d *Driver) WriteCmd(ctx context.Context, s *Session, cmd Cmd) (*CmdReply, error) {
+	// Setup the database transaction
+	tx, cancel, err := d.beginTx()
+	if err != nil {
+		return nil, err
+	}
+	defer cancel()
+
+	// Verify that the user is authorized
+	// to execute this plugin command.
+	err = d.authManager.Authorize(
+		AuthorizeArgs{
+			Session: *s,
+			Cmds: []CmdDetails{
+				{
+					Plugin:  cmd.Plugin,
+					Version: cmd.Version,
+					Name:    cmd.Name,
+				},
+			},
+		})
+	if err != nil {
+		return nil, err
+	}
+	userID := d.authManager.SessionUserID(*s)
+
+	// Execute the plugin command
+	p := d.plugin(cmd.Plugin)
+	reply, err := p.TxWrite(tx,
+		WriteArgs{
+			Cmd:     cmd,
+			Session: s,
+			UserID:  userID,
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	// Commit the database transaction
+	err = tx.Commit()
+	if err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			return nil, errors.Errorf("commit err: %v, rollback err: %v", err, err2)
+		}
+		return nil, errors.WithStack(err)
+	}
+
+	return reply, nil
+}
+
+// ReadCmd executes a read-only plugin command.
+func (d *Driver) ReadCmd(ctx context.Context, s Session, cmd Cmd) (*CmdReply, error) {
+	// Verify that the user is authorized
+	// to execute this plugin command.
+	err := d.authManager.Authorize(
+		AuthorizeArgs{
+			Session: s,
+			Cmds: []CmdDetails{
+				{
+					Plugin:  cmd.Plugin,
+					Version: cmd.Version,
+					Name:    cmd.Name,
+				},
+			},
+		})
+	if err != nil {
+		return nil, err
+	}
+	userID := d.authManager.SessionUserID(s)
+
+	// Execute the plugin command
+	p := d.plugin(cmd.Plugin)
+	reply, err := p.Read(
+		ReadArgs{
+			Cmd:    cmd,
+			UserID: userID,
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	return reply, nil
+}
+
+// plugin returns a registered plugin.
+func (d *Driver) plugin(pluginID string) Plugin {
+	return d.plugins[pluginID]
+}
+
+// beginTx returns a database transactions and a cancel function for the
+// transaction.
+//
+// The cancel function can be used up until the tx is committed or manually
+// rolled back. Invoking the cancel function rolls the tx back and releases all
+// resources associated with it. This allows the caller to defer the cancel
+// function in order to rollback the tx on unexpected errors. Once the tx is
+// successfully committed the deferred invocation of the cancel function does
+// nothing.
+func (d *Driver) beginTx() (*sql.Tx, func(), error) {
+	ctx, cancel := ctxForTx()
+
+	opts := &sql.TxOptions{
+		Isolation: sql.LevelDefault,
+	}
+	tx, err := d.db.BeginTx(ctx, opts)
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+
+	return tx, cancel, nil
+}
+
+const (
+	// timeoutTx is the timeout for a database transaction.
+	timeoutTx = 3 * time.Minute
+)
+
+// ctxForTx returns a context and a cancel function for a database transaction.
+func ctxForTx() (context.Context, func()) {
+	return context.WithTimeout(context.Background(), timeoutTx)
+}
