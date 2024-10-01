@@ -342,9 +342,7 @@ func (p *Pi) ntfnCommentNewProposalAuthor(c cmv1.Comment, proposalAuthorID, prop
 	}
 
 	// Send notification email
-	recipient := map[uuid.UUID]string{
-		pauthor.ID: pauthor.Email,
-	}
+	recipient := []string{pauthor.Email}
 	err = p.mailNtfnCommentNewToProposalAuthor(c.Token, c.CommentID,
 		c.Username, proposalName, recipient)
 	if err != nil {
@@ -573,7 +571,7 @@ func (p *Pi) ntfnVoteStarted(sd tkv1.StartDetails, eventUser user.User, authorID
 	)
 
 	// Compile user notification list
-	recipients := make(map[uuid.UUID]string, 1024)
+	var recipients []string
 	err := p.userdb.AllUsers(func(u *user.User) {
 		switch {
 		case u.ID.String() == eventUser.ID.String():
@@ -589,7 +587,7 @@ func (p *Pi) ntfnVoteStarted(sd tkv1.StartDetails, eventUser user.User, authorID
 			return
 		default:
 			// User has notification bit set
-			recipients[u.ID] = u.Email
+			recipients = append(recipients, u.Email)
 		}
 	})
 	if err != nil {

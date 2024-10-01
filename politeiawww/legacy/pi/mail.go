@@ -241,7 +241,7 @@ var commentNewToProposalAuthorTmpl = template.Must(
 	template.New("commentNewToProposalAuthor").
 		Parse(commentNewToProposalAuthorText))
 
-func (p *Pi) mailNtfnCommentNewToProposalAuthor(token string, commentID uint32, commentUsername, proposalName string, recipient map[uuid.UUID]string) error {
+func (p *Pi) mailNtfnCommentNewToProposalAuthor(token string, commentID uint32, commentUsername, proposalName string, recipient []string) error {
 	cid := strconv.FormatUint(uint64(commentID), 10)
 	route := strings.Replace(guiRouteRecordComment, "{token}", token, 1)
 	route = strings.Replace(route, "{id}", cid, 1)
@@ -262,7 +262,9 @@ func (p *Pi) mailNtfnCommentNewToProposalAuthor(token string, commentID uint32, 
 		return err
 	}
 
-	return p.mail.SendToUsers(subject, body, recipient)
+	// Don't subject this email to rate limits. A proposal can receive multiple
+	// comments in a short amount of time at no fault of the proposal owner.
+	return p.mail.SendTo(subject, body, recipient)
 }
 
 type commentReply struct {
@@ -354,7 +356,7 @@ Voting has started on a Politeia proposal.
 var voteStartedTmpl = template.Must(
 	template.New("voteStarted").Parse(voteStartedText))
 
-func (p *Pi) mailNtfnVoteStarted(token, name string, recipients map[uuid.UUID]string) error {
+func (p *Pi) mailNtfnVoteStarted(token, name string, recipients []string) error {
 	route := strings.Replace(guiRouteRecordDetails, "{token}", token, 1)
 	u, err := url.Parse(p.cfg.WebServerAddress + route)
 	if err != nil {
@@ -371,7 +373,9 @@ func (p *Pi) mailNtfnVoteStarted(token, name string, recipients map[uuid.UUID]st
 		return err
 	}
 
-	return p.mail.SendToUsers(subject, body, recipients)
+	// Don't subject this email to rate limits because proposal voting can only
+	// be started by admins, not regular users.
+	return p.mail.SendTo(subject, body, recipients)
 }
 
 type voteStartedToAuthor struct {
