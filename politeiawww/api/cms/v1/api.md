@@ -1960,6 +1960,60 @@ Reply:
   }
 ```
 
+### `Proposal Billed State`
+
+Retrieve proposal's publicly available payment information.
+
+This retrieves the proposal token that is needed to get the payment data and 
+uses that token to search through the database for invoices that have line-items 
+containing the proposal token. Calculates and returns only two pieces of 
+information: amount paid and payment time.
+
+Note: This call is public.
+
+**Route:** `GET /v1/proposals/billedstate`
+
+**Params:**
+
+| Parameter | Type | Description | Required |
+|-|-|-|-|
+| token | string | Token for approved proposal. | Yes |
+
+**Results:**
+
+| | Type | Description |
+| - | - | - |
+| totalbilled | int64 | Total amount paid for proposal. |
+| paidinvoices | Array of PaidInvoices | Details of amount paid for proposal in invoices. |
+
+**PaidInvoices:**
+
+| | Type | Description |
+| - | - | - |
+| timestamp | int64 | Time paid for invoice. |
+| total | int64 | Amount paid in invoice. |
+
+**Example**
+
+Request:
+``` json
+{
+  "token": "0de5bd82bcccf22f4ccd1881fc9d88159ace56d0c1cfc7dcd86656e738e46a87"
+}
+```
+
+Reply:
+
+```json
+{
+  "totalbilled": 115000,
+  "paidinvoices": [{
+    "timestamp": 1508296860781,
+    "total": 115000
+  }]
+}
+```
+
 ### `User code stats`
 
 Returns all code stats based on provided userid and start/endtime.  

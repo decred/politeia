@@ -2535,3 +2535,31 @@ func (p *Politeiawww) processProposalBillingDetails(pbd cms.ProposalBillingDetai
 	reply.Details = spendingSummary
 	return reply, nil
 }
+
+func (p *Politeiawww) processProposalBilledState(pbd cms.ProposalBillingDetails) (*cms.RecordBilledStateReply, error) {
+	propInvoices, err := p.cmsDB.InvoicesByLineItemsProposalToken(pbd.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	var totalSpent int64
+	paidInvoices := make([]cms.PublicPaidInvoiceRecord, len(propInvoices))
+	for i, dbInv := range propInvoices {
+		// Get payout for proposal
+		payout, err := calculatePayout(dbInv)
+		if err != nil {
+			return nil, err
+		}
+		totalSpent += int64(payout.Total)
+		paidInv := cms.PublicPaidInvoiceRecord{
+			Timestamp: dbInv.Timestamp,
+			Total:     int64(payout.Total),
+		}
+		paidInvoices[i] = paidInv
+	}
+
+	return &cms.RecordBilledStateReply{
+		PaidInvoices: paidInvoices,
+		TotalBilled: totalSpent,
+	}, nil
+}

@@ -19,6 +19,7 @@ import (
 	"github.com/decred/politeia/politeiad/api/v1/identity"
 	backend "github.com/decred/politeia/politeiad/backendv2"
 	"github.com/decred/politeia/politeiad/plugins/usermd"
+	cmsv1 "github.com/decred/politeia/politeiawww/api/cms/v1"
 	rcv1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	v1 "github.com/decred/politeia/politeiawww/api/records/v1"
 	"github.com/decred/politeia/util"
@@ -142,6 +143,23 @@ func (c *Client) Records(r rcv1.Records) (map[string]rcv1.Record, error) {
 	}
 
 	return rr.Records, nil
+}
+
+// GetRecordBilledState sends a record v1 BilledState request to politeiawww.
+func (c *Client) GetRecordBilledState(r cmsv1.ProposalBillingDetails) (*cmsv1.RecordBilledStateReply, error) {
+	resBody, err := c.makeReq(http.MethodGet,
+		cmsv1.APIRoute, cmsv1.RouteBilledState, r)
+	if err != nil {
+		return nil, err
+	}
+
+	var rr cmsv1.RecordBilledStateReply
+	err = json.Unmarshal(resBody, &rr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &rr, nil
 }
 
 // RecordInventory sends a records v1 Inventory request to politeiawww.

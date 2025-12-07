@@ -54,6 +54,7 @@ const (
 	RouteProposalBilling        = "/proposals/billing"
 	RouteProposalBillingSummary = "/proposals/spendingsummary"
 	RouteProposalBillingDetails = "/proposals/spendingdetails"
+	RouteBilledState            = "/proposals/billedstate"
 	RouteUserCodeStats          = "/user/codestats"
 
 	// Invoice status codes
@@ -1079,4 +1080,17 @@ type CodeStats struct {
 	PRs              []string `json:"prs"`
 	Reviews          []string `json:"reviews"`
 	Commits          []string `json:"commits"`
+}
+
+// RecordBilledStateReply returns the payment status of all invoices for the proposal
+type RecordBilledStateReply struct {
+	TotalBilled  int64                     `json:"totalbilled"` // Total amount paid for proposal
+	PaidInvoices []PublicPaidInvoiceRecord `json:"paidinvoices"`
+}
+
+// PublicPaidInvoiceRecord: Payment information on invoice for proposal
+// Only Timestamp and amount are public
+type PublicPaidInvoiceRecord struct {
+	Timestamp int64 `json:"timestamp"` // Last update of invoice
+	Total     int64 `json:"total"`     // Amount paid for proposal in invoice
 }

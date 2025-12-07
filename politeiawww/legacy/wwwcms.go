@@ -1006,6 +1006,28 @@ func (p *Politeiawww) handlePassThroughBatchProposals(w http.ResponseWriter, r *
 	util.RespondRaw(w, http.StatusOK, data)
 }
 
+func (p *Politeiawww) getProposalBilledState(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("getProposalBilledState")
+	var pbd cms.ProposalBillingDetails
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&pbd); err != nil {
+		RespondWithError(w, r, 0, "getProposalBilledState: unmarshal",
+			www.UserError{
+				ErrorCode: www.ErrorStatusInvalidInput,
+			})
+		return
+	}
+
+	pbs, err := p.processProposalBilledState(pbd)
+	if err != nil {
+		RespondWithError(w, r, 0,
+			"getProposalBilledState: processProposalBilledState: %v", err)
+		return
+	}
+
+	util.RespondWithJSON(w, http.StatusOK, pbs)
+}
+
 func (p *Politeiawww) handleProposalBillingSummary(w http.ResponseWriter, r *http.Request) {
 	log.Tracef("handleProposalBillingSummary")
 

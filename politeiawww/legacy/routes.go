@@ -302,6 +302,9 @@ func (p *Politeiawww) setCMSWWWRoutes() {
 	p.addRoute(http.MethodPost, cms.APIRoute,
 		cms.RouteProposalBillingDetails, p.handleProposalBillingDetails,
 		permissionAdmin)
+	p.addRoute(http.MethodGet, cms.APIRoute,
+		cms.RouteBilledState, p.getProposalBilledState,
+		permissionPublic)
 }
 
 // setupPiRoutes sets up the API routes for piwww mode.
