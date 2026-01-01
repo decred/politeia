@@ -43,6 +43,11 @@ const (
 	// 	   return int64(amount)*1000/(3*int64(totalSize)) < int64(relayFeePerKb)
 	// }
 	dust = 60300
+
+	// User database settings
+	LevelDB     = "leveldb"
+	CockroachDB = "cockroachdb"
+	MySQL       = "mysql"
 )
 
 var (
@@ -58,43 +63,6 @@ var (
 	// 2 years in minutes 60min * 24h * 7days * 52weeks * 2years
 	codeStatCheck = time.Now().Add(-1 * time.Minute * 60 * 24 * 7 * 52 * 2)
 )
-
-// LegacyConfig represents the config options for legacy API.
-//
-// Everything in this config is DEPRECATED and will be removed in the near
-// future.
-type LegacyConfig struct {
-	// Legacy user database settings
-	DBRootCert       string `long:"dbrootcert" description:"File containing the CA certificate for the database"`
-	DBCert           string `long:"dbcert" description:"File containing the politeiawww client certificate for the database"`
-	DBKey            string `long:"dbkey" description:"File containing the politeiawww client certificate key for the database"`
-	EncryptionKey    string `long:"encryptionkey" description:"File containing encryption key used for encrypting user data at rest"`
-	OldEncryptionKey string `long:"oldencryptionkey" description:"File containing old encryption key (only set when rotating keys)"`
-
-	// Settings the need to be turned into plugin settings.
-	MailRateLimit    int    `long:"mailratelimit" description:"Limits the amount of emails a user can receive in 24h"`
-	WebServerAddress string `long:"webserveraddress" description:"Web server address used to create email links (format: <scheme>://<host>[:<port>])"`
-
-	// Legacy API settings
-	Mode        string `long:"mode" description:"Mode www runs as. Supported values: piwww, cmswww"`
-	DcrdataHost string `long:"dcrdatahost" description:"Dcrdata ip:port"`
-
-	// Legacy pi settings
-	PaywallAmount            uint64 `long:"paywallamount" description:"Amount of DCR (in atoms) required for a user to register or submit a proposal."`
-	PaywallXpub              string `long:"paywallxpub" description:"Extended public key for deriving paywall addresses."`
-	MinConfirmationsRequired uint64 `long:"minconfirmations" description:"Minimum blocks confirmation for accepting paywall as paid. Only works in TestNet."`
-
-	// Legacy cmswww settings
-	BuildCMSDB           bool     `long:"buildcmsdb" description:"Build the cmsdb from scratch"`
-	GithubAPIToken       string   `long:"githubapitoken" description:"API Token used to communicate with github API.  When populated in cmswww mode, github-tracker is enabled."`
-	CodeStatRepos        []string `long:"codestatrepos" description:"Org/Repositories to crawl for code statistics"`
-	CodeStatOrganization string   `long:"codestatorg" description:"Organization to crawl for code statistics"`
-	CodeStatStart        int64    `long:"codestatstart" description:"Date in which to look back to for code stat crawl (default 6 months back)"`
-	CodeStatEnd          int64    `long:"codestatend" description:"Date in which to end look back to for code stat crawl (default today)"`
-	CodeStatSkipSync     bool     `long:"codestatskipsync" description:"Skip pull request crawl on startup"`
-	VoteDurationMin      uint32   `long:"votedurationmin" description:"Minimum duration of a dcc vote in blocks"`
-	VoteDurationMax      uint32   `long:"votedurationmax" description:"Maximum duration of a dcc vote in blocks"`
-}
 
 // setupLegacyConfig sets up the legacy config settings.
 func setupLegacyConfig(cfg *Config) error {
@@ -167,6 +135,15 @@ func setupLegacyConfig(cfg *Config) error {
 
 // setupLegacyUserDBSettings sets up the legacy user database config settings.
 func setupLegacyUserDBSettings(cfg *Config) error {
+	// Verify database selection
+	switch cfg.UserDB {
+	case LevelDB, CockroachDB, MySQL:
+		// These are allowed
+	default:
+		return fmt.Errorf("invalid db selection '%v'",
+			cfg.UserDB)
+	}
+
 	switch cfg.UserDB {
 	case LevelDB:
 		// Leveldb implementation does not require any database settings
@@ -184,8 +161,6 @@ func setupLegacyUserDBSettings(cfg *Config) error {
 			log.Warnf("leveldb does not use --dbkey")
 		case cfg.EncryptionKey != "":
 			return fmt.Errorf("leveldb --encryptionkey not supported")
-		case cfg.OldEncryptionKey != "":
-			return fmt.Errorf("leveldb --oldencryptionkey not supported")
 		}
 
 	case CockroachDB:
@@ -218,12 +193,10 @@ func setupLegacyUserDBSettings(cfg *Config) error {
 		cfg.DBCert = util.CleanAndExpandPath(cfg.DBCert)
 		cfg.DBKey = util.CleanAndExpandPath(cfg.DBKey)
 		cfg.EncryptionKey = util.CleanAndExpandPath(cfg.EncryptionKey)
-		cfg.OldEncryptionKey = util.CleanAndExpandPath(cfg.OldEncryptionKey)
 
-		// Validate user database encryption keys.
-		err = validateEncryptionKeys(cfg.EncryptionKey, cfg.OldEncryptionKey)
-		if err != nil {
-			return fmt.Errorf("validate encryption keys: %v", err)
+		// Validate the encryption key
+		if !util.FileExists(cfg.EncryptionKey) {
+			return fmt.Errorf("encryption key not found %v", cfg.EncryptionKey)
 		}
 
 		// Validate user database root cert
@@ -246,18 +219,31 @@ func setupLegacyUserDBSettings(cfg *Config) error {
 
 	case MySQL:
 		// Set defaults
+		if cfg.DBHost == "" {
+			cfg.DBHost = defaultMySQLHost
+		}
 		if cfg.EncryptionKey == "" {
 			cfg.EncryptionKey = filepath.Join(cfg.HomeDir, "sbox.key")
 		}
-
-		// Clean encryption keys paths.
 		cfg.EncryptionKey = util.CleanAndExpandPath(cfg.EncryptionKey)
-		cfg.OldEncryptionKey = util.CleanAndExpandPath(cfg.OldEncryptionKey)
 
-		// Validate user database encryption keys.
-		err := validateEncryptionKeys(cfg.EncryptionKey, cfg.OldEncryptionKey)
+		// Validate the database host
+		_, err := url.Parse(cfg.DBHost)
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid dbhost '%v': %v", cfg.DBHost, err)
+		}
+
+		// Pull the password from the env variable
+		cfg.DBPass = os.Getenv(envDBPass)
+		if cfg.DBPass == "" {
+			return fmt.Errorf("dbpass not found; you must provide "+
+				"the database password for the politeiawww user in "+
+				"the env variable %v", envDBPass)
+		}
+
+		// Validate user database encryption key
+		if !util.FileExists(cfg.EncryptionKey) {
+			return fmt.Errorf("encryption key not found %v", cfg.EncryptionKey)
 		}
 	}
 
@@ -310,29 +296,5 @@ func setupLegacyCMSSettings(cfg *Config) error {
 	if cfg.CodeStatEnd <= 0 {
 		cfg.CodeStatEnd = defaultCodeStatEnd.Unix()
 	}
-	return nil
-}
-
-// validateEncryptionKeys validates the provided encryption keys.
-func validateEncryptionKeys(encKey, oldEncKey string) error {
-	if encKey != "" && !util.FileExists(encKey) {
-		return fmt.Errorf("file not found %v", encKey)
-	}
-
-	if oldEncKey != "" {
-		switch {
-		case encKey == "":
-			return fmt.Errorf("old encryption key param " +
-				"cannot be used without encryption key param")
-
-		case encKey == oldEncKey:
-			return fmt.Errorf("old encryption key param " +
-				"and encryption key param must be different")
-
-		case !util.FileExists(oldEncKey):
-			return fmt.Errorf("file not found %v", oldEncKey)
-		}
-	}
-
 	return nil
 }
